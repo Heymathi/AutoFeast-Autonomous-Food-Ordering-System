@@ -31,9 +31,9 @@ interface AppContextType {
   setIsLimitRenewalModalOpen: (open: boolean) => void;
   loginWithFaceID: () => Promise<{ success: boolean; error?: string }>;
   registerFaceIDOnDevice: () => Promise<{ success: boolean; error?: string }>;
-  loginWithPIN: (pin: string) => UserProfile;
-  resetPINWithPassword: (email: string, pass: string, newPin: string) => UserProfile;
-  loginWithPassword: (email: string, pass: string) => UserProfile;
+  loginWithPIN: (pin: string) => Promise<UserProfile>;
+  resetPINWithPassword: (email: string, pass: string, newPin: string) => Promise<UserProfile>;
+  loginWithPassword: (email: string, pass: string) => Promise<UserProfile>;
   signupUser: (name: string, email: string, pass: string, pin: string, nomineeName: string, nomineePhone: string, enableFaceID: boolean) => Promise<boolean>;
   renewLimitWithFaceID: () => Promise<{ success: boolean; error?: string }>;
   renewLimitWithPIN: (pin: string) => { success: boolean; error?: string };
@@ -180,8 +180,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return { success: false, error: result.error };
   };
 
-  const loginWithPIN = (pin: string): UserProfile => {
-    const user = AuthService.loginWithPIN(pin);
+  const loginWithPIN = async (pin: string): Promise<UserProfile> => {
+    const user = await AuthService.loginWithPIN(pin);
     setCurrentUser(user);
     setIsAuthenticated(true);
     setIsAuthGateOpen(false);
@@ -189,8 +189,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return user;
   };
 
-  const resetPINWithPassword = (email: string, pass: string, newPin: string): UserProfile => {
-    const user = AuthService.resetPINWithPassword(email, pass, newPin);
+  const resetPINWithPassword = async (email: string, pass: string, newPin: string): Promise<UserProfile> => {
+    const user = await AuthService.resetPINWithPassword(email, pass, newPin);
     setCurrentUser(user);
     setIsAuthenticated(true);
     setIsAuthGateOpen(false);
@@ -198,8 +198,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return user;
   };
 
-  const loginWithPassword = (email: string, pass: string): UserProfile => {
-    const user = AuthService.loginWithPassword(email, pass);
+  const loginWithPassword = async (email: string, pass: string): Promise<UserProfile> => {
+    const user = await AuthService.loginWithPassword(email, pass);
     setCurrentUser(user);
     setIsAuthenticated(true);
     setIsAuthGateOpen(false);
@@ -223,7 +223,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         initialCred = regResult.credential;
       }
     }
-    const newUser = AuthService.createUser(name, email, pass, pin || '1234', nomineeName, nomineePhone, initialCred);
+    const newUser = await AuthService.createUser(name, email, pass, pin || '1234', nomineeName, nomineePhone, initialCred);
     setCurrentUser(newUser);
     setIsAuthenticated(true);
     setIsAuthGateOpen(false);

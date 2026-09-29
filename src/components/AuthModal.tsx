@@ -155,7 +155,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
   /**
    * Handle Password Login Submit (Traditional Email/Username + Password)
    */
-  const handlePasswordLoginSubmit = (e: React.FormEvent) => {
+  const handlePasswordLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -165,8 +165,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
       return;
     }
 
+    setIsProcessing(true);
     try {
-      const user = loginWithPassword(email, password);
+      const user = await loginWithPassword(email, password);
+      setIsProcessing(false);
       const msg = `Welcome back, ${user.name}! Login successful.`;
       setSuccessMessage(msg);
       speakText(msg);
@@ -176,6 +178,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
         setIsAuthGateOpen(false);
       }, 1000);
     } catch (err: any) {
+      setIsProcessing(false);
       setErrorMessage(err.message);
       speakText(err.message);
     }
@@ -184,13 +187,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
   /**
    * Handle Reset PIN Submit
    */
-  const handleResetPINSubmit = (e: React.FormEvent) => {
+  const handleResetPINSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
+    setIsProcessing(true);
     try {
-      const user = resetPINWithPassword(resetEmail, resetPassword, newPin);
+      const user = await resetPINWithPassword(resetEmail, resetPassword, newPin);
+      setIsProcessing(false);
       const msg = `4-Digit PIN updated successfully for ${user.name}. Your security PIN is ready for orders & limit renewals.`;
       setSuccessMessage(msg);
       speakText(msg);
@@ -199,6 +204,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
         setActiveTab('password');
       }, 1500);
     } catch (err: any) {
+      setIsProcessing(false);
       setErrorMessage(err.message);
       speakText(err.message);
     }
@@ -220,6 +226,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
       return;
     }
 
+    setIsProcessing(true);
     try {
       await signupUser(
         signupName,
@@ -230,6 +237,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
         signupNomineePhone || '+91 98765 43210',
         enableFaceIDOnSignup
       );
+      setIsProcessing(false);
       const msg = `Account created successfully! Welcome to AutoFeast, ${signupName}. Your security PIN is saved for payment confirmations.`;
       setSuccessMessage(msg);
       speakText(msg);
@@ -239,6 +247,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
         setIsAuthGateOpen(false);
       }, 1200);
     } catch (err: any) {
+      setIsProcessing(false);
       setErrorMessage(err.message);
       speakText(err.message);
     }
