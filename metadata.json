@@ -1,0 +1,6 @@
+{
+  "name": "Swiggy Food & Grocery Delivery",
+  "description": "Full-featured food delivery, Instamart grocery, and Dineout restaurant discovery platform featuring real-time search, interactive menus, cart management, checkout, and live order tracking.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

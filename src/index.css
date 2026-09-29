@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+:root {
+  --color-tomato-orange: #FF5A1F;   /* Main CTA & Conversion */
+  --color-crimson-red: #C2185B;    /* Discount badges, Hot deals, Alerts */
+  --color-light-blue: #DAF0F7;     /* Structure, Header, Card backdrops */
+  --color-pure-white: #FFFFFF;     /* Listing grids & Body */
+  --color-espresso-black: #1A1110; /* Headings & Titles */
+  --color-charcoal-slate: #4A5568; /* Secondary text & descriptions */
+  --color-guacamole-green: #16A34A;/* Veg, Available, Order Delivered */
+}
+
+@layer base {
+  *, ::before, ::after {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: #FFFFFF;
+    color: #1A1110;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: #1A1110;
+  }
+}
+
+/* Custom Design System Utility Classes */
+.bg-brand-orange { background-color: #FF5A1F !important; }
+.hover\:bg-brand-orange-hover:hover { background-color: #E04812 !important; }
+.text-brand-orange { color: #FF5A1F !important; }
+.border-brand-orange { border-color: #FF5A1F !important; }
+.shadow-brand-orange { box-shadow: 0 10px 25px -5px rgba(255, 90, 31, 0.4) !important; }
+
+.bg-crimson-red { background-color: #C2185B !important; }
+.text-crimson-red { color: #C2185B !important; }
+.border-crimson-red { border-color: #C2185B !important; }
+
+.bg-light-blue { background-color: #DAF0F7 !important; }
+.text-light-blue { color: #DAF0F7 !important; }
+.border-light-blue { border-color: #B2E2F0 !important; }
+
+.bg-pure-white { background-color: #FFFFFF !important; }
+
+.text-espresso-black { color: #1A1110 !important; }
+.bg-espresso-black { background-color: #1A1110 !important; }
+
+.text-charcoal-slate { color: #4A5568 !important; }
+.bg-charcoal-slate { background-color: #4A5568 !important; }
+
+.bg-guacamole-green { background-color: #16A34A !important; }
+.text-guacamole-green { color: #16A34A !important; }
+.border-guacamole-green { border-color: #16A34A !important; }
+
+/* Real font size scaling applied to root & body */
+.text-scale-sm { font-size: 14px !important; }
+.text-scale-md { font-size: 17px !important; }
+.text-scale-lg { font-size: 21px !important; }
+.text-scale-xl { font-size: 25px !important; }
+
+.text-scale-sm button, .text-scale-sm input, .text-scale-sm select { font-size: 13px !important; }
+.text-scale-md button, .text-scale-md input, .text-scale-md select { font-size: 16px !important; }
+.text-scale-lg button, .text-scale-lg input, .text-scale-lg select { font-size: 20px !important; }
+.text-scale-xl button, .text-scale-xl input, .text-scale-xl select { font-size: 24px !important; }
+
+/* High Contrast mode overrides */
+.high-contrast-mode {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast-mode button,
+.high-contrast-mode input,
+.high-contrast-mode select {
+  outline: 3px solid #facc15 !important;
+  border-color: #facc15 !important;
+}
+
+
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
