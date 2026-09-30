@@ -1,10 +1,14 @@
 import { Language } from '../types';
+import { parsePinSpeech, ParsePinSpeechResult } from './pinVoiceParserService';
+
 
 export interface SpeechRecognitionOptions {
   language: Language;
   overrideLocale?: string;
   continuous?: boolean;
   interimResults?: boolean;
+  maxAlternatives?: number;
+  autoRestart?: boolean;
   onStart?: () => void;
   onResult: (transcript: string, isFinal: boolean, nBestTranscripts?: string[]) => void;
   onError?: (error: any) => void;
@@ -16,6 +20,37 @@ export class SpeechService {
   private static isListening: boolean = false;
   private static sessionCounter: number = 0;
   private static currentLanguage: Language = 'en';
+
+  private static lastSpokenText: string = '';
+
+  public static setLastSpokenText(text: string): void {
+    this.lastSpokenText = (text || '').toLowerCase().trim();
+  }
+
+  public static getLastSpokenText(): string {
+    return this.lastSpokenText;
+  }
+
+  public static isEchoText(transcript: string): boolean {
+    if (!transcript) return false;
+    const cleanRaw = transcript.toLowerCase().trim();
+    if (!cleanRaw) return false;
+
+    // 1. Suppress recognition if browser TTS synthesis is actively speaking
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking) {
+      return true;
+    }
+
+    // 2. Suppress recognition if transcript matches last spoken TTS prompt
+    if (this.lastSpokenText) {
+      if (cleanRaw === this.lastSpokenText) return true;
+      if (this.lastSpokenText.length > 8 && (cleanRaw.includes(this.lastSpokenText) || this.lastSpokenText.includes(cleanRaw))) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 
   public static setLanguage(lang: Language): void {
     console.log(`[SpeechService] Updating active STT recognition language to: "${lang}" (${this.getLocale(lang)})`);
@@ -113,6 +148,7 @@ export class SpeechService {
 
       recog.continuous = options.continuous ?? true;
       recog.interimResults = options.interimResults ?? true;
+      recog.maxAlternatives = options.maxAlternatives ?? 5;
       const targetLang = options.language || this.currentLanguage || 'en';
       recog.lang = options.overrideLocale || this.getLocale(targetLang);
 
@@ -151,6 +187,11 @@ export class SpeechService {
         const recognizedText = (finalText.trim() + ' ' + interimText.trim()).trim();
         const isFinal = !!finalText.trim();
         const nBestTranscripts = Array.from(nBestSet);
+
+        if (SpeechService.isEchoText(recognizedText)) {
+          console.log(`[SpeechService ECHO FILTER]: Suppressed app's own spoken prompt echo -> "${recognizedText}"`);
+          return;
+        }
 
         // Temporary logging: Raw transcript, isFinal status, and results length
         console.log(`[SpeechService RAW TRANSCRIPT LOG]: "${recognizedText}" | isFinal: ${isFinal} | n-best: ${nBestTranscripts.join(' | ')}`);
@@ -201,67 +242,18 @@ export class SpeechService {
   }
 
   /**
-   * Helper function to extract 4 PIN digits from raw speech transcript in English, Tamil, and Hindi
+   * Helper function to extract 4 PIN digits from raw speech transcript using language-agnostic parser
    */
-  public static extractFourDigits(rawTranscript: string): string[] | null {
-    if (!rawTranscript || !rawTranscript.trim()) return null;
-    const lower = rawTranscript.toLowerCase().trim();
-
-    // 1. Direct regex scan for 4 consecutive numeric digits (e.g. "1234", "my pin is 4321")
-    const directMatch = lower.match(/\b\d{4}\b/) || lower.match(/\d{4}/);
-    if (directMatch) {
-      return directMatch[0].split('');
+  public static extractFourDigits(rawTranscript: string, lang?: string): string[] | null {
+    const res = parsePinSpeech(rawTranscript, lang);
+    if (res.status === 'success' && res.digits.length === 4) {
+      return res.digits;
     }
-
-    // 2. Tokenized word-to-digit conversion (Left to Right)
-    const replacements: Array<[RegExp, string]> = [
-      // English Digits & Words
-      [/\b(zero|o|oh|null|nought)\b/g, '0'],
-      [/\b(one|1st|won)\b/g, '1'],
-      [/\b(two|to|too|2nd)\b/g, '2'],
-      [/\b(three|tree|3rd)\b/g, '3'],
-      [/\b(four|for|fore|4th)\b/g, '4'],
-      [/\b(five|hive|5th)\b/g, '5'],
-      [/\b(six|6th)\b/g, '6'],
-      [/\b(seven|7th)\b/g, '7'],
-      [/\b(eight|ate|8th)\b/g, '8'],
-      [/\b(nine|9th)\b/g, '9'],
-
-      // Tamil Digits (Formal, Colloquial, Transliterated)
-      [/\b(பூஜ்யம்|சுழியம்|பூஜியம்|poojyam)\b/g, '0'],
-      [/\b(ஒன்று|ஒன்னு|ஒரு|ஒன்றாம்|ondru|onru|onnu)\b/g, '1'],
-      [/\b(இரண்டு|ரெண்டு|இரண்டாம்|ரெண்டாம்|irandoo|rendu)\b/g, '2'],
-      [/\b(மூன்று|மூணு|மூன்றாம்|moondru|moonu)\b/g, '3'],
-      [/\b(நான்கு|நாளு|நாலு|நான்காம்|naangu|naalu)\b/g, '4'],
-      [/\b(ஐந்து|அஞ்சு|ஐந்தாம்|ainthu|anju)\b/g, '5'],
-      [/\b(ஆறு|ஆறாம்|aaru)\b/g, '6'],
-      [/\b(ஏழு|ஏழாம்|ezhu|yelu)\b/g, '7'],
-      [/\b(எட்டு|எட்டாம்|ettu)\b/g, '8'],
-      [/\b(ஒன்பது|ஒன்பதாம்|onpathu|ombodhu)\b/g, '9'],
-
-      // Hindi Digits (Formal, Transliterated)
-      [/\b(शून्य|शुन्य|shunya|zero)\b/g, '0'],
-      [/\b(एक|ek)\b/g, '1'],
-      [/\b(दो|do)\b/g, '2'],
-      [/\b(तीन|teen)\b/g, '3'],
-      [/\b(चार|chaar|char)\b/g, '4'],
-      [/\b(पांच|पाँच|paanch|panch)\b/g, '5'],
-      [/\b(छह|छः|chhah|chhe)\b/g, '6'],
-      [/\b(सात|saat)\b/g, '7'],
-      [/\b(आठ|aath|ath)\b/g, '8'],
-      [/\b(नौ|nau)\b/g, '9']
-    ];
-
-    let converted = lower;
-    for (const [regex, digit] of replacements) {
-      converted = converted.replace(regex, ` ${digit} `);
-    }
-
-    const allDigits = converted.replace(/\D/g, '');
-    if (allDigits.length >= 4) {
-      return allDigits.substring(0, 4).split('');
-    }
-
     return null;
   }
+
+  public static parsePinSpeech(rawTranscript: string, lang?: string): ParsePinSpeechResult {
+    return parsePinSpeech(rawTranscript, lang);
+  }
 }
+

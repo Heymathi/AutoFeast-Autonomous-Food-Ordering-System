@@ -4,6 +4,7 @@ import { FoodItem } from '../types';
 import { CrossScriptPhoneticMatcher } from './crossScriptPhoneticMatcher';
 import { LlmNluService, LlmFoodExtractionResult } from './llmNluService';
 import { SttMatcherService } from './sttMatcherService';
+import { FuzzyMatchEngine } from './fuzzyMatchService';
 
 export interface SearchFilterOptions {
   query: string;
@@ -17,6 +18,7 @@ export interface SearchResult {
   isExactMatch: boolean;
   matchedItems: FoodItem[];
   suggestedItems: FoodItem[];
+  didYouMean?: FoodItem;
   extractedIntent: {
     foodKeyword?: string;
     extractedItems?: string[];
@@ -57,19 +59,14 @@ export class DynamicFoodSearchEngine {
     const normalized = rawText.toLowerCase().trim();
     console.log(`[ORDER_FLOW_DEBUG - Step 3: Catalog Search Query]: Searching for rawText: "${rawText}" (normalized: "${normalized}")`);
 
-    // 0. Use Centralized SttMatcherService for Fuzzy + Phonetic Match
-    const sttMatch = SttMatcherService.matchCatalogItem(rawText, INDIAN_FOOD_CATALOG);
-    if (sttMatch.isMatched && sttMatch.matchedValue) {
-      console.log(`[ORDER_FLOW_DEBUG - Step 4 & 5: Match Selected (SttMatcherService)]: target: "${rawText}" -> item ID: "${sttMatch.matchedValue.id}", name: "${sttMatch.matchedValue.name}", confidence: ${sttMatch.confidence}`);
-      return sttMatch.matchedValue;
+    const fuzzyRes = FuzzyMatchEngine.matchCatalogFoodItem(rawText, INDIAN_FOOD_CATALOG);
+    if (fuzzyRes.item && (fuzzyRes.confidence === 'high' || fuzzyRes.confidence === 'medium')) {
+      console.log(`[ORDER_FLOW_DEBUG - Match Selected (FuzzyMatchEngine)]: target: "${rawText}" -> item ID: "${fuzzyRes.item.id}", name: "${fuzzyRes.item.name}", confidence: ${fuzzyRes.confidence} (${fuzzyRes.score})`);
+      return fuzzyRes.item;
     }
 
-    // 2. Step 1: LLM-based Entity Extraction
-    const llmExtraction = LlmNluService.extractFoodItemWithLlmSync(rawText);
-    const targetItemName = (llmExtraction.item || rawText).toLowerCase().trim();
-    console.log(`[ORDER_FLOW_DEBUG - Step 3: Catalog Target Item Name]: "${targetItemName}"`);
-
-    // 2.5 Direct Substring / Primary Keyword Match Check (Before Fuse.js distance/fuzzy)
+    // Direct Exact Substring Check Fallback
+    const targetItemName = rawText.toLowerCase().trim();
     const directExactMatch = INDIAN_FOOD_CATALOG.find(item => {
       const nameLower = item.name.toLowerCase();
       const enNative = item.nativeNames.en.toLowerCase();
@@ -79,49 +76,9 @@ export class DynamicFoodSearchEngine {
     });
 
     if (directExactMatch) {
-      console.log(`[ORDER_FLOW_DEBUG - Step 4 & 5: Match Selected (Direct Exact Name)]: item ID: "${directExactMatch.id}", name: "${directExactMatch.name}"`);
       return directExactMatch;
     }
 
-    // 3. Step 2: Fuse.js Fuzzy Catalog Search
-    const fuseResults = catalogFuse.search(targetItemName);
-    console.log(`[ORDER_FLOW_DEBUG - Step 4: Catalog Items Returned by Fuse.js]: count = ${fuseResults.length}`, fuseResults.slice(0, 3).map(r => `${r.item.name} (${r.item.id}, score: ${r.score})`));
-
-    if (fuseResults.length > 0) {
-      const bestFuse = fuseResults[0].item;
-      console.log(`[ORDER_FLOW_DEBUG - Step 5: Match Selected (Fuse.js Top Result)]: target: "${targetItemName}" → item ID: "${bestFuse.id}", name: "${bestFuse.name}", score: ${fuseResults[0].score}`);
-      return bestFuse;
-    }
-
-    // Fallback: Cross-script phonetic matcher
-    const phoneticQuery = CrossScriptPhoneticMatcher.toPhoneticLatin(targetItemName);
-    let bestItem: FoodItem | null = null;
-    let maxScore = 0;
-
-    for (const item of INDIAN_FOOD_CATALOG) {
-      let score = 0;
-      const candidates = [item.name, item.nativeNames.ta, item.nativeNames.hi, ...item.tags];
-
-      for (const candidate of candidates) {
-        const candidatePhonetic = CrossScriptPhoneticMatcher.toPhoneticLatin(candidate);
-        const similarity = CrossScriptPhoneticMatcher.calculateSimilarity(phoneticQuery, candidatePhonetic);
-        if (similarity >= 0.5) {
-          score += 100 * similarity;
-        }
-      }
-
-      if (score > maxScore) {
-        maxScore = score;
-        bestItem = item;
-      }
-    }
-
-    if (bestItem && maxScore >= 25) {
-      console.log(`[ORDER_FLOW_DEBUG - Step 5: Match Selected (Phonetic Fallback)]: target: "${targetItemName}" → item ID: "${bestItem.id}", name: "${bestItem.name}", score: ${maxScore}`);
-      return bestItem;
-    }
-
-    console.log(`[ORDER_FLOW_DEBUG - Step 5: No Match Selected]: target: "${targetItemName}" returned null`);
     return null;
   }
 
@@ -186,11 +143,32 @@ export class DynamicFoodSearchEngine {
 
     console.log(`[Two-Stage Search Pipeline]: Input: "${options.query}" → LLM Extracted: [${targetItems.join(', ')}] (Confidence: ${llmExtraction.confidence})`);
 
-    // 4. STEP 2: Fuse.js Catalog Search Layer
+    // 4. STEP 2: Unified FuzzyMatchEngine + Catalog Search Layer
     const matchedMap = new Map<string, { item: FoodItem; score: number }>();
+    const overallFuzzy = FuzzyMatchEngine.matchCatalogFoodItem(options.query, INDIAN_FOOD_CATALOG);
+    let didYouMean: FoodItem | undefined = undefined;
+
+    if (overallFuzzy.item && overallFuzzy.confidence === 'medium') {
+      didYouMean = overallFuzzy.item;
+    }
 
     for (const searchTerm of targetItems) {
-      // 4.1 Direct Exact Substring Match Check First
+      // 4.1 FuzzyMatchEngine scoring on every catalog item
+      INDIAN_FOOD_CATALOG.forEach(item => {
+        const fuzzyRes = FuzzyMatchEngine.matchCatalogFoodItem(searchTerm, [item]);
+        if (fuzzyRes.score >= 0.50) {
+          if (!matchedMap.has(item.id)) {
+            matchedMap.set(item.id, { item, score: fuzzyRes.score });
+          } else {
+            const existing = matchedMap.get(item.id)!;
+            if (fuzzyRes.score > existing.score) {
+              matchedMap.set(item.id, { item, score: fuzzyRes.score });
+            }
+          }
+        }
+      });
+
+      // 4.2 Direct Substring Check
       const termLower = searchTerm.toLowerCase();
       const directMatches = INDIAN_FOOD_CATALOG.filter(item => {
         const nameLower = item.name.toLowerCase();
@@ -208,7 +186,7 @@ export class DynamicFoodSearchEngine {
         }
       });
 
-      // 4.2 Fuse.js Fuzzy Search Fallback
+      // 4.3 Fuse.js Fuzzy Search Fallback
       const fuseResults = catalogFuse.search(searchTerm);
       fuseResults.forEach(res => {
         const item = res.item;
@@ -220,22 +198,6 @@ export class DynamicFoodSearchEngine {
           const existing = matchedMap.get(item.id)!;
           if (fuseScore > existing.score) {
             matchedMap.set(item.id, { item, score: fuseScore });
-          }
-        }
-      });
-
-      // 4.3 Cross-Script Phonetic Backup Matcher
-      const phoneticTerm = CrossScriptPhoneticMatcher.toPhoneticLatin(searchTerm);
-      INDIAN_FOOD_CATALOG.forEach(item => {
-        const candidates = [item.name, item.nativeNames.ta, item.nativeNames.hi, ...item.tags];
-        for (const candidate of candidates) {
-          const candidatePhonetic = CrossScriptPhoneticMatcher.toPhoneticLatin(candidate);
-          const sim = CrossScriptPhoneticMatcher.calculateSimilarity(phoneticTerm, candidatePhonetic);
-
-          if (sim >= 0.65) {
-            if (!matchedMap.has(item.id)) {
-              matchedMap.set(item.id, { item, score: sim * 0.9 });
-            }
           }
         }
       });
@@ -282,6 +244,7 @@ export class DynamicFoodSearchEngine {
         isExactMatch: false,
         matchedItems: [],
         suggestedItems,
+        didYouMean,
         extractedIntent: {
           foodKeyword: llmExtraction.item || undefined,
           extractedItems: targetItems,
@@ -298,6 +261,7 @@ export class DynamicFoodSearchEngine {
       isExactMatch: true,
       matchedItems: finalMatchedItems,
       suggestedItems: [],
+      didYouMean,
       extractedIntent: {
         foodKeyword: llmExtraction.item || undefined,
         extractedItems: targetItems,

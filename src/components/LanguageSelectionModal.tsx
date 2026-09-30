@@ -85,6 +85,8 @@ export const LanguageSelectionModal: React.FC = () => {
         setLiveTranscript(transcript);
         console.log('[Language Selection Voice Transcript]:', transcript, '(isFinal:', isFinal, ')');
 
+        if (!isFinal) return; // Update live transcript UI; execute language selection on final speech result only
+
         const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [transcript];
         const matchResult = SttMatcherService.matchLanguageChoice(candidates);
 

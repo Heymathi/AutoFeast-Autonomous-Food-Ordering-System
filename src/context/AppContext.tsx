@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Language, AccessibilitySettings, AppView, AutoOrderSchedule, ScheduleOverride, ExecutedOrder, WalletTransaction, UserLocation, LiveOrderTracking, FoodItem, OrderStrategy, LinkedBank, PendingPinVerification, EntryStep } from '../types';
+import { Language, AccessibilitySettings, AppView, AutoOrderSchedule, ScheduleOverride, ExecutedOrder, WalletTransaction, UserLocation, LiveOrderTracking, FoodItem, OrderStrategy, LinkedBank, PendingPinVerification, EntryStep, PendingNomineeApproval, ToastItem, ScheduleCartItem } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 import { DynamicFoodSearchEngine, SearchResult } from '../services/dynamicFoodSearch';
 import { WalletService } from '../services/walletService';
@@ -11,7 +11,11 @@ import { AuthService, UserProfile } from '../services/authService';
 import { WebAuthnService, RegisteredCredential } from '../services/webAuthnService';
 import { NLPParserService, ParsedOrderBill } from '../services/nlpParserService';
 import { LlmNluService } from '../services/llmNluService';
+import { SttMatcherService } from '../services/sttMatcherService';
+import { NomineeNotificationService } from '../services/nomineeNotificationService';
+import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { parseSpokenTimeTo24Hr } from '../components/VoiceOrderDialogModal';
+import { FuzzyMatchEngine } from '../services/fuzzyMatchService';
 
 interface AppContextType {
   // App Entry Sequence State
@@ -108,11 +112,14 @@ interface AppContextType {
   // Schedules & Orders
   schedules: AutoOrderSchedule[];
   overrides: ScheduleOverride[];
-  saveSchedule: (s: AutoOrderSchedule) => void;
+  saveSchedule: (s: AutoOrderSchedule, verificationToken?: string) => Promise<void> | void;
   deleteSchedule: (id: string) => void;
   saveOverride: (o: ScheduleOverride) => void;
   deleteOverride: (id: string) => void;
   getOverridesForSchedule: (scheduleId: string) => ScheduleOverride[];
+  skipScheduleDate: (scheduleId: string, dateStr: string) => void;
+  restoreScheduleDate: (scheduleId: string, dateStr: string) => void;
+  skipScheduleByVoiceCommand: (transcript: string) => Promise<boolean>;
   executeScheduleNow: (id: string, targetDate?: string) => void;
   orderHistory: ExecutedOrder[];
 
@@ -126,14 +133,33 @@ interface AppContextType {
   // Daily Order Limit & Order History Tabs
   dailyOrderCount: number;
   checkDailyOrderLimitReached: () => boolean;
-  orderHistoryTab: 'all' | 'instant' | 'scheduled' | 'pending';
-  setOrderHistoryTab: (tab: 'all' | 'instant' | 'scheduled' | 'pending') => void;
-  openOrderHistoryTab: (tab: 'all' | 'instant' | 'scheduled' | 'pending') => void;
+  orderHistoryTab: 'all' | 'instant' | 'scheduled' | 'pending' | 'monthly_bill';
+  setOrderHistoryTab: (tab: 'all' | 'instant' | 'scheduled' | 'pending' | 'monthly_bill') => void;
+  openOrderHistoryTab: (tab: 'all' | 'instant' | 'scheduled' | 'pending' | 'monthly_bill') => void;
+
+  // Nominee Control & Restricted Items
+  isNomineeModalOpen: boolean;
+  setIsNomineeModalOpen: (open: boolean) => void;
+  pendingNomineeApprovals: PendingNomineeApproval[];
+  approveNomineeRequest: (requestId: string) => void;
+  denyNomineeRequest: (requestId: string) => void;
+  checkIsItemRestrictedByNominee: (foodId: string, foodName: string) => boolean;
+  handleNomineeRestrictedInterception: (item: FoodItem, orderType: 'instant' | 'scheduled', scheduleDetails?: { time: string; slotName: string; duration?: string; frequency?: string }) => void;
+  updateUserProfile: (updates: Partial<UserProfile>) => void;
 
   // Speech & Toast
   speakText: (text: string, onEnd?: () => void, targetLang?: Language) => void;
   toastMessage: string | null;
-  showToast: (msg: string) => void;
+  toasts: ToastItem[];
+  showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info', duration?: number) => void;
+  removeToast: (id: string) => void;
+  scheduleCart: ScheduleCartItem[];
+  addToScheduleCart: (item: FoodItem, quantity?: number) => void;
+  removeFromScheduleCart: (foodId: string) => void;
+  updateScheduleCartQuantity: (foodId: string, quantity: number) => void;
+  clearScheduleCart: () => void;
+  isScheduleCartModalOpen: boolean;
+  setIsScheduleCartModalOpen: (open: boolean) => void;
   isVoiceModalOpen: boolean;
   setIsVoiceModalOpen: (open: boolean) => void;
 }
@@ -150,6 +176,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isAuthGateOpen, setIsAuthGateOpen] = useState<boolean>(true);
   const [isFaceIdSupported, setIsFaceIdSupported] = useState<boolean>(false);
   const [isLimitRenewalModalOpen, setIsLimitRenewalModalOpen] = useState<boolean>(false);
+  const [isScheduleCartModalOpen, setIsScheduleCartModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     WebAuthnService.isPlatformAuthenticatorAvailable().then(supported => {
@@ -548,11 +575,230 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [orderHistory, setOrderHistory] = useState<ExecutedOrder[]>(() => AutoOrderBackgroundService.getOrderHistory());
 
   // Order History Tab State
-  const [orderHistoryTab, setOrderHistoryTab] = useState<'all' | 'instant' | 'scheduled' | 'pending'>('instant');
+  const [orderHistoryTab, setOrderHistoryTab] = useState<'all' | 'instant' | 'scheduled' | 'pending' | 'monthly_bill'>('instant');
 
-  const openOrderHistoryTab = (tab: 'all' | 'instant' | 'scheduled' | 'pending') => {
+  const openOrderHistoryTab = (tab: 'all' | 'instant' | 'scheduled' | 'pending' | 'monthly_bill') => {
     setOrderHistoryTab(tab);
     setActiveView('orders');
+  };
+
+  // Nominee Control & Restricted Items State
+  const [isNomineeModalOpen, setIsNomineeModalOpen] = useState<boolean>(false);
+  const [pendingNomineeApprovals, setPendingNomineeApprovals] = useState<PendingNomineeApproval[]>(() => NomineeNotificationService.getPendingApprovals());
+
+  // Sync Nominee Approvals and Restricted Items from MongoDB Backend
+  useEffect(() => {
+    if (currentUser?.id) {
+      NomineeNotificationService.fetchApprovalRequests(currentUser.id).then(reqs => {
+        if (reqs && reqs.length > 0) {
+          setPendingNomineeApprovals(reqs);
+        }
+      });
+      NomineeNotificationService.fetchRestrictedItemIds(currentUser.id).then(ids => {
+        if (ids && ids.length > 0) {
+          setCurrentUser(prev => prev ? { ...prev, restrictedFoodIds: ids } : prev);
+        }
+      });
+    }
+  }, [currentUser?.id]);
+
+  // Register 5-minute Pre-Order Voice Confirmation listener
+  useEffect(() => {
+    const unsubscribe = AutoOrderBackgroundService.onPreOrderPrompt((schedule) => {
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const itemName = schedule.foodItemName;
+      const restaurant = schedule.restaurant;
+
+      // 1. Formulate TTS prompt text based on current language
+      const promptText = language === 'ta'
+        ? `இன்னும் 5 நிமிடத்தில் ${restaurant}-ல் இருந்து ${itemName} ஆர்டர் செய்யப்படும். ஆர்டர் செய்யவா அல்லது வேண்டாம் என்று ரத்து செய்யவா?`
+        : language === 'hi'
+        ? `अगले 5 मिनट में ${restaurant} से ${itemName} का ऑर्डर दिया जाएगा। क्या आप इसे अभी ऑर्डर करना चाहते हैं या आज छोड़ना चाहते हैं?`
+        : `Your scheduled order for ${itemName} from ${restaurant} is set for 5 minutes from now. Do you want to proceed or skip today?`;
+
+      showToast(promptText);
+      speakText(promptText, undefined, language);
+
+      // 2. Open voice recognition to listen for user confirmation
+      setTimeout(() => {
+        setIsVoiceModalOpen(true);
+        SpeechService.startListening({
+          language,
+          onResult: (transcript, isFinal) => {
+            if (!transcript) return;
+            const lower = transcript.toLowerCase();
+
+            // Check Confirmation vocabulary (Natural Phrases per language)
+            const isAffirmative = /yes|proceed|confirm|order|sure|ok|yeah|go ahead|ஆமா|சரி|ஆர்டர் போடு|ஓகே|ஆமா போடு|हाँ|ऑर्डर कर दो|कर दो|ठीक है|हाँ जी/.test(lower);
+            const isNegative = /no|cancel|don't order|dont order|skip|stop|not today|வேண்டாம்|ரத்து|இன்னைக்கு வேண்டாம்|வேண்டாம் விடு|नहीं|मत करो|कैंसल|आज नहीं|नहीं चाहिए/.test(lower);
+
+            if (isAffirmative) {
+              SpeechService.stopListening();
+              setIsVoiceModalOpen(false);
+              const confirmMsg = language === 'ta'
+                ? `${itemName} ஆர்டர் உறுதி செய்யப்பட்டது! 5 நிமிடங்களில் ஆர்டர் செய்யப்படும்.`
+                : language === 'hi'
+                ? `${itemName} ऑर्डर की पुष्टि की गई! 5 मिनट में ऑर्डर दिया जाएगा।`
+                : `Scheduled order for ${itemName} confirmed! Auto-placing in 5 minutes.`;
+              showToast(confirmMsg);
+              speakText(confirmMsg, undefined, language);
+            } else if (isNegative) {
+              SpeechService.stopListening();
+              setIsVoiceModalOpen(false);
+              // Save single-day skip override for today
+              const override: ScheduleOverride = {
+                id: `override-${Date.now()}`,
+                scheduleId: schedule.id,
+                date: todayStr,
+                isSkipped: true,
+                notes: 'Skipped via pre-order voice prompt'
+              };
+              saveOverride(override);
+
+              const skipMsg = language === 'ta'
+                ? `"${itemName}" இன்று மட்டும் ரத்து செய்யப்பட்டது.`
+                : language === 'hi'
+                ? `"${itemName}" आज के लिए रद्द कर दिया गया है।`
+                : `Skipped "${itemName}" for today.`;
+              showToast(skipMsg);
+              speakText(skipMsg, undefined, language);
+            }
+          },
+          onError: (err) => {
+            console.warn('[PreOrder Voice Prompt]: Voice timeout or error -> falling back to auto-placing as scheduled.', err);
+          }
+        });
+      }, 1500);
+    });
+
+    return () => unsubscribe();
+  }, [language]);
+
+  const checkIsItemRestrictedByNominee = (foodId: string, foodName: string): boolean => {
+    const restricted = currentUser?.restrictedFoodIds || [];
+    if (!restricted || restricted.length === 0) return false;
+
+    const safeFoodId = (foodId || '').trim();
+    const safeFoodName = (foodName || '').trim();
+    if (!safeFoodId && !safeFoodName) return false;
+
+    // 1. Direct ID or Name Match
+    const directMatch = restricted.some(
+      id => !id ? false : (id === safeFoodId || (safeFoodId && id.toLowerCase() === safeFoodId.toLowerCase()) || (safeFoodName && id.toLowerCase() === safeFoodName.toLowerCase()))
+    );
+    if (directMatch) return true;
+
+    // 2. Unified Fuzzy Match Engine Check (Strict Threshold >= 0.40 to catch misspellings like 'panipuri')
+    const query = safeFoodName || safeFoodId;
+    const fuzzyMatch = FuzzyMatchEngine.matchCatalogFoodItem(query, INDIAN_FOOD_CATALOG, true);
+    if (fuzzyMatch.item && (fuzzyMatch.confidence === 'high' || fuzzyMatch.confidence === 'medium' || fuzzyMatch.score >= 0.40)) {
+      if (restricted.includes(fuzzyMatch.item.id)) {
+        console.log(`[NOMINEE RESTRICTED INTERCEPTION]: Fuzzy match trigger -> query "${query}" matched restricted ID "${fuzzyMatch.item.id}" (score: ${fuzzyMatch.score})`);
+        return true;
+      }
+    }
+
+    // 3. Direct Fuzzy Match across each restricted item (Threshold >= 0.40)
+    for (const rId of restricted) {
+      const restrictedCatalogItem = INDIAN_FOOD_CATALOG.find(f => f.id === rId);
+      if (restrictedCatalogItem) {
+        const itemFuzzy = FuzzyMatchEngine.matchCatalogFoodItem(query, [restrictedCatalogItem], true);
+        if (itemFuzzy.score >= 0.40) {
+          console.log(`[NOMINEE RESTRICTED INTERCEPTION]: Direct fuzzy match trigger -> query "${query}" matched restricted item "${restrictedCatalogItem.name}" (score: ${itemFuzzy.score})`);
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
+
+  const handleNomineeRestrictedInterception = (
+    item: FoodItem,
+    orderType: 'instant' | 'scheduled',
+    scheduleDetails?: { time: string; slotName: string; duration?: string; frequency?: string }
+  ) => {
+    NomineeNotificationService.createApprovalRequest(
+      item,
+      orderType,
+      currentUser?.name || 'User',
+      currentUser?.nomineeName || 'Emergency Nominee',
+      currentUser?.nomineeEmail || `${(currentUser?.nomineeName || 'nominee').toLowerCase().replace(/\s+/g, '')}@autofeast.app`,
+      scheduleDetails,
+      currentUser?.id
+    );
+
+    setPendingNomineeApprovals(NomineeNotificationService.getPendingApprovals());
+    setIsNomineeModalOpen(true);
+
+    const alertMsg = t('nominee.restrictedAlert');
+    showToast(alertMsg);
+    setTimeout(() => {
+      speakText(alertMsg, undefined, language);
+    }, 200);
+  };
+
+  const approveNomineeRequest = (requestId: string) => {
+    const req = NomineeNotificationService.updateApprovalStatus(requestId, 'approved');
+    setPendingNomineeApprovals(NomineeNotificationService.getPendingApprovals());
+
+    if (req) {
+      const itemName = req.foodItem.nativeNames?.[language] || req.foodItem.name;
+      const msg = language === 'ta'
+        ? `பரிந்துரைப்பாளர் அனுமதித்தார்! "${itemName}" ஆர்டர் செய்யப்படுகிறது.`
+        : language === 'hi'
+        ? `नामांकित व्यक्ति ने अनुमति दी! "${itemName}" ऑर्डर किया जा रहा है।`
+        : `Approved by Nominee! Order for "${itemName}" is being placed now.`;
+      showToast(msg);
+      speakText(msg, undefined, language);
+
+      if (req.orderType === 'instant') {
+        executeActualInstantOrder(req.foodItem, 'best_value');
+      } else if (req.scheduleDetails) {
+        const newSchedule: AutoOrderSchedule = {
+          id: `SCHED-${Date.now()}`,
+          slotName: req.scheduleDetails.slotName || 'Lunch Slot',
+          slotIndex: 2,
+          time: req.scheduleDetails.time || '01:00 PM',
+          frequency: (req.scheduleDetails.frequency as any) || 'daily',
+          foodItemId: req.foodItem.id,
+          foodItemName: req.foodItem.name,
+          restaurant: req.foodItem.restaurant || 'Saravana Bhavan',
+          quantity: 1,
+          strategy: 'best_value',
+          isEnabled: true,
+          walletAutoDebit: true,
+          duration: (req.scheduleDetails.duration as any) || '1_week'
+        };
+        executeActualSaveSchedule(newSchedule);
+      }
+    }
+  };
+
+  const denyNomineeRequest = (requestId: string) => {
+    const req = NomineeNotificationService.updateApprovalStatus(requestId, 'denied');
+    setPendingNomineeApprovals(NomineeNotificationService.getPendingApprovals());
+
+    if (req) {
+      const itemName = req.foodItem?.nativeNames?.[language] || req.foodItem?.name || 'Food Item';
+      const msg = language === 'ta'
+        ? `குடும்ப உதவியாளர் "${itemName}" உணவை நிராகரித்தார்.`
+        : language === 'hi'
+        ? `नामांकित व्यक्ति ने "${itemName}" को अस्वीकृत कर दिया।`
+        : `Your family helper said no for "${itemName}".`;
+      showToast(msg);
+      speakText(msg, undefined, language);
+    }
+  };
+
+  const updateUserProfile = (updates: Partial<UserProfile>) => {
+    if (!currentUser) return;
+    const updatedUser = { ...currentUser, ...updates };
+    setCurrentUser(updatedUser);
+    try {
+      AuthService.updateUser(updatedUser);
+    } catch (e) {}
   };
 
   // Daily Order Limit State (6 orders / calendar day)
@@ -602,6 +848,63 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [scheduleCart, setScheduleCart] = useState<ScheduleCartItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('smart_food_schedule_cart');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('smart_food_schedule_cart', JSON.stringify(scheduleCart));
+    } catch (e) {}
+  }, [scheduleCart]);
+
+  const addToScheduleCart = (foodItem: FoodItem, quantity: number = 1) => {
+    setScheduleCart(prev => {
+      const existing = prev.find(item => item.foodItem.id === foodItem.id);
+      if (existing) {
+        return prev.map(item =>
+          item.foodItem.id === foodItem.id
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        );
+      }
+      return [{ foodItem, quantity }, ...prev];
+    });
+    const itemName = foodItem.nativeNames?.[language] || foodItem.name;
+    const msg = language === 'ta'
+      ? `"${itemName}" அட்டவணை வண்டியில் சேர்க்கப்பட்டது!`
+      : language === 'hi'
+      ? `"${itemName}" शेड्यूल कार्ट में जोड़ा गया!`
+      : `Added "${itemName}" to schedule cart!`;
+    showToast(msg, 'success');
+  };
+
+  const removeFromScheduleCart = (foodId: string) => {
+    setScheduleCart(prev => prev.filter(item => item.foodItem.id !== foodId));
+  };
+
+  const updateScheduleCartQuantity = (foodId: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromScheduleCart(foodId);
+      return;
+    }
+    setScheduleCart(prev =>
+      prev.map(item => (item.foodItem.id === foodId ? { ...item, quantity } : item))
+    );
+  };
+
+  const clearScheduleCart = () => {
+    setScheduleCart([]);
+    try {
+      localStorage.removeItem('smart_food_schedule_cart');
+    } catch (e) {}
+  };
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
 
@@ -638,10 +941,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       window.speechSynthesis.cancel();
     } catch (e) {}
 
+    // 🚀 MIC BUG FIX: Stop speech recognition while TTS engine speaks
+    SpeechService.stopListening();
+
     let isCallbackFired = false;
     const safeOnEnd = () => {
       if (!isCallbackFired) {
         isCallbackFired = true;
+        setTimeout(() => {
+          SpeechService.setLastSpokenText('');
+        }, 500);
         if (onEnd) onEnd();
       }
     };
@@ -732,6 +1041,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     try {
+      SpeechService.setLastSpokenText(cleanText);
       window.speechSynthesis.speak(utterance);
     } catch (e) {
       console.warn('Speech synthesis playback exception:', e);
@@ -788,14 +1098,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return rawName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim();
   };
 
-  const showToast = (msg: string) => {
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  const showToast = (msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', duration = 5000) => {
     setToastMessage(msg);
+    const id = `toast-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const newToast: ToastItem = { id, message: msg, type, duration };
+    setToasts(prev => [newToast, ...prev.slice(0, 4)]);
+
     if (accessibilitySettings.readAloud) {
       speakText(msg);
     }
     setTimeout(() => {
       setToastMessage(null);
-    }, 4000);
+    }, duration);
   };
 
   const executeSearch = (overrideQuery?: string, isVoiceTrigger: boolean = false) => {
@@ -998,25 +1316,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setPendingBillModal(null);
   };
 
-  const confirmPendingPinAction = (pin: string): boolean => {
-    const cleanPin = pin.trim();
-    if (cleanPin.length !== 4) return false;
-
-    let isPinValid = false;
-    if (currentUser && currentUser.pinHash === cleanPin) {
-      isPinValid = true;
-    } else {
-      const users = AuthService.getUsers();
-      if (users.some(u => u.pinHash === cleanPin) || cleanPin === '1234') {
-        isPinValid = true;
-      }
-    }
-
-    if (!isPinValid) {
-      return false;
-    }
-
-    // PIN is valid! Execute pending action strictly based on pendingPinVerification type
+  const confirmPendingPinAction = (_pin?: string): boolean => {
+    // PIN verified server-side by AuthService.verifyPIN. Execute action strictly based on pendingPinVerification type
     if (pendingPinVerification) {
       const action = pendingPinVerification;
       setIsOrderPinModalOpen(false);
@@ -1031,6 +1332,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         executeActualSaveSchedule(action.schedule);
       } else if (action.type === 'execute_schedule' && action.scheduleId) {
         executeActualScheduleNow(action.scheduleId);
+      } else if (action.type === 'cancel_schedule' && action.scheduleId) {
+        if (action.cancelType === 'whole') {
+          deleteSchedule(action.scheduleId);
+          const msg = language === 'ta'
+            ? 'முழு உணவு அட்டவணையும் வெற்றிகரமாக ரத்து செய்யப்பட்டது.'
+            : language === 'hi'
+            ? 'पूरा फूड शेड्यूल सफलतापूर्वक रद्द कर दिया गया।'
+            : 'Whole food schedule successfully cancelled.';
+          showToast(msg, 'success');
+          speakText(msg, undefined, language);
+        } else {
+          const dateToSkip = action.cancelDateStr || getTodayDateKey();
+          skipScheduleDate(action.scheduleId, dateToSkip);
+          const msg = language === 'ta'
+            ? `${dateToSkip} அட்டவணை வெற்றிகரமாக தவிர்க்கப்பட்டது.`
+            : language === 'hi'
+            ? `${dateToSkip} का शेड्यूल सफलतापूर्वक रोक दिया गया।`
+            : `Schedule for ${dateToSkip} successfully skipped.`;
+          showToast(msg, 'success');
+          speakText(msg, undefined, language);
+        }
       } else if (action.type === 'reveal_wallet') {
         setIsWalletRevealed(true);
         const balStr = `₹${WalletService.getBalance().toFixed(0)}`;
@@ -1144,6 +1466,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!item) return;
 
     if (checkDailyOrderLimitReached()) {
+      return;
+    }
+
+    if (checkIsItemRestrictedByNominee(item.id, item.name)) {
+      console.log(`🔒 [Nominee Interception]: Item "${item.name}" is restricted by nominee. Intercepting order creation...`);
+      handleNomineeRestrictedInterception(item, 'instant');
       return;
     }
 
@@ -1291,9 +1619,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // 🚀 TRIGGER PIN CONFIRMATION BEFORE SAVING SCHEDULE
-  const saveSchedule = (s: AutoOrderSchedule) => {
+  const saveSchedule = async (s: AutoOrderSchedule, verificationToken?: string) => {
     if (checkDailyOrderLimitReached()) {
       return;
+    }
+
+    if (checkIsItemRestrictedByNominee(s.foodItemId, s.foodItemName)) {
+      console.log(`🔒 [Nominee Interception]: Scheduled item "${s.foodItemName}" is restricted by nominee. Intercepting schedule creation...`);
+      const itemObj = INDIAN_FOOD_CATALOG.find(f => f.id === s.foodItemId) || {
+        id: s.foodItemId,
+        name: s.foodItemName,
+        nativeNames: { en: s.foodItemName, ta: s.foodItemName, hi: s.foodItemName },
+        cuisine: 'South Indian' as any,
+        category: 'Main Course',
+        isVeg: true,
+        basePrice: 100,
+        description: '',
+        image: '',
+        rating: 4.8,
+        tags: [],
+        locations: [],
+        restaurant: s.restaurant || 'Saravana Bhavan',
+        restaurantLat: 13.0827,
+        restaurantLng: 80.2707,
+        platforms: []
+      };
+      handleNomineeRestrictedInterception(itemObj, 'scheduled', { time: s.time, slotName: s.slotName, duration: s.duration, frequency: s.frequency });
+      return;
+    }
+
+    if (verificationToken) {
+      const valRes = await AuthService.validateAndConsumeToken(verificationToken);
+      if (valRes.isValid) {
+        executeActualSaveSchedule(s);
+        return;
+      } else {
+        showToast(valRes.error || 'Security verification token expired. Please try again.', 'error');
+        return;
+      }
     }
 
     setPendingPinVerification({
@@ -1339,6 +1702,161 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const updated = AutoOrderBackgroundService.deleteSchedule(id);
     setSchedules([...updated]);
     showToast(`Schedule deleted.`);
+  };
+
+  const skipScheduleDate = (scheduleId: string, dateStr: string) => {
+    const updated = AutoOrderBackgroundService.skipScheduleDate(scheduleId, dateStr);
+    setSchedules([...updated]);
+    setOverrides(AutoOrderBackgroundService.getOverrides());
+
+    const sch = updated.find(s => s.id === scheduleId);
+    const itemName = sch ? (sch.foodItemName || 'Food Item') : 'Food Item';
+
+    const todayStr = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
+    const tmrStr = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
+
+    const isTmr = dateStr === tmrStr;
+    const isTdy = dateStr === todayStr;
+
+    let dateTextTa = isTmr ? 'நாளைக்கான' : isTdy ? 'இன்றைய' : `${dateStr} தேதிக்கான`;
+    let dateTextHi = isTmr ? 'कल का' : isTdy ? 'आज का' : `${dateStr} का`;
+
+    const msg = language === 'ta'
+      ? `${dateTextTa} ${itemName} ஆர்டர் வெற்றிகரமாகத் தவிர்க்கப்பட்டது. மற்ற நாட்களுக்கான அட்டவணை வழக்கம்போலத் தொடரும்.`
+      : language === 'hi'
+      ? `${dateTextHi} ${itemName} ऑर्डर सफलतापूर्वक स्किप कर दिया गया है। बाकी दिनों का शेड्यूल सामान्य रूप से जारी रहेगा।`
+      : `Skipped ${itemName} order for ${dateStr}. Your schedule will continue as normal on all other days.`;
+
+    showToast(msg);
+    speakText(msg, undefined, language);
+  };
+
+  const restoreScheduleDate = (scheduleId: string, dateStr: string) => {
+    const updated = AutoOrderBackgroundService.restoreScheduleDate(scheduleId, dateStr);
+    setSchedules([...updated]);
+    setOverrides(AutoOrderBackgroundService.getOverrides());
+
+    const sch = updated.find(s => s.id === scheduleId);
+    const itemName = sch ? (sch.foodItemName || 'Food Item') : 'Food Item';
+
+    const msg = language === 'ta'
+      ? `${dateStr} தேதிக்கான ${itemName} ஆர்டர் மீண்டும் அட்டவணையில் சேர்க்கப்பட்டது.`
+      : language === 'hi'
+      ? `${dateStr} के लिए ${itemName} ऑर्डर रीस्टोर कर दिया गया है।`
+      : `Restored ${itemName} order for ${dateStr}.`;
+
+    showToast(msg);
+    speakText(msg, undefined, language);
+  };
+
+  const skipScheduleByVoiceCommand = async (transcript: string): Promise<boolean> => {
+    if (!transcript) return false;
+    const raw = transcript.toLowerCase().trim();
+
+    const skipKeywords = [
+      'skip', 'cancel', 'don\'t order', 'dont order', 'omit', 'drop', 'stop',
+      'தவிர்', 'வேண்டாம்', 'ரத்து செய்', 'நிறுத்து', 'ஸ்கிப்', 'ரத்து',
+      'स्किप', 'रद्द करें', 'रोकें', 'हटाएं', 'रद्द'
+    ];
+
+    const isSkipIntent = skipKeywords.some(kw => raw.includes(kw));
+    if (!isSkipIntent) return false;
+
+    // 1. Target date parsing (default to today if spoken as today or unspecified)
+    const todayStr = getTodayDateKey();
+    let targetDate = SttMatcherService.parseSpokenDate(raw);
+    if (!targetDate || raw.includes('today') || raw.includes('இன்று') || raw.includes('आज')) {
+      targetDate = todayStr;
+    }
+
+    // 2. Schedule Fuzzy Matcher (catalog food item fuzzy match + schedule names)
+    const allSchedules = AutoOrderBackgroundService.getSchedules();
+    if (allSchedules.length === 0) {
+      const notFoundMsg = language === 'ta'
+        ? 'ரத்து செய்ய எந்த செயலில் உள்ள அட்டவணையும் இல்லை.'
+        : language === 'hi'
+        ? 'रद्द करने के लिए कोई सक्रिय शेड्यूल नहीं मिला।'
+        : 'No active schedule found to cancel.';
+      showToast(notFoundMsg);
+      speakText(notFoundMsg, undefined, language);
+      return true;
+    }
+
+    const fuzzyCatalog = FuzzyMatchEngine.matchCatalogFoodItem(raw, INDIAN_FOOD_CATALOG, true);
+    let matchingSchedule: AutoOrderSchedule | undefined;
+
+    if (fuzzyCatalog.item && (fuzzyCatalog.confidence === 'high' || fuzzyCatalog.confidence === 'medium')) {
+      matchingSchedule = allSchedules.find(s => s.foodItemId === fuzzyCatalog.item?.id || s.foodItemName.toLowerCase().includes(fuzzyCatalog.item!.name.toLowerCase()));
+    }
+
+    if (!matchingSchedule) {
+      matchingSchedule = allSchedules.find(s =>
+        raw.includes(s.foodItemName.toLowerCase()) ||
+        raw.includes((s.foodItemId || '').toLowerCase()) ||
+        (s.slotName && raw.includes(s.slotName.toLowerCase()))
+      );
+    }
+
+    if (!matchingSchedule && allSchedules.length > 0) {
+      matchingSchedule = allSchedules[0];
+    }
+
+    if (!matchingSchedule) {
+      const notFoundMsg = language === 'ta'
+        ? 'தவிர்க்க தீவிரமாக செயலில் உள்ள அட்டவணை ஏதும் கிடைக்கவில்லை.'
+        : language === 'hi'
+        ? 'स्किप करने के लिए कोई सक्रिय शेड्यूल नहीं मिला।'
+        : 'No active schedule found to skip.';
+      showToast(notFoundMsg);
+      speakText(notFoundMsg, undefined, language);
+      return true;
+    }
+
+    // 3. Check if order has ALREADY been placed today for this schedule
+    const history = AutoOrderBackgroundService.getOrderHistory();
+    const alreadyPlacedToday = history.some(o => {
+      const isTodayOrder = o.timestamp ? o.timestamp.startsWith(todayStr) : true;
+      const isSameItem = o.foodName.toLowerCase().includes(matchingSchedule!.foodItemName.toLowerCase());
+      return isTodayOrder && isSameItem && (o.status === 'delivered' || o.status === 'processing');
+    });
+
+    if (alreadyPlacedToday && targetDate === todayStr) {
+      const blockMsg = t('cannotCancelNow');
+      showToast(blockMsg, 'error');
+      speakText(blockMsg, undefined, language);
+      return true;
+    }
+
+    // 4. Determine Cancel Scope: 'whole' vs 'only_this'
+    const isWholeScope = /whole|all|permanently|முழு|அனைத்து|பூரா|पूरा|हमेशा/.test(raw);
+    const cancelType: 'only_this' | 'whole' = isWholeScope ? 'whole' : 'only_this';
+
+    // 5. Trigger PIN confirmation (Keypad / Tap entry ONLY)
+    setPendingPinVerification({
+      type: 'cancel_schedule',
+      scheduleId: matchingSchedule.id,
+      cancelType,
+      cancelDateStr: targetDate
+    });
+    setIsOrderPinModalOpen(true);
+
+    const promptText = language === 'ta'
+      ? `"${matchingSchedule.foodItemName}" அட்டவணை ரத்து செய்யப்படுகிறது. உறுதிப்படுத்த உங்கள் PIN ஐ உள்ளிடவும்.`
+      : language === 'hi'
+      ? `"${matchingSchedule.foodItemName}" का शेड्यूल रद्द किया जा रहा है। पुष्टि के लिए अपना पिन दर्ज करें।`
+      : `Cancelling schedule for "${matchingSchedule.foodItemName}". Please enter your PIN on screen to confirm.`;
+
+    showToast(promptText, 'info');
+    speakText(promptText, undefined, language);
+
+    return true;
   };
 
   // 🚀 TRIGGER PIN CONFIRMATION BEFORE EXECUTING SCHEDULE NOW
@@ -1510,6 +2028,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       saveOverride,
       deleteOverride,
       getOverridesForSchedule,
+      skipScheduleDate,
+      restoreScheduleDate,
+      skipScheduleByVoiceCommand,
       executeScheduleNow,
       orderHistory,
       isOrderPinModalOpen,
@@ -1524,11 +2045,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       openOrderHistoryTab,
       speakText,
       toastMessage,
+      toasts,
       showToast,
+      removeToast,
+      scheduleCart,
+      addToScheduleCart,
+      removeFromScheduleCart,
+      updateScheduleCartQuantity,
+      clearScheduleCart,
+      isScheduleCartModalOpen,
+      setIsScheduleCartModalOpen,
       isVoiceModalOpen,
       setIsVoiceModalOpen,
       isHealthModalOpen,
-      setIsHealthModalOpen
+      setIsHealthModalOpen,
+      isNomineeModalOpen,
+      setIsNomineeModalOpen,
+      pendingNomineeApprovals,
+      approveNomineeRequest,
+      denyNomineeRequest,
+      checkIsItemRestrictedByNominee,
+      handleNomineeRestrictedInterception,
+      updateUserProfile
     }}>
       {children}
     </AppContext.Provider>

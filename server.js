@@ -42,6 +42,9 @@ const UserSchema = new mongoose.Schema({
   pinHash: { type: String, required: true },
   nomineeName: { type: String, default: 'Emergency Nominee' },
   nomineePhone: { type: String, default: '+91 98765 00000' },
+  nomineeEmail: { type: String, default: 'nominee@autofeast.com' },
+  nomineePinHash: { type: String, default: '4321' },
+  restrictedFoodIds: { type: Array, default: [] },
   isFaceIdEnabled: { type: Boolean, default: false },
   webAuthnCredentials: { type: Array, default: [] },
   createdAt: { type: Date, default: Date.now }
@@ -81,9 +84,38 @@ const OverrideSchema = new mongoose.Schema({
   notes: { type: String }
 });
 
+const RestrictedItemSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  userId: { type: String, required: true, index: true },
+  foodItemId: { type: String, required: true },
+  foodItemName: { type: String },
+  category: { type: String },
+  addedByNominee: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const ApprovalRequestSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  userId: { type: String, required: true, index: true },
+  foodItemId: { type: String, required: true },
+  foodItem: { type: Object, required: true },
+  orderType: { type: String, enum: ['instant', 'scheduled'], required: true },
+  scheduleDetails: { type: Object },
+  status: { type: String, enum: ['pending', 'approved', 'denied'], default: 'pending' },
+  nomineeEmail: { type: String },
+  nomineeName: { type: String },
+  requestedAt: { type: Date, default: Date.now },
+  decidedAt: { type: Date }
+});
+
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
 const Schedule = mongoose.models.Schedule || mongoose.model('Schedule', ScheduleSchema);
 const Override = mongoose.models.Override || mongoose.model('Override', OverrideSchema);
+const RestrictedItem = mongoose.models.RestrictedItem || mongoose.model('RestrictedItem', RestrictedItemSchema);
+const ApprovalRequest = mongoose.models.ApprovalRequest || mongoose.model('ApprovalRequest', ApprovalRequestSchema);
+
+// Nominee PIN Lockout & Attempt Tracker (Key: userId/email, Value: { count: number, lockedUntil: number | null })
+const nomineePinAttempts = new Map();
 
 // In-Memory Database Fallbacks
 const fallbackUsersDb = [
@@ -95,12 +127,17 @@ const fallbackUsersDb = [
     pinHash: '1234',
     nomineeName: 'Priya Raja',
     nomineePhone: '+91 98765 43210',
+    nomineeEmail: 'priya@autofeast.com',
+    nomineePinHash: '4321',
+    restrictedFoodIds: [],
     isFaceIdEnabled: true,
     webAuthnCredentials: []
   }
 ];
 const fallbackSchedulesDb = [];
 const fallbackOverridesDb = [];
+const fallbackRestrictedItemsDb = [];
+const fallbackApprovalRequestsDb = [];
 
 // Middleware to ensure DB connection before handling requests
 app.use(async (req, res, next) => {
@@ -298,6 +335,267 @@ app.post('/api/auth/reset-pin', async (req, res) => {
     }
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Error resetting PIN.' });
+  }
+});
+
+// 🚀 NOMINEE PIN VERIFICATION ENDPOINT (With 3-Try 5-Min Lockout & Main User PIN Differentiation)
+app.post('/api/nominee/verify-pin', async (req, res) => {
+  try {
+    const { nomineePin, userPin, userId } = req.body;
+    const cleanNomineePin = nomineePin ? nomineePin.toString().trim() : '';
+    const cleanUserPin = userPin ? userPin.toString().trim() : '1234';
+
+    if (!cleanNomineePin || cleanNomineePin.length !== 4 || !/^\d{4}$/.test(cleanNomineePin)) {
+      return res.status(400).json({ success: false, error: 'Valid 4-digit numeric Nominee PIN is required.' });
+    }
+
+    const key = userId || 'default_nominee_user';
+    let attempts = nomineePinAttempts.get(key) || { count: 0, lockedUntil: null };
+
+    // Check if account is currently locked
+    if (attempts.lockedUntil) {
+      if (Date.now() < attempts.lockedUntil) {
+        const lockTimeRemaining = Math.ceil((attempts.lockedUntil - Date.now()) / 1000);
+        return res.status(429).json({
+          success: false,
+          locked: true,
+          lockTimeRemaining,
+          remainingTries: 0,
+          error: `Nominee PIN locked due to 3 failed attempts. Please try again in ${Math.ceil(lockTimeRemaining / 60)} minute(s).`
+        });
+      } else {
+        // Lock expired -> reset
+        attempts = { count: 0, lockedUntil: null };
+        nomineePinAttempts.set(key, attempts);
+      }
+    }
+
+    // Retrieve target user profile from DB or fallback
+    let dbNomineePinHash = '4321';
+    let dbUserPinHash = '1234';
+
+    if (mongoose.connection.readyState === 1 && userId) {
+      const user = await User.findOne({ id: userId });
+      if (user) {
+        dbNomineePinHash = user.nomineePinHash || '4321';
+        dbUserPinHash = user.pinHash || '1234';
+      }
+    } else {
+      const user = fallbackUsersDb.find(u => u.id === userId) || fallbackUsersDb[0];
+      if (user) {
+        dbNomineePinHash = user.nomineePinHash || '4321';
+        dbUserPinHash = user.pinHash || '1234';
+      }
+    }
+
+    // Rule: Nominee PIN MUST be DIFFERENT from main user PIN
+    const isMainUserPinMatch = cleanNomineePin === cleanUserPin || cleanNomineePin === dbUserPinHash;
+
+    if (isMainUserPinMatch && cleanNomineePin !== dbNomineePinHash) {
+      return res.status(400).json({
+        success: false,
+        error: "Nominee PIN must be DIFFERENT from the main user's PIN!"
+      });
+    }
+
+    // Verify PIN match
+    let isCorrect = false;
+    if (cleanNomineePin === dbNomineePinHash) {
+      isCorrect = true;
+    } else if (dbNomineePinHash && dbNomineePinHash.startsWith('$2')) {
+      isCorrect = await bcrypt.compare(cleanNomineePin, dbNomineePinHash).catch(() => false);
+    }
+
+    if (isCorrect) {
+      // Reset attempts on success
+      nomineePinAttempts.set(key, { count: 0, lockedUntil: null });
+      return res.json({ success: true, message: 'Nominee PIN verified successfully server-side.' });
+    } else {
+      attempts.count += 1;
+      if (attempts.count >= 3) {
+        attempts.lockedUntil = Date.now() + 5 * 60 * 1000; // 5 minute lock
+        nomineePinAttempts.set(key, attempts);
+        return res.status(429).json({
+          success: false,
+          locked: true,
+          lockTimeRemaining: 300,
+          remainingTries: 0,
+          error: '3 wrong PIN attempts. Nominee PIN locked for 5 minutes.'
+        });
+      } else {
+        nomineePinAttempts.set(key, attempts);
+        const remainingTries = 3 - attempts.count;
+        return res.status(401).json({
+          success: false,
+          locked: false,
+          remainingTries,
+          error: `Incorrect Nominee PIN. ${remainingTries} try(ies) remaining.`
+        });
+      }
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message || 'Server error verifying Nominee PIN.' });
+  }
+});
+
+// 🚀 GET RESTRICTED ITEMS FOR USER (MongoDBAtlas / Fallback)
+app.get('/api/nominee/restricted-items', async (req, res) => {
+  try {
+    const userId = req.query.userId || 'user_karthik_001';
+    if (mongoose.connection.readyState === 1) {
+      const items = await RestrictedItem.find({ userId });
+      const restrictedFoodIds = items.map(i => i.foodItemId);
+      return res.json({ success: true, restrictedFoodIds, items });
+    }
+    const items = fallbackRestrictedItemsDb.filter(i => i.userId === userId);
+    const restrictedFoodIds = items.map(i => i.foodItemId);
+    return res.json({ success: true, restrictedFoodIds, items });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🚀 POST ADD / TOGGLE RESTRICTED ITEM FOR USER
+app.post('/api/nominee/restricted-items', async (req, res) => {
+  try {
+    const { userId, foodItemId, foodItemName, category } = req.body;
+    if (!userId || !foodItemId) {
+      return res.status(400).json({ error: 'userId and foodItemId are required.' });
+    }
+
+    const id = `REST-${userId}-${foodItemId}`;
+
+    if (mongoose.connection.readyState === 1) {
+      const existing = await RestrictedItem.findOne({ userId, foodItemId });
+      if (existing) {
+        await RestrictedItem.deleteOne({ userId, foodItemId });
+      } else {
+        await RestrictedItem.create({
+          id,
+          userId,
+          foodItemId,
+          foodItemName: foodItemName || foodItemId,
+          category: category || 'Food Item',
+          addedByNominee: true
+        });
+      }
+
+      // Also sync user profile restrictedFoodIds in DB
+      const allItems = await RestrictedItem.find({ userId });
+      const restrictedFoodIds = allItems.map(i => i.foodItemId);
+      await User.findOneAndUpdate({ id: userId }, { restrictedFoodIds });
+
+      return res.json({ success: true, restrictedFoodIds, items: allItems });
+    } else {
+      const idx = fallbackRestrictedItemsDb.findIndex(i => i.userId === userId && i.foodItemId === foodItemId);
+      if (idx >= 0) {
+        fallbackRestrictedItemsDb.splice(idx, 1);
+      } else {
+        fallbackRestrictedItemsDb.push({
+          id,
+          userId,
+          foodItemId,
+          foodItemName: foodItemName || foodItemId,
+          category: category || 'Food Item',
+          addedByNominee: true,
+          createdAt: new Date()
+        });
+      }
+      const userItems = fallbackRestrictedItemsDb.filter(i => i.userId === userId);
+      const restrictedFoodIds = userItems.map(i => i.foodItemId);
+      const u = fallbackUsersDb.find(user => user.id === userId);
+      if (u) u.restrictedFoodIds = restrictedFoodIds;
+
+      return res.json({ success: true, restrictedFoodIds, items: userItems });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🚀 GET APPROVAL REQUESTS FOR USER
+app.get('/api/nominee/approval-requests', async (req, res) => {
+  try {
+    const userId = req.query.userId || 'user_karthik_001';
+    if (mongoose.connection.readyState === 1) {
+      const requests = await ApprovalRequest.find({ userId }).sort({ requestedAt: -1 });
+      return res.json({ success: true, requests });
+    }
+    const requests = fallbackApprovalRequestsDb
+      .filter(r => r.userId === userId)
+      .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+    return res.json({ success: true, requests });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🚀 POST CREATE NEW APPROVAL REQUEST
+app.post('/api/nominee/approval-requests', async (req, res) => {
+  try {
+    const reqData = req.body;
+    if (!reqData || !reqData.id || !reqData.foodItem) {
+      return res.status(400).json({ error: 'Valid approval request payload required.' });
+    }
+
+    const newRequest = {
+      id: reqData.id,
+      userId: reqData.userId || 'user_karthik_001',
+      foodItemId: reqData.foodItem.id || 'food_unknown',
+      foodItem: reqData.foodItem,
+      orderType: reqData.orderType || 'instant',
+      scheduleDetails: reqData.scheduleDetails || null,
+      status: reqData.status || 'pending',
+      nomineeEmail: reqData.nomineeEmail || '',
+      nomineeName: reqData.nomineeName || '',
+      requestedAt: reqData.requestedAt || new Date().toISOString()
+    };
+
+    if (mongoose.connection.readyState === 1) {
+      await ApprovalRequest.findOneAndUpdate({ id: newRequest.id }, newRequest, { upsert: true, new: true });
+      const requests = await ApprovalRequest.find({ userId: newRequest.userId }).sort({ requestedAt: -1 });
+      return res.json({ success: true, request: newRequest, requests });
+    } else {
+      const idx = fallbackApprovalRequestsDb.findIndex(r => r.id === newRequest.id);
+      if (idx >= 0) {
+        fallbackApprovalRequestsDb[idx] = newRequest;
+      } else {
+        fallbackApprovalRequestsDb.unshift(newRequest);
+      }
+      return res.json({ success: true, request: newRequest, requests: fallbackApprovalRequestsDb });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🚀 PUT UPDATE APPROVAL REQUEST STATUS
+app.put('/api/nominee/approval-requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['approved', 'denied'].includes(status)) {
+      return res.status(400).json({ error: 'Status must be approved or denied.' });
+    }
+
+    if (mongoose.connection.readyState === 1) {
+      const updated = await ApprovalRequest.findOneAndUpdate(
+        { id },
+        { status, decidedAt: new Date() },
+        { new: true }
+      );
+      return res.json({ success: true, request: updated });
+    } else {
+      const reqObj = fallbackApprovalRequestsDb.find(r => r.id === id);
+      if (reqObj) {
+        reqObj.status = status;
+        reqObj.decidedAt = new Date().toISOString();
+      }
+      return res.json({ success: true, request: reqObj });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

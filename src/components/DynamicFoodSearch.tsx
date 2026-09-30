@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
 import { SpeechService } from '../services/speechService';
+import { SttMatcherService } from '../services/sttMatcherService';
+import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { CategoryVoiceService } from '../services/categoryVoiceService';
 import { DynamicFoodSearchEngine } from '../services/dynamicFoodSearch';
+import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
 import { Search, MapPin, Utensils, Leaf, Star, Clock, Sparkles, AlertCircle, ShieldCheck, Zap, Navigation, Mic, MicOff, Volume2 } from 'lucide-react';
 
 export const DynamicFoodSearch: React.FC = () => {
@@ -21,6 +24,7 @@ export const DynamicFoodSearch: React.FC = () => {
     setActiveView,
     placeInstantOrder,
     setVoiceDialogItem,
+    addToScheduleCart,
     t,
     accessibilitySettings,
     language,
@@ -31,6 +35,7 @@ export const DynamicFoodSearch: React.FC = () => {
   const [isMicListening, setIsMicListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [categoryStatusText, setCategoryStatusText] = useState('');
+  const [schedulingItem, setSchedulingItem] = useState<FoodItem | null>(null);
 
   useEffect(() => {
     return () => {
@@ -42,17 +47,20 @@ export const DynamicFoodSearch: React.FC = () => {
     console.log('[Category Follow-up]: Starting follow-up listening for category selection...');
     SpeechService.startListening({
       language,
-      continuous: false,
+      continuous: true,
       interimResults: true,
       onStart: () => {
         setIsMicListening(true);
       },
-      onResult: (followUpText, isFinal) => {
+      onResult: (followUpText, isFinal, nBestTranscripts) => {
         if (!followUpText) return;
-        console.log(`[Category Follow-up Spoken Reply]: "${followUpText}" (isFinal: ${isFinal})`);
         setLiveTranscript(followUpText);
+        if (!isFinal) return; // Live transcript updated; process selection on final result only
 
-        const matchedVariety = DynamicFoodSearchEngine.findBestMatchingFoodItem(followUpText);
+        console.log(`[Category Follow-up Spoken Reply]: "${followUpText}" (isFinal: ${isFinal})`);
+        const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [followUpText];
+        const matchedVariety = SttMatcherService.matchFoodItem(candidates, categoryVarieties, language) || DynamicFoodSearchEngine.findBestMatchingFoodItem(followUpText);
+
         if (matchedVariety) {
           console.log(`[Category Follow-up SUCCESS]: Matched specific variety -> "${matchedVariety.name}"`);
           setCategoryStatusText('');
@@ -97,25 +105,30 @@ export const DynamicFoodSearch: React.FC = () => {
 
     SpeechService.startListening({
       language,
-      continuous: false,
+      continuous: true,
       interimResults: true,
       onStart: () => {
         console.log('[Search Voice Mic SUCCESS]: Microphone active and listening...');
         setIsMicListening(true);
       },
-      onResult: (transcribedText, isFinal) => {
-        console.log(`[Search Voice Mic]: Speech Transcribed -> "${transcribedText}" (isFinal: ${isFinal})`);
+      onResult: (transcribedText, isFinal, nBestTranscripts) => {
         if (!transcribedText) return;
-
         setLiveTranscript(transcribedText);
         setSearchQuery(transcribedText);
 
-        if (transcribedText.trim()) {
-          console.log(`[Search Voice Mic]: Auto-triggering food search execution for: "${transcribedText}"`);
-          executeSearch(transcribedText, true);
+        if (!isFinal) return; // Live transcript shown in input bar; execute search ONLY on final speech result
+
+        console.log(`[Search Voice Mic]: Speech Finalized -> "${transcribedText}"`);
+        const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [transcribedText];
+        const bestMatch = SttMatcherService.matchFoodItem(candidates, INDIAN_FOOD_CATALOG, language);
+        const searchInput = bestMatch ? (bestMatch.nativeNames?.[language] || bestMatch.name) : transcribedText;
+
+        if (searchInput.trim()) {
+          console.log(`[Search Voice Mic]: Auto-triggering food search execution for: "${searchInput}"`);
+          executeSearch(searchInput, true);
 
           // Check if query is a generic category query (e.g. "dosa", "biryani", "pizza")
-          const categoryResult = CategoryVoiceService.checkCategoryQuery(transcribedText, language);
+          const categoryResult = CategoryVoiceService.checkCategoryQuery(searchInput, language);
 
           if (categoryResult.isCategoryQuery && categoryResult.varieties.length >= 2) {
             setCategoryStatusText(`📢 Listing ${categoryResult.categoryName} Varieties...`);
@@ -315,6 +328,27 @@ export const DynamicFoodSearch: React.FC = () => {
         </div>
       )}
 
+      {/* DID YOU MEAN SUGGESTION CHIP FOR MEDIUM CONFIDENCE MATCHES */}
+      {searchResult.didYouMean && (
+        <div className="bg-[#FF5A1F]/10 border-2 border-[#FF5A1F] p-3.5 rounded-2xl flex items-center justify-between shadow-sm">
+          <div className="flex items-center space-x-2 text-sm font-black text-[#1A1110]">
+            <Sparkles className="w-5 h-5 text-[#FF5A1F]" />
+            <span>{t('search.didYouMean')}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery(searchResult.didYouMean!.name);
+              executeSearch(searchResult.didYouMean!.name, true);
+            }}
+            className="px-4 py-2 rounded-xl bg-[#FF5A1F] text-white font-extrabold text-xs hover:bg-[#E04810] transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>{searchResult.didYouMean.nativeNames?.[language] || searchResult.didYouMean.name}</span>
+            <span className="text-[10px] opacity-80">({searchResult.didYouMean.name})</span>
+          </button>
+        </div>
+      )}
+
       {/* ZERO-FALLBACK NOTICE when item unavailable */}
       {!searchResult.isExactMatch && (
         <div className="bg-[#C2185B]/10 border-2 border-[#C2185B] p-4 rounded-2xl text-[#C2185B] space-y-2">
@@ -447,20 +481,47 @@ export const DynamicFoodSearch: React.FC = () => {
                 <span>Voice Ask: Order Now or Schedule?</span>
               </button>
 
-              <button
-                type="button"
-                onClick={e => handleInstantOrderClick(e, item)}
-                className="w-full bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black py-3 rounded-xl shadow-md shadow-[#FF5A1F]/30 transition-transform active:scale-95 flex items-center justify-center space-x-2 text-xs sm:text-sm cursor-pointer"
-              >
-                <Zap className="w-5 h-5 text-white" />
-                <span>{t('search.instantOrderBtn')} (GPS)</span>
-              </button>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={e => handleInstantOrderClick(e, item)}
+                  className="bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black py-2.5 rounded-xl shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                >
+                  <Zap className="w-3.5 h-3.5 text-white" />
+                  <span>Instant</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSchedulingItem(item)}
+                  className="bg-[#DAF0F7] hover:bg-[#B2E2F0] text-[#1A1110] font-black py-2.5 rounded-xl border border-[#B2E2F0] shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                >
+                  <Clock className="w-3.5 h-3.5 text-[#FF5A1F]" />
+                  <span>Schedule</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => addToScheduleCart(item, 1)}
+                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black py-2.5 rounded-xl border border-emerald-300 shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                >
+                  <span>+ Cart</span>
+                </button>
+              </div>
 
             </div>
 
           </div>
         ))}
       </div>
+
+      {/* SHARED SCHEDULE CHECKOUT MODAL */}
+      <ScheduleCheckoutModal
+        isOpen={Boolean(schedulingItem)}
+        onClose={() => setSchedulingItem(null)}
+        items={schedulingItem ? [{ foodItem: schedulingItem, quantity: 1 }] : []}
+        initialSlotName={schedulingItem ? `${schedulingItem.name} Schedule` : 'Scheduled Order'}
+      />
 
     </div>
   );

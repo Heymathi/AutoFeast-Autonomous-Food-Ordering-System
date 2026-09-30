@@ -81,6 +81,8 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
       onResult: (transcript, isFinal, nBestTranscripts) => {
         if (!transcript) return;
         setLiveTranscript(transcript);
+        if (!isFinal) return; // Live transcript shown above; process match ONLY on final result
+
         console.log('[PreOrderBillModal Spoken Confirmation Reply]:', transcript);
 
         const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [transcript];
@@ -99,7 +101,16 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
         }
       },
       onError: () => setIsListening(false),
-      onEnd: () => setIsListening(false)
+      onEnd: () => {
+        setIsListening(false);
+        if (isOpen) {
+          setTimeout(() => {
+            if (isOpen) {
+              startListeningForConfirmation();
+            }
+          }, 400);
+        }
+      }
     });
   };
 

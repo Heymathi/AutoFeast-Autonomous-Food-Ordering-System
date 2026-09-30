@@ -3,6 +3,9 @@ import { useApp } from '../context/AppContext';
 import { AutoOrderSchedule, FoodItem, OrderStrategy, ScheduleDuration, ScheduleOverride } from '../types';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
+import { FuzzyMatchEngine } from '../services/fuzzyMatchService';
+import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
+import { WeekdaySelector } from './WeekdaySelector';
 import { Clock, Calendar, CheckCircle2, ShieldCheck, Wallet, Plus, Trash2, Edit, AlertCircle, Sparkles, Utensils, Search, Zap, Star, X, Settings2, Ban, Check } from 'lucide-react';
 
 interface ScheduleOverrideModalProps {
@@ -12,7 +15,7 @@ interface ScheduleOverrideModalProps {
 }
 
 const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule, isOpen, onClose }) => {
-  const { saveOverride, deleteOverride, getOverridesForSchedule, executeScheduleNow } = useApp();
+  const { saveOverride, deleteOverride, getOverridesForSchedule, executeScheduleNow, t, language } = useApp();
 
   const getTodayFormattedDate = (): string => {
     const today = new Date();
@@ -77,16 +80,16 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
         <div className="space-y-1 pr-8 border-b border-[#DAF0F7] pb-4">
           <div className="flex items-center space-x-2">
             <span className="text-xs font-black uppercase text-[#FF5A1F] bg-[#FF5A1F]/10 px-2.5 py-0.5 rounded-full border border-[#FF5A1F]/20">
-              Per-Date Customization Engine
+              {t('override.badge')}
             </span>
             <span className="text-xs font-bold text-[#4A5568]">Slot: {schedule.slotName}</span>
           </div>
           <h3 className="text-2xl font-black text-[#1A1110] flex items-center gap-2 mt-1">
             <Settings2 className="w-6 h-6 text-[#FF5A1F]" />
-            Customize Specific Date Orders
+            {t('override.title')}
           </h3>
           <p className="text-xs text-[#4A5568] font-bold">
-            Default recurring item: <span className="text-[#FF5A1F] font-black">{schedule.foodItemName}</span> ({schedule.restaurant}) at <span className="font-mono font-black">{schedule.time}</span>
+            {t('override.defaultSummary').replace('{item}', schedule.foodItemName).replace('{restaurant}', schedule.restaurant).replace('{time}', schedule.time)}
           </p>
         </div>
 
@@ -96,7 +99,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#DAF0F7]/40 p-4 rounded-2xl border border-[#B2E2F0]">
             <div className="space-y-2">
               <label className="text-xs font-black uppercase text-[#4A5568] flex items-center gap-1">
-                <Calendar className="w-4 h-4 text-[#FF5A1F]" /> Select Date to Override:
+                <Calendar className="w-4 h-4 text-[#FF5A1F]" /> {t('override.selectDate')}
               </label>
               <input
                 type="date"
@@ -122,7 +125,9 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase text-[#4A5568]">Action for {targetDate}:</label>
+              <label className="text-xs font-black uppercase text-[#4A5568]">
+                {t('override.actionFor').replace('{date}', targetDate)}
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -134,7 +139,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                   }`}
                 >
                   <Edit className="w-3.5 h-3.5" />
-                  <span>Modify Order</span>
+                  <span>{t('override.btnModify')}</span>
                 </button>
                 <button
                   type="button"
@@ -146,7 +151,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                   }`}
                 >
                   <Ban className="w-3.5 h-3.5" />
-                  <span>Skip Day</span>
+                  <span>{t('override.btnSkip')}</span>
                 </button>
               </div>
             </div>
@@ -158,7 +163,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
               
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1">
-                  <label className="text-xs font-black uppercase text-[#4A5568]">Custom Time:</label>
+                  <label className="text-xs font-black uppercase text-[#4A5568]">{t('override.customTime')}</label>
                   <input
                     type="time"
                     value={overrideTime}
@@ -168,7 +173,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-black uppercase text-[#4A5568]">Quantity:</label>
+                  <label className="text-xs font-black uppercase text-[#4A5568]">{t('override.quantity')}</label>
                   <input
                     type="number"
                     min="1"
@@ -180,16 +185,16 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-black uppercase text-[#4A5568]">App Strategy:</label>
+                  <label className="text-xs font-black uppercase text-[#4A5568]">{t('override.strategy')}</label>
                   <select
                     value={strategy}
                     onChange={e => setStrategy(e.target.value as OrderStrategy)}
                     className="w-full p-2.5 rounded-xl border border-[#B2E2F0] font-black text-xs bg-slate-50"
                   >
-                    <option value="best_value">Best Value</option>
-                    <option value="cheapest">Cheapest Price</option>
-                    <option value="highest_rated">Highest Rated</option>
-                    <option value="fastest">Fastest Delivery</option>
+                    <option value="best_value">{t('strategy.best_value')}</option>
+                    <option value="cheapest">{t('strategy.cheapest')}</option>
+                    <option value="highest_rated">{t('strategy.highest_rated')}</option>
+                    <option value="fastest">{t('strategy.fastest')}</option>
                   </select>
                 </div>
               </div>
@@ -197,8 +202,8 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
               {/* Food Item Selection */}
               <div className="space-y-2">
                 <label className="text-xs font-black uppercase text-[#4A5568] flex items-center justify-between">
-                  <span>Choose Custom Food Item for {targetDate}:</span>
-                  <span className="text-xs font-bold text-[#FF5A1F]">Current: {selectedItem.name}</span>
+                  <span>{t('override.chooseFood').replace('{date}', targetDate)}</span>
+                  <span className="text-xs font-bold text-[#FF5A1F]">Current: {selectedItem.nativeNames?.[language] || selectedItem.name}</span>
                 </label>
 
                 <div className="relative">
@@ -207,7 +212,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                     type="text"
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Search food item for override date (e.g. biryani, idli)..."
+                    placeholder={t('override.searchPlaceholder')}
                     className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#B2E2F0] bg-slate-50 text-xs font-bold"
                   />
                 </div>
@@ -225,7 +230,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                     >
                       <img src={item.image} alt={item.name} className="w-10 h-10 rounded-lg object-cover" />
                       <div className="overflow-hidden">
-                        <h5 className="text-xs font-black truncate">{item.name}</h5>
+                        <h5 className="text-xs font-black truncate">{item.nativeNames?.[language] || item.name}</h5>
                         <p className="text-[10px] opacity-80 truncate">{item.restaurant}</p>
                         <span className={`text-xs font-black ${selectedItem.id === item.id ? 'text-yellow-200' : 'text-[#FF5A1F]'}`}>₹{item.basePrice}</span>
                       </div>
@@ -235,7 +240,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-black uppercase text-[#4A5568]">Optional Notes:</label>
+                <label className="text-xs font-black uppercase text-[#4A5568]">{t('override.notes')}</label>
                 <input
                   type="text"
                   value={notes}
@@ -249,9 +254,11 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
           ) : (
             <div className="p-6 bg-rose-50 rounded-2xl border border-rose-200 text-center space-y-2">
               <Ban className="w-8 h-8 text-[#C2185B] mx-auto animate-bounce" />
-              <h4 className="text-base font-black text-[#C2185B]">Skip Order on {targetDate}</h4>
+              <h4 className="text-base font-black text-[#C2185B]">
+                {t('override.skipTitle').replace('{date}', targetDate)}
+              </h4>
               <p className="text-xs text-[#4A5568] font-semibold max-w-md mx-auto">
-                This will prevent the recurring order from placing on <span className="font-black text-[#1A1110]">{targetDate}</span>. The rest of the schedule range will continue as usual.
+                {t('override.skipDesc').replace('{date}', targetDate)}
               </p>
             </div>
           )}
@@ -267,18 +274,18 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
               className="px-6 py-2.5 bg-[#16A34A] hover:bg-[#15803D] text-white font-black rounded-xl text-xs shadow-md flex items-center space-x-1.5 cursor-pointer"
             >
               <Check className="w-4 h-4" />
-              <span>Save Override for {targetDate}</span>
+              <span>{t('override.btnSave').replace('{date}', targetDate)}</span>
             </button>
           </div>
 
           {/* List of Configured Overrides for this Schedule Slot */}
           <div className="space-y-3 pt-4 border-t border-[#DAF0F7]">
             <h4 className="text-xs font-black uppercase text-[#4A5568] tracking-wider">
-              Active Overrides for this Schedule ({existingOverrides.length}):
+              {t('override.activeTitle').replace('{n}', String(existingOverrides.length))}
             </h4>
 
             {existingOverrides.length === 0 ? (
-              <p className="text-xs text-[#4A5568] font-medium italic">No per-date overrides configured for this slot yet.</p>
+              <p className="text-xs text-[#4A5568] font-medium italic">{t('override.emptyList')}</p>
             ) : (
               <div className="space-y-2 max-h-44 overflow-y-auto">
                 {existingOverrides.map(o => (
@@ -293,10 +300,10 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                     <div>
                       <div className="flex items-center space-x-2 font-black">
                         <span className="font-mono text-[#FF5A1F]">{o.date}</span>
-                        <span>{o.isSkipped ? '🚫 SKIPPED DAY' : `🍔 ${o.foodItemName} (${o.restaurant})`}</span>
+                        <span>{o.isSkipped ? `🚫 ${t('override.skippedDay')}` : `🍔 ${o.foodItemName} (${o.restaurant})`}</span>
                       </div>
                       <p className="text-[11px] font-semibold opacity-90 mt-0.5">
-                        {o.isSkipped ? 'Order will not be placed on this date.' : `Time: ${o.time || schedule.time} • Qty: ${o.quantity || 1} • Notes: ${o.notes || 'Custom override'}`}
+                        {o.isSkipped ? t('override.willNotPlace') : `Time: ${o.time || schedule.time} • Qty: ${o.quantity || 1} • Notes: ${o.notes || 'Custom override'}`}
                       </p>
                     </div>
 
@@ -306,7 +313,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                         className="px-2.5 py-1 bg-[#16A34A] text-white rounded-lg text-[10px] font-black hover:bg-[#15803D]"
                         title="Test Run Override Now"
                       >
-                        Run Now
+                        {t('override.runNow')}
                       </button>
                       <button
                         onClick={() => deleteOverride(o.id)}
@@ -330,7 +337,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
 };
 
 export const AutoOrderScheduler: React.FC = () => {
-  const { schedules, saveSchedule, deleteSchedule, executeScheduleNow, walletBalance, t, accessibilitySettings, language, overrides, getOverridesForSchedule } = useApp();
+  const { schedules, saveSchedule, deleteSchedule, executeScheduleNow, walletBalance, t, accessibilitySettings, language, overrides, getOverridesForSchedule, skipScheduleDate, restoreScheduleDate } = useApp();
 
   const getTodayFormattedDate = (): string => {
     const today = new Date();
@@ -345,6 +352,7 @@ export const AutoOrderScheduler: React.FC = () => {
   const [selectedFoodItem, setSelectedFoodItem] = useState<FoodItem>(INDIAN_FOOD_CATALOG[0]);
   const [scheduleTime, setScheduleTime] = useState('08:00');
   const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'custom' | 'once'>('daily');
+  const [selectedDays, setSelectedDays] = useState<string[]>(['Mon', 'Wed', 'Fri']);
   const [strategy, setStrategy] = useState<OrderStrategy>('best_value');
   const [slotTitle, setSlotTitle] = useState('Breakfast Time');
 
@@ -356,14 +364,22 @@ export const AutoOrderScheduler: React.FC = () => {
   // Per-Date Override Modal State
   const [activeOverrideSchedule, setActiveOverrideSchedule] = useState<AutoOrderSchedule | null>(null);
 
+  // Shared Schedule Checkout Modal State
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState<boolean>(false);
+
   const calculatedEndDatePreview = calculateScheduleEndDate(startDate, duration, customEndDate);
 
-  // Filter catalog based on scheduler food search bar
-  const filteredCatalog = INDIAN_FOOD_CATALOG.filter(item => 
-    item.name.toLowerCase().includes(slotSearchQuery.toLowerCase()) ||
-    item.nativeNames.ta.includes(slotSearchQuery) ||
-    item.tags.some(t => t.toLowerCase().includes(slotSearchQuery.toLowerCase()))
-  );
+  // Filter catalog based on scheduler food search bar using FuzzyMatchEngine
+  const filteredCatalog = slotSearchQuery.trim()
+    ? INDIAN_FOOD_CATALOG.filter(item => {
+        const fuzzy = FuzzyMatchEngine.matchCatalogFoodItem(slotSearchQuery, [item]);
+        return fuzzy.score >= 0.50 || item.name.toLowerCase().includes(slotSearchQuery.toLowerCase());
+      }).sort((a, b) => {
+        const scoreA = FuzzyMatchEngine.matchCatalogFoodItem(slotSearchQuery, [a]).score;
+        const scoreB = FuzzyMatchEngine.matchCatalogFoodItem(slotSearchQuery, [b]).score;
+        return scoreB - scoreA;
+      })
+    : INDIAN_FOOD_CATALOG;
 
   const getSlotSuggestions = (slotIdx: number): FoodItem[] => {
     if (slotIdx === 1) {
@@ -403,27 +419,7 @@ export const AutoOrderScheduler: React.FC = () => {
   };
 
   const handleSaveCurrentSchedule = () => {
-    const computedEndDate = calculateScheduleEndDate(startDate, duration, customEndDate);
-
-    const newSchedule: AutoOrderSchedule = {
-      id: `sched-${Date.now()}`,
-      slotName: `${presetSlots[activeSlotIndex - 1].name} Schedule`,
-      slotIndex: activeSlotIndex,
-      time: scheduleTime,
-      frequency,
-      foodItemId: selectedFoodItem.id,
-      foodItemName: selectedFoodItem.name,
-      restaurant: selectedFoodItem.restaurant,
-      quantity: 1,
-      strategy,
-      isEnabled: true,
-      walletAutoDebit: true,
-      duration,
-      startDate,
-      endDate: computedEndDate
-    };
-
-    saveSchedule(newSchedule);
+    setIsCheckoutModalOpen(true);
   };
 
   return (
@@ -589,6 +585,16 @@ export const AutoOrderScheduler: React.FC = () => {
 
         </div>
 
+        {/* 🚀 FREE WEEKDAY SELECTION CHIPS */}
+        {(frequency === 'weekly' || frequency === 'custom') && (
+          <div className="bg-[#DAF0F7]/20 p-4 rounded-2xl border border-[#B2E2F0]">
+            <WeekdaySelector
+              selectedDays={selectedDays}
+              onChange={setSelectedDays}
+            />
+          </div>
+        )}
+
         {/* Start Date & Custom End Date Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#DAF0F7]/30 p-4 rounded-2xl border border-[#B2E2F0]">
           <div className="space-y-1">
@@ -737,7 +743,7 @@ export const AutoOrderScheduler: React.FC = () => {
                   </div>
 
                   {/* Recurrence Range & Overrides Count Badge */}
-                  <div className="p-3 bg-slate-50 rounded-2xl border border-[#DAF0F7] space-y-1.5">
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-[#DAF0F7] space-y-2">
                     <div className="flex items-center justify-between text-xs font-bold text-[#4A5568]">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5 text-[#FF5A1F]" />
@@ -745,28 +751,75 @@ export const AutoOrderScheduler: React.FC = () => {
                       </span>
                     </div>
 
-                    {schOverrides.length > 0 && (
-                      <div className="text-[11px] font-black text-[#FF5A1F] bg-[#FF5A1F]/10 px-2.5 py-1 rounded-xl flex items-center justify-between border border-[#FF5A1F]/20">
-                        <span>✏️ {schOverrides.length} Custom Date Override(s) Active</span>
-                        <span className="font-mono">{schOverrides.map(o => o.date).join(', ')}</span>
+                    {/* Excluded / Skipped Dates Badges */}
+                    {((sch.excludedDates && sch.excludedDates.length > 0) || schOverrides.some(o => o.isSkipped)) && (
+                      <div className="space-y-1.5 pt-1 border-t border-slate-200">
+                        <span className="text-[10px] font-black uppercase text-[#C2185B] block">🚫 Skipped Single Dates:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Array.from(new Set([...(sch.excludedDates || []), ...schOverrides.filter(o => o.isSkipped).map(o => o.date)])).map(skDate => (
+                            <span key={skDate} className="bg-rose-100 text-rose-800 text-[11px] font-black px-2 py-0.5 rounded-lg border border-rose-300 flex items-center gap-1">
+                              <span>{skDate}</span>
+                              <button
+                                onClick={() => restoreScheduleDate(sch.id, skDate)}
+                                className="text-rose-600 hover:text-rose-900 font-bold ml-1 hover:underline cursor-pointer"
+                                title="Restore order for this date"
+                              >
+                                ↺ Restore
+                              </button>
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex items-center justify-between pt-2 border-t border-[#DAF0F7] gap-2">
-                    <button
-                      onClick={() => setActiveOverrideSchedule(sch)}
-                      className="px-3.5 py-2 bg-[#DAF0F7] hover:bg-[#B2E2F0] text-[#1A1110] rounded-xl font-black text-xs border border-[#B2E2F0] flex items-center space-x-1 cursor-pointer"
-                    >
-                      <Settings2 className="w-3.5 h-3.5 text-[#FF5A1F]" />
-                      <span>Customize Specific Dates</span>
-                    </button>
+                  <div className="flex flex-wrap items-center justify-between pt-2 border-t border-[#DAF0F7] gap-2">
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        onClick={() => {
+                          const tmr = (() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + 1);
+                            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                          })();
+
+                          const isTmrSkipped = (sch.excludedDates && sch.excludedDates.includes(tmr)) || schOverrides.some(o => o.date === tmr && o.isSkipped);
+                          if (isTmrSkipped) {
+                            restoreScheduleDate(sch.id, tmr);
+                          } else {
+                            skipScheduleDate(sch.id, tmr);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-[#C2185B] rounded-xl font-black text-xs border border-rose-200 flex items-center space-x-1 cursor-pointer transition-colors"
+                      >
+                        <Ban className="w-3.5 h-3.5 text-[#C2185B]" />
+                        <span>
+                          {(() => {
+                            const tmr = (() => {
+                              const d = new Date();
+                              d.setDate(d.getDate() + 1);
+                              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                            })();
+                            const isSkipped = (sch.excludedDates && sch.excludedDates.includes(tmr)) || schOverrides.some(o => o.date === tmr && o.isSkipped);
+                            return isSkipped ? '↺ Restore Tomorrow' : '🚫 Skip Tomorrow';
+                          })()}
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => setActiveOverrideSchedule(sch)}
+                        className="px-3 py-1.5 bg-[#DAF0F7] hover:bg-[#B2E2F0] text-[#1A1110] rounded-xl font-black text-xs border border-[#B2E2F0] flex items-center space-x-1 cursor-pointer"
+                      >
+                        <Settings2 className="w-3.5 h-3.5 text-[#FF5A1F]" />
+                        <span>Customize Dates</span>
+                      </button>
+                    </div>
 
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => executeScheduleNow(sch.id)}
-                        className="px-3 py-2 bg-[#16A34A] hover:bg-[#15803D] text-white rounded-xl font-black text-xs shadow-md flex items-center space-x-1 cursor-pointer"
+                        className="px-3 py-1.5 bg-[#16A34A] hover:bg-[#15803D] text-white rounded-xl font-black text-xs shadow-md flex items-center space-x-1 cursor-pointer"
                       >
                         <Zap className="w-3.5 h-3.5 text-yellow-200" />
                         <span>Run Now</span>
@@ -774,7 +827,7 @@ export const AutoOrderScheduler: React.FC = () => {
 
                       <button
                         onClick={() => deleteSchedule(sch.id)}
-                        className="p-2 text-[#C2185B] bg-[#C2185B]/10 hover:bg-[#C2185B]/20 rounded-xl transition-colors cursor-pointer"
+                        className="p-1.5 text-[#C2185B] bg-[#C2185B]/10 hover:bg-[#C2185B]/20 rounded-xl transition-colors cursor-pointer"
                         title="Delete Schedule"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -793,6 +846,15 @@ export const AutoOrderScheduler: React.FC = () => {
         schedule={activeOverrideSchedule}
         isOpen={!!activeOverrideSchedule}
         onClose={() => setActiveOverrideSchedule(null)}
+      />
+
+      {/* SHARED SCHEDULE CHECKOUT FLOW MODAL */}
+      <ScheduleCheckoutModal
+        isOpen={isCheckoutModalOpen}
+        onClose={() => setIsCheckoutModalOpen(false)}
+        items={[{ foodItem: selectedFoodItem, quantity: 1 }]}
+        initialSlotName={`${presetSlots[activeSlotIndex - 1].name} Schedule`}
+        initialTime={scheduleTime}
       />
 
     </div>

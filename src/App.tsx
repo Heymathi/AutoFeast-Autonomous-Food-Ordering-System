@@ -18,14 +18,17 @@ import { LanguageSelectionModal } from './components/LanguageSelectionModal';
 import { WelcomeMessageModal } from './components/WelcomeMessageModal';
 import { LocationPermissionModal } from './components/LocationPermissionModal';
 import { HealthDietaryVoiceModal } from './components/HealthDietaryVoiceModal';
-import { Volume2, Sparkles } from 'lucide-react';
+import { NomineeControlModal } from './components/NomineeControlModal';
+import { CenteredToastContainer } from './components/CenteredToastContainer';
+import { ScheduleCheckoutModal } from './components/ScheduleCheckoutModal';
+import { ScheduleCartModal } from './components/ScheduleCartModal';
+import { Volume2, Sparkles, Clock, ShoppingBag } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
   const {
     entryStep,
     activeView,
     accessibilitySettings,
-    toastMessage,
     voiceDialogItem,
     setVoiceDialogItem,
     isLocationModalOpen,
@@ -40,7 +43,13 @@ const MainLayout: React.FC = () => {
     onConfirmProceedToPinFromBill,
     isLanguageModalOpen,
     isHealthModalOpen,
-    setIsHealthModalOpen
+    setIsHealthModalOpen,
+    isNomineeModalOpen,
+    setIsNomineeModalOpen,
+    scheduleCart,
+    clearScheduleCart,
+    isScheduleCartModalOpen,
+    setIsScheduleCartModalOpen
   } = useApp();
 
   const currentTheme =
@@ -56,19 +65,25 @@ const MainLayout: React.FC = () => {
         : 'bg-[#FFFFFF] text-[#1A1110]'
     }`}>
       
+      {/* Centered Toast Container for all system toasts & notifications */}
+      <CenteredToastContainer />
+
       {/* Top Navbar */}
       <Navbar />
 
       {/* Accessibility Controls Bar */}
       <AccessibilityToolbar />
 
-      {/* Toast Notification Alert */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-bounce max-w-md bg-[#1A1110] text-white p-4 rounded-2xl shadow-2xl border-2 border-[#FF5A1F] flex items-center space-x-3">
-          <div className="p-2 bg-[#FF5A1F] rounded-xl">
-            <Volume2 className="w-5 h-5 text-white" />
-          </div>
-          <p className="text-xs sm:text-sm font-black leading-snug">{toastMessage}</p>
+      {/* Floating Schedule Cart Action Button */}
+      {scheduleCart.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-40 animate-bounce">
+          <button
+            onClick={() => setIsScheduleCartModalOpen(true)}
+            className="px-5 py-3.5 bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black rounded-full shadow-2xl border-2 border-white flex items-center space-x-3 cursor-pointer"
+          >
+            <ShoppingBag className="w-5 h-5 text-white" />
+            <span className="text-xs sm:text-sm">Checkout Schedule Cart ({scheduleCart.length} items)</span>
+          </button>
         </div>
       )}
 
@@ -132,6 +147,19 @@ const MainLayout: React.FC = () => {
 
       {/* Security PIN Confirmation Modal before Food Order / Schedule Payment */}
       <OrderPinConfirmationModal />
+
+      {/* Nominee Control Portal & Restricted Food List Modal */}
+      <NomineeControlModal
+        isOpen={isNomineeModalOpen}
+        onClose={() => setIsNomineeModalOpen(false)}
+      />
+
+      {/* Persistent Schedule Cart Modal */}
+      <ScheduleCartModal
+        isOpen={isScheduleCartModalOpen}
+        onClose={() => setIsScheduleCartModalOpen(false)}
+      />
+
 
       {/* Footer */}
       <footer className="bg-[#1A1110] text-slate-300 border-t border-[#DAF0F7]/20 py-6 text-center text-xs">

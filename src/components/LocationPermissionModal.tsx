@@ -62,7 +62,7 @@ export const LocationPermissionModal: React.FC = () => {
 
     SpeechService.startListening({
       language,
-      continuous: false,
+      continuous: true,
       interimResults: true,
       onResult: async (transcript, isFinal, nBestTranscripts) => {
         if (!transcript || !transcript.trim()) return;
@@ -121,6 +121,13 @@ export const LocationPermissionModal: React.FC = () => {
       },
       onEnd: () => {
         setIsListening(false);
+        if (entryStep === 'location_permission' && !isAnalyzing) {
+          setTimeout(() => {
+            if (entryStep === 'location_permission' && !isAnalyzing) {
+              startVoiceListening();
+            }
+          }, 400);
+        }
       }
     });
   };

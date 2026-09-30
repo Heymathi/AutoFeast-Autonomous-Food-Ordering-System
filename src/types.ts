@@ -96,6 +96,7 @@ export interface AutoOrderSchedule {
   duration?: ScheduleDuration;
   startDate?: string; // YYYY-MM-DD
   endDate?: string; // YYYY-MM-DD (null/undefined if indefinite)
+  excludedDates?: string[]; // Array of YYYY-MM-DD dates skipped from recurring schedule
 }
 
 export interface LinkedBank {
@@ -181,14 +182,39 @@ export interface ExecutedOrder {
 
 import { ParsedOrderBill } from './services/nlpParserService';
 
+export interface PendingNomineeApproval {
+  id: string;
+  foodItem: FoodItem;
+  orderType: 'instant' | 'scheduled';
+  scheduleDetails?: { time: string; slotName: string; duration?: string; frequency?: string };
+  requestedAt: string;
+  status: 'pending' | 'approved' | 'denied';
+  nomineeEmail?: string;
+  nomineeName?: string;
+}
+
 export interface PendingPinVerification {
-  type: 'instant_order' | 'save_schedule' | 'execute_schedule' | 'bill_order' | 'reveal_wallet';
+  type: 'instant_order' | 'save_schedule' | 'execute_schedule' | 'bill_order' | 'reveal_wallet' | 'cancel_schedule';
   item?: FoodItem;
   bill?: ParsedOrderBill;
   strategy?: OrderStrategy;
   schedule?: AutoOrderSchedule;
   scheduleId?: string;
   amount?: number;
+  cancelType?: 'only_this' | 'whole';
+  cancelDateStr?: string;
+}
+
+export interface ToastItem {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  duration?: number;
+}
+
+export interface ScheduleCartItem {
+  foodItem: FoodItem;
+  quantity: number;
 }
 
 

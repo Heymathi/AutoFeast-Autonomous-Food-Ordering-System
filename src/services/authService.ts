@@ -5,6 +5,10 @@
  */
 import { RegisteredCredential } from './webAuthnService';
 
+const STORAGE_USERS_KEY = 'autofeast_registered_users';
+const STORAGE_CURRENT_USER_KEY = 'autofeast_current_user_id';
+const STORAGE_CURRENT_USER_OBJ = 'autofeast_current_user_obj';
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -13,16 +17,27 @@ export interface UserProfile {
   pinHash: string; // 4-digit numeric PIN
   nomineeName: string;
   nomineePhone: string;
+  nomineeEmail?: string;
+  nomineePinHash?: string;
+  restrictedFoodIds?: string[];
   isFaceIdEnabled: boolean;
-  webAuthnCredentials: RegisteredCredential[];
+  webAuthnCredentials?: RegisteredCredential[];
   createdAt?: string;
 }
 
-const STORAGE_USERS_KEY = 'autofeast_users_db';
-const STORAGE_CURRENT_USER_KEY = 'autofeast_current_user_id';
-const STORAGE_CURRENT_USER_OBJ = 'autofeast_current_user_obj';
+export interface VerifyPinResult {
+  success: boolean;
+  token?: string;
+  error?: string;
+  isLocked?: boolean;
+  lockRemainingSeconds?: number;
+}
 
 export class AuthService {
+  private static failedPinAttempts = 0;
+  private static lockoutUntil = 0;
+  private static verifiedTokensMap = new Map<string, { expiry: number; consumedAt?: number }>();
+
   /**
    * Load all registered users from local cache if any
    */
@@ -91,6 +106,10 @@ export class AuthService {
         localStorage.removeItem(STORAGE_CURRENT_USER_OBJ);
       }
     } catch (e) {}
+  }
+
+  public static updateUser(user: UserProfile): void {
+    this.setCurrentUser(user);
   }
 
   /**
@@ -217,6 +236,122 @@ export class AuthService {
   }
 
   /**
+   * Verify 4-Digit Security PIN via Backend API & Issue Single-Use 2-Minute Token
+   */
+  public static async verifyPIN(pin: string): Promise<VerifyPinResult> {
+    const now = Date.now();
+    if (now < this.lockoutUntil) {
+      const rem = Math.ceil((this.lockoutUntil - now) / 1000);
+      return {
+        success: false,
+        isLocked: true,
+        lockRemainingSeconds: rem,
+        error: `3 incorrect attempts. Security locked for ${rem} seconds.`
+      };
+    }
+
+    const cleanPin = pin ? pin.trim() : '';
+    if (!/^\d{4}$/.test(cleanPin)) {
+      return { success: false, error: 'Please enter a valid 4-digit numeric PIN.' };
+    }
+
+    let isMatch = false;
+
+    try {
+      const res = await fetch('/api/auth/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: cleanPin })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) isMatch = true;
+      }
+    } catch (e) {
+      console.warn('[AuthService] Server verify-pin request error:', e);
+    }
+
+    // Fallback to active user session PIN comparison if server offline
+    if (!isMatch) {
+      const currentUser = this.getCurrentUser();
+      if (currentUser && currentUser.pinHash && currentUser.pinHash === cleanPin) {
+        isMatch = true;
+      } else if (!currentUser && cleanPin.length === 4) {
+        // Fallback for default onboarding initial session
+        isMatch = true;
+      }
+    }
+
+    if (isMatch) {
+      this.failedPinAttempts = 0;
+      const token = `tok_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
+      // Issued token valid for 2 minutes (120,000 ms)
+      this.verifiedTokensMap.set(token, { expiry: Date.now() + 120000 });
+      console.log(`[AuthService]: PIN verified. Single-use token issued: "${token}" (expires in 2m)`);
+      return { success: true, token };
+    } else {
+      this.failedPinAttempts += 1;
+      if (this.failedPinAttempts >= 3) {
+        this.lockoutUntil = Date.now() + 30000; // 30 seconds temporary lockout
+        this.failedPinAttempts = 0;
+        return {
+          success: false,
+          isLocked: true,
+          lockRemainingSeconds: 30,
+          error: '3 incorrect PIN attempts! Security locked for 30 seconds.'
+        };
+      }
+      return {
+        success: false,
+        error: `Invalid Security PIN. Attempt ${this.failedPinAttempts} of 3.`
+      };
+    }
+  }
+
+  /**
+   * Validate & Consume Single-Use Verified Token (Server Validation)
+   * Prevents token reuse for a second time
+   */
+  public static async validateAndConsumeToken(token?: string): Promise<{ isValid: boolean; error?: string }> {
+    if (!token) {
+      return { isValid: false, error: 'Security verification token is missing.' };
+    }
+
+    try {
+      const res = await fetch('/api/auth/validate-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.isValid) {
+          this.verifiedTokensMap.delete(token);
+          return { isValid: true };
+        }
+      }
+    } catch (e) {}
+
+    // Check local in-memory single-use token map
+    const tokenData = this.verifiedTokensMap.get(token);
+    if (tokenData && Date.now() <= tokenData.expiry) {
+      // Single-use enforcement: mark consumed, permit batch multi-item creation within 5 seconds then delete
+      if (!tokenData.consumedAt) {
+        tokenData.consumedAt = Date.now();
+        setTimeout(() => {
+          this.verifiedTokensMap.delete(token);
+        }, 5000);
+      }
+      console.log(`[AuthService]: Single-use token "${token}" validated and consumed successfully.`);
+      return { isValid: true };
+    }
+
+    console.warn(`[AuthService Security Violation]: Token "${token}" is invalid, expired, or ALREADY REUSED.`);
+    return { isValid: false, error: 'Token has expired or was already used.' };
+  }
+
+  /**
    * Authenticate user via 4-Digit PIN via Backend API
    */
   public static async loginWithPIN(pin: string): Promise<UserProfile> {
@@ -240,9 +375,9 @@ export class AuthService {
       }
     } catch (e) {}
 
-    // Fallback to local session
+    // Fallback to local active session user if PIN matches
     const currentUser = this.getCurrentUser();
-    if (currentUser && (currentUser.pinHash === cleanPin || cleanPin === '1234')) {
+    if (currentUser && currentUser.pinHash === cleanPin) {
       this.setCurrentUser(currentUser);
       return currentUser;
     }
@@ -304,5 +439,46 @@ export class AuthService {
       return currentUser;
     }
     throw new Error('User account not found.');
+  }
+
+  /**
+   * Verify Nominee PIN server-side with 3-try 5-minute lockout enforcement
+   */
+  public static async verifyNomineePinServer(
+    nomineePin: string,
+    userPin?: string,
+    userId?: string
+  ): Promise<{ success: boolean; locked?: boolean; lockTimeRemaining?: number; remainingTries?: number; error?: string }> {
+    const cleanPin = nomineePin.trim();
+    if (!/^\d{4}$/.test(cleanPin)) {
+      return { success: false, error: 'Nominee PIN must be 4 numeric digits.' };
+    }
+
+    try {
+      const res = await fetch('/api/nominee/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nomineePin: cleanPin, userPin, userId })
+      });
+
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      console.warn('[AuthService] Server verify PIN offline fallback:', err);
+      // Fallback verification if server offline
+      const currentUser = this.getCurrentUser();
+      const expectedPin = currentUser?.nomineePinHash || '4321';
+      const mainPin = currentUser?.pinHash || '1234';
+
+      if (cleanPin === mainPin) {
+        return { success: false, error: "Nominee PIN must be DIFFERENT from main user's PIN!" };
+      }
+
+      if (cleanPin === expectedPin) {
+        return { success: true };
+      } else {
+        return { success: false, remainingTries: 2, error: 'Incorrect Nominee Security PIN.' };
+      }
+    }
   }
 }

@@ -1,7 +1,7 @@
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { FoodItem, Language, ScheduleDuration } from '../types';
-
 import { PriceComparisonSummary, PriceComparisonService } from './priceComparisonService';
+import { FuzzyMatchEngine } from './fuzzyMatchService';
 
 export interface ParsedItem {
   foodItem: FoodItem;
@@ -168,12 +168,14 @@ export class NLPParserService {
     const raw = transcript.toLowerCase().trim();
     console.log('[NLPParserService]: Parsing natural language command ->', raw);
 
-    // 1. Detect Specified Restaurant Name
-    let detectedRestaurant = '';
-    for (const [kw, restName] of Object.entries(this.restaurantKeywords)) {
-      if (raw.includes(kw)) {
-        detectedRestaurant = restName;
-        break;
+    // 1. Detect Specified Restaurant Name using FuzzyMatchEngine
+    let detectedRestaurant = FuzzyMatchEngine.findRestaurantInText(raw) || '';
+    if (!detectedRestaurant) {
+      for (const [kw, restName] of Object.entries(this.restaurantKeywords)) {
+        if (raw.includes(kw)) {
+          detectedRestaurant = restName;
+          break;
+        }
       }
     }
 
@@ -323,7 +325,7 @@ export class NLPParserService {
   /**
    * Voice Schedule Duration & Date Range Extractor (multilingual: EN, Tanglish, Tamil, Hindi)
    */
-  public static parseScheduleDetailsFromVoice(transcript: string): {
+  public static parseScheduleDetailsFromVoice(transcript: string, language: Language = 'en'): {
     frequency: 'daily' | 'weekly' | 'once';
     duration: ScheduleDuration;
     durationMentioned: boolean;
@@ -332,8 +334,10 @@ export class NLPParserService {
     durationLabel: string;
     isEveryDay?: boolean;
     selectedDays?: string[];
+    timeDetails?: any;
   } {
     const text = (transcript || '').toLowerCase();
+    const timeDetails = FuzzyMatchEngine.fuzzyParseTimeAndSchedule(transcript, language);
 
     const getTodayStr = (): string => {
       const today = new Date();
@@ -367,8 +371,12 @@ export class NLPParserService {
     }
 
     // 3. Duration & Custom Date Range Parsing (1 Month, 2 Months, 3 Months, 30/60/90 Days, Indefinite, Custom)
-    let duration: ScheduleDuration = '1_week'; // Default to 1_week fallback per spec
+    let duration: ScheduleDuration = 'today_only'; // Default to today_only if no duration specified
     let durationMentioned = false;
+
+    // Days regex check (e.g. 10 days, 5 days)
+    const nDaysMatch = text.match(/(\d{1,2})\s*(days|நாட்கள்|दिन)/i);
+    const nWeeksMatch = text.match(/(\d{1,2})\s*(weeks|வாரம்|ஹफ्ते|सप्ताह)/i);
 
     // Indefinite / Until Cancelled
     if (
@@ -446,8 +454,30 @@ export class NLPParserService {
       duration = '1_month';
       durationMentioned = true;
     }
+    // 1 Week / 7 Days
+    else if (
+      text.includes('1 week') ||
+      text.includes('a week') ||
+      text.includes('one week') ||
+      text.includes('7 days') ||
+      text.includes('for a week') ||
+      text.includes('1 வாரம்') ||
+      text.includes('ஒரு வாரம்') ||
+      text.includes('7 நாட்கள்') ||
+      text.includes('1 haftah') ||
+      text.includes('1 सप्ताह') ||
+      text.includes('1 हफ्ते') ||
+      text.includes('7 दिन')
+    ) {
+      duration = '1_week';
+      durationMentioned = true;
+    }
+    else if (nDaysMatch || nWeeksMatch) {
+      duration = 'custom';
+      durationMentioned = true;
+    }
     // Today alone / 1 Day / Today Only
-    if (
+    else if (
       text.includes('today alone') ||
       text.includes('today only') ||
       text.includes('just today') ||
@@ -466,25 +496,6 @@ export class NLPParserService {
       duration = 'today_only';
       durationMentioned = true;
     }
-    // 1 Week / 7 Days
-    else if (
-      text.includes('1 week') ||
-      text.includes('a week') ||
-      text.includes('one week') ||
-      text.includes('7 days') ||
-      text.includes('for a week') ||
-      text.includes('1 வாரம்') ||
-      text.includes('ஒரு வாரம்') ||
-      text.includes('7 நாட்கள்') ||
-      text.includes('1 haftah') ||
-      text.includes('1 सप्ताह') ||
-      text.includes('1 हफ्ते') ||
-      text.includes('7 दिन') ||
-      text.includes('2 weeks')
-    ) {
-      duration = '1_week';
-      durationMentioned = true;
-    }
 
     // Custom date range phrasing check (e.g. "from October 1st to October 31st")
     if (text.includes('from') && (text.includes('to') || text.includes('until') || text.includes('for'))) {
@@ -494,18 +505,39 @@ export class NLPParserService {
       }
     }
 
-    let durationLabel = '1 Week';
+    let durationLabel = durationMentioned ? '1 Week' : '1 Day (Single Date)';
     if (duration === 'today_only') durationLabel = 'Today alone (1 Day)';
     if (duration === '1_month') durationLabel = '1 Month';
     if (duration === '3_months') durationLabel = '3 Months';
     if (duration === 'indefinite') durationLabel = 'Until Cancelled';
-    if (duration === 'custom') durationLabel = 'Custom Date Range';
+    if (duration === 'custom') {
+      const numDays = nDaysMatch ? parseInt(nDaysMatch[1], 10) : (nWeeksMatch ? parseInt(nWeeksMatch[1], 10) * 7 : 7);
+      durationLabel = `${numDays} Days`;
+    }
 
-    // 4. Days / Frequency Extraction (Every Day vs Specific Days)
+    // Calculate customEndDate if N-days or N-weeks specified
+    let customEndDate: string | undefined = undefined;
+    if (nDaysMatch || nWeeksMatch) {
+      const addDays = nDaysMatch ? parseInt(nDaysMatch[1], 10) : (nWeeksMatch ? parseInt(nWeeksMatch[1], 10) * 7 : 7);
+      const endD = new Date(startDate);
+      endD.setDate(endD.getDate() + addDays);
+      const yyyy = endD.getFullYear();
+      const mm = String(endD.getMonth() + 1).padStart(2, '0');
+      const dd = String(endD.getDate()).padStart(2, '0');
+      customEndDate = `${yyyy}-${mm}-${dd}`;
+    }
+
+    // 4. Days / Frequency Extraction (Every Day vs Specific Days / Presets)
     let isEveryDay = true;
     let selectedDays: string[] = [];
 
-    if (
+    if (text.includes('weekend') || text.includes('வார இறுதி') || text.includes('सप्ताहांत')) {
+      isEveryDay = false;
+      selectedDays = ['Sat', 'Sun'];
+    } else if (text.includes('weekday') || text.includes('வார நாட்கள்') || text.includes('कामकाजी दिन')) {
+      isEveryDay = false;
+      selectedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    } else if (
       text.includes('daily') ||
       text.includes('daily vum') ||
       text.includes('dailyum') ||
@@ -520,13 +552,13 @@ export class NLPParserService {
       selectedDays = [];
     } else {
       const dayMatches: string[] = [];
-      if (text.includes('mon') || text.includes('திங்கள்')) dayMatches.push('Mon');
-      if (text.includes('tue') || text.includes('செவ்வாய்')) dayMatches.push('Tue');
-      if (text.includes('wed') || text.includes('புதன்')) dayMatches.push('Wed');
-      if (text.includes('thu') || text.includes('வியாழன்')) dayMatches.push('Thu');
-      if (text.includes('fri') || text.includes('வெள்ளி')) dayMatches.push('Fri');
-      if (text.includes('sat') || text.includes('சனி')) dayMatches.push('Sat');
-      if (text.includes('sun') || text.includes('ஞாயிறு')) dayMatches.push('Sun');
+      if (text.includes('mon') || text.includes('monday') || text.includes('திங்கள்') || text.includes('சோமவார') || text.includes('सोमवार')) dayMatches.push('Mon');
+      if (text.includes('tue') || text.includes('tuesday') || text.includes('செவ்வாய்') || text.includes('मंगलवार')) dayMatches.push('Tue');
+      if (text.includes('wed') || text.includes('wednesday') || text.includes('புதன்') || text.includes('बुधवार')) dayMatches.push('Wed');
+      if (text.includes('thu') || text.includes('thursday') || text.includes('வியாழன்') || text.includes('गुरुवार') || text.includes('बृहस्पतिवार')) dayMatches.push('Thu');
+      if (text.includes('fri') || text.includes('friday') || text.includes('வெள்ளி') || text.includes('शुक्रवार')) dayMatches.push('Fri');
+      if (text.includes('sat') || text.includes('saturday') || text.includes('சனி') || text.includes('शनिवार')) dayMatches.push('Sat');
+      if (text.includes('sun') || text.includes('sunday') || text.includes('ஞாயிறு') || text.includes('रविवार')) dayMatches.push('Sun');
 
       if (dayMatches.length > 0) {
         isEveryDay = false;
@@ -541,7 +573,131 @@ export class NLPParserService {
       startDate,
       durationLabel,
       isEveryDay,
-      selectedDays
+      selectedDays,
+      timeDetails
+    };
+  }
+
+  /**
+   * 🚀 PARSE SINGLE-DAY SKIP / CANCEL COMMAND FROM VOICE (EN, TA, HI)
+   */
+  public static parseSkipCommandFromVoice(transcript: string): {
+    isSkipCommand: boolean;
+    targetItemName?: string;
+    targetRestaurant?: string;
+    targetDate?: string;
+    dateLabel?: string;
+  } {
+    if (!transcript) return { isSkipCommand: false };
+    const text = transcript.toLowerCase().trim();
+
+    const skipKeywords = [
+      'skip', 'don\'t order', 'dont order', 'cancel order on', 'cancel on', 'skip order',
+      'தவிர்க்கவும்', 'தவிர்', 'வேண்டாம்', 'ரத்து செய்', 'கேன்சல் செய்', 'தவிர்க்க', 'வேணாம்',
+      'स्किप करें', 'स्किप', 'रद्द करें', 'कैंसल करें', 'रद्द', 'कैंसल'
+    ];
+
+    const hasSkipKeyword = skipKeywords.some(kw => text.includes(kw));
+    if (!hasSkipKeyword) {
+      return { isSkipCommand: false };
+    }
+
+    // Helper: Formatted date string YYYY-MM-DD
+    const formatDateObj = (d: Date): string => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const today = new Date();
+    let targetDate = formatDateObj(today);
+    let dateLabel = 'Today';
+
+    // 1. Check relative date keywords (Tomorrow / Day after tomorrow / Today)
+    if (text.includes('tomorrow') || text.includes('நாளை') || text.includes('நாளைக்கு') || text.includes('कल')) {
+      const tom = new Date(today);
+      tom.setDate(tom.getDate() + 1);
+      targetDate = formatDateObj(tom);
+      dateLabel = 'Tomorrow';
+    } else if (text.includes('day after tomorrow') || text.includes('நாளை மறுநாள்') || text.includes('परसों')) {
+      const dayAfter = new Date(today);
+      dayAfter.setDate(dayAfter.getDate() + 2);
+      targetDate = formatDateObj(dayAfter);
+      dateLabel = 'Day After Tomorrow';
+    } else if (text.includes('today') || text.includes('இன்று') || text.includes('இன்னைக்கு') || text.includes('आज')) {
+      targetDate = formatDateObj(today);
+      dateLabel = 'Today';
+    } else {
+      // 2. Check YYYY-MM-DD or Month-Day regex
+      const isoMatch = text.match(/\b\d{4}-\d{2}-\d{2}\b/);
+      if (isoMatch) {
+        targetDate = isoMatch[0];
+        dateLabel = targetDate;
+      } else {
+        // Month name detection
+        const monthNames: { [key: string]: number } = {
+          'january': 0, 'jan': 0, 'february': 1, 'feb': 1, 'march': 2, 'mar': 2,
+          'april': 3, 'apr': 3, 'may': 4, 'june': 5, 'jun': 5, 'july': 6, 'jul': 6,
+          'august': 7, 'aug': 7, 'september': 8, 'sep': 8, 'october': 9, 'oct': 9,
+          'november': 10, 'nov': 10, 'december': 11, 'dec': 11,
+          'அக்டோபர்': 9, 'செப்டம்பர்': 8, 'நவம்பர்': 10, 'டிசம்பர்': 11,
+          'अक्टूबर': 9, 'सितंबर': 8, 'नवंबर': 10, 'दिसंबर': 11
+        };
+
+        let foundMonth: number | null = null;
+        for (const [mName, mIdx] of Object.entries(monthNames)) {
+          if (text.includes(mName)) {
+            foundMonth = mIdx;
+            break;
+          }
+        }
+
+        const dayNumMatch = text.match(/\b(\d{1,2})(st|nd|rd|th)?\b/);
+        if (foundMonth !== null && dayNumMatch) {
+          const dayVal = parseInt(dayNumMatch[1], 10);
+          const targetD = new Date(today.getFullYear(), foundMonth, dayVal);
+          if (targetD < today) {
+            targetD.setFullYear(today.getFullYear() + 1);
+          }
+          targetDate = formatDateObj(targetD);
+          dateLabel = `${targetD.toLocaleString('default', { month: 'short' })} ${dayVal}`;
+        }
+      }
+    }
+
+    // Extract item or restaurant from text
+    let targetItemName: string | undefined;
+    let targetRestaurant: string | undefined;
+
+    for (const item of INDIAN_FOOD_CATALOG) {
+      if (
+        text.includes(item.name.toLowerCase()) ||
+        text.includes(item.nativeNames.ta.toLowerCase()) ||
+        text.includes(item.nativeNames.hi.toLowerCase()) ||
+        (item.tags && item.tags.some(t => text.includes(t.toLowerCase())))
+      ) {
+        targetItemName = item.name;
+        break;
+      }
+    }
+
+    targetRestaurant = FuzzyMatchEngine.findRestaurantInText(text) || undefined;
+    if (!targetRestaurant) {
+      for (const [rKw, rName] of Object.entries(this.restaurantKeywords)) {
+        if (text.includes(rKw)) {
+          targetRestaurant = rName;
+          break;
+        }
+      }
+    }
+
+    return {
+      isSkipCommand: true,
+      targetItemName,
+      targetRestaurant,
+      targetDate,
+      dateLabel
     };
   }
 }

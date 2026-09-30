@@ -3,6 +3,7 @@ import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { FoodItem, Language, ScheduleDuration } from '../types';
 import { NLPParserService, ParsedOrderBill, ParsedItem } from './nlpParserService';
 import { PriceComparisonService } from './priceComparisonService';
+import { FuzzyMatchEngine } from './fuzzyMatchService';
 
 export interface ExtractedLlmOrder {
   items: { name: string; quantity: number }[];
@@ -305,49 +306,47 @@ User Spoken Input: "${transcript}"`;
           .replace(/\b(briyani|biriyani|biyani)\b/g, 'biryani')
           .replace(/\b(parata|parota|barotta)\b/g, 'parotta');
 
-        // Match against catalog using name, native names, or tags
-        const matchedFood = INDIAN_FOOD_CATALOG.find(f => {
-          const nameLower = f.name.toLowerCase();
-          const enNative = f.nativeNames.en.toLowerCase();
-          const taNative = f.nativeNames.ta;
-          const hiNative = f.nativeNames.hi;
-          const tags = f.tags.map(t => t.toLowerCase());
+        // Unified Fuzzy Matcher against catalog
+        const fuzzyResult = FuzzyMatchEngine.matchCatalogFoodItem(searchName, INDIAN_FOOD_CATALOG);
 
-          return (
-            nameLower.includes(searchName) ||
-            enNative.includes(searchName) ||
-            taNative.includes(searchName) ||
-            hiNative.includes(searchName) ||
-            nameLower.includes(rawSearchName) ||
-            tags.some(t => t === searchName || searchName.includes(t) || t === rawSearchName || rawSearchName.includes(t))
-          );
-        });
-
-        if (matchedFood) {
-          const unitPrice = matchedFood.basePrice || 100;
+        if (fuzzyResult.item && fuzzyResult.confidence === 'high') {
+          const unitPrice = fuzzyResult.item.basePrice || 100;
           parsedItems.push({
-            foodItem: matchedFood,
+            foodItem: fuzzyResult.item,
             quantity: qty,
             unitPrice,
             totalPrice: unitPrice * qty
           });
+        } else if (fuzzyResult.item && fuzzyResult.confidence === 'medium') {
+          // Medium confidence -> Ask user to confirm item before scheduling
+          const suggestedName = fuzzyResult.item.nativeNames?.[lang] || fuzzyResult.item.name;
+          const prompt = lang === 'ta'
+            ? `நீங்கள் "${suggestedName}" ஆர்டர் செய்ய விரும்புகிறீர்களா? "ஆம்" என்று கூறுங்கள்.`
+            : lang === 'hi'
+            ? `क्या आपका मतलब "${suggestedName}" था? "हाँ" बोलें।`
+            : `Did you mean "${suggestedName}"? Say Yes to confirm.`;
+
+          return { intent: detectedIntent, bill: null, clarificationPrompt: prompt, scheduleDetails };
         } else {
+          // Low confidence -> Never auto-schedule; prompt for clarification
           unmatchedNames.push(itemReq.name);
         }
       }
 
       if (unmatchedNames.length > 0 && parsedItems.length === 0) {
         const prompt = lang === 'ta'
-          ? `மன்னிக்கவும், "${unmatchedNames.join(', ')}" எங்கள் உணவக பட்டியலில் இல்லை. மசாலா தோசை, இட்லி அல்லது பிரியாணி வேண்டுமா?`
+          ? `மன்னிக்கவும், "${unmatchedNames.join(', ')}" எங்கள் உணவக பட்டியலில் இல்லை. தோசை, இட்லி அல்லது பரோட்டா வேண்டுமா?`
           : lang === 'hi'
-          ? `क्षमा करें, "${unmatchedNames.join(', ')}" हमारे मेनू में नहीं मिला। क्या आप डोसा या इडली चाहते हैं?`
-          : `Sorry, I couldn't find "${unmatchedNames.join(', ')}" in our catalog. Did you mean Masala Dosa or Idli?`;
+          ? `क्षमा करें, "${unmatchedNames.join(', ')}" हमारे मेनू में नहीं मिला। क्या आप डोसा या पराठा चाहते हैं?`
+          : `Sorry, I couldn't find "${unmatchedNames.join(', ')}" in our catalog. Did you mean Dosa, Idli, or Parotta?`;
 
         return { intent: detectedIntent, bill: null, clarificationPrompt: prompt, scheduleDetails };
       }
 
       if (parsedItems.length > 0) {
-        const restaurantName = llmResult.restaurant || parsedItems[0].foodItem.restaurant || 'Saravana Bhavan';
+        const rawRest = llmResult.restaurant || transcript;
+        const matchedRest = FuzzyMatchEngine.findRestaurantInText(rawRest);
+        const restaurantName = matchedRest || parsedItems[0].foodItem.restaurant || 'Saravana Bhavan';
         const subtotal = parsedItems.reduce((sum, i) => sum + i.totalPrice, 0);
         
         const gstRate = 0.05;

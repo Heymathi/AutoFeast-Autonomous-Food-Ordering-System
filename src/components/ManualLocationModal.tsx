@@ -110,7 +110,7 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
     setIsListening(true);
     SpeechService.startListening({
       language,
-      continuous: false,
+      continuous: true,
       interimResults: true,
       onStart: () => setIsListening(true),
       onResult: (text: string, isFinal: boolean, nBestTranscripts?: string[]) => {
@@ -126,6 +126,13 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
       },
       onEnd: () => {
         setIsListening(false);
+        if (isOpen) {
+          setTimeout(() => {
+            if (isOpen) {
+              startVoiceListening(targetStep);
+            }
+          }, 400);
+        }
       }
     });
   };

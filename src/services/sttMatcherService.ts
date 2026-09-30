@@ -1,6 +1,7 @@
 import { Language, FoodItem } from '../types';
 import { CrossScriptPhoneticMatcher } from './crossScriptPhoneticMatcher';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
+import { FuzzyMatchEngine } from './fuzzyMatchService';
 
 export type ConfirmationIntent = 'YES' | 'NO' | 'UNKNOWN';
 export type ControlCommandIntent = 'YES' | 'NO' | 'NEXT' | 'BACK' | 'CANCEL' | 'ORDER_NOW' | 'SCHEDULE' | 'UNKNOWN';
@@ -67,6 +68,7 @@ export const DURATION_VOCABULARY = {
   '1_week': ['1 week', 'one week', '7 days', 'seven days', '1 வாரம்', 'ஒரு வாரம்', '1 வாரத்திற்கு', 'ஒரு வாரத்திற்கு', '7 நாட்கள்', '1 हफ्ता', 'एक हफ्ता', '7 दिन'],
   '1_month': ['1 month', 'one month', '30 days', 'thirty days', '1 மாதம்', 'ஒரு மாதம்', '1 மாதத்திற்கு', 'ஒரு மாதத்திற்கு', '30 நாட்கள்', '1 महीना', 'एक महीना', '30 दिन'],
   '3_months': ['3 months', 'three months', '90 days', '3 மாதம்', '3 மாதங்கள்', '3 மாதத்திற்கு', '90 நாட்கள்', '3 महीने', 'तीन महीने', '90 दिन'],
+  'custom': ['custom date range', 'custom range', 'custom date', 'custom', 'date range', 'சுயவிருப்ப தேதி', 'தேதி வரம்பு', 'குறிப்பிட்ட தேதி', 'கஸ்டம்', 'கஸ்டம் தேதி', 'கஸ்டம் ரேஞ்ச்', 'कस्टम तिथि सीमा', 'कस्टम तारीख', 'कस्टम रेट', 'कस्टम'],
   'indefinite': ['indefinite', 'forever', 'always', 'continuous', 'தொடர்ச்சியாக', 'எப்போதும்', 'வரம்பில்லாமல்', 'हमेशा', 'लगातार']
 };
 
@@ -287,30 +289,19 @@ export class SttMatcherService {
     let bestItem: FoodItem | null = null;
     let maxScore = 0;
     let matchedTranscript = '';
+    let bestConfidence: 'high' | 'medium' | 'low' = 'low';
 
     for (const text of candidates) {
-      for (const item of catalog) {
-        // Collect all target candidate names (English, Tamil, Hindi, tags)
-        const targetNames = [
-          item.name,
-          item.nativeNames.en,
-          item.nativeNames.ta,
-          item.nativeNames.hi,
-          ...(item.tags || [])
-        ].filter(Boolean);
-
-        for (const target of targetNames) {
-          const score = this.calculateMatchScore(text, target);
-          if (score > maxScore) {
-            maxScore = score;
-            bestItem = item;
-            matchedTranscript = text;
-          }
-        }
+      const res = FuzzyMatchEngine.matchCatalogFoodItem(text, catalog);
+      if (res.score > maxScore) {
+        maxScore = res.score;
+        bestItem = res.item;
+        bestConfidence = res.confidence;
+        matchedTranscript = text;
       }
     }
 
-    if (bestItem && maxScore >= this.ACCEPT_THRESHOLD) {
+    if (bestItem && bestConfidence === 'high') {
       return {
         isMatched: true,
         matchedValue: bestItem,
@@ -320,7 +311,7 @@ export class SttMatcherService {
       };
     }
 
-    if (bestItem && maxScore >= this.CLARIFY_THRESHOLD) {
+    if (bestItem && bestConfidence === 'medium') {
       const bestName = bestItem.nativeNames?.[language] || bestItem.name;
       const prompt = language === 'ta'
         ? `நீங்கள் "${bestName}" என்று கூறினீர்களா?`
@@ -330,7 +321,7 @@ export class SttMatcherService {
 
       return {
         isMatched: false,
-        matchedValue: null,
+        matchedValue: bestItem,
         confidence: maxScore,
         needsClarification: true,
         bestCandidate: bestItem,
@@ -511,15 +502,60 @@ export class SttMatcherService {
 
   /**
    * 🚀 RECURRENCE DURATION CHOICE MATCHER
-   * Matches spoken durations ("1 week", "1 month", "3 months", "indefinite")
+   * Matches spoken durations ("1 week", "1 month", "3 months", "10 days", "2 weeks", "45 days")
    */
   public static matchDurationChoice(
     transcripts: string | string[],
     language: Language = 'en'
-  ): MatchResult<string> {
+  ): MatchResult<string> & { customDays?: number } {
     const candidates = this.toCandidateList(transcripts);
     if (candidates.length === 0) {
       return { isMatched: false, matchedValue: null, confidence: 0, needsClarification: false };
+    }
+
+    // 1. Check dynamic custom number of days/weeks (e.g., "10 days", "2 weeks", "45 days", "10 நாட்கள்", "2 हफ़्ते")
+    for (const text of candidates) {
+      const raw = text.toLowerCase().trim();
+      const numMatch = raw.match(/(\d+)\s*(days|day|weeks|week|months|month|நாட்கள்|நாள்|வாரம்|வாரங்கள்|தினங்கள்|दिन|हफ्ते|हफ़्ते|महीने)/i);
+      const wordNumMap: Record<string, number> = {
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'ten': 10, 'fifteen': 15, 'twenty': 20, 'thirty': 30, 'forty five': 45,
+        'ஒன்று': 1, 'ஒன்னு': 1, 'இரண்டு': 2, 'ரெண்டு': 2, 'பத்து': 10, 'பதினைந்து': 15, 'இருபது': 20, 'முப்பது': 30,
+        'एक': 1, 'दो': 2, 'तीन': 3, 'दस': 10, 'पंद्रह': 15, 'बीस': 20, 'तीस': 30, 'पैंतालीस': 45
+      };
+
+      let extractedNum: number | null = null;
+      if (numMatch) {
+        extractedNum = parseInt(numMatch[1], 10);
+      } else {
+        for (const [w, n] of Object.entries(wordNumMap)) {
+          if (raw.includes(w)) {
+            extractedNum = n;
+            break;
+          }
+        }
+      }
+
+      if (extractedNum && extractedNum > 0) {
+        const isWeek = /week|weeks|வாரம்|வாரங்கள்|vaaram|vaarangal|हफ्ता|हफ़्ते|हफ्ते|सप्ताह/i.test(raw);
+        const isMonth = /month|months|மாதம்|மாதங்கள்|maatham|महीना|महीने/i.test(raw);
+        const isDay = /day|days|நாட்கள்|நாள்|naatkal|naal|दिन/i.test(raw);
+
+        let totalDays = extractedNum;
+        if (isWeek) totalDays = extractedNum * 7;
+        if (isMonth) totalDays = extractedNum * 30;
+
+        if (isWeek || isMonth || isDay) {
+          console.log(`[Custom Duration Parser Success]: "${raw}" -> ${totalDays} total days`);
+          return {
+            isMatched: true,
+            matchedValue: 'custom',
+            confidence: 0.95,
+            needsClarification: false,
+            matchedTranscript: text,
+            customDays: totalDays
+          };
+        }
+      }
     }
 
     let bestDuration: string | null = null;
@@ -616,4 +652,74 @@ export class SttMatcherService {
 
     return { isEveryDay: true, selectedDays: [], isMatched: false, confidence: 0 };
   }
+
+  /**
+   * 🚀 MULTILINGUAL SPOKEN DATE PARSER (EN, TA, HI)
+   * Resolves relative date expressions ("tomorrow", "நாளை", "कल", "next monday") to YYYY-MM-DD format.
+   */
+  public static parseSpokenDate(text: string): string | null {
+    if (!text) return null;
+    const raw = text.toLowerCase().replace(/[\.,!\?]/g, ' ').trim();
+    const now = new Date();
+
+    // 1. Direct YYYY-MM-DD
+    const isoMatch = raw.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+    if (isoMatch) return isoMatch[0];
+
+    // 2. Relative Words
+    if (
+      raw.includes('today') ||
+      raw.includes('இன்று') ||
+      raw.includes('இன்னைக்கு') ||
+      raw.includes('आज')
+    ) {
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+
+    if (
+      raw.includes('tomorrow') ||
+      raw.includes('நாளை') ||
+      raw.includes('நாளைக்கு') ||
+      raw.includes('कल')
+    ) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    }
+
+    if (
+      raw.includes('day after tomorrow') ||
+      raw.includes('நாளை மறுநாள்') ||
+      raw.includes('परसों')
+    ) {
+      const dayAfter = new Date(now);
+      dayAfter.setDate(dayAfter.getDate() + 2);
+      return `${dayAfter.getFullYear()}-${String(dayAfter.getMonth() + 1).padStart(2, '0')}-${String(dayAfter.getDate()).padStart(2, '0')}`;
+    }
+
+    // 3. Weekdays (e.g. "next Monday", "வெள்ளிக்கிழமை", "शुक्रवार")
+    const dayNamesObj: { [key: number]: string[] } = {
+      1: ['monday', 'mon', 'திங்கள்', 'திங்கட்கிழமை', 'somvar', 'सोमवार'],
+      2: ['tuesday', 'tue', 'செவ்வாய்', 'செவ்வாய்க்கிழமை', 'mangalvar', 'मंगलवार'],
+      3: ['wednesday', 'wed', 'புதன்', 'புதன்கிழமை', 'budhvar', 'बुधवार'],
+      4: ['thursday', 'thu', 'வியாழன்', 'வியாழக்கிழமை', 'guruvar', 'गुरुवार'],
+      5: ['friday', 'fri', 'வெள்ளி', 'வெள்ளிக்கிழமை', 'shukravar', 'शुक्रवार'],
+      6: ['saturday', 'sat', 'சனி', 'சனிக்கிழமை', 'shanivar', 'शनिवार'],
+      0: ['sunday', 'sun', 'ஞாயிறு', 'ஞாயிற்றுக்கிழமை', 'ravivar', 'रविवार']
+    };
+
+    for (const [dayNumStr, words] of Object.entries(dayNamesObj)) {
+      const targetDayNum = parseInt(dayNumStr, 10);
+      if (words.some(w => raw.includes(w))) {
+        const targetDate = new Date(now);
+        let diff = targetDayNum - now.getDay();
+        if (diff <= 0) diff += 7; // Next upcoming occurrence
+        targetDate.setDate(targetDate.getDate() + diff);
+        return `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+      }
+    }
+
+    return null;
+  }
 }
+

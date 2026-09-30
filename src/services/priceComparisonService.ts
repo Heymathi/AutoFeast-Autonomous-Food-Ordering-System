@@ -1,4 +1,5 @@
 import { PlatformPriceOption, OrderStrategy } from '../types';
+import { FuzzyMatchEngine, FuzzyMatchResult } from './fuzzyMatchService';
 
 export interface PriceComparisonSummary {
   bestValue: PlatformPriceOption;
@@ -67,5 +68,12 @@ export class PriceComparisonService {
       default:
         return summary.bestValue;
     }
+  }
+
+  /**
+   * Match user query against canonical restaurant list using FuzzyMatchEngine
+   */
+  public static matchRestaurantName(query: string): FuzzyMatchResult<{ canonicalName: string }> {
+    return FuzzyMatchEngine.matchRestaurant(query);
   }
 }

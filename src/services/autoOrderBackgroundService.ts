@@ -228,6 +228,57 @@ export class AutoOrderBackgroundService {
   }
 
   /**
+   * 🚀 Exclude/Skip a specific date from a recurring schedule.
+   * Syncs both schedule.excludedDates and ScheduleOverride (isSkipped: true).
+   */
+  public static skipScheduleDate(scheduleId: string, dateStr: string): AutoOrderSchedule[] {
+    const schedules = this.getSchedules();
+    const schedule = schedules.find(s => s.id === scheduleId);
+    if (!schedule) return schedules;
+
+    if (!schedule.excludedDates) schedule.excludedDates = [];
+    if (!schedule.excludedDates.includes(dateStr)) {
+      schedule.excludedDates.push(dateStr);
+    }
+
+    this.saveSchedule(schedule);
+
+    // Also persist in ScheduleOverride table
+    this.saveOverride({
+      id: `override-skip-${scheduleId}-${dateStr}`,
+      scheduleId,
+      date: dateStr,
+      isSkipped: true,
+      notes: `Single-day skipped by user for ${dateStr}`
+    });
+
+    return this.getSchedules();
+  }
+
+  /**
+   * 🚀 Restore/Unskip a previously excluded date for a recurring schedule.
+   */
+  public static restoreScheduleDate(scheduleId: string, dateStr: string): AutoOrderSchedule[] {
+    const schedules = this.getSchedules();
+    const schedule = schedules.find(s => s.id === scheduleId);
+    if (!schedule) return schedules;
+
+    if (schedule.excludedDates) {
+      schedule.excludedDates = schedule.excludedDates.filter(d => d !== dateStr);
+    }
+
+    this.saveSchedule(schedule);
+
+    // Remove override if present
+    const override = this.getOverride(scheduleId, dateStr);
+    if (override) {
+      this.deleteOverride(override.id);
+    }
+
+    return this.getSchedules();
+  }
+
+  /**
    * Retrieve order history.
    */
   public static getOrderHistory(): ExecutedOrder[] {
@@ -341,6 +392,16 @@ export class AutoOrderBackgroundService {
     return executedOrder;
   }
 
+  private static preOrderListeners: Array<(schedule: AutoOrderSchedule) => void> = [];
+  private static promptedSchedulesToday: Set<string> = new Set();
+
+  public static onPreOrderPrompt(cb: (schedule: AutoOrderSchedule) => void) {
+    this.preOrderListeners.push(cb);
+    return () => {
+      this.preOrderListeners = this.preOrderListeners.filter(l => l !== cb);
+    };
+  }
+
   /**
    * Start background monitor service polling schedules across extended long-term durations.
    */
@@ -351,6 +412,7 @@ export class AutoOrderBackgroundService {
       const now = new Date();
       const todayStr = getTodayFormattedDate();
       const currentHoursMin = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
 
       const schedules = this.getSchedules();
       schedules.forEach(schedule => {
@@ -379,7 +441,10 @@ export class AutoOrderBackgroundService {
           }
         }
 
-        // 3. Check Per-Date Override for Today
+        // 3. Check Per-Date Override or Excluded Dates for Today
+        if (schedule.excludedDates && schedule.excludedDates.includes(todayStr)) {
+          return; // Explicitly excluded for today
+        }
         const override = this.getOverride(schedule.id, todayStr);
         if (override && override.isSkipped) {
           // Explicitly skipped by user for today
@@ -388,6 +453,20 @@ export class AutoOrderBackgroundService {
 
         // Effective trigger time for today (override time if set, else schedule default time)
         const targetTime = (override && override.time) ? override.time : schedule.time;
+
+        // 4. Check 5-Minute Pre-Order Voice Confirmation Trigger
+        const [targetH, targetM] = targetTime.split(':').map(n => parseInt(n, 10));
+        if (!isNaN(targetH) && !isNaN(targetM)) {
+          const targetTotalMinutes = targetH * 60 + targetM;
+          const diffMinutes = targetTotalMinutes - currentTotalMinutes;
+
+          const promptKey = `preorder_prompt_${schedule.id}_${todayStr}`;
+          if (diffMinutes === 5 && !this.promptedSchedulesToday.has(promptKey)) {
+            this.promptedSchedulesToday.add(promptKey);
+            console.log(`[AutoOrderBackgroundService]: Triggering 5-minute pre-order voice confirmation for schedule "${schedule.slotName}" (${schedule.foodItemName})`);
+            this.preOrderListeners.forEach(cb => cb(schedule));
+          }
+        }
 
         if (targetTime === currentHoursMin) {
           const lastRunDate = schedule.lastRun ? new Date(schedule.lastRun) : null;

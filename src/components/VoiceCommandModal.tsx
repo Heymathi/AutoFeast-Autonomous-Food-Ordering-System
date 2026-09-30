@@ -25,7 +25,8 @@ export const VoiceCommandModal: React.FC = () => {
     setVoiceDialogItem,
     checkDailyOrderLimitReached,
     processNaturalLanguageVoiceCommand,
-    requestWalletBalanceReveal
+    requestWalletBalanceReveal,
+    skipScheduleByVoiceCommand
   } = useApp();
 
   const [isListening, setIsListening] = useState(false);
@@ -65,7 +66,7 @@ export const VoiceCommandModal: React.FC = () => {
     setIsListening(true);
     SpeechService.startListening({
       language,
-      continuous: false,
+      continuous: true,
       interimResults: true,
       onStart: () => setIsListening(true),
       onResult: (text, isFinal, nBestTranscripts) => {
@@ -84,6 +85,13 @@ export const VoiceCommandModal: React.FC = () => {
       },
       onEnd: () => {
         setIsListening(false);
+        if (isVoiceModalOpen) {
+          setTimeout(() => {
+            if (isVoiceModalOpen) {
+              startListeningSession();
+            }
+          }, 400);
+        }
       }
     });
   };
@@ -165,6 +173,14 @@ export const VoiceCommandModal: React.FC = () => {
     if (!cmdText || !cmdText.trim()) return;
 
     const raw = cmdText.toLowerCase().trim();
+
+    // 🚀 STEP -1: Check single-day schedule skip/cancel voice command
+    const isSkipHandled = await skipScheduleByVoiceCommand(cmdText);
+    if (isSkipHandled) {
+      console.log(`[VoiceCommandModal]: Single-day schedule skip voice command processed for "${cmdText}"`);
+      setIsVoiceModalOpen(false);
+      return;
+    }
 
     // 🚀 STEP 0: Run NLP Algorithm parser for multi-item / Tanglish / Saravana Bhavan orders
     const isNlpHandled = await processNaturalLanguageVoiceCommand(cmdText);
