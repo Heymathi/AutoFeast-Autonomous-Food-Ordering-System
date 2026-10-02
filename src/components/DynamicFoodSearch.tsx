@@ -7,6 +7,7 @@ import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { CategoryVoiceService } from '../services/categoryVoiceService';
 import { DynamicFoodSearchEngine } from '../services/dynamicFoodSearch';
 import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
+import { ItemActionChooser } from './ItemActionChooser';
 import { Search, MapPin, Utensils, Leaf, Star, Clock, Sparkles, AlertCircle, ShieldCheck, Zap, Navigation, Mic, MicOff, Volume2 } from 'lucide-react';
 
 export const DynamicFoodSearch: React.FC = () => {
@@ -24,7 +25,9 @@ export const DynamicFoodSearch: React.FC = () => {
     setActiveView,
     placeInstantOrder,
     setVoiceDialogItem,
+    addToCart,
     addToScheduleCart,
+    setIsScheduleCartOpen,
     t,
     accessibilitySettings,
     language,
@@ -36,6 +39,7 @@ export const DynamicFoodSearch: React.FC = () => {
   const [liveTranscript, setLiveTranscript] = useState('');
   const [categoryStatusText, setCategoryStatusText] = useState('');
   const [schedulingItem, setSchedulingItem] = useState<FoodItem | null>(null);
+  const [chooserItem, setChooserItem] = useState<FoodItem | null>(null);
 
   useEffect(() => {
     return () => {
@@ -64,7 +68,7 @@ export const DynamicFoodSearch: React.FC = () => {
         if (matchedVariety) {
           console.log(`[Category Follow-up SUCCESS]: Matched specific variety -> "${matchedVariety.name}"`);
           setCategoryStatusText('');
-          setVoiceDialogItem(matchedVariety);
+          setChooserItem(matchedVariety);
         }
       },
       onError: (err) => {
@@ -471,20 +475,17 @@ export const DynamicFoodSearch: React.FC = () => {
               
               <button
                 type="button"
-                onClick={() => {
-                  console.log(`[DynamicFoodSearch]: Voice Ask Prompt Clicked -> Item ID: "${item.id}", Name: "${item.name}"`);
-                  setVoiceDialogItem(item);
-                }}
+                onClick={() => setChooserItem(item)}
                 className="w-full bg-[#1A1110] hover:bg-black text-white font-black py-2.5 rounded-xl shadow-md transition-transform active:scale-95 flex items-center justify-center space-x-2 text-xs sm:text-sm cursor-pointer"
               >
                 <Mic className="w-4 h-4 text-[#FF5A1F]" />
-                <span>Voice Ask: Order Now or Schedule?</span>
+                <span>Choose Action (Voice / Tap)</span>
               </button>
 
               <div className="grid grid-cols-3 gap-1.5">
                 <button
                   type="button"
-                  onClick={e => handleInstantOrderClick(e, item)}
+                  onClick={() => setChooserItem(item)}
                   className="bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black py-2.5 rounded-xl shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
                 >
                   <Zap className="w-3.5 h-3.5 text-white" />
@@ -493,7 +494,7 @@ export const DynamicFoodSearch: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => setSchedulingItem(item)}
+                  onClick={() => setChooserItem(item)}
                   className="bg-[#DAF0F7] hover:bg-[#B2E2F0] text-[#1A1110] font-black py-2.5 rounded-xl border border-[#B2E2F0] shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
                 >
                   <Clock className="w-3.5 h-3.5 text-[#FF5A1F]" />
@@ -502,8 +503,9 @@ export const DynamicFoodSearch: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => addToScheduleCart(item, 1)}
+                  onClick={() => setChooserItem(item)}
                   className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black py-2.5 rounded-xl border border-emerald-300 shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                  title={t('addToCart')}
                 >
                   <span>+ Cart</span>
                 </button>
@@ -514,6 +516,29 @@ export const DynamicFoodSearch: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* SHARED ITEM ACTION CHOOSER MODAL */}
+      <ItemActionChooser
+        isOpen={Boolean(chooserItem)}
+        onClose={() => setChooserItem(null)}
+        items={chooserItem ? [chooserItem] : []}
+        onOrderNow={(items) => {
+          if (items[0]) placeInstantOrder(items[0]);
+        }}
+        onSchedule={(items) => {
+          if (items[0]) setSchedulingItem(items[0]);
+        }}
+        onAddToCart={(items) => {
+          if (items[0]) {
+            const itm = items[0];
+            addToCart(itm, 1, 'dynamic_search');
+            const itemName = itm.nativeNames?.[language] || itm.name;
+            const addedMsg = t('addedNext').replace('{item}', itemName);
+            showToast(addedMsg);
+            speakText(addedMsg);
+          }
+        }}
+      />
 
       {/* SHARED SCHEDULE CHECKOUT MODAL */}
       <ScheduleCheckoutModal

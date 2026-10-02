@@ -56,6 +56,7 @@ export const Navbar: React.FC = () => {
     setIsNomineeModalOpen,
     pendingNomineeApprovals,
     showToast,
+    cart,
     scheduleCart,
     isScheduleCartModalOpen,
     setIsScheduleCartModalOpen
@@ -297,18 +298,18 @@ export const Navbar: React.FC = () => {
               <span className="line-clamp-2 text-left">{t('nav.orders')}</span>
             </button>
 
-            {/* Schedule Cart */}
+            {/* Shared Cart */}
             <button
               type="button"
               onClick={() => setIsScheduleCartModalOpen(true)}
               className="min-h-[44px] flex items-center gap-1.5 px-[clamp(0.5rem,1vw,0.75rem)] py-[clamp(0.35rem,0.8vw,0.5rem)] rounded-xl text-[clamp(0.7rem,1.1vw,0.8rem)] font-black leading-tight transition-all cursor-pointer bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-400 relative"
-              title="View Schedule Cart"
+              title={t('cartTitle')}
             >
               <ShoppingBag className="w-4 h-4 shrink-0 text-[#FF5A1F]" />
-              <span className="line-clamp-1">Cart</span>
-              {scheduleCart.length > 0 && (
-                <span className="w-4 h-4 rounded-full bg-[#FF5A1F] text-white text-[9px] font-black flex items-center justify-center animate-pulse shrink-0">
-                  {scheduleCart.length}
+              <span className="line-clamp-1">{t('cartTitle')}</span>
+              {cart.reduce((sum, i) => sum + i.qty, 0) > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-[#FF5A1F] text-white text-[10px] font-black flex items-center justify-center animate-pulse shrink-0 min-w-[1.25rem] min-h-[1.25rem]">
+                  {cart.reduce((sum, i) => sum + i.qty, 0)}
                 </span>
               )}
             </button>
@@ -571,17 +572,17 @@ export const Navbar: React.FC = () => {
                 <span className="leading-normal">{t('nav.orders')}</span>
               </button>
 
-              {/* Schedule Cart */}
+              {/* Shared Cart */}
               <button
                 type="button"
                 onClick={() => { setIsScheduleCartModalOpen(true); closeMobileMenu(); }}
                 className="min-h-[44px] flex items-center gap-3 px-4 py-2.5 rounded-xl font-black text-xs bg-amber-500/10 text-amber-900 dark:text-amber-300 border border-amber-400 cursor-pointer"
               >
                 <ShoppingBag className="w-5 h-5 text-[#FF5A1F] shrink-0" />
-                <span className="leading-normal">Schedule Cart</span>
-                {scheduleCart.length > 0 && (
-                  <span className="ml-auto w-5 h-5 rounded-full bg-[#FF5A1F] text-white text-[10px] font-black flex items-center justify-center animate-pulse">
-                    {scheduleCart.length}
+                <span className="leading-normal">{t('cartTitle')}</span>
+                {cart.reduce((sum, i) => sum + i.qty, 0) > 0 && (
+                  <span className="ml-auto px-2 py-0.5 rounded-full bg-[#FF5A1F] text-white text-[10px] font-black flex items-center justify-center animate-pulse min-w-[1.25rem] min-h-[1.25rem]">
+                    {cart.reduce((sum, i) => sum + i.qty, 0)}
                   </span>
                 )}
               </button>

@@ -310,6 +310,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="email"
                 className="w-full px-4 py-3 bg-slate-50 border border-[#B2E2F0] rounded-2xl text-[#1A1110] font-bold text-sm focus:outline-none focus:border-[#FF5A1F]"
                 placeholder="name@autofeast.com or Username"
               />
@@ -326,9 +330,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  autoComplete="current-password"
                   className="w-full px-4 py-3 bg-slate-50 border border-[#B2E2F0] rounded-2xl text-[#1A1110] font-bold text-sm focus:outline-none focus:border-[#FF5A1F] pr-10"
                   placeholder="••••••••"
                 />
+
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -411,6 +420,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
                 value={signupEmail}
                 onChange={e => setSignupEmail(e.target.value)}
                 required
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="email"
                 className="w-full px-4 py-2.5 bg-slate-50 border border-[#B2E2F0] rounded-2xl text-[#1A1110] text-sm font-bold focus:outline-none focus:border-[#FF5A1F]"
                 placeholder="user@autofeast.com"
               />
@@ -427,9 +440,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
                   value={signupPassword}
                   onChange={e => setSignupPassword(e.target.value)}
                   required
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  autoComplete="new-password"
                   className="w-full px-3 py-2.5 bg-slate-50 border border-[#B2E2F0] rounded-xl text-[#1A1110] text-xs font-bold focus:outline-none focus:border-[#FF5A1F]"
                   placeholder="••••••••"
                 />
+
               </div>
 
               <div>

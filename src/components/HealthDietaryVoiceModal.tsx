@@ -6,7 +6,8 @@ import { PriceComparisonService, PriceComparisonSummary } from '../services/pric
 import { SttMatcherService, CONFIRMATION_VOCABULARY } from '../services/sttMatcherService';
 import { SpeechService } from '../services/speechService';
 import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
-import { Mic, MicOff, X, HeartPulse, AlertTriangle, ShieldAlert, Sparkles, CheckCircle2, Zap, Clock, Volume2, Store, Star, Award, ChevronRight } from 'lucide-react';
+import { ItemActionChooser } from './ItemActionChooser';
+import { Mic, MicOff, X, HeartPulse, AlertTriangle, ShieldAlert, Sparkles, CheckCircle2, Zap, Clock, Volume2, Store, Star, Award, ChevronRight, ShoppingBag } from 'lucide-react';
 
 interface HealthDietaryVoiceModalProps {
   isOpen: boolean;
@@ -24,6 +25,8 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
     speakText,
     placeInstantOrder,
     setVoiceDialogItem,
+    addToCart,
+    t,
     showToast
   } = useApp();
 
@@ -34,6 +37,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
   const [selectedItem, setSelectedItem] = useState<FoodItem | null>(null);
   const [priceComparison, setPriceComparison] = useState<PriceComparisonSummary | null>(null);
   const [isSchedulingModalOpen, setIsSchedulingModalOpen] = useState(false);
+  const [chooserItem, setChooserItem] = useState<FoodItem | null>(null);
 
   const stepRef = useRef<HealthModalStep>('speak_condition');
   const isComponentMounted = useRef(true);
@@ -573,39 +577,75 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
               </span>
             </div>
 
-            {/* Action Handoff Buttons */}
-            <div className="grid grid-cols-2 gap-3 pt-1">
+            {/* Action Handoff Buttons (3 Actions: Add to Cart, Order Now, Schedule) */}
+            <div className="grid grid-cols-3 gap-2 pt-1">
               <button
                 onClick={() => {
-                  SpeechService.stopListening();
-                  setIsListening(false);
-                  placeInstantOrder(selectedItem);
-                  onClose();
+                  if (selectedItem) setChooserItem(selectedItem);
                 }}
-                className="p-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-sm shadow-lg flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
+                className="p-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-400 rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
+                title={t('addToCart')}
               >
-                <Zap className="w-6 h-6 text-yellow-300" />
-                <span>{language === 'ta' ? 'இப்போதே ஆர்டர் செய்' : 'Order Instantly Now'}</span>
-                <span className="text-[10px] opacity-90">Wallet Auto-Debit</span>
+                <ShoppingBag className="w-5 h-5 text-[#FF5A1F]" />
+                <span>{t('addToCart')}</span>
+                <span className="text-[10px] opacity-90">+ Shared Cart</span>
               </button>
 
               <button
                 onClick={() => {
-                  SpeechService.stopListening();
-                  setIsListening(false);
-                  setIsSchedulingModalOpen(true);
+                  if (selectedItem) setChooserItem(selectedItem);
                 }}
-                className="p-4 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl font-black text-sm shadow-lg flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
+                className="p-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
               >
-                <Clock className="w-6 h-6 text-white" />
-                <span>{language === 'ta' ? 'நேரத்திற்கு அட்டவணைப்படுத்து' : 'Schedule for Later'}</span>
-                <span className="text-[10px] opacity-90">Time & Duration Flow</span>
+                <Zap className="w-5 h-5 text-yellow-300" />
+                <span>{t('orderNow')}</span>
+                <span className="text-[10px] opacity-90">Instant Order</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (selectedItem) setChooserItem(selectedItem);
+                }}
+                className="p-3 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
+              >
+                <Clock className="w-5 h-5 text-white" />
+                <span>{t('scheduleCart')}</span>
+                <span className="text-[10px] opacity-90">Schedule Order</span>
               </button>
             </div>
           </div>
         )}
 
       </div>
+
+      {/* SHARED ITEM ACTION CHOOSER MODAL */}
+      <ItemActionChooser
+        isOpen={Boolean(chooserItem)}
+        onClose={() => setChooserItem(null)}
+        items={chooserItem ? [chooserItem] : []}
+        onOrderNow={(items) => {
+          if (items[0]) {
+            placeInstantOrder(items[0]);
+            onClose();
+          }
+        }}
+        onSchedule={(items) => {
+          if (items[0]) {
+            setSelectedItem(items[0]);
+            setIsSchedulingModalOpen(true);
+          }
+        }}
+        onAddToCart={(items) => {
+          if (items[0]) {
+            const itm = items[0];
+            addToCart(itm, 1, 'healthy_food');
+            const itemName = itm.nativeNames?.[language] || itm.name;
+            const addedMsg = t('addedNext').replace('{item}', itemName);
+            showToast(addedMsg);
+            speakText(addedMsg);
+          }
+        }}
+      />
 
       {/* SHARED SCHEDULE CHECKOUT MODAL */}
       <ScheduleCheckoutModal

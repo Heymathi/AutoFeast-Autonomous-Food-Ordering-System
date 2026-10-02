@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem, AutoOrderSchedule, ScheduleDuration, OrderStrategy } from '../types';
 import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
 import { FuzzyMatchEngine } from '../services/fuzzyMatchService';
 import { ScheduleBill } from './ScheduleBill';
 import { WeekdaySelector } from './WeekdaySelector';
-import { calculateScheduleOccurrences, calculateScheduleDatesList } from '../utils/scheduleCalculator';
+import {
+  calculateScheduleOccurrences,
+  calculateScheduleDatesList,
+  checkIsDateTimePast,
+  getNextAvailableTimeSlot
+} from '../utils/scheduleCalculator';
 import { Clock, Calendar, CheckCircle2, ShieldCheck, Wallet, Lock, X, AlertTriangle, ArrowRight, Utensils, Tag, FileText, Check, Mic } from 'lucide-react';
 import { SpeechService } from '../services/speechService';
 import { AuthService } from '../services/authService';
@@ -47,12 +52,32 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
     showToast,
     speakText,
     clearScheduleCart,
+    clearCart,
     t,
     language
   } = useApp();
 
+  // Helper date utilities
+  const getTodayISO = (): string => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+
+  const getTomorrowISO = (): string => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+  };
+
+  const checkIsPastTime = (selectedTime: string, selectedStartDate: string): boolean => {
+    return checkIsDateTimePast(selectedStartDate, selectedTime);
+  };
+
   // Step State: 1 = Settings, 2 = Bill Preview, 3 = Security PIN, 4 = Receipt / Success
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+
+  // Ref to prevent duplicate TTS announcements
+  const lastSpokenMsgRef = useRef<string>('');
 
   // Step 1: Settings State
   const [timeInput, setTimeInput] = useState<string>(initialTime);
@@ -62,8 +87,14 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
   const [selectedDays, setSelectedDays] = useState<string[]>(['Mon', 'Wed', 'Fri']);
   const [duration, setDuration] = useState<ScheduleDuration>('1_month');
   const [startDate, setStartDate] = useState<string>(() => {
-    const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const defaultTime = initialTime || '08:00';
+    const todayISO = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+    if (checkIsDateTimePast(todayISO, defaultTime)) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    }
+    return todayISO;
   });
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [strategy, setStrategy] = useState<OrderStrategy>('best_value');
@@ -76,14 +107,19 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
 
   // Validation & Error Feedback State
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [pastTimeSuggestion, setPastTimeSuggestion] = useState<{ suggestedTime: string; suggestedDate: string; label: string } | null>(null);
+  const [pastTimeSuggestion, setPastTimeSuggestion] = useState<{
+    tomorrowDate: string;
+    timeInput: string;
+    nextSlotTime: string;
+  } | null>(null);
   const [isValidating, setIsValidating] = useState<boolean>(false);
 
-  // Reset state when modal opens
+  // Reset state and set smart default start date when modal opens
   useEffect(() => {
     if (isOpen) {
       setStep(1);
-      setTimeInput(initialTime || '08:00');
+      const initT = initialTime || '08:00';
+      setTimeInput(initT);
       setShowAmPmChoice(false);
       setPendingHour(null);
       setPinDigits(['', '', '', '']);
@@ -92,6 +128,15 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
       setValidationError(null);
       setPastTimeSuggestion(null);
       setIsValidating(false);
+      lastSpokenMsgRef.current = '';
+
+      // Smart default: if today's default time has passed, start date defaults to TOMORROW
+      const todayISO = getTodayISO();
+      if (checkIsPastTime(initT, todayISO)) {
+        setStartDate(getTomorrowISO());
+      } else {
+        setStartDate(todayISO);
+      }
     }
   }, [isOpen, initialTime, initialSlotName]);
 
@@ -104,29 +149,11 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
 
   const computedEndDate = calculateScheduleEndDate(startDate, duration, customEndDate);
 
-  // Helper to check if selected time on today's start date has already passed
-  const checkIsPastTime = (selectedTime: string, selectedStartDate: string): boolean => {
-    if (!selectedStartDate || !selectedTime) return false;
-    const now = new Date();
-    const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    
-    if (selectedStartDate !== todayISO) return false;
-
-    const [hours, minutes] = selectedTime.split(':').map(Number);
-    if (isNaN(hours) || isNaN(minutes)) return false;
-
-    const currentHours = now.getHours();
-    const currentMinutes = now.getMinutes();
-
-    if (hours < currentHours) return true;
-    if (hours === currentHours && minutes <= currentMinutes) return true;
-    return false;
-  };
-
   // Fuzzy Time Parsing Helper
   const handleTimeBlurOrChange = (rawVal: string) => {
     setValidationError(null);
     setPastTimeSuggestion(null);
+    lastSpokenMsgRef.current = '';
     if (!rawVal || !rawVal.trim()) return;
     const parsed = FuzzyMatchEngine.fuzzyParseTimeAndSchedule(rawVal, language);
     setTimeInput(parsed.time);
@@ -145,6 +172,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
   const selectAmPm = (isPm: boolean) => {
     setValidationError(null);
     setPastTimeSuggestion(null);
+    lastSpokenMsgRef.current = '';
     if (pendingHour !== null) {
       let finalHour = pendingHour;
       if (isPm && finalHour < 12) finalHour += 12;
@@ -194,10 +222,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
 
       // 2. Validate Past Time if start date is today
       if (checkIsPastTime(timeInput, startDate)) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tmrISO = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-        
+        const nextSlotTime = getNextAvailableTimeSlot();
         const err = language === 'ta'
           ? 'அந்த நேரம் ஏற்கனவே முடிந்துவிட்டது. புதிய நேரத்தைத் தேர்ந்தெடுக்கவும்.'
           : language === 'hi'
@@ -205,16 +230,17 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
           : 'That time has passed. Pick a new time.';
 
         setValidationError(err);
-        showToast(err, 'warning');
+        // NO duplicate toast! Single inline error next to time field.
+
+        if (lastSpokenMsgRef.current !== err) {
+          lastSpokenMsgRef.current = err;
+          speakText(err);
+        }
         
         setPastTimeSuggestion({
-          suggestedDate: tmrISO,
-          suggestedTime: timeInput,
-          label: language === 'ta'
-            ? `நாளை இதே நேரத்தில் (${tmrISO} at ${timeInput}) அமைக்கவா?`
-            : language === 'hi'
-            ? `कल इसी समय (${tmrISO} को ${timeInput}) सेट करें?`
-            : `Set for tomorrow at same time (${tmrISO} at ${timeInput})?`
+          tomorrowDate: getTomorrowISO(),
+          timeInput: timeInput,
+          nextSlotTime: nextSlotTime
         });
         setIsValidating(false);
         return;
@@ -553,9 +579,27 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
 
             {/* Computed Delivery Dates Verification List */}
             {(() => {
-              const deliveryDates = calculateScheduleDatesList(startDate, duration, customEndDate, frequency === 'daily' ? [] : selectedDays);
+              const deliveryDates = calculateScheduleDatesList(
+                startDate,
+                duration,
+                customEndDate,
+                frequency === 'daily' ? [] : selectedDays,
+                timeInput
+              );
+              const todayISO = getTodayISO();
+              const isTodayExcluded = startDate === todayISO && checkIsPastTime(timeInput, todayISO);
+
               return (
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+                  {isTodayExcluded && (
+                    <div className="text-[11px] font-bold text-amber-900 bg-amber-50 p-2.5 rounded-xl border border-amber-300 flex items-center gap-2">
+                      <span className="text-sm shrink-0">ℹ️</span>
+                      <span>
+                        {t('todayPassedNote') || "Today's slot has passed, starting from tomorrow."}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between text-xs font-black text-[#1A1110]">
                     <span className="flex items-center gap-1">
                       <Calendar className="w-4 h-4 text-[#FF5A1F]" />
@@ -578,29 +622,60 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
               );
             })()}
 
-            {/* Inline Validation Error & Past-Time Suggestion Alert */}
+            {/* Inline Validation Error & 2 One-Tap Options */}
             {validationError && (
-              <div className="p-4 bg-rose-50 rounded-2xl border-2 border-rose-300 space-y-2 animate-fade-in">
+              <div className="p-4 bg-rose-50 rounded-2xl border-2 border-rose-300 space-y-3 animate-fade-in">
                 <div className="flex items-center space-x-2 text-rose-800 font-black text-xs">
                   <AlertTriangle className="w-5 h-5 text-[#C2185B] shrink-0" />
                   <span>{validationError}</span>
                 </div>
 
                 {pastTimeSuggestion && (
-                  <div className="pt-2 border-t border-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-rose-900">{pastTimeSuggestion.label}</span>
+                  <div className="pt-2 border-t border-rose-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-start gap-2 text-xs font-black">
+                    {/* Option 1: Start Tomorrow at {time} */}
                     <button
                       type="button"
                       onClick={() => {
-                        setStartDate(pastTimeSuggestion.suggestedDate);
-                        setTimeInput(pastTimeSuggestion.suggestedTime);
+                        setStartDate(pastTimeSuggestion.tomorrowDate);
                         setValidationError(null);
                         setPastTimeSuggestion(null);
+                        lastSpokenMsgRef.current = '';
                       }}
-                      className="px-4 py-2 bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center space-x-1 shrink-0"
+                      className="px-3.5 py-2 bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center justify-center space-x-1.5 transition-colors"
                     >
-                      <Check className="w-4 h-4" />
-                      <span>{language === 'ta' ? 'நாளைக்கு மாற்று (One-Tap Fix)' : language === 'hi' ? 'कल के लिए सेट करें' : 'Set for Tomorrow (One-Tap Fix)'}</span>
+                      <Check className="w-4 h-4 shrink-0" />
+                      <span>
+                        {t('startTomorrowAt')
+                          ? t('startTomorrowAt').replace('{time}', pastTimeSuggestion.timeInput)
+                          : language === 'ta'
+                          ? `நாளை ${pastTimeSuggestion.timeInput} மணிக்குத் தொடங்கு`
+                          : language === 'hi'
+                          ? `कल ${pastTimeSuggestion.timeInput} बजे शुरू करें`
+                          : `Start tomorrow at ${pastTimeSuggestion.timeInput}`}
+                      </span>
+                    </button>
+
+                    {/* Option 2: Use Next Slot Today ({time}) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTimeInput(pastTimeSuggestion.nextSlotTime);
+                        setValidationError(null);
+                        setPastTimeSuggestion(null);
+                        lastSpokenMsgRef.current = '';
+                      }}
+                      className="px-3.5 py-2 bg-[#FF5A1F] hover:bg-[#E04812] text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center justify-center space-x-1.5 transition-colors"
+                    >
+                      <Clock className="w-4 h-4 shrink-0" />
+                      <span>
+                        {t('pickNextSlot')
+                          ? t('pickNextSlot').replace('{time}', pastTimeSuggestion.nextSlotTime)
+                          : language === 'ta'
+                          ? `இன்றைய அடுத்த நேரம் (${pastTimeSuggestion.nextSlotTime})`
+                          : language === 'hi'
+                          ? `आज का अगला समय (${pastTimeSuggestion.nextSlotTime})`
+                          : `Use next slot today (${pastTimeSuggestion.nextSlotTime})`}
+                      </span>
                     </button>
                   </div>
                 )}

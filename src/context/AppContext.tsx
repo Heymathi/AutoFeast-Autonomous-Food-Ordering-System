@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Language, AccessibilitySettings, AppView, AutoOrderSchedule, ScheduleOverride, ExecutedOrder, WalletTransaction, UserLocation, LiveOrderTracking, FoodItem, OrderStrategy, LinkedBank, PendingPinVerification, EntryStep, PendingNomineeApproval, ToastItem, ScheduleCartItem } from '../types';
+import { Language, AccessibilitySettings, AppView, AutoOrderSchedule, ScheduleOverride, ExecutedOrder, WalletTransaction, UserLocation, LiveOrderTracking, FoodItem, OrderStrategy, LinkedBank, PendingPinVerification, EntryStep, PendingNomineeApproval, ToastItem, ScheduleCartItem, CartItem } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 import { DynamicFoodSearchEngine, SearchResult } from '../services/dynamicFoodSearch';
 import { WalletService } from '../services/walletService';
@@ -16,6 +16,8 @@ import { NomineeNotificationService } from '../services/nomineeNotificationServi
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { parseSpokenTimeTo24Hr } from '../components/VoiceOrderDialogModal';
 import { FuzzyMatchEngine } from '../services/fuzzyMatchService';
+import { CartService } from '../services/cartService';
+import { CartVoiceService } from '../services/cartVoiceService';
 
 interface AppContextType {
   // App Entry Sequence State
@@ -152,7 +154,12 @@ interface AppContextType {
   toastMessage: string | null;
   toasts: ToastItem[];
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info', duration?: number) => void;
-  removeToast: (id: string) => void;
+  cart: CartItem[];
+  addToCart: (item: FoodItem, quantity?: number, addedFrom?: 'voice_search' | 'dynamic_search' | 'auto_scheduler' | 'healthy_food' | 'general') => Promise<void>;
+  removeFromCart: (itemId: string, restaurantName?: string) => Promise<void>;
+  updateCartQuantity: (itemId: string, restaurantName: string, quantity: number) => Promise<void>;
+  clearCart: () => Promise<void>;
+  readCartTTS: () => void;
   scheduleCart: ScheduleCartItem[];
   addToScheduleCart: (item: FoodItem, quantity?: number) => void;
   removeFromScheduleCart: (foodId: string) => void;
@@ -849,62 +856,199 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [scheduleCart, setScheduleCart] = useState<ScheduleCartItem[]>(() => {
-    try {
-      const stored = localStorage.getItem('smart_food_schedule_cart');
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      return [];
-    }
-  });
 
+  // 🚀 SERVER-SIDE PERSISTENT CART STATE (DB + CartService API)
+  const [cart, setCart] = useState<CartItem[]>([]);
+
+  // Fetch server-side cart on mount & user login
   useEffect(() => {
+    const uid = currentUser?.id || 'user_karthik_001';
+    CartService.fetchCart(uid).then(serverCart => {
+      if (serverCart) {
+        setCart(serverCart.map(item => {
+          const matchedFood = INDIAN_FOOD_CATALOG.find(f => f.id === item.itemId || f.name.toLowerCase() === item.name.toLowerCase());
+          return {
+            ...item,
+            foodItem: item.foodItem || matchedFood
+          };
+        }));
+      }
+    });
+  }, [currentUser?.id]);
+
+  const addToCart = async (
+    foodItem: FoodItem,
+    quantity: number = 1,
+    addedFrom: 'voice_search' | 'dynamic_search' | 'auto_scheduler' | 'healthy_food' | 'general' = 'general'
+  ) => {
+    if (!foodItem || !foodItem.id || !foodItem.name) {
+      showToast('Cannot add invalid item to cart.', 'error');
+      return;
+    }
+
+    const price = foodItem.basePrice || (foodItem.platforms && foodItem.platforms.length > 0 ? foodItem.platforms[0].price : 0);
+    if (!price || price <= 0 || isNaN(price)) {
+      showToast('Item price is missing or invalid.', 'error');
+      return;
+    }
+
+    if ((foodItem as any).available === false) {
+      const itemErr = t('cartItemInvalid').replace('{item}', foodItem.name);
+      showToast(itemErr, 'error');
+      return;
+    }
+
+    if ((foodItem as any).isRestaurantClosed === true) {
+      const closedErr = t('restaurantClosed').replace('{restaurant}', foodItem.restaurant || 'Restaurant');
+      showToast(closedErr, 'error');
+      return;
+    }
+
+    const resName = foodItem.restaurant || 'Hotel Saravana Bhavan';
+    const resId = foodItem.restaurant || 'res_1';
+    const isRestricted = checkIsItemRestrictedByNominee(foodItem.id, foodItem.name);
+    const uid = currentUser?.id || 'user_karthik_001';
+
     try {
-      localStorage.setItem('smart_food_schedule_cart', JSON.stringify(scheduleCart));
-    } catch (e) {}
-  }, [scheduleCart]);
+      const updatedServerCart = await CartService.addToCart(uid, {
+        itemId: foodItem.id,
+        name: foodItem.name,
+        restaurantId: resId,
+        restaurantName: resName,
+        price,
+        qty: quantity,
+        addedFrom,
+        image: foodItem.image,
+        category: foodItem.category,
+        isVegetarian: Boolean(foodItem.isVeg),
+        needsNomineeApproval: isRestricted
+      });
+
+      const mappedCart = updatedServerCart.map(item => ({
+        ...item,
+        foodItem: item.itemId === foodItem.id ? foodItem : (INDIAN_FOOD_CATALOG.find(f => f.id === item.itemId) || item.foodItem)
+      }));
+
+      setCart(mappedCart);
+
+      const totalItemsCount = mappedCart.reduce((sum, i) => sum + i.qty, 0);
+      const itemName = foodItem.nativeNames?.[language] || foodItem.name;
+      const msg = t('addedToCart')
+        .replace('{qty}', String(quantity))
+        .replace('{item}', itemName)
+        .replace('{restaurant}', resName)
+        .replace('{n}', String(totalItemsCount));
+
+      showToast(msg, 'success');
+      speakText(msg, undefined, language);
+    } catch (err) {
+      showToast('Failed to sync cart with server. Please try again.', 'error');
+    }
+  };
+
+  const removeFromCart = async (itemId: string, restaurantName?: string) => {
+    const uid = currentUser?.id || 'user_karthik_001';
+    const targetItem = cart.find(i => i.itemId === itemId && (!restaurantName || i.restaurantName === restaurantName));
+    const resName = restaurantName || targetItem?.restaurantName || '';
+
+    try {
+      const updatedServerCart = await CartService.removeItem(uid, itemId, resName);
+      setCart(updatedServerCart);
+
+      if (targetItem) {
+        const itemName = targetItem.name;
+        const msg = t('removedFromCart').replace('{item}', itemName);
+        showToast(msg, 'info');
+        speakText(msg, undefined, language);
+      }
+    } catch (err) {
+      showToast('Failed to remove item from server cart.', 'error');
+    }
+  };
+
+  const updateCartQuantity = async (itemId: string, restaurantName: string, quantity: number) => {
+    if (quantity <= 0) {
+      await removeFromCart(itemId, restaurantName);
+      return;
+    }
+    const uid = currentUser?.id || 'user_karthik_001';
+    try {
+      const updatedServerCart = await CartService.updateQuantity(uid, itemId, restaurantName, quantity);
+      setCart(updatedServerCart);
+    } catch (err) {
+      showToast('Failed to update cart quantity.', 'error');
+    }
+  };
+
+  const clearCart = async () => {
+    const uid = currentUser?.id || 'user_karthik_001';
+    try {
+      await CartService.clearCart(uid);
+      setCart([]);
+      showToast(t('cartEmpty'), 'info');
+    } catch (err) {
+      showToast('Failed to clear cart.', 'error');
+    }
+  };
+
+  const readCartTTS = () => {
+    if (cart.length === 0) {
+      const emptyMsg = t('cartEmpty');
+      showToast(emptyMsg, 'info');
+      speakText(emptyMsg, undefined, language);
+      return;
+    }
+
+    const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+    const totalCount = cart.reduce((sum, item) => sum + item.qty, 0);
+    const cartReadMsg = t('cartRead').replace('{n}', String(totalCount)).replace('{total}', String(total));
+    const itemSummaries = cart.map(item => `${item.qty} ${item.name} from ${item.restaurantName}`).join(', ');
+    const fullSpeech = `${cartReadMsg} ${itemSummaries}`;
+
+    showToast(cartReadMsg, 'info');
+    speakText(fullSpeech, undefined, language);
+  };
+
+  // Backward-compatibility wrapper mapping cart to scheduleCart
+  const scheduleCart: ScheduleCartItem[] = cart.map(c => ({
+    foodItem: c.foodItem || (INDIAN_FOOD_CATALOG.find(f => f.id === c.itemId) || {
+      id: c.itemId,
+      name: c.name,
+      restaurant: c.restaurantName,
+      basePrice: c.price,
+      nativeNames: { ta: c.name, hi: c.name, en: c.name },
+      image: c.image || 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=500&auto=format&fit=crop&q=60',
+      description: '',
+      category: c.category || 'General',
+      isVegetarian: c.isVegetarian || false,
+      rating: 4.5,
+      preparationTimeMinutes: 20,
+      locations: ['Chennai'],
+      tags: [],
+      platforms: []
+    }),
+    quantity: c.qty
+  }));
 
   const addToScheduleCart = (foodItem: FoodItem, quantity: number = 1) => {
-    setScheduleCart(prev => {
-      const existing = prev.find(item => item.foodItem.id === foodItem.id);
-      if (existing) {
-        return prev.map(item =>
-          item.foodItem.id === foodItem.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      }
-      return [{ foodItem, quantity }, ...prev];
-    });
-    const itemName = foodItem.nativeNames?.[language] || foodItem.name;
-    const msg = language === 'ta'
-      ? `"${itemName}" அட்டவணை வண்டியில் சேர்க்கப்பட்டது!`
-      : language === 'hi'
-      ? `"${itemName}" शेड्यूल कार्ट में जोड़ा गया!`
-      : `Added "${itemName}" to schedule cart!`;
-    showToast(msg, 'success');
+    addToCart(foodItem, quantity, 'general');
   };
 
   const removeFromScheduleCart = (foodId: string) => {
-    setScheduleCart(prev => prev.filter(item => item.foodItem.id !== foodId));
+    removeFromCart(foodId);
   };
 
   const updateScheduleCartQuantity = (foodId: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromScheduleCart(foodId);
-      return;
+    const item = cart.find(c => c.itemId === foodId);
+    if (item) {
+      updateCartQuantity(foodId, item.restaurantName, quantity);
     }
-    setScheduleCart(prev =>
-      prev.map(item => (item.foodItem.id === foodId ? { ...item, quantity } : item))
-    );
   };
 
   const clearScheduleCart = () => {
-    setScheduleCart([]);
-    try {
-      localStorage.removeItem('smart_food_schedule_cart');
-    } catch (e) {}
+    clearCart();
   };
+
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
 
@@ -1187,12 +1331,109 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const processNaturalLanguageVoiceCommand = async (transcript: string): Promise<boolean> => {
     if (!transcript || !transcript.trim()) return false;
+    const textLower = transcript.toLowerCase().trim();
 
     if (checkDailyOrderLimitReached()) {
       return false;
     }
 
-    const textLower = (transcript || '').toLowerCase();
+    // 🚀 STEP 0: Check Cart Voice Commands (Add, Multi-Add, Show/Read, Remove, Update Qty, Clear, Checkout, Schedule Cart)
+    const cartCmd = CartVoiceService.parseCartCommand(transcript, language);
+
+    if (cartCmd.type === 'show') {
+      setIsScheduleCartModalOpen(true);
+      readCartTTS();
+      return true;
+    }
+
+    if (cartCmd.type === 'clear') {
+      if (cartCmd.requiresConfirmation && cartCmd.confirmationPrompt) {
+        showToast(cartCmd.confirmationPrompt, 'warning');
+        speakText(cartCmd.confirmationPrompt, () => {
+          SpeechService.startListening({
+            language,
+            onResult: (text, isFinal) => {
+              if (!isFinal || !text) return;
+              const match = SttMatcherService.matchConfirmation([text], language);
+              if (match.isMatched && match.matchedValue === 'YES') {
+                clearCart();
+                const clearedMsg = t('cartEmpty');
+                showToast(clearedMsg, 'info');
+                speakText(clearedMsg, undefined, language);
+              }
+            }
+          });
+        }, language);
+      } else {
+        clearCart();
+      }
+      return true;
+    }
+
+    if (cartCmd.type === 'remove' && cartCmd.targetItemId) {
+      await removeFromCart(cartCmd.targetItemId, cartCmd.targetRestaurantName);
+      return true;
+    }
+
+    if (cartCmd.type === 'update_qty' && cartCmd.targetItemId && cartCmd.targetQuantity !== undefined) {
+      await updateCartQuantity(cartCmd.targetItemId, cartCmd.targetRestaurantName || '', cartCmd.targetQuantity);
+      const updatedMsg = `Updated ${cartCmd.targetItemName || 'item'} quantity to ${cartCmd.targetQuantity}.`;
+      showToast(updatedMsg, 'info');
+      speakText(updatedMsg, undefined, language);
+      return true;
+    }
+
+    if (cartCmd.type === 'add' && cartCmd.items && cartCmd.items.length > 0) {
+      const target = cartCmd.items[0];
+      if (cartCmd.requiresConfirmation && cartCmd.confirmationPrompt) {
+        showToast(cartCmd.confirmationPrompt, 'info');
+        speakText(cartCmd.confirmationPrompt, () => {
+          SpeechService.startListening({
+            language,
+            onResult: async (text, isFinal) => {
+              if (!isFinal || !text) return;
+              const match = SttMatcherService.matchConfirmation([text], language);
+              if (match.isMatched && match.matchedValue === 'YES') {
+                await addToCart(target.foodItem, target.quantity, 'voice_search');
+              }
+            }
+          });
+        }, language);
+      } else {
+        await addToCart(target.foodItem, target.quantity, 'voice_search');
+      }
+      return true;
+    }
+
+    if (cartCmd.type === 'multi_add' && cartCmd.items && cartCmd.items.length > 0) {
+      if (cartCmd.requiresConfirmation && cartCmd.confirmationPrompt) {
+        showToast(cartCmd.confirmationPrompt, 'info');
+        speakText(cartCmd.confirmationPrompt, () => {
+          SpeechService.startListening({
+            language,
+            onResult: async (text, isFinal) => {
+              if (!isFinal || !text) return;
+              const match = SttMatcherService.matchConfirmation([text], language);
+              if (match.isMatched && match.matchedValue === 'YES') {
+                for (const item of cartCmd.items!) {
+                  await addToCart(item.foodItem, item.quantity, 'voice_search');
+                }
+              }
+            }
+          });
+        }, language);
+      } else {
+        for (const item of cartCmd.items) {
+          await addToCart(item.foodItem, item.quantity, 'voice_search');
+        }
+      }
+      return true;
+    }
+
+    if (cartCmd.type === 'checkout' || cartCmd.type === 'schedule_cart') {
+      setIsScheduleCartModalOpen(true);
+      return true;
+    }
     const healthKeywords = [
       'fever', 'heart', 'stomach', 'pain', 'tablet', 'health', 'sick', 'vomit', 'diarrhea', 'elderly', 'aged',
       'காய்ச்சல்', 'வயிறு', 'நெஞ்சு', 'மாத்திரை', 'நோய்', 'மருந்து', 'அப்பாவுக்கு', 'அம்மாவுக்கு', 'தாத்தாவுக்கு', 'பாட்டிக்கு',
@@ -1379,24 +1620,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // 🚀 EXECUTE MULTI-ITEM GST BILL ORDER AFTER PIN VERIFICATION
-  const executeActualBillOrder = (bill: ParsedOrderBill) => {
+  const executeActualBillOrder = async (bill: ParsedOrderBill) => {
     try {
-      const orderId = `INST-${Math.floor(100000 + Math.random() * 900000)}`;
-      const itemsSummary = bill.items.map(i => `${i.quantity}x ${i.foodItem.name}`).join(', ');
+      const groupId = `GROUP-INST-${Math.floor(100000 + Math.random() * 900000)}`;
 
-      console.log(`[ORDER_FLOW_DEBUG - Step 7: Read State At Bill Order Placement]: bill summary: "${itemsSummary}", restaurant: "${bill.restaurantName}", grandTotal: ₹${bill.grandTotal}`);
+      // 1. Filter out Nominee Restricted Items
+      const restrictedItems = bill.items.filter(i => checkIsItemRestrictedByNominee(i.foodItem.id, i.foodItem.name));
+      const allowedItems = bill.items.filter(i => !checkIsItemRestrictedByNominee(i.foodItem.id, i.foodItem.name));
 
-      // Ensure sufficient wallet balance for smooth back-to-back testing
-      if (WalletService.getBalance() < bill.grandTotal) {
-        console.log('[Wallet Auto-Replenish]: Recharging wallet balance for testing...');
+      if (restrictedItems.length > 0) {
+        for (const rItem of restrictedItems) {
+          handleNomineeRestrictedInterception(rItem.foodItem, 'instant');
+        }
+      }
+
+      if (allowedItems.length === 0) {
+        showToast('Restricted item(s) sent to family helper for approval. No unrestricted items to place.', 'warning');
+        return;
+      }
+
+      // 2. Group allowed items by restaurant
+      const itemsByRes: Record<string, typeof allowedItems> = {};
+      allowedItems.forEach(i => {
+        const res = i.foodItem.restaurant || bill.restaurantName || 'Hotel Saravana Bhavan';
+        if (!itemsByRes[res]) itemsByRes[res] = [];
+        itemsByRes[res].push(i);
+      });
+
+      const resNames = Object.keys(itemsByRes);
+      const subtotal = allowedItems.reduce((sum, i) => sum + i.totalPrice, 0);
+      const deliveryFees = 30 * resNames.length;
+      const platformFee = 10;
+      const totalGst = Math.round(subtotal * 0.05);
+      const grandTotal = subtotal + deliveryFees + platformFee + totalGst;
+
+      // Ensure sufficient wallet balance
+      if (WalletService.getBalance() < grandTotal) {
         WalletService.recharge(5000, 'Auto-Replenish Demo Balance');
       }
 
       // Wallet Auto-Debit
       WalletService.autoDebit(
-        bill.grandTotal,
-        `GST Bill Order: ${itemsSummary} (${bill.restaurantName})`,
-        orderId,
+        grandTotal,
+        `Cart Order Now (${resNames.length} restaurants): Group #${groupId}`,
+        groupId,
         'swiggy'
       );
 
@@ -1404,59 +1671,84 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setWalletTransactions(WalletService.getTransactions());
       incrementDailyOrderCount();
 
-      const trackingObj: LiveOrderTracking = {
-        orderId,
-        foodName: itemsSummary,
-        restaurant: bill.restaurantName,
-        restaurantLat: userLocation.latitude + 0.015,
-        restaurantLng: userLocation.longitude - 0.018,
-        platformName: 'Swiggy',
-        platform: 'swiggy',
-        amountPaid: bill.grandTotal,
-        savings: 35,
-        deliveryAddress: bill.deliveryAddress,
-        totalEtaMinutes: bill.etaMinutes,
-        remainingSeconds: bill.etaMinutes * 60,
-        driverName: 'Ramesh Kumar',
-        driverPhone: '+91 98765 43210',
-        statusStage: 'placed',
-        timestamp: new Date().toISOString(),
-        isAutoScheduled: false
-      };
+      const newExecutedOrders: ExecutedOrder[] = [];
+      let firstTrackingObj: LiveOrderTracking | null = null;
 
-      console.log(`[ORDER_FLOW_DEBUG - Step 6: State Write ActiveLiveOrder]: order ID: "${orderId}", foodName: "${itemsSummary}"`);
-      setActiveLiveOrder(trackingObj);
-      try {
-        localStorage.setItem('smart_food_active_live_order', JSON.stringify(trackingObj));
-      } catch (e) {}
+      resNames.forEach((resName, idx) => {
+        const resItems = itemsByRes[resName];
+        const resSubtotal = resItems.reduce((sum, i) => sum + i.totalPrice, 0);
+        const resTotal = resSubtotal + 30 + Math.round(resSubtotal * 0.05);
+        const resItemSummary = resItems.map(i => `${i.quantity}x ${i.foodItem.name}`).join(', ');
+        const subOrderId = `${groupId}-${idx + 1}`;
+
+        const trackingObj: LiveOrderTracking = {
+          orderId: subOrderId,
+          foodName: resItemSummary,
+          restaurant: resName,
+          restaurantLat: userLocation.latitude + (0.01 + idx * 0.005),
+          restaurantLng: userLocation.longitude - (0.01 + idx * 0.005),
+          platformName: 'Swiggy',
+          platform: 'swiggy',
+          amountPaid: resTotal,
+          savings: 35,
+          deliveryAddress: bill.deliveryAddress || 'Live GPS Location',
+          totalEtaMinutes: bill.etaMinutes || 30,
+          remainingSeconds: (bill.etaMinutes || 30) * 60,
+          driverName: idx === 0 ? 'Ramesh Kumar' : 'Senthil Nathan',
+          driverPhone: '+91 98765 43210',
+          statusStage: 'placed',
+          timestamp: new Date().toISOString(),
+          isAutoScheduled: false
+        };
+
+        if (!firstTrackingObj) firstTrackingObj = trackingObj;
+
+        const executedOrder: ExecutedOrder = {
+          id: subOrderId,
+          foodName: resItemSummary,
+          restaurant: resName,
+          platform: 'swiggy',
+          platformName: 'Swiggy',
+          amountPaid: resTotal,
+          originalPrice: resTotal + 35,
+          savings: 35,
+          rating: 4.9,
+          timestamp: new Date().toISOString(),
+          status: 'delivered',
+          isAutoOrder: false,
+          orderType: 'instant',
+          deliveryAddress: bill.deliveryAddress
+        };
+
+        newExecutedOrders.push(executedOrder);
+      });
+
+      if (firstTrackingObj) {
+        setActiveLiveOrder(firstTrackingObj);
+        try {
+          localStorage.setItem('smart_food_active_live_order', JSON.stringify(firstTrackingObj));
+        } catch (e) {}
+      }
+
+      const history = AutoOrderBackgroundService.getOrderHistory();
+      const updatedHistory = [...newExecutedOrders, ...history];
+      localStorage.setItem('smart_food_order_history', JSON.stringify(updatedHistory));
+      setOrderHistory(updatedHistory);
+
+      // 3. Clear ordered items from server cart
+      await clearCart();
 
       setActiveView('tracking');
 
-      const executedOrder: ExecutedOrder = {
-        id: orderId,
-        foodName: itemsSummary,
-        restaurant: bill.restaurantName,
-        platform: 'swiggy',
-        platformName: 'Swiggy',
-        amountPaid: bill.grandTotal,
-        originalPrice: bill.grandTotal + 35,
-        savings: 35,
-        rating: 4.9,
-        timestamp: new Date().toISOString(),
-        status: 'delivered',
-        isAutoOrder: false,
-        orderType: 'instant',
-        deliveryAddress: bill.deliveryAddress
-      };
+      const successMsg = resNames.length > 1
+        ? t('orderPlacedMulti').replace('{n}', String(resNames.length))
+        : `Order Placed for ${resNames[0]}! Debited ₹${grandTotal} via Wallet.`;
 
-      const history = AutoOrderBackgroundService.getOrderHistory();
-      localStorage.setItem('smart_food_order_history', JSON.stringify([executedOrder, ...history]));
-      setOrderHistory([executedOrder, ...history]);
-
-      showToast(`Order Placed for ${bill.restaurantName}! Debited ₹${bill.grandTotal} via Wallet.`);
+      showToast(successMsg, 'success');
+      speakText(successMsg, undefined, language);
     } catch (err: any) {
       console.error('Bill order execution error:', err);
-      showToast(`Bill order execution notice: ${err.message}`);
+      showToast(`Bill order notice: ${err.message}`, 'error');
       setActiveView('tracking');
     }
   };
@@ -2048,6 +2340,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       toasts,
       showToast,
       removeToast,
+      cart,
+      addToCart,
+      removeFromCart,
+      updateCartQuantity,
+      clearCart,
+      readCartTTS,
       scheduleCart,
       addToScheduleCart,
       removeFromScheduleCart,

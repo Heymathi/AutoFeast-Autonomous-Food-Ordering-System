@@ -2,6 +2,7 @@ import React from 'react';
 import { FoodItem, ScheduleDuration, Language } from '../types';
 import { useApp } from '../context/AppContext';
 import { MapPin, Clock, Utensils, Wallet, FileText, AlertCircle, ShieldCheck, Zap } from 'lucide-react';
+import { calculateScheduleDatesList } from '../utils/scheduleCalculator';
 
 export interface ScheduleBillItem {
   foodItem: FoodItem;
@@ -15,6 +16,7 @@ export interface ScheduleBillProps {
   duration: ScheduleDuration;
   startDate: string;
   endDate?: string;
+  selectedDays?: string[];
   showDailyLimitImpact?: boolean;
 }
 
@@ -22,25 +24,19 @@ export const calculateOccurrences = (
   frequency: 'daily' | 'weekly' | 'custom' | 'once',
   duration: ScheduleDuration,
   startDate: string,
-  endDate?: string
+  endDate?: string,
+  time?: string,
+  selectedDays?: string[]
 ): number => {
-  if (frequency === 'once' || duration === 'today_only') return 1;
-
-  let totalDays = 30; // default 1 month
-  if (duration === '1_week') totalDays = 7;
-  else if (duration === '1_month') totalDays = 30;
-  else if (duration === '3_months') totalDays = 90;
-  else if (duration === 'indefinite') totalDays = 30; // 30-day billing cycle preview
-  else if (duration === 'custom' && startDate && endDate) {
-    const start = new Date(startDate).getTime();
-    const end = new Date(endDate).getTime();
-    const diff = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1);
-    totalDays = diff;
-  }
-
-  if (frequency === 'daily') return totalDays;
-  if (frequency === 'weekly') return Math.max(1, Math.ceil(totalDays / 7));
-  return 1;
+  if (frequency === 'once') return 1;
+  const dates = calculateScheduleDatesList(
+    startDate,
+    duration,
+    endDate,
+    frequency === 'daily' ? [] : selectedDays,
+    time
+  );
+  return Math.max(0, dates.length);
 };
 
 export const ScheduleBill: React.FC<ScheduleBillProps> = ({
@@ -50,6 +46,7 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
   duration,
   startDate,
   endDate,
+  selectedDays,
   showDailyLimitImpact = true
 }) => {
   const { language, walletBalance, dailyOrderCount, t } = useApp();
@@ -84,7 +81,7 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
   const perOrderTotal = subtotal + totalDeliveryFee + platformFee + gstTax;
 
   // Calculate total occurrences
-  const occurrences = calculateOccurrences(frequency, duration, startDate, endDate);
+  const occurrences = calculateOccurrences(frequency, duration, startDate, endDate, time, selectedDays);
   const grandTotal = perOrderTotal * occurrences;
 
   const durationLabel =

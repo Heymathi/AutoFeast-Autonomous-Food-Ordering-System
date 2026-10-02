@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { FoodItem } from '../types';
 import { SpeechService } from '../services/speechService';
 import { SttMatcherService } from '../services/sttMatcherService';
 import { Mic, MicOff, X, Command, CheckCircle2, XCircle, Volume2 } from 'lucide-react';
@@ -8,6 +9,7 @@ import { DynamicFoodSearchEngine } from '../services/dynamicFoodSearch';
 import { parseSpokenTimeTo24Hr } from './VoiceOrderDialogModal';
 import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
 import { NLPParserService } from '../services/nlpParserService';
+import { ItemActionChooser } from './ItemActionChooser';
 
 export const VoiceCommandModal: React.FC = () => {
   const {
@@ -23,6 +25,8 @@ export const VoiceCommandModal: React.FC = () => {
     saveSchedule,
     placeInstantOrder,
     setVoiceDialogItem,
+    addToCart,
+    setIsScheduleCartOpen,
     checkDailyOrderLimitReached,
     processNaturalLanguageVoiceCommand,
     requestWalletBalanceReveal,
@@ -33,6 +37,7 @@ export const VoiceCommandModal: React.FC = () => {
   const [transcript, setTranscript] = useState('');
   const [pendingCommand, setPendingCommand] = useState('');
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  const [chooserItems, setChooserItems] = useState<FoodItem[] | null>(null);
 
   const pendingCommandRef = useRef(pendingCommand);
   const awaitingConfirmationRef = useRef(awaitingConfirmation);
@@ -247,12 +252,10 @@ export const VoiceCommandModal: React.FC = () => {
       return;
     }
 
-    // 🚀 RULE 3: ONLY ITEM NAME SPOKEN (e.g. just "Parotta", "Dosa", "பரோட்டா") -> ASK "Order Now or Schedule?"
+    // 🚀 RULE 3: ONLY ITEM NAME SPOKEN (e.g. just "Parotta", "Dosa", "பரோட்டா") -> OPEN ITEM ACTION CHOOSER
     if (matchedItem) {
-      console.log(`[VoiceCommandModal]: Item only spoken ("${cmdText}") -> Asking "Order Now or Schedule?" for "${matchedItem.name}"`);
-      setVoiceDialogItem(matchedItem);
-      setActiveView('search');
-      setIsVoiceModalOpen(false);
+      console.log(`[VoiceCommandModal]: Item matched ("${cmdText}") -> Opening ItemActionChooser for "${matchedItem.name}"`);
+      setChooserItems([matchedItem]);
       return;
     }
 
@@ -404,6 +407,35 @@ export const VoiceCommandModal: React.FC = () => {
         </div>
 
       </div>
+
+      {/* SHARED ITEM ACTION CHOOSER MODAL */}
+      <ItemActionChooser
+        isOpen={Boolean(chooserItems && chooserItems.length > 0)}
+        onClose={() => setChooserItems(null)}
+        items={chooserItems || []}
+        onOrderNow={(items) => {
+          if (items.length === 1) {
+            placeInstantOrder(items[0]);
+          } else {
+            items.forEach(i => addToCart(i, 1, 'voice_search'));
+            setIsScheduleCartOpen(true);
+          }
+          setIsVoiceModalOpen(false);
+        }}
+        onSchedule={(items) => {
+          items.forEach(i => addToCart(i, 1, 'voice_search'));
+          setIsScheduleCartOpen(true);
+          setIsVoiceModalOpen(false);
+        }}
+        onAddToCart={(items) => {
+          items.forEach(i => addToCart(i, 1, 'voice_search'));
+          const firstItemName = items[0].nativeNames?.[language] || items[0].name;
+          const addedMsg = t('addedNext').replace('{item}', items.length > 1 ? `${items.length} items` : firstItemName);
+          showToast(addedMsg);
+          speakText(addedMsg);
+          setIsVoiceModalOpen(false);
+        }}
+      />
     </div>
   );
 };

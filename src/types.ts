@@ -212,9 +212,27 @@ export interface ToastItem {
   duration?: number;
 }
 
+export interface CartItem {
+  id: string;
+  userId?: string;
+  itemId: string;
+  name: string;
+  restaurantId: string;
+  restaurantName: string;
+  price: number;
+  qty: number;
+  addedFrom: 'voice_search' | 'dynamic_search' | 'auto_scheduler' | 'healthy_food' | 'general';
+  image?: string;
+  category?: string;
+  isVegetarian?: boolean;
+  needsNomineeApproval?: boolean;
+  foodItem?: FoodItem;
+}
+
 export interface ScheduleCartItem {
   foodItem: FoodItem;
   quantity: number;
 }
+
 
 

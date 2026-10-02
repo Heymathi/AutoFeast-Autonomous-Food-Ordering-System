@@ -161,6 +161,23 @@ export class FuzzyMatchEngine {
   }
 
   /**
+   * Find best string match among candidate string list
+   */
+  public static findBestMatch(query: string, candidates: string[]): { item: string; score: number } | null {
+    if (!query || !candidates || candidates.length === 0) return null;
+    let bestItem: string | null = null;
+    let bestScore = 0;
+    for (const cand of candidates) {
+      const score = this.calculateMatchScore(query, cand);
+      if (score > bestScore) {
+        bestScore = score;
+        bestItem = cand;
+      }
+    }
+    return bestItem ? { item: bestItem, score: bestScore } : null;
+  }
+
+  /**
    * Match user query against Food Item Catalog & Aliases
    */
   public static matchFoodItem(

@@ -132,6 +132,7 @@ export class AuthService {
 
   /**
    * Register a new user account with backend API & MongoDB Atlas
+   * NO localStorage fallback allowed — network failure throws server unreachable error
    */
   public static async createUser(
     name: string,
@@ -149,8 +150,9 @@ export class AuthService {
       throw new Error('Please enter a 4-digit numeric PIN for your account.');
     }
 
+    let res: Response;
     try {
-      const res = await fetch('/api/auth/register', {
+      res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -163,46 +165,41 @@ export class AuthService {
           initialCredential
         })
       });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to create account.');
-      }
-
-      const user: UserProfile = {
-        ...data.user,
-        pinHash: cleanPin
-      };
-
-      this.setCurrentUser(user);
-      return user;
-    } catch (err: any) {
-      console.warn('[AuthService] Backend registration failed/offline:', err.message);
-      // Fallback local creation if network error
-      const newUser: UserProfile = {
-        id: `user_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`,
-        name: name || 'AutoFeast User',
-        email: cleanEmail,
-        pinHash: cleanPin,
-        nomineeName: nomineeName || 'Emergency Nominee',
-        nomineePhone: nomineePhone || '+91 98765 00000',
-        isFaceIdEnabled: Boolean(initialCredential),
-        webAuthnCredentials: initialCredential ? [initialCredential] : [],
-        createdAt: new Date().toISOString()
-      };
-      this.setCurrentUser(newUser);
-      return newUser;
+    } catch (netErr: any) {
+      console.error('[AuthService] Registration Network Failure:', netErr);
+      throw new Error('Cannot reach server. Please check your internet connection.');
     }
+
+    const data = await res.json().catch(() => ({ error: 'server_error' }));
+    if (!res.ok || !data.success) {
+      if (res.status === 400 && data.error && data.error.includes('already exists')) {
+        throw new Error('An account with this email already exists.');
+      }
+      throw new Error(data.message || data.error || 'Server error occurred. Please try again later.');
+    }
+
+    const user: UserProfile = {
+      ...data.user,
+      pinHash: cleanPin
+    };
+
+    this.setCurrentUser(user);
+    return user;
   }
 
   /**
    * Login with Email Address OR Username and password via Backend API & MongoDB Atlas
+   * NO localStorage fallback — Network failure throws 'Cannot reach server', non-OK response throws specific errors
    */
   public static async loginWithPassword(emailOrUsername: string, pass: string): Promise<UserProfile> {
     const cleanInput = emailOrUsername.toLowerCase().trim();
 
+    // Check & Migrate legacy local account before logging in if present
+    await this.migrateLocalAccountIfPresent(cleanInput, pass);
+
+    let res: Response;
     try {
-      const res = await fetch('/api/auth/login', {
+      res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -210,30 +207,72 @@ export class AuthService {
           password: pass
         })
       });
+    } catch (netErr: any) {
+      console.error('[AuthService] Login Network Failure:', netErr);
+      throw new Error('Cannot reach server. Please check your internet connection.');
+    }
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Invalid username or password. Please check your credentials.');
-      }
+    const data = await res.json().catch(() => ({ error: 'server_error' }));
 
-      const user: UserProfile = data.user;
-      this.setCurrentUser(user);
-      return user;
-    } catch (err: any) {
-      if (err.message && err.message.includes('Invalid username or password')) {
-        throw err;
+    if (!res.ok || !data.success) {
+      if (res.status === 404 || data.error === 'account_not_found') {
+        throw new Error('Account not found. Please check your email or username.');
       }
-      console.warn('[AuthService] Backend login API failed/offline:', err.message);
-      // Offline fallback
-      const users = this.getUsers();
-      const user = users.find(u => u.email.toLowerCase() === cleanInput || u.name.toLowerCase() === cleanInput);
-      if (!user) {
-        throw new Error('Invalid username or password. Please check your credentials.');
+      if (res.status === 401 || data.error === 'wrong_password') {
+        throw new Error('Incorrect password. Please try again.');
       }
-      this.setCurrentUser(user);
-      return user;
+      if (res.status === 429 || data.error === 'rate_limit_exceeded') {
+        throw new Error('Too many login attempts. Please try again in 15 minutes.');
+      }
+      throw new Error(data.message || data.error || 'Server error occurred. Please try again later.');
+    }
+
+    const user: UserProfile = data.user;
+    this.setCurrentUser(user);
+    return user;
+  }
+
+  /**
+   * Migrate legacy single localStorage account ONLY after user enters matching email & password
+   */
+  private static async migrateLocalAccountIfPresent(emailOrUsername: string, pass: string): Promise<void> {
+    try {
+      const localUsers = this.getUsers();
+      const localMatchIndex = localUsers.findIndex(u =>
+        u.email.toLowerCase() === emailOrUsername || u.name.toLowerCase() === emailOrUsername
+      );
+
+      if (localMatchIndex !== -1) {
+        const localUser = localUsers[localMatchIndex];
+        console.log(`[AuthService Migration]: Migrating legacy local user account "${localUser.email}" to server DB...`);
+
+        const res = await fetch('/api/auth/migrate-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: localUser.email,
+            password: pass,
+            name: localUser.name,
+            pin: localUser.pinHash,
+            nomineeName: localUser.nomineeName,
+            nomineePhone: localUser.nomineePhone
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            console.log(`[AuthService Migration SUCCESS]: Legacy local user "${localUser.email}" migrated to server. Removing local copy.`);
+            localUsers.splice(localMatchIndex, 1);
+            this.saveUsers(localUsers);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[AuthService Migration WARN]: Migration skipped due to network or server response:', e);
     }
   }
+
 
   /**
    * Verify 4-Digit Security PIN via Backend API & Issue Single-Use 2-Minute Token

@@ -213,6 +213,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'back': 'Back',
     'backToBill': 'Back to Bill',
     'pinAnyLang': 'Say the numbers in any language',
+    'auth.errAccountNotFound': 'Account not found. Please check your email or username.',
+    'auth.errWrongPassword': 'Incorrect password. Please try again.',
+    'auth.errCannotReachServer': 'Cannot reach server. Please check your internet connection.',
+    'auth.errServerError': 'Server error occurred. Please try again later.',
+    'auth.errRateLimitExceeded': 'Too many login attempts. Please try again in 15 minutes.',
 
     // Order History & Monthly Bill
     'orders.headerSubtitle': 'Track Instant GPS Orders, Active Pending Scheduled Orders & Completed History',
@@ -335,7 +340,25 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'restaurantClosed': '{restaurant} is closed right now.',
     'continueRest': 'Continue with the rest',
     'cancelAll': 'Cancel all',
-    'orderPlacedMulti': 'Orders placed from {n} restaurants.'
+    'orderPlacedMulti': 'Orders placed from {n} restaurants.',
+    'startTomorrowAt': 'Start tomorrow at {time}',
+    'pickNextSlot': 'Use next slot today ({time})',
+    'todayPassedNote': "Today's slot has passed, starting from tomorrow.",
+    'addToCart': 'Add to Cart',
+    'cartTitle': 'My Cart',
+    'orderNow': 'Order Now',
+    'scheduleCart': 'Schedule',
+    'addedToCart': 'Added {qty} {item} from {restaurant}. Cart has {n} items.',
+    'removedFromCart': '{item} removed from cart.',
+    'cartTotal': 'Cart total',
+    'clearCartAsk': 'Clear the whole cart? Say yes or no.',
+    'cartRead': 'You have {n} items. Total {total} rupees.',
+    'confirmParsedItems': 'I heard: {list}. Add these?',
+    'chooserAsk': '{item} from {restaurant}. Order now, schedule, or add to cart?',
+    'chooserAskMulti': '{n} items selected. Order now, schedule, or add to cart?',
+    'addedNext': 'Added {item}. Search the next item, or say checkout.',
+    'chooserRetry': 'Please say order now, schedule, or cart.',
+    'checkout': 'Checkout'
   },
   ta: {
     // Navigation & Header
@@ -549,6 +572,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'back': 'பின்',
     'backToBill': 'பில்லுக்குத் திரும்பு',
     'pinAnyLang': 'எந்த மொழியிலும் எண்களைச் சொல்லலாம்',
+    'auth.errAccountNotFound': 'கணக்கு காணப்படவில்லை. மின்னஞ்சல் அல்லது பயனர் பெயரைச் சரிபார்க்கவும்.',
+    'auth.errWrongPassword': 'தவறான கடவுச்சொல். மீண்டும் முயற்சிக்கவும்.',
+    'auth.errCannotReachServer': 'சர்வரைத் தொடர்பு கொள்ள முடியவில்லை. இணைய இணைப்பைச் சரிபார்க்கவும்.',
+    'auth.errServerError': 'சர்வர் பிழை ஏற்பட்டது. பின்னர் மீண்டும் முயற்சிக்கவும்.',
+    'auth.errRateLimitExceeded': 'அதிகாரப்பூர்வமற்ற பல முயற்சிகள். 15 நிமிடங்களுக்குப் பிறகு முயற்சிக்கவும்.',
 
     // Order History & Monthly Bill (Tamil)
     'orders.headerSubtitle': 'உடனடி ஆர்டர்கள், திட்டமிட்ட விநியோகங்கள் மற்றும் முந்தைய வரலாற்றைப் பார்க்கவும்',
@@ -652,7 +680,25 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'restaurantClosed': '{restaurant} இப்போது மூடப்பட்டுள்ளது.',
     'continueRest': 'மற்றவற்றுடன் தொடரவும்',
     'cancelAll': 'அனைத்தையும் ரத்து செய்',
-    'orderPlacedMulti': '{n} உணவகங்களில் ஆர்டர் செய்யப்பட்டது.'
+    'orderPlacedMulti': '{n} உணவகங்களில் ஆர்டர் செய்யப்பட்டது.',
+    'startTomorrowAt': 'நாளை {time} மணிக்குத் தொடங்கு',
+    'pickNextSlot': 'இன்றைய அடுத்த நேரம் ({time})',
+    'todayPassedNote': 'இன்றைய நேரம் முடிந்துவிட்டது, நாளை முதல் தொடங்கும்.',
+    'addToCart': 'கார்ட்டில் சேர்',
+    'cartTitle': 'என் கார்ட்',
+    'orderNow': 'இப்போதே ஆர்டர் செய்',
+    'scheduleCart': 'திட்டமிடு',
+    'addedToCart': '{restaurant}-இல் இருந்து {qty} {item} சேர்க்கப்பட்டது. கார்ட்டில் {n} பொருட்கள் உள்ளன.',
+    'removedFromCart': '{item} கார்ட்டில் இருந்து நீக்கப்பட்டது.',
+    'cartTotal': 'கார்ட் மொத்தம்',
+    'clearCartAsk': 'முழு கார்ட்டையும் அழிக்கவா? ஆம் அல்லது இல்லை என்று சொல்லுங்கள்.',
+    'cartRead': 'உங்களிடம் {n} பொருட்கள் உள்ளன. மொத்தம் {total} ரூபாய்.',
+    'confirmParsedItems': 'நான் கேட்டது: {list}. இவற்றைச் சேர்க்கவா?',
+    'chooserAsk': '{restaurant}-இல் {item}. இப்போதே ஆர்டர் செய்யவா, திட்டமிடவா, அல்லது கார்ட்டில் சேர்க்கவா?',
+    'chooserAskMulti': '{n} பொருட்கள் தேர்ந்தெடுக்கப்பட்டன. இப்போதே ஆர்டர், திட்டமிடல், அல்லது கார்ட்?',
+    'addedNext': '{item} சேர்க்கப்பட்டது. அடுத்த உணவைத் தேடுங்கள், அல்லது செக்அவுட் என்று சொல்லுங்கள்.',
+    'chooserRetry': 'இப்போதே ஆர்டர், திட்டமிடு, அல்லது கார்ட் என்று சொல்லுங்கள்.',
+    'checkout': 'செக்அவுட்'
   },
   hi: {
     // Navigation & Header
@@ -866,6 +912,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'back': 'पीछे',
     'backToBill': 'बिल पर वापस',
     'pinAnyLang': 'किसी भी भाषा में अंक बोल सकते हैं',
+    'auth.errAccountNotFound': 'खाता नहीं मिला। कृपया अपना ईमेल या उपयोगकर्ता नाम जांचें।',
+    'auth.errWrongPassword': 'गलत पासवर्ड। कृपया फिर कोशिश करें।',
+    'auth.errCannotReachServer': 'सर्वर से संपर्क नहीं हो पा रहा है। अपना इंटरनेट कनेक्शन जांचें।',
+    'auth.errServerError': 'सर्वर त्रुटि हुई। कृपया बाद में प्रयास करें।',
+    'auth.errRateLimitExceeded': 'अत्यधिक प्रयास। कृपया 15 मिनट बाद फिर कोशिश करें।',
 
     // Order History & Monthly Bill (Hindi)
     'orders.headerSubtitle': 'अपने तुरंत ऑर्डर, निर्धारित ऑर्डर और इतिहास देखें',
@@ -969,6 +1020,24 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'restaurantClosed': '{restaurant} अभी बंद है।',
     'continueRest': 'बाकी के साथ आगे बढ़ें',
     'cancelAll': 'सब रद्द करें',
-    'orderPlacedMulti': '{n} रेस्टोरेंट से ऑर्डर दिया गया।'
+    'orderPlacedMulti': '{n} रेस्टोरेंट से ऑर्डर दिया गया।',
+    'startTomorrowAt': 'कल {time} बजे शुरू करें',
+    'pickNextSlot': 'आज का अगला समय ({time})',
+    'todayPassedNote': 'आज का समय निकल चुका है, कल से शुरू होगा।',
+    'addToCart': 'कार्ट में जोड़ें',
+    'cartTitle': 'मेरा कार्ट',
+    'orderNow': 'अभी ऑर्डर करें',
+    'scheduleCart': 'शेड्यूल करें',
+    'addedToCart': '{restaurant} से {qty} {item} जोड़ा गया। कार्ट में {n} आइटम हैं।',
+    'removedFromCart': '{item} कार्ट से हटाया गया।',
+    'cartTotal': 'कार्ट कुल',
+    'clearCartAsk': 'पूरा कार्ट खाली करें? हाँ या नहीं बोलें।',
+    'cartRead': 'आपके पास {n} आइटम हैं। कुल {total} रुपये।',
+    'confirmParsedItems': 'मैंने सुना: {list}। क्या इन्हें जोड़ूं?',
+    'chooserAsk': '{restaurant} से {item}। अभी ऑर्डर करें, शेड्यूल करें, या कार्ट में जोड़ें?',
+    'chooserAskMulti': '{n} आइटम चुने गए। अभी ऑर्डर, शेड्यूल, या कार्ट?',
+    'addedNext': '{item} जोड़ा गया। अगला आइटम खोजें, या चेकआउट बोलें।',
+    'chooserRetry': 'कृपया अभी ऑर्डर, शेड्यूल, या कार्ट बोलें।',
+    'checkout': 'चेकआउट'
   }
 };

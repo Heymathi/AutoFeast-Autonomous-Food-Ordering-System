@@ -15,13 +15,54 @@ const PORT = process.env.PORT || 5000;
 
 app.use(express.json());
 
+// 🚀 CORS HEADERS MIDDLEWARE FOR LAN / CROSS-DEVICE MOBILE ACCESS
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// LOGIN RATE LIMITING MAP (5 tries per 15 min per account/IP)
+const loginRateLimitMap = new Map();
+
+function checkRateLimit(key) {
+  const record = loginRateLimitMap.get(key);
+  if (!record) return { allowed: true };
+  if (record.lockUntil && Date.now() < record.lockUntil) {
+    return { allowed: false };
+  }
+  if (record.lockUntil && Date.now() >= record.lockUntil) {
+    loginRateLimitMap.delete(key);
+    return { allowed: true };
+  }
+  return { allowed: true };
+}
+
+function recordFailedLogin(key) {
+  const record = loginRateLimitMap.get(key) || { attempts: 0, lockUntil: null };
+  record.attempts += 1;
+  if (record.attempts >= 5) {
+    record.lockUntil = Date.now() + 15 * 60 * 1000; // 15 minutes lockout
+  }
+  loginRateLimitMap.set(key, record);
+}
+
+function resetLoginRateLimit(key) {
+  loginRateLimitMap.delete(key);
+}
+
 // 🚀 MONGOOSE CONNECTION CACHING FOR VERCEL SERVERLESS & LOCAL DEV
 let isConnected = false;
 const connectDB = async () => {
   if (isConnected && mongoose.connection.readyState === 1) return;
   const uri = process.env.MONGODB_URI;
   if (!uri) {
-    console.warn('[AutoFeast Server] MONGODB_URI not set. Running in fallback mode.');
+    console.warn('[AutoFeast Server] MONGODB_URI not set. Running in in-memory fallback mode.');
     return;
   }
   try {
@@ -29,9 +70,10 @@ const connectDB = async () => {
     isConnected = db.connections[0].readyState === 1;
     console.log('[AutoFeast Server] Connected to MongoDB Atlas successfully!');
   } catch (err) {
-    console.error('[AutoFeast Server] MongoDB connection error:', err);
+    console.error('[AutoFeast Server LOUD WARNING] MongoDB connection error:', err.message);
   }
 };
+
 
 // 🚀 MONGOOSE SCHEMAS
 const UserSchema = new mongoose.Schema({
@@ -108,11 +150,30 @@ const ApprovalRequestSchema = new mongoose.Schema({
   decidedAt: { type: Date }
 });
 
+const CartItemSchema = new mongoose.Schema({
+  id: { type: String, required: true },
+  userId: { type: String, required: true, index: true },
+  itemId: { type: String, required: true },
+  name: { type: String, required: true },
+  restaurantId: { type: String, default: 'default_res' },
+  restaurantName: { type: String, required: true },
+  price: { type: Number, required: true },
+  qty: { type: Number, required: true, default: 1, min: 1 },
+  addedFrom: { type: String, default: 'general' },
+  image: { type: String },
+  category: { type: String },
+  isVegetarian: { type: Boolean, default: false },
+  needsNomineeApproval: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
 const Schedule = mongoose.models.Schedule || mongoose.model('Schedule', ScheduleSchema);
 const Override = mongoose.models.Override || mongoose.model('Override', OverrideSchema);
 const RestrictedItem = mongoose.models.RestrictedItem || mongoose.model('RestrictedItem', RestrictedItemSchema);
 const ApprovalRequest = mongoose.models.ApprovalRequest || mongoose.model('ApprovalRequest', ApprovalRequestSchema);
+const CartItemModel = mongoose.models.CartItem || mongoose.model('CartItem', CartItemSchema);
 
 // Nominee PIN Lockout & Attempt Tracker (Key: userId/email, Value: { count: number, lockedUntil: number | null })
 const nomineePinAttempts = new Map();
@@ -138,6 +199,7 @@ const fallbackSchedulesDb = [];
 const fallbackOverridesDb = [];
 const fallbackRestrictedItemsDb = [];
 const fallbackApprovalRequestsDb = [];
+const fallbackCartDb = new Map(); // Key: userId, Value: Array of cart items
 
 // Middleware to ensure DB connection before handling requests
 app.use(async (req, res, next) => {
@@ -223,10 +285,16 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
+      return res.status(400).json({ error: 'email_password_required', message: 'Email and password are required.' });
     }
 
     const cleanInput = email.toLowerCase().trim();
+
+    // Check Rate Limiter
+    const rateCheck = checkRateLimit(cleanInput);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({ error: 'rate_limit_exceeded', message: 'Too many login attempts. Please try again in 15 minutes.' });
+    }
 
     if (mongoose.connection.readyState === 1) {
       const user = await User.findOne({
@@ -234,7 +302,8 @@ app.post('/api/auth/login', async (req, res) => {
       });
 
       if (!user) {
-        return res.status(401).json({ error: 'Invalid username or password.' });
+        recordFailedLogin(cleanInput);
+        return res.status(404).json({ error: 'account_not_found', message: 'Account not found. Please check your email or username.' });
       }
 
       let isMatch = await bcrypt.compare(password, user.passwordHash).catch(() => false);
@@ -243,28 +312,110 @@ app.post('/api/auth/login', async (req, res) => {
       }
 
       if (!isMatch) {
-        return res.status(401).json({ error: 'Invalid username or password.' });
+        recordFailedLogin(cleanInput);
+        return res.status(401).json({ error: 'wrong_password', message: 'Incorrect password. Please try again.' });
       }
+
+      resetLoginRateLimit(cleanInput);
 
       const userResponse = user.toObject();
       delete userResponse.passwordHash;
-      return res.json({ success: true, user: userResponse });
+      return res.json({ success: true, user: userResponse, token: `jwt_${user.id}_${Date.now()}` });
     } else {
       const user = fallbackUsersDb.find(u => u.email === cleanInput || u.name.toLowerCase() === cleanInput);
       if (!user) {
-        return res.status(401).json({ error: 'Invalid username or password.' });
+        recordFailedLogin(cleanInput);
+        return res.status(404).json({ error: 'account_not_found', message: 'Account not found. Please check your email or username.' });
       }
-      const isMatch = await bcrypt.compare(password, user.passwordHash).catch(() => password === user.passwordHash);
-      if (!isMatch && password !== user.passwordHash) {
-        return res.status(401).json({ error: 'Invalid username or password.' });
+
+      let isMatch = await bcrypt.compare(password, user.passwordHash).catch(() => false);
+      if (!isMatch && password === user.passwordHash) {
+        isMatch = true;
       }
-      return res.json({ success: true, user });
+
+      if (!isMatch) {
+        recordFailedLogin(cleanInput);
+        return res.status(401).json({ error: 'wrong_password', message: 'Incorrect password. Please try again.' });
+      }
+
+      resetLoginRateLimit(cleanInput);
+
+      const userResponse = { ...user };
+      delete userResponse.passwordHash;
+      return res.json({ success: true, user: userResponse, token: `jwt_${user.id}_${Date.now()}` });
     }
   } catch (err) {
     console.error('[API /api/auth/login error]:', err);
-    return res.status(500).json({ error: err.message || 'Error during login.' });
+    return res.status(500).json({ error: 'server_error', message: err.message || 'Error during login.' });
   }
 });
+
+// 🚀 SINGLE-ACCOUNT MIGRATION ENDPOINT (For legacy localStorage accounts)
+app.post('/api/auth/migrate-account', async (req, res) => {
+  try {
+    const { email, password, name, pin, nomineeName, nomineePhone } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'email_password_required', message: 'Email and password required for migration.' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanPin = (pin || '1234').trim();
+
+    if (mongoose.connection.readyState === 1) {
+      let user = await User.findOne({ email: cleanEmail });
+      if (user) {
+        const isMatch = await bcrypt.compare(password, user.passwordHash).catch(() => false);
+        if (!isMatch && password !== user.passwordHash) {
+          return res.status(401).json({ error: 'wrong_password', message: 'Invalid password for account migration.' });
+        }
+        const userResponse = user.toObject();
+        delete userResponse.passwordHash;
+        return res.json({ success: true, user: userResponse, migrated: false });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPin = await bcrypt.hash(cleanPin, 10);
+      const userId = `user_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
+
+      user = new User({
+        id: userId,
+        name: name || 'AutoFeast User',
+        email: cleanEmail,
+        passwordHash: hashedPassword,
+        pinHash: hashedPin,
+        nomineeName: nomineeName || 'Emergency Nominee',
+        nomineePhone: nomineePhone || '+91 98765 00000'
+      });
+
+      await user.save();
+      const userResponse = user.toObject();
+      delete userResponse.passwordHash;
+      return res.json({ success: true, user: userResponse, migrated: true });
+    } else {
+      let user = fallbackUsersDb.find(u => u.email === cleanEmail);
+      if (!user) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user = {
+          id: `user_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`,
+          name: name || 'AutoFeast User',
+          email: cleanEmail,
+          passwordHash: hashedPassword,
+          pinHash: cleanPin,
+          nomineeName: nomineeName || 'Emergency Nominee',
+          nomineePhone: nomineePhone || '+91 98765 00000'
+        };
+        fallbackUsersDb.push(user);
+      }
+      const userResponse = { ...user };
+      delete userResponse.passwordHash;
+      return res.json({ success: true, user: userResponse, migrated: true });
+    }
+  } catch (err) {
+    console.error('[API /api/auth/migrate-account error]:', err);
+    return res.status(500).json({ error: 'server_error', message: err.message });
+  }
+});
+
 
 // 🚀 PIN AUTHENTICATION ENDPOINT
 app.post('/api/auth/pin-login', async (req, res) => {
@@ -651,6 +802,161 @@ app.delete('/api/schedules/:id', async (req, res) => {
       const index = fallbackSchedulesDb.findIndex(s => s.id === id);
       if (index >= 0) fallbackSchedulesDb.splice(index, 1);
       return res.json({ success: true, message: `Schedule ${id} deleted.`, schedules: fallbackSchedulesDb });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🚀 SERVER-SIDE CART ENDPOINTS (Scoped by userId)
+app.get('/api/cart', async (req, res) => {
+  try {
+    const userId = (req.query.userId || req.headers['x-user-id'] || 'user_karthik_001').toString();
+    if (mongoose.connection.readyState === 1) {
+      const items = await CartItemModel.find({ userId });
+      return res.json({ success: true, cart: items });
+    } else {
+      const items = fallbackCartDb.get(userId) || [];
+      return res.json({ success: true, cart: items });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/cart/add', async (req, res) => {
+  try {
+    const { userId, itemId, name, restaurantId, restaurantName, price, qty = 1, addedFrom = 'general', image, category, isVegetarian, needsNomineeApproval = false } = req.body;
+    const uid = (userId || 'user_karthik_001').toString();
+
+    if (!itemId || !name || price === undefined || price === null || isNaN(price)) {
+      return res.status(400).json({ error: 'Valid item, name, and price are required to add to cart.' });
+    }
+
+    const itemQty = Math.max(1, parseInt(qty, 10) || 1);
+    const resId = restaurantId || 'res_default';
+    const resName = restaurantName || 'Hotel Saravana Bhavan';
+
+    if (mongoose.connection.readyState === 1) {
+      let existing = await CartItemModel.findOne({ userId: uid, itemId, restaurantName: resName });
+      if (existing) {
+        existing.qty += itemQty;
+        existing.updatedAt = new Date();
+        await existing.save();
+      } else {
+        const lineId = `cart_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
+        const newItem = new CartItemModel({
+          id: lineId,
+          userId: uid,
+          itemId,
+          name,
+          restaurantId: resId,
+          restaurantName: resName,
+          price: Number(price),
+          qty: itemQty,
+          addedFrom,
+          image,
+          category,
+          isVegetarian: Boolean(isVegetarian),
+          needsNomineeApproval: Boolean(needsNomineeApproval)
+        });
+        await newItem.save();
+      }
+      const updatedCart = await CartItemModel.find({ userId: uid });
+      return res.json({ success: true, cart: updatedCart });
+    } else {
+      let userCart = fallbackCartDb.get(uid) || [];
+      const existingIdx = userCart.findIndex(i => i.itemId === itemId && i.restaurantName === resName);
+      if (existingIdx >= 0) {
+        userCart[existingIdx].qty += itemQty;
+      } else {
+        userCart.push({
+          id: `cart_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`,
+          userId: uid,
+          itemId,
+          name,
+          restaurantId: resId,
+          restaurantName: resName,
+          price: Number(price),
+          qty: itemQty,
+          addedFrom,
+          image,
+          category,
+          isVegetarian: Boolean(isVegetarian),
+          needsNomineeApproval: Boolean(needsNomineeApproval),
+          createdAt: new Date().toISOString()
+        });
+      }
+      fallbackCartDb.set(uid, userCart);
+      return res.json({ success: true, cart: userCart });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/cart/update-qty', async (req, res) => {
+  try {
+    const { userId, itemId, restaurantName, qty } = req.body;
+    const uid = (userId || 'user_karthik_001').toString();
+    const newQty = parseInt(qty, 10);
+
+    if (mongoose.connection.readyState === 1) {
+      if (newQty <= 0) {
+        await CartItemModel.deleteOne({ userId: uid, itemId, restaurantName });
+      } else {
+        await CartItemModel.updateOne({ userId: uid, itemId, restaurantName }, { $set: { qty: newQty, updatedAt: new Date() } });
+      }
+      const updatedCart = await CartItemModel.find({ userId: uid });
+      return res.json({ success: true, cart: updatedCart });
+    } else {
+      let userCart = fallbackCartDb.get(uid) || [];
+      if (newQty <= 0) {
+        userCart = userCart.filter(i => !(i.itemId === itemId && i.restaurantName === restaurantName));
+      } else {
+        const item = userCart.find(i => i.itemId === itemId && i.restaurantName === restaurantName);
+        if (item) item.qty = newQty;
+      }
+      fallbackCartDb.set(uid, userCart);
+      return res.json({ success: true, cart: userCart });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/cart/remove', async (req, res) => {
+  try {
+    const userId = (req.query.userId || req.body.userId || 'user_karthik_001').toString();
+    const itemId = (req.query.itemId || req.body.itemId).toString();
+    const restaurantName = (req.query.restaurantName || req.body.restaurantName || '').toString();
+
+    if (mongoose.connection.readyState === 1) {
+      const filter = { userId, itemId };
+      if (restaurantName) filter.restaurantName = restaurantName;
+      await CartItemModel.deleteOne(filter);
+      const updatedCart = await CartItemModel.find({ userId });
+      return res.json({ success: true, cart: updatedCart });
+    } else {
+      let userCart = fallbackCartDb.get(userId) || [];
+      userCart = userCart.filter(i => !(i.itemId === itemId && (!restaurantName || i.restaurantName === restaurantName)));
+      fallbackCartDb.set(userId, userCart);
+      return res.json({ success: true, cart: userCart });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/cart/clear', async (req, res) => {
+  try {
+    const userId = (req.query.userId || req.body.userId || 'user_karthik_001').toString();
+    if (mongoose.connection.readyState === 1) {
+      await CartItemModel.deleteMany({ userId });
+      return res.json({ success: true, cart: [] });
+    } else {
+      fallbackCartDb.set(userId, []);
+      return res.json({ success: true, cart: [] });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });

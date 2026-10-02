@@ -5,8 +5,9 @@ import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
 import { FuzzyMatchEngine } from '../services/fuzzyMatchService';
 import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
+import { ItemActionChooser } from './ItemActionChooser';
 import { WeekdaySelector } from './WeekdaySelector';
-import { Clock, Calendar, CheckCircle2, ShieldCheck, Wallet, Plus, Trash2, Edit, AlertCircle, Sparkles, Utensils, Search, Zap, Star, X, Settings2, Ban, Check } from 'lucide-react';
+import { Clock, Calendar, CheckCircle2, ShieldCheck, Wallet, Plus, Trash2, Edit, AlertCircle, Sparkles, Utensils, Search, Zap, Star, X, Settings2, Ban, Check, ShoppingBag } from 'lucide-react';
 
 interface ScheduleOverrideModalProps {
   schedule: AutoOrderSchedule | null;
@@ -337,7 +338,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
 };
 
 export const AutoOrderScheduler: React.FC = () => {
-  const { schedules, saveSchedule, deleteSchedule, executeScheduleNow, walletBalance, t, accessibilitySettings, language, overrides, getOverridesForSchedule, skipScheduleDate, restoreScheduleDate } = useApp();
+  const { schedules, saveSchedule, deleteSchedule, executeScheduleNow, walletBalance, t, accessibilitySettings, language, overrides, getOverridesForSchedule, skipScheduleDate, restoreScheduleDate, addToCart, placeInstantOrder, showToast, speakText } = useApp();
 
   const getTodayFormattedDate = (): string => {
     const today = new Date();
@@ -366,6 +367,7 @@ export const AutoOrderScheduler: React.FC = () => {
 
   // Shared Schedule Checkout Modal State
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState<boolean>(false);
+  const [chooserItem, setChooserItem] = useState<FoodItem | null>(null);
 
   const calculatedEndDatePreview = calculateScheduleEndDate(startDate, duration, customEndDate);
 
@@ -500,7 +502,10 @@ export const AutoOrderScheduler: React.FC = () => {
           {getSlotSuggestions(activeSlotIndex).map(sug => (
             <div
               key={sug.id}
-              onClick={() => setSelectedFoodItem(sug)}
+              onClick={() => {
+                setSelectedFoodItem(sug);
+                setChooserItem(sug);
+              }}
               className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-center space-x-3 ${
                 selectedFoodItem.id === sug.id
                   ? 'bg-[#FF5A1F] text-white border-[#FF5A1F] shadow-md scale-105'
@@ -667,7 +672,10 @@ export const AutoOrderScheduler: React.FC = () => {
             {filteredCatalog.map(item => (
               <div
                 key={item.id}
-                onClick={() => setSelectedFoodItem(item)}
+                onClick={() => {
+                  setSelectedFoodItem(item);
+                  setChooserItem(item);
+                }}
                 className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-center space-x-3 ${
                   selectedFoodItem.id === item.id
                     ? 'bg-[#FF5A1F] text-white border-[#FF5A1F] shadow-md'
@@ -696,13 +704,35 @@ export const AutoOrderScheduler: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={handleSaveCurrentSchedule}
-            className="w-full sm:w-auto px-8 py-3 bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black rounded-2xl shadow-lg shadow-[#FF5A1F]/30 transition-transform active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
-          >
-            <Plus className="w-5 h-5 text-white" />
-            <span>{t('scheduler.saveScheduleWithDuration')} ({formatDurationLabel(duration)})</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setChooserItem(selectedFoodItem)}
+              className="px-4 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-400 font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95"
+              title={t('addToCart')}
+            >
+              <ShoppingBag className="w-4 h-4 text-[#FF5A1F]" />
+              <span>{t('addToCart')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setChooserItem(selectedFoodItem)}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95 shadow-md"
+            >
+              <Zap className="w-4 h-4 text-yellow-300" />
+              <span>{t('orderNow')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setChooserItem(selectedFoodItem)}
+              className="px-5 py-2.5 bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black rounded-xl text-xs shadow-md transition-transform active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Clock className="w-4 h-4 text-white" />
+              <span>{t('scheduler.saveScheduleWithDuration')} ({formatDurationLabel(duration)})</span>
+            </button>
+          </div>
         </div>
 
       </div>
@@ -840,6 +870,32 @@ export const AutoOrderScheduler: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* SHARED ITEM ACTION CHOOSER MODAL */}
+      <ItemActionChooser
+        isOpen={Boolean(chooserItem)}
+        onClose={() => setChooserItem(null)}
+        items={chooserItem ? [chooserItem] : []}
+        onOrderNow={(items) => {
+          if (items[0]) placeInstantOrder(items[0]);
+        }}
+        onSchedule={(items) => {
+          if (items[0]) {
+            setSelectedFoodItem(items[0]);
+            setIsCheckoutModalOpen(true);
+          }
+        }}
+        onAddToCart={(items) => {
+          if (items[0]) {
+            const itm = items[0];
+            addToCart(itm, 1, 'auto_scheduler');
+            const itemName = itm.nativeNames?.[language] || itm.name;
+            const addedMsg = t('addedNext').replace('{item}', itemName);
+            showToast(addedMsg);
+            speakText(addedMsg);
+          }
+        }}
+      />
 
       {/* PER-DATE CUSTOMIZATION OVERRIDE MODAL */}
       <ScheduleOverrideModal
