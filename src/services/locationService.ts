@@ -195,3 +195,132 @@ export function fetchLiveGPSLocation(): Promise<UserLocation> {
     );
   });
 }
+
+export interface GeocodedPlace {
+  area: string;
+  city: string;
+  addressName: string;
+  latitude: number;
+  longitude: number;
+  confidence: number;
+}
+
+let lastNominatimRequestTime = 0;
+
+const KNOWN_INDIAN_LOCATIONS: Record<string, { area: string; city: string; lat: number; lng: number }> = {
+  'salem': { area: 'Fairlands', city: 'Salem', lat: 11.6643, lng: 78.1460 },
+  'சேலம்': { area: 'ஃபேர்லான்ட்ஸ்', city: 'Salem', lat: 11.6643, lng: 78.1460 },
+  'chennai': { area: 'Anna Nagar', city: 'Chennai', lat: 13.0827, lng: 80.2707 },
+  'சென்னை': { area: 'அண்ணா நகர்', city: 'Chennai', lat: 13.0827, lng: 80.2707 },
+  'चेन्नई': { area: 'अन्ना नगर', city: 'Chennai', lat: 13.0827, lng: 80.2707 },
+  'anna nagar': { area: 'Anna Nagar', city: 'Chennai', lat: 13.0850, lng: 80.2101 },
+  'anna nagar chennai': { area: 'Anna Nagar', city: 'Chennai', lat: 13.0850, lng: 80.2101 },
+  't nagar': { area: 'T. Nagar', city: 'Chennai', lat: 13.0418, lng: 80.2341 },
+  'coimbatore': { area: 'Gandhipuram', city: 'Coimbatore', lat: 11.0168, lng: 76.9558 },
+  'கோயம்புத்தூர்': { area: 'காந்திபுரம்', city: 'Coimbatore', lat: 11.0168, lng: 76.9558 },
+  'கோயம்புத்தூர் காந்திபுரம்': { area: 'காந்திபுரம்', city: 'Coimbatore', lat: 11.0168, lng: 76.9558 },
+  'gandhipuram': { area: 'Gandhipuram', city: 'Coimbatore', lat: 11.0168, lng: 76.9558 },
+  'delhi': { area: 'Connaught Place', city: 'Delhi', lat: 28.6315, lng: 77.2167 },
+  'दिल्ली': { area: 'कनॉट प्लेस', city: 'Delhi', lat: 28.6315, lng: 77.2167 },
+  'bengaluru': { area: 'Indiranagar', city: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
+  'bangalore': { area: 'Indiranagar', city: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
+  'பெங்களூரு': { area: 'இந்திரா நகர்', city: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
+  'बेंगलुरु': { area: 'इंदिरा नगर', city: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
+  'hyderabad': { area: 'Gachibowli', city: 'Hyderabad', lat: 17.4401, lng: 78.3489 },
+  'ஹைதராபாத்': { area: 'கச்சிபௌலி', city: 'Hyderabad', lat: 17.4401, lng: 78.3489 },
+  'हैदराबाद': { area: 'गाचीबोवली', city: 'Hyderabad', lat: 17.4401, lng: 78.3489 },
+  'mumbai': { area: 'Bandra West', city: 'Mumbai', lat: 19.0596, lng: 72.8295 },
+  'மும்பை': { area: 'பாந்த்ரா மேற்கு', city: 'Mumbai', lat: 19.0596, lng: 72.8295 },
+  'मुंबई': { area: 'बांद्रा वेस्ट', city: 'Mumbai', lat: 19.0596, lng: 72.8295 },
+  'madurai': { area: 'KK Nagar', city: 'Madurai', lat: 9.9252, lng: 78.1198 },
+  'மதுரை': { area: 'கேகே நகர்', city: 'Madurai', lat: 9.9252, lng: 78.1198 },
+  'dharmapuri': { area: 'Main Road', city: 'Dharmapuri', lat: 12.1211, lng: 78.1582 },
+  'தர்மபுரி': { area: 'மெயின் ரோடு', city: 'Dharmapuri', lat: 12.1211, lng: 78.1582 },
+  'dharmapuri main road': { area: 'Main Road', city: 'Dharmapuri', lat: 12.1211, lng: 78.1582 }
+};
+
+/**
+ * Forward geocodes a place name within India using OpenStreetMap Nominatim.
+ * Strictly adheres to OSM usage policy:
+ * - Custom User-Agent identifier
+ * - Enforces minimum 1000ms delay between consecutive requests
+ * - Restricted to India (&countrycodes=in)
+ * - Falls back cleanly to known Indian coordinates if network/Nominatim is unavailable.
+ */
+export async function forwardGeocode(query: string): Promise<GeocodedPlace[]> {
+  const clean = (query || '').trim().toLowerCase();
+  if (!clean) return [];
+
+  // Check known dictionary first for instant high-confidence matching
+  for (const [key, loc] of Object.entries(KNOWN_INDIAN_LOCATIONS)) {
+    if (clean === key || clean.includes(key) || key.includes(clean)) {
+      return [{
+        area: loc.area,
+        city: loc.city,
+        addressName: `${loc.area}, ${loc.city}`,
+        latitude: loc.lat,
+        longitude: loc.lng,
+        confidence: 0.95
+      }];
+    }
+  }
+
+  // Rate-limit check: enforce 1 second (1000ms) interval between Nominatim calls
+  const now = Date.now();
+  const timeSinceLast = now - lastNominatimRequestTime;
+  if (timeSinceLast < 1000) {
+    await new Promise(r => setTimeout(r, 1000 - timeSinceLast));
+  }
+  lastNominatimRequestTime = Date.now();
+
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=in&limit=5&addressdetails=1`;
+  console.log(`[LocationService]: Initiating Forward Geocode -> ${url}`);
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'Accept-Language': 'en-US,en;q=0.9,ta;q=0.8,hi;q=0.8',
+        'User-Agent': 'AutoFeast-Smart-Food-App/2.0 (support@autofeast.com)'
+      }
+    });
+
+    if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return [];
+
+    return data.map((item: any) => {
+      const addr = item.address || {};
+      const city =
+        addr.city ||
+        addr.town ||
+        addr.municipality ||
+        addr.village ||
+        addr.county ||
+        addr.state_district ||
+        'India';
+      const area =
+        addr.suburb ||
+        addr.neighbourhood ||
+        addr.quarter ||
+        addr.residential ||
+        addr.road ||
+        addr.village ||
+        city;
+      const addressName = item.display_name
+        ? item.display_name.split(',').slice(0, 3).join(', ')
+        : `${area}, ${city}`;
+
+      return {
+        area,
+        city,
+        addressName,
+        latitude: parseFloat(item.lat),
+        longitude: parseFloat(item.lon),
+        confidence: 0.9
+      };
+    });
+  } catch (err) {
+    console.warn('[LocationService]: Forward geocoding failed or offline:', err);
+    return [];
+  }
+}

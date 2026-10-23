@@ -9,7 +9,7 @@ interface ToastCardProps {
 }
 
 const ToastCard: React.FC<ToastCardProps> = ({ toast, onRemove }) => {
-  const { accessibilitySettings } = useApp();
+  const { accessibilitySettings, userLocation, language } = useApp();
   const [isPaused, setIsPaused] = useState(false);
   const duration = toast.duration || (toast.type === 'error' ? 7000 : 5000);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -23,7 +23,60 @@ const ToastCard: React.FC<ToastCardProps> = ({ toast, onRemove }) => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [toast.id, duration, isPaused, onRemove]);
+  }, [toast.id, toast.updatedAt, duration, isPaused, onRemove]);
+
+  let displayMessage = toast.message || '';
+
+  // 1. Process explicit i18nParams if provided
+  if (toast.i18nParams) {
+    Object.entries(toast.i18nParams).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && String(v).trim() !== '') {
+        displayMessage = displayMessage.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v).trim());
+      }
+    });
+  }
+
+  // 2. Ensure {area} and {city} placeholders are ALWAYS interpolated if they remain
+  if (displayMessage.includes('{area}') || displayMessage.includes('{city}')) {
+    let resolvedArea = '';
+    let resolvedCity = '';
+
+    if (toast.i18nParams?.area && String(toast.i18nParams.area).trim() !== '') {
+      resolvedArea = String(toast.i18nParams.area).trim();
+    }
+    if (toast.i18nParams?.city && String(toast.i18nParams.city).trim() !== '') {
+      resolvedCity = String(toast.i18nParams.city).trim();
+    }
+
+    if (!resolvedArea && userLocation?.area && userLocation.area.trim() !== '') {
+      resolvedArea = userLocation.area.trim();
+    }
+    if (!resolvedCity && userLocation?.city && userLocation.city.trim() !== '') {
+      resolvedCity = userLocation.city.trim();
+    }
+
+    // Try reading directly from localStorage fallback
+    if (!resolvedArea || !resolvedCity) {
+      try {
+        const stored = typeof window !== 'undefined' ? localStorage.getItem('smart_food_user_location') : null;
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (!resolvedArea && parsed?.area) resolvedArea = parsed.area.trim();
+          if (!resolvedCity && parsed?.city) resolvedCity = parsed.city.trim();
+          if (!resolvedArea && parsed?.addressName) {
+            resolvedArea = parsed.addressName.split(',')[0]?.trim() || '';
+          }
+        }
+      } catch (e) {}
+    }
+
+    const fallbackArea = language === 'ta' ? 'தற்போதைய பகுதி' : language === 'hi' ? 'वर्तमान क्षेत्र' : 'Current Area';
+    const fallbackCity = language === 'ta' ? 'தற்போதைய நகரம்' : language === 'hi' ? 'वर्तमान शहर' : 'Current City';
+
+    displayMessage = displayMessage
+      .replace(/\{area\}/g, resolvedArea || fallbackArea)
+      .replace(/\{city\}/g, resolvedCity || fallbackCity);
+  }
 
   const currentTheme =
     accessibilitySettings.themeMode ||
@@ -79,7 +132,7 @@ const ToastCard: React.FC<ToastCardProps> = ({ toast, onRemove }) => {
           {getIcon()}
         </div>
         <p className="text-xs sm:text-sm font-black leading-snug break-words flex-1 text-left">
-          {toast.message}
+          {displayMessage}
         </p>
       </div>
 
@@ -101,12 +154,22 @@ export const CenteredToastContainer: React.FC = () => {
 
   if (!toasts || toasts.length === 0) return null;
 
-  // Max 3 visible toasts
-  const visibleToasts = toasts.slice(-3);
+  // Max 1 toast per message key, max 3 visible toasts of distinct keys
+  const uniqueToasts: ToastItem[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const t of toasts) {
+    const itemKey = t.key || t.message;
+    if (!seenKeys.has(itemKey)) {
+      seenKeys.add(itemKey);
+      uniqueToasts.push(t);
+    }
+    if (uniqueToasts.length >= 3) break;
+  }
 
   return (
     <div className="fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2.5 max-w-[min(92vw,480px)] w-full pointer-events-none px-2 pt-[env(safe-area-inset-top)]">
-      {visibleToasts.map(t => (
+      {uniqueToasts.map(t => (
         <ToastCard key={t.id} toast={t} onRemove={removeToast} />
       ))}
     </div>

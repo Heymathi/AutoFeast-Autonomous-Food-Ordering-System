@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { SpeechService } from '../services/speechService';
+import { SpeechController } from '../services/speechController';
+import { SecurityPinEntryView } from './SecurityPinEntryView';
 import {
   ShieldAlert,
   Scan,
@@ -47,7 +48,6 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
 
   // PIN Form & Keypad State
   const [pinDigits, setPinDigits] = useState('');
-  const [isListeningPin, setIsListeningPin] = useState(false);
 
   // Nominee Form State
   const [nomineeName, setNomineeName] = useState(currentUser?.nomineeName || 'Priya Raja');
@@ -63,8 +63,6 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
       setSuccessMessage(null);
       setFailedAttempts(0);
       setNomineeNotificationSent(false);
-      setIsListeningPin(false);
-      SpeechService.stopListening();
     } else {
       if (currentUser) {
         setNomineeName(currentUser.nomineeName || 'Priya Raja');
@@ -84,24 +82,9 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
       setPinDigits('');
       setErrorMessage(null);
       setSuccessMessage(null);
-      setIsListeningPin(false);
-      SpeechService.stopListening();
-
-      const promptMsg = language === 'ta'
-        ? 'தினசரி ஆர்டர் வரம்பு முடிந்தது. உங்கள் 4-இலக்க PIN-ஐ சொல்லவும் அல்லது உள்ளிடவும்.'
-        : language === 'hi'
-        ? 'दैनिक ऑर्डर सीमा समाप्त हो गई है। कृपया अपना 4-अंकीय पिन बोलें या दर्ज करें।'
-        : 'Daily limit reached. Please say or type your 4-digit PIN to reset limit.';
-
-      console.log('[Limit Renewal Modal]: Auto-prompting aloud & opening voice listener...');
-
-      speakText(promptMsg, () => {
-        if (isOpen && renewalMethod === 'pin') {
-          startVoicePinListeningForLimit();
-        }
-      }, language);
+      SpeechController.cancelSpeech();
     } else if (!isOpen) {
-      SpeechService.stopListening();
+      SpeechController.cancelSpeech();
     }
   }, [isOpen, renewalMethod]);
 
@@ -196,90 +179,11 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
         setErrorMessage(failMsg);
 
         // Auto-restart voice listening after speaking incorrect PIN retry prompt
-        speakText(failMsg, () => {
-          if (isOpen && renewalMethod === 'pin') {
-            startVoicePinListeningForLimit();
-          }
-        }, language);
+        speakText(failMsg, undefined, language);
       }
     }
   };
 
-  /**
-   * Listen for Spoken PIN digits using shared SpeechService.extractFourDigits
-   */
-  const startVoicePinListeningForLimit = () => {
-    if (!SpeechService.isSupported() || !isOpen) return;
-
-    setIsListeningPin(true);
-    setErrorMessage(null);
-
-    SpeechService.startListening({
-      language,
-      continuous: false,
-      interimResults: true,
-      onResult: (text, isFinal, nBestTranscripts) => {
-        if (!text || !text.trim()) return;
-
-        const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [text];
-        let digits: string[] | null = null;
-        for (const cand of candidates) {
-          digits = SpeechService.extractFourDigits(cand);
-          if (digits && digits.length === 4) break;
-        }
-        if (digits && digits.length === 4) {
-          console.log('[Limit Renewal Voice Success]: Extracted 4-digit PIN:', digits);
-          SpeechService.stopListening();
-          setIsListeningPin(false);
-          const fourStr = digits.join('');
-          setPinDigits(fourStr);
-          handlePINSubmit(fourStr);
-        } else if (isFinal) {
-          console.warn('[Limit Renewal Voice Failed]: Could not extract 4 digits:', text);
-          SpeechService.stopListening();
-          setIsListeningPin(false);
-          const failStr = language === 'ta'
-            ? '4 இலக்கங்கள் கண்டறியப்படவில்லை. மீண்டும் பேசுங்கள்.'
-            : language === 'hi'
-            ? '4 अंक नहीं मिले। कृपया पुनः स्पष्ट बोलें।'
-            : 'Could not detect 4 digits by voice. Please speak clearly or type using keypad.';
-          setErrorMessage(failStr);
-
-          // Auto-restart listening after retry prompt completes
-          speakText(failStr, () => {
-            if (isOpen && renewalMethod === 'pin') {
-              startVoicePinListeningForLimit();
-            }
-          }, language);
-        }
-      },
-      onError: (err) => {
-        console.warn('[Voice PIN Error]:', err);
-        setIsListeningPin(false);
-      },
-      onEnd: () => {
-        setIsListeningPin(false);
-      }
-    });
-  };
-
-  const toggleVoicePinListening = () => {
-    if (isListeningPin) {
-      SpeechService.stopListening();
-      setIsListeningPin(false);
-      return;
-    }
-
-    const promptMsg = language === 'ta'
-      ? 'உங்கள் 4 இலக்க பின்னை கூறுக'
-      : language === 'hi'
-      ? 'अपना 4 अंकों का पिन बोलें'
-      : 'Please speak your 4-digit PIN numbers out loud.';
-
-    speakText(promptMsg, () => {
-      startVoicePinListeningForLimit();
-    }, language);
-  };
 
   /**
    * Option 2: Face ID WebAuthn Limit Renewal
@@ -470,109 +374,21 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
           </div>
         )}
 
-        {/* Method 1: 4-Digit PIN Renewal (Typed / Spoken) */}
+        {/* Method 1: 4-Digit PIN Renewal (Shared SecurityPinEntryView) */}
         {renewalMethod === 'pin' && (
-          <div className="p-6 space-y-5 text-center">
-            <div>
-              <h3 className="text-base font-black text-[#1A1110]">Enter or Speak Your 4-Digit PIN</h3>
-              <p className="text-xs text-[#4A5568] mt-1 font-semibold">
-                Type or speak your 4-digit PIN to reset daily order limit to 0/6
-              </p>
-            </div>
-
-            {/* 4 Large PIN Digits Display */}
-            <div className="flex justify-center items-center space-x-3 my-2">
-              {[0, 1, 2, 3].map((index) => (
-                <div
-                  key={index}
-                  className={`w-12 h-14 rounded-2xl border-2 flex items-center justify-center text-2xl font-black transition-all ${
-                    pinDigits[index]
-                      ? 'border-[#FF5A1F] bg-[#FF5A1F]/10 text-[#FF5A1F] scale-105 shadow-md'
-                      : 'border-[#B2E2F0] bg-slate-50 text-slate-300'
-                  }`}
-                >
-                  {pinDigits[index] ? '●' : ''}
-                </div>
-              ))}
-            </div>
-
-            {/* Voice PIN Button */}
-            <button
-              type="button"
-              onClick={toggleVoicePinListening}
-              className={`w-full py-3 px-4 rounded-2xl text-xs font-black flex items-center justify-center space-x-2 transition-all cursor-pointer border ${
-                isListeningPin
-                  ? 'bg-[#C2185B] text-white animate-pulse border-[#C2185B]'
-                  : 'bg-[#FF5A1F] hover:bg-[#E04812] text-white shadow-sm'
-              }`}
-            >
-              {isListeningPin ? <MicOff className="w-4 h-4 text-white animate-bounce" /> : <Mic className="w-4 h-4 text-white" />}
-              <span>{isListeningPin ? 'Listening for PIN digits...' : '🎙️ Speak PIN Digits Out Loud (EN / TA / HI)'}</span>
-            </button>
-
-            {/* Touch Keypad Grid */}
-            <div className="grid grid-cols-3 gap-2.5 max-w-xs mx-auto pt-2">
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => handleKeyClick(num)}
-                  disabled={isProcessing}
-                  className="py-3 bg-slate-50 hover:bg-[#DAF0F7] text-[#1A1110] font-black rounded-2xl text-lg shadow-sm border border-[#B2E2F0] transition-transform active:scale-95 cursor-pointer"
-                >
-                  {num}
-                </button>
-              ))}
-
-              <button
-                type="button"
-                onClick={handleClear}
-                disabled={isProcessing}
-                className="py-3 bg-slate-100 hover:bg-slate-200 text-[#4A5568] font-bold rounded-2xl text-xs shadow-sm flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
-              >
-                Clear
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleKeyClick('0')}
-                disabled={isProcessing}
-                className="py-3 bg-slate-50 hover:bg-[#DAF0F7] text-[#1A1110] font-black rounded-2xl text-lg shadow-sm border border-[#B2E2F0] transition-transform active:scale-95 cursor-pointer"
-              >
-                0
-              </button>
-
-              <button
-                type="button"
-                onClick={handleBackspace}
-                disabled={isProcessing}
-                className="py-3 bg-slate-100 hover:bg-slate-200 text-[#C2185B] font-bold rounded-2xl text-xs shadow-sm flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
-              >
-                <Delete className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Direct Reset Limit Button */}
-            <button
-              onClick={() => handlePINSubmit(pinDigits)}
-              disabled={isProcessing || pinDigits.length !== 4}
-              className="w-full py-4 px-6 bg-[#FF5A1F] hover:bg-[#E04812] disabled:opacity-50 text-white font-black rounded-2xl shadow-xl flex items-center justify-center space-x-2 text-sm transition-all cursor-pointer"
-            >
-              {isProcessing ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>Verifying PIN...</span>
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="w-5 h-5 text-white" />
-                  <span>Verify PIN & Reset Daily Limit</span>
-                </>
-              )}
-            </button>
+          <div className="p-6">
+            <SecurityPinEntryView
+              title="Daily Limit Renewal PIN"
+              subtitle="Enter or speak your 4-digit PIN to reset daily limit to 0/6"
+              onPinComplete={(pinStr) => handlePINSubmit(pinStr)}
+              isVerifying={isProcessing}
+              errorMessage={errorMessage}
+              setErrorMessage={setErrorMessage}
+              submitButtonText="Verify PIN & Reset Daily Limit"
+            />
 
             {/* Forgot PIN / Nominee Notification Fallback Trigger */}
-            <div className="pt-2 border-t border-[#DAF0F7]">
+            <div className="pt-4 border-t border-[#DAF0F7] mt-4">
               <button
                 type="button"
                 onClick={() => triggerNomineeNotification('User requested Nominee approval')}
@@ -582,7 +398,6 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
                 <span>Forgot PIN? Send Notification Alert to Nominee to Approve</span>
               </button>
             </div>
-
           </div>
         )}
 

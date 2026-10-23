@@ -2,9 +2,11 @@ import { Language, FoodItem } from '../types';
 import { CrossScriptPhoneticMatcher } from './crossScriptPhoneticMatcher';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { FuzzyMatchEngine } from './fuzzyMatchService';
+import { FUZZY_CONFIG, CANONICAL_FOOD_ALIASES } from '../config/fuzzyConfig';
+import { UserAliasService } from './userAliasService';
 
 export type ConfirmationIntent = 'YES' | 'NO' | 'UNKNOWN';
-export type ControlCommandIntent = 'YES' | 'NO' | 'NEXT' | 'BACK' | 'CANCEL' | 'ORDER_NOW' | 'SCHEDULE' | 'UNKNOWN';
+export type ControlCommandIntent = 'YES' | 'NO' | 'NEXT' | 'BACK' | 'CANCEL' | 'STOP' | 'REPEAT' | 'ORDER_NOW' | 'SCHEDULE' | 'UNKNOWN';
 
 export interface MatchResult<T = string> {
   isMatched: boolean;
@@ -12,28 +14,31 @@ export interface MatchResult<T = string> {
   confidence: number;
   needsClarification: boolean;
   bestCandidate?: T;
+  top3Candidates?: T[];
   clarificationPrompt?: string;
   matchedTranscript?: string;
+  quantity?: number;
+  isGenericCategory?: boolean;
 }
 
 export interface MultiItemMatchResult {
-  items: FoodItem[];
+  items: Array<{ foodItem: FoodItem; quantity: number }>;
   unmatchedSegments: string[];
   confidence: number;
   needsClarification: boolean;
   clarificationPrompt?: string;
+  top3Candidates?: FoodItem[];
 }
 
-// 🚀 CENTRALIZED MULTILINGUAL VOCABULARIES
-export const CONFIRMATION_VOCABULARY = {
+export const CONFIRMATION_VOCABULARY: any = {
   YES: {
-    en: ['yes', 'yeah', 'yep', 'sure', 'ok', 'okay', 'confirm', 'proceed', 'do it', 'correct', 'right', 'accept', 'allow'],
-    ta: ['ஆம்', 'ஆமாம்', 'சரி', 'ஆமா', 'செய்', 'வேண்டும்', 'உறுதி', 'அனுமதி', 'ஓகே', 'கொடு', 'aama', 'aamam', 'sari', 'seri', 'kodu', 'aam'],
-    hi: ['हाँ', 'जी हाँ', 'हाँजी', 'ठीक', 'ठीक है', 'करो', 'हाँ करो', 'मंजूर', 'अनुमति', 'haan', 'sahi', 'ji haan']
+    en: ['yes', 'yeah', 'yep', 'sure', 'ok', 'okay', 'confirm', 'proceed', 'do it', 'correct', 'right', 'absolutely', 'go ahead'],
+    ta: ['ஆம்', 'ஆமாம்', 'சரி', 'ஆமா', 'செய்', 'உறுதி', 'ஓகே', 'aama', 'aamam', 'sari', 'seri', 'okay', 'ok'],
+    hi: ['हाँ', 'जी हाँ', 'हाँजी', 'ठीक', 'ठीक है', 'करो', 'हाँ करो', 'haan', 'sahi', 'ji haan', 'thik hai', 'theek hai']
   },
   NO: {
-    en: ['no', 'nope', 'cancel', 'stop', 'deny', 'dont', 'don\'t', 'reject', 'decline', 'never', 'nah'],
-    ta: ['இல்லை', 'இல்ல', 'வேண்டாம்', 'வேணாம்', 'ரத்து', 'மறு', 'வேண்டாதீங்க', 'மனா', 'illa', 'illai', 'vendam', 'venam', 'vaendaam'],
+    en: ['no', 'nope', 'cancel', 'stop', 'deny', 'dont', "don't", 'reject', 'decline', 'never', 'nah', 'not at all'],
+    ta: ['இல்லை', 'இல்ல', 'வேண்டாம்', 'வேணாம்', 'ரத்து', 'மறு', 'வேண்டாதீங்க', 'மனா', 'illa', 'illai', 'vendam', 'venam', 'vaendaam', 'vendaam'],
     hi: ['नहीं', 'ना', 'मना', 'कैंसल', 'नहीं चाहिए', 'रद्द', 'मना करें', 'nahi', 'naa', 'nahin']
   },
   NEXT: {
@@ -49,17 +54,27 @@ export const CONFIRMATION_VOCABULARY = {
   CANCEL: {
     en: ['cancel', 'exit', 'close'],
     ta: ['ரத்து', 'மூடு', 'வெளியேறு'],
-    hi: ['रद्द', 'बंद', 'बाहर']
+    hi: ['ரத்து', 'बंद', 'बाहर']
+  },
+  STOP: {
+    en: ['stop', 'pause'],
+    ta: ['நிறுத்து', 'போதும்', 'நிறுத்துங்கள்', 'niruthu', 'pothum'],
+    hi: ['रुको', 'बंद करो', 'रोकें', 'ruko', 'bas']
+  },
+  REPEAT: {
+    en: ['repeat', 'say again', 'repeat that'],
+    ta: ['மீண்டும் சொல்லுங்கள்', 'மறுபடியும்', 'மீண்டும்', 'meendum', 'marupadiyum'],
+    hi: ['दोहराएं', 'फिर से बोलें', 'फिर से', 'dobara', 'phir se']
   },
   ORDER_NOW: {
-    en: ['order now', 'instant', 'order', 'now', 'buy now'],
-    ta: ['இப்போதே ஆர்டர் செய்', 'இப்போதே', 'இப்போ', 'உடனடி', 'ஆர்டர் செய்', 'ஆர்டர் பண்ணு'],
-    hi: ['अभी ऑर्डर करें', 'अभी', 'तुरंत', 'ऑर्डर करें']
+    en: ['order now', 'instant', 'buy now'],
+    ta: ['இப்போதே ஆர்டர் செய்', 'இப்போதே ஆர்டர் செய்யுங்கள்', 'உடனடி', 'இப்போ ஆர்டர் செய்', 'இப்போ ஆர்டர் பண்ணு', 'ஆர்டர் இப்போதே செய்', 'உடனடியாக ஆர்டர் செய்'],
+    hi: ['अभी ऑर्डर करें', 'अभी ऑर्डर करिए', 'अभी खाना ऑर्डर करें', 'तुरंत ऑर्डर करें', 'तुरंत खाना मंगाओ', 'तुरंत']
   },
   SCHEDULE: {
-    en: ['schedule', 'later', 'schedule for later', 'set time'],
-    ta: ['அட்டவணைப்படுத்து', 'அட்டவணை', 'திட்டமிடு', 'பிறகு', 'பின்னர்', 'அப்புறம்'],
-    hi: ['शेड्यूल करें', 'शेड्यूल', 'बाद में', 'समय सेट करें']
+    en: ['schedule', 'schedule for later', 'schedule this for tomorrow', 'set time', 'set a time'],
+    ta: ['அட்டவணைப்படுத்து', 'அட்டவணை', 'திட்டமிடு', 'பிறகு அட்டவணைப்படுத்து', 'பின்னர் திட்டமிடு', 'நாளைக்கு அட்டவணைப்படுத்து'],
+    hi: ['शेड्यूल करें', 'शेड्यूल', 'बाद के लिए शेड्यूल करें', 'कल के लिए शेड्यूल करें', 'समय सेट करें', 'बाद में']
   }
 };
 
@@ -89,18 +104,25 @@ export const WEEKDAY_MAP: { [key: string]: string[] } = {
 };
 
 export const LANGUAGE_VOCABULARY = {
-  ta: ['tamil', 'தமிழ்', 'tamizh', 'thamil', 'தமிள்', 'ஒன்று', 'ஒன்னு', 'ஒரு', '1'],
-  en: ['english', 'இங்கிலீஷ்', 'इंग्लिश', 'inglish', 'ஆங்கிலம்', 'ஆங்கில', 'இரண்டு', 'ரெண்டு', '2'],
-  hi: ['hindi', 'हिंदी', 'hindhi', 'हिन्दी', 'இந்தி', 'ஹிந்தி', 'ஹிந்தீ', 'तीन', '3']
+  ta: ['tamil', 'தமிழ்', 'tamizh', 'thamil', 'தமிள்', 'तमिल'],
+  en: ['english', 'inglish', 'ஆங்கிலம்', 'ஆங்கில', 'இங்கிலீஷ்', 'इंग्लिश', 'अंग्रेज़ी', 'अंग्रेजी'],
+  hi: ['hindi', 'हिंदी', 'hindhi', 'हिन्दी', 'இந்தி', 'ஹிந்தி', 'ஹிந்தீ']
+};
+
+const FILLER_WORDS = [
+  'i want', 'order', 'please', 'give me', 'bring me', 'add', 'get me',
+  'venum', 'vaenum', 'podu', 'kudu', 'kodu', 'panno', 'kudungga', 'vaanggu',
+  'chahiye', 'karo', 'laya', 'do', 'dedo', 'mujhe', 'enaku', 'enakku', 'order karo'
+];
+
+const GENERIC_CATEGORY_KEYWORDS: { [key: string]: string[] } = {
+  'idli': ['idli', 'idly', 'iddli', 'italy', 'eatly', 'itli', 'edli', 'இட்லி', 'இட்டலி', 'इडली'],
+  'dosa': ['dosa', 'dosai', 'dhosai', 'dosha', 'doser', 'தோசை', 'डोसा'],
+  'biryani': ['biryani', 'biriyani', 'briyani', 'beer yani', 'berryani', 'பிரியாணி', 'बिरयानी'],
+  'parotta': ['parotta', 'parota', 'barota', 'பரோட்டா', 'परोटा']
 };
 
 export class SttMatcherService {
-  private static ACCEPT_THRESHOLD = 0.65;
-  private static CLARIFY_THRESHOLD = 0.45;
-
-  /**
-   * Helper: Normalizes transcription list into clean non-empty string candidates
-   */
   private static toCandidateList(input: string | string[]): string[] {
     const list = Array.isArray(input) ? input : [input];
     return list
@@ -108,56 +130,58 @@ export class SttMatcherService {
       .map(s => s.toLowerCase().trim());
   }
 
-  /**
-   * 🚀 Phonetic + Fuzzy Distance Matcher Core
-   * Returns normalized similarity score [0.0 to 1.0] between STT text and target string
-   */
-  public static calculateMatchScore(sttText: string, targetStr: string): number {
-    if (!sttText || !targetStr) return 0.0;
-    const sLower = sttText.toLowerCase().trim();
-    const tLower = targetStr.toLowerCase().trim();
+  public static extractQuantityAndCleanPhrase(text: string): { quantity: number; cleanPhrase: string } {
+    let clean = (text || '').toLowerCase().trim();
+    let quantity = 1;
 
-    // 1. Direct string equality or substring inclusion (High Priority)
-    if (sLower === tLower) return 1.0;
-    if (sLower.length >= 3 && tLower.length >= 3) {
-      if (sLower.includes(tLower) || tLower.includes(sLower)) {
-        const minLen = Math.min(sLower.length, tLower.length);
-        const maxLen = Math.max(sLower.length, tLower.length);
-        return Math.max(0.85, minLen / maxLen);
+    const numMatch = clean.match(/\b(\d+)\b/);
+    if (numMatch) {
+      const parsed = parseInt(numMatch[1], 10);
+      if (parsed > 0 && parsed <= 99) {
+        quantity = parsed;
+        clean = clean.replace(/\b\d+\b/g, '').trim();
+      }
+    } else {
+      const wordNumbers: Array<{ value: number; words: string[] }> = [
+        { value: 1, words: ['one', 'ek', 'ஒரு', 'ஒன்று', 'ஒன்னு', 'ஒண்ணு', 'एक'] },
+        { value: 2, words: ['two', 'rendu', 'இரண்டு', 'ரெண்டு', 'दो'] },
+        { value: 3, words: ['three', 'moonu', 'மூன்று', 'மூணு', 'तीन'] },
+        { value: 4, words: ['four', 'naangu', 'நான்கு', 'நாலு', 'चार'] },
+        { value: 5, words: ['five', 'ainthu', 'ஐந்து', 'அஞ்சு', 'पांच', 'पाँच'] },
+        { value: 6, words: ['six', 'aaru', 'ஆறு', 'छह', 'छः'] },
+        { value: 7, words: ['seven', 'ezhu', 'ஏழு', 'सात'] },
+        { value: 8, words: ['eight', 'ettu', 'எட்டு', 'आठ'] },
+        { value: 9, words: ['nine', 'onpathu', 'ஒன்பது', 'नौ'] },
+        { value: 10, words: ['ten', 'pathu', 'பத்து', 'दस'] }
+      ];
+      const paddedText = ` ${clean} `;
+      const match = wordNumbers.find(({ words }) => words.some(word => paddedText.includes(` ${word} `)));
+      if (match) {
+        quantity = match.value;
+        for (const word of match.words) {
+          clean = ` ${clean} `.replace(` ${word} `, ' ').trim();
+        }
       }
     }
 
-    // 2. Phonetic Latin Transliteration Comparison
-    const pStt = CrossScriptPhoneticMatcher.toPhoneticLatin(sLower);
-    const pTarget = CrossScriptPhoneticMatcher.toPhoneticLatin(tLower);
-
-    if (pStt === pTarget && pStt.length > 0) return 0.98;
-
-    if (pStt.length >= 3 && pTarget.length >= 3) {
-      if (pStt.includes(pTarget) || pTarget.includes(pStt)) {
-        const minLen = Math.min(pStt.length, pTarget.length);
-        const maxLen = Math.max(pStt.length, pTarget.length);
-        return Math.max(0.82, minLen / maxLen);
-      }
+    for (const filler of FILLER_WORDS) {
+      const reg = new RegExp(`\\b${filler}\\b`, 'gi');
+      clean = clean.replace(reg, '').trim();
     }
 
-    // 3. Levenshtein Edit Distance Score
-    const rawDist = CrossScriptPhoneticMatcher.levenshteinDistance(sLower, tLower);
-    const maxRawLen = Math.max(sLower.length, tLower.length);
-    const rawScore = maxRawLen > 0 ? Math.max(0, 1 - rawDist / maxRawLen) : 0;
-
-    const phonDist = CrossScriptPhoneticMatcher.levenshteinDistance(pStt, pTarget);
-    const maxPhonLen = Math.max(pStt.length, pTarget.length);
-    const phonScore = maxPhonLen > 0 ? Math.max(0, 1 - phonDist / maxPhonLen) : 0;
-
-    // Combined Weighted Score (60% Phonetic + 40% Text Edit Distance)
-    return (phonScore * 0.6) + (rawScore * 0.4);
+    clean = clean.replace(/\s+/g, ' ').trim();
+    return { quantity, cleanPhrase: clean || text };
   }
 
-  /**
-   * 🚀 CENTRALIZED YES / NO CONFIRMATION MATCHER
-   * Supports n-best STT hypotheses & multilingual phonetic matching (EN, TA, HI)
-   */
+  public static matchFoodItem(
+    transcripts: string | string[],
+    catalog: FoodItem[] = INDIAN_FOOD_CATALOG,
+    language: Language = 'en'
+  ): FoodItem | null {
+    const res = this.matchCatalogItem(transcripts, catalog, language);
+    return res.isMatched ? res.matchedValue : (res.needsClarification ? res.bestCandidate || null : null);
+  }
+
   public static matchConfirmation(
     transcripts: string | string[],
     language: Language = 'en'
@@ -167,11 +191,9 @@ export class SttMatcherService {
       return { isMatched: false, matchedValue: 'UNKNOWN', confidence: 0, needsClarification: false };
     }
 
-    let bestIntent: ConfirmationIntent = 'UNKNOWN';
     let maxScore = 0;
     let matchedTranscript = '';
 
-    // Collect all expected vocabulary words for YES and NO across languages
     const yesWords = [
       ...CONFIRMATION_VOCABULARY.YES.en,
       ...CONFIRMATION_VOCABULARY.YES.ta,
@@ -184,29 +206,53 @@ export class SttMatcherService {
       ...CONFIRMATION_VOCABULARY.NO.hi
     ];
 
+    const votes: Record<'YES' | 'NO', number> = { YES: 0, NO: 0 };
+    const normalize = (value: string) => value.toLowerCase().replace(/[.,!?;:]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const matchesPhrase = (text: string, phrase: string) =>
+      ` ${normalize(text)} `.includes(` ${normalize(phrase)} `);
+
     for (const text of candidates) {
-      // Check YES vocabulary
-      for (const word of yesWords) {
-        const score = this.calculateMatchScore(text, word);
-        if (score > maxScore) {
-          maxScore = score;
-          bestIntent = 'YES';
-          matchedTranscript = text;
+      const yesExact = yesWords.some(word => matchesPhrase(text, word));
+      const noExact = noWords.some(word => matchesPhrase(text, word));
+      const negatedAffirmative = /\b(?:not sure|not certain|not ready|not okay|unsure)\b/i.test(text);
+      if (yesExact && negatedAffirmative && !noExact) continue;
+      if (yesExact !== noExact) {
+        votes[yesExact ? 'YES' : 'NO']++;
+        maxScore = 1;
+        matchedTranscript = text;
+        continue;
+      }
+      if (yesExact && noExact) continue;
+
+      let candidateIntent: 'YES' | 'NO' | null = null;
+      let candidateScore = 0;
+      for (const [intent, words] of [['YES', yesWords], ['NO', noWords]] as const) {
+        for (const word of words) {
+          const score = FuzzyMatchEngine.calculateMatchScore(text, word);
+          if (score > candidateScore) {
+            candidateScore = score;
+            candidateIntent = intent;
+          } else if (score === candidateScore && score > 0 && candidateIntent !== intent) {
+            candidateIntent = null;
+          }
         }
       }
-
-      // Check NO vocabulary
-      for (const word of noWords) {
-        const score = this.calculateMatchScore(text, word);
-        if (score > maxScore) {
-          maxScore = score;
-          bestIntent = 'NO';
-          matchedTranscript = text;
-        }
+      if (candidateIntent && candidateScore >= FUZZY_CONFIG.highConfidence && normalize(text).split(' ').length === 1) {
+        votes[candidateIntent]++;
+        maxScore = Math.max(maxScore, candidateScore);
+        matchedTranscript = text;
       }
     }
 
-    if (maxScore >= this.ACCEPT_THRESHOLD) {
+    const bestIntent: ConfirmationIntent = votes.YES === votes.NO
+      ? 'UNKNOWN'
+      : votes.YES > votes.NO ? 'YES' : 'NO';
+
+    if (bestIntent === 'UNKNOWN') {
+      return { isMatched: false, matchedValue: 'UNKNOWN', confidence: maxScore, needsClarification: false, matchedTranscript };
+    }
+
+    if (maxScore >= FUZZY_CONFIG.highConfidence) {
       return {
         isMatched: true,
         matchedValue: bestIntent,
@@ -216,11 +262,11 @@ export class SttMatcherService {
       };
     }
 
-    if (maxScore >= this.CLARIFY_THRESHOLD && bestIntent !== 'UNKNOWN') {
+    if (maxScore >= FUZZY_CONFIG.mediumConfidence) {
       const prompt = language === 'ta'
         ? `உங்களின் பதில் "${bestIntent === 'YES' ? 'ஆம்' : 'இல்லை'}" என்பதா?`
         : language === 'hi'
-        ? `क्या आपका उत्तर "${bestIntent === 'YES' ? 'हाँ' : 'नहीं'}" है?`
+        ? `क्या आपका मतलब "${bestIntent === 'YES' ? 'हाँ' : 'नहीं'}" था?`
         : `Did you mean "${bestIntent === 'YES' ? 'Yes' : 'No'}"?`;
 
       return {
@@ -243,483 +289,512 @@ export class SttMatcherService {
     };
   }
 
-  /**
-   * 🚀 MULTI-ITEM CONJUNCTION SPLITTER & CATALOG MATCHER
-   * Splits phrases like "idli-um dosa-um", "2 dosa and 1 coffee", "biryani மற்றும் கோக்"
-   */
-  public static splitMultiItemPhrase(text: string): string[] {
-    if (!text) return [];
-    let cleaned = text.toLowerCase().trim();
-
-    // Transliterate Tamil suffix '-um' / '-ஆவும்' or conjunctions
-    cleaned = cleaned
-      .replace(/(\w+)(உம்|மும்|வும்|ஆவும்)/gi, '$1 ')
-      .replace(/\s+(மற்றும்|மத்தும்|அப்புறம்|ஆண்டு|and|plus|with|or|और|तथा)\s+/gi, ', ');
-
-    const parts = cleaned.split(/[,;&+]/).map(p => p.trim()).filter(p => p.length > 0);
-    return parts.length > 0 ? parts : [text];
-  }
-
-  /**
-   * Helper: Matches single FoodItem directly returning FoodItem or null
-   */
-  public static matchFoodItem(
-    transcripts: string | string[],
-    catalog: FoodItem[] = INDIAN_FOOD_CATALOG,
-    language: Language = 'en'
-  ): FoodItem | null {
-    const res = this.matchCatalogItem(transcripts, catalog, language);
-    return res.isMatched ? res.matchedValue : null;
-  }
-
-  /**
-   * 🚀 CATALOG FOOD ITEM MATCHER
-   * Matches single/multiple items with fuzzy + phonetic + n-best hypotheses
-   */
-  public static matchCatalogItem(
-    transcripts: string | string[],
-    catalog: FoodItem[] = INDIAN_FOOD_CATALOG,
-    language: Language = 'en'
-  ): MatchResult<FoodItem> {
+  public static matchOrderType(transcripts: string | string[]): MatchResult<'ORDER_NOW' | 'SCHEDULE'> {
     const candidates = this.toCandidateList(transcripts);
-    if (candidates.length === 0 || catalog.length === 0) {
+    const votes: Record<'ORDER_NOW' | 'SCHEDULE', number> = { ORDER_NOW: 0, SCHEDULE: 0 };
+    const normalize = (value: string) => value.toLowerCase().replace(/[.,!?;:]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const matchesPhrase = (text: string, phrase: string) =>
+      ` ${normalize(text)} `.includes(` ${normalize(phrase)} `);
+
+    for (const candidate of candidates) {
+      const orderNow = (Object.values(CONFIRMATION_VOCABULARY.ORDER_NOW).flat() as string[])
+        .some(phrase => matchesPhrase(candidate, phrase));
+      const schedule = (Object.values(CONFIRMATION_VOCABULARY.SCHEDULE).flat() as string[])
+        .some(phrase => matchesPhrase(candidate, phrase));
+      if (orderNow !== schedule) votes[orderNow ? 'ORDER_NOW' : 'SCHEDULE']++;
+    }
+
+    if (votes.ORDER_NOW === votes.SCHEDULE || votes.ORDER_NOW + votes.SCHEDULE === 0) {
       return { isMatched: false, matchedValue: null, confidence: 0, needsClarification: false };
     }
-
-    let bestItem: FoodItem | null = null;
-    let maxScore = 0;
-    let matchedTranscript = '';
-    let bestConfidence: 'high' | 'medium' | 'low' = 'low';
-
-    for (const text of candidates) {
-      const res = FuzzyMatchEngine.matchCatalogFoodItem(text, catalog);
-      if (res.score > maxScore) {
-        maxScore = res.score;
-        bestItem = res.item;
-        bestConfidence = res.confidence;
-        matchedTranscript = text;
-      }
-    }
-
-    if (bestItem && bestConfidence === 'high') {
-      return {
-        isMatched: true,
-        matchedValue: bestItem,
-        confidence: maxScore,
-        needsClarification: false,
-        matchedTranscript
-      };
-    }
-
-    if (bestItem && bestConfidence === 'medium') {
-      const bestName = bestItem.nativeNames?.[language] || bestItem.name;
-      const prompt = language === 'ta'
-        ? `நீங்கள் "${bestName}" என்று கூறினீர்களா?`
-        : language === 'hi'
-        ? `क्या आपका मतलब "${bestName}" था?`
-        : `Did you mean "${bestName}"?`;
-
-      return {
-        isMatched: false,
-        matchedValue: bestItem,
-        confidence: maxScore,
-        needsClarification: true,
-        bestCandidate: bestItem,
-        clarificationPrompt: prompt,
-        matchedTranscript
-      };
-    }
-
+    const matchedValue = votes.ORDER_NOW > votes.SCHEDULE ? 'ORDER_NOW' : 'SCHEDULE';
     return {
-      isMatched: false,
-      matchedValue: null,
-      confidence: maxScore,
-      needsClarification: false,
-      matchedTranscript
+      isMatched: true,
+      matchedValue,
+      confidence: Math.max(votes.ORDER_NOW, votes.SCHEDULE) / (votes.ORDER_NOW + votes.SCHEDULE),
+      needsClarification: false
     };
   }
 
-  /**
-   * 🚀 MULTI-ITEM PHRASE MATCHER
-   * Processes phrases containing multiple food items
-   */
-  public static matchMultipleCatalogItems(
-    transcripts: string | string[],
-    catalog: FoodItem[] = INDIAN_FOOD_CATALOG,
-    language: Language = 'en'
-  ): MultiItemMatchResult {
+  public static matchControlCommand(transcripts: string | string[]): MatchResult<'STOP' | 'REPEAT' | 'BACK' | 'CANCEL'> {
     const candidates = this.toCandidateList(transcripts);
-    if (candidates.length === 0) {
-      return { items: [], unmatchedSegments: [], confidence: 0, needsClarification: false };
+    const entries: Array<['STOP' | 'REPEAT' | 'BACK' | 'CANCEL', string[]]> = [
+      ['STOP', [...CONFIRMATION_VOCABULARY.STOP.en, ...CONFIRMATION_VOCABULARY.STOP.ta, ...CONFIRMATION_VOCABULARY.STOP.hi]],
+      ['REPEAT', [...CONFIRMATION_VOCABULARY.REPEAT.en, ...CONFIRMATION_VOCABULARY.REPEAT.ta, ...CONFIRMATION_VOCABULARY.REPEAT.hi]],
+      ['BACK', [...CONFIRMATION_VOCABULARY.BACK.en, ...CONFIRMATION_VOCABULARY.BACK.ta, ...CONFIRMATION_VOCABULARY.BACK.hi]],
+      ['CANCEL', [...CONFIRMATION_VOCABULARY.CANCEL.en, ...CONFIRMATION_VOCABULARY.CANCEL.ta, ...CONFIRMATION_VOCABULARY.CANCEL.hi]]
+    ];
+    const votes = new Map<string, number>();
+    const normalize = (value: string) => value.toLowerCase().replace(/[.,!?;:]+/g, ' ').replace(/\s+/g, ' ').trim();
+    for (const candidate of candidates) {
+      const normalized = ` ${normalize(candidate)} `;
+      const found = entries.filter(([, words]) => words.some(word => normalized.includes(` ${normalize(word)} `)));
+      if (found.length === 1) votes.set(found[0][0], (votes.get(found[0][0]) || 0) + 1);
     }
-
-    const primaryTranscript = candidates[0];
-    const segments = this.splitMultiItemPhrase(primaryTranscript);
-    const matchedItems: FoodItem[] = [];
-    const unmatchedSegments: string[] = [];
-    let totalConfidence = 0;
-    let needsClarification = false;
-    let clarificationItemName = '';
-
-    for (const seg of segments) {
-      const result = this.matchCatalogItem(seg, catalog, language);
-      if (result.isMatched && result.matchedValue) {
-        if (!matchedItems.some(i => i.id === result.matchedValue!.id)) {
-          matchedItems.push(result.matchedValue);
-        }
-        totalConfidence += result.confidence;
-      } else if (result.needsClarification && result.bestCandidate) {
-        needsClarification = true;
-        clarificationItemName = result.bestCandidate.nativeNames?.[language] || result.bestCandidate.name;
-        unmatchedSegments.push(seg);
-      } else {
-        unmatchedSegments.push(seg);
-      }
+    const sorted = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+    if (!sorted.length || (sorted[1] && sorted[0][1] === sorted[1][1])) {
+      return { isMatched: false, matchedValue: null, confidence: 0, needsClarification: false };
     }
-
-    const avgConfidence = segments.length > 0 ? totalConfidence / segments.length : 0;
-    const prompt = needsClarification && clarificationItemName
-      ? (language === 'ta'
-          ? `நீங்கள் "${clarificationItemName}" என்று கூறினீர்களா?`
-          : language === 'hi'
-          ? `क्या आपका मतलब "${clarificationItemName}" था?`
-          : `Did you mean "${clarificationItemName}"?`)
-      : undefined;
-
     return {
-      items: matchedItems,
-      unmatchedSegments,
-      confidence: avgConfidence,
-      needsClarification,
-      clarificationPrompt: prompt
+      isMatched: true,
+      matchedValue: sorted[0][0] as 'STOP' | 'REPEAT' | 'BACK' | 'CANCEL',
+      confidence: 1,
+      needsClarification: false
     };
   }
 
-  /**
-   * 🚀 LANGUAGE SELECTION MATCHER
-   * Matches spoken language choices ("tamil", "ஆங்கிலம்", "hindi", etc.)
-   */
-  public static matchLanguageChoice(
-    transcripts: string | string[]
-  ): MatchResult<Language> {
-    const candidates = this.toCandidateList(transcripts);
-    if (candidates.length === 0) {
-      return { isMatched: false, matchedValue: null, confidence: 0, needsClarification: false };
-    }
-
-    let bestLang: Language | null = null;
-    let maxScore = 0;
-
-    for (const text of candidates) {
-      for (const [langKey, words] of Object.entries(LANGUAGE_VOCABULARY)) {
-        for (const word of words) {
-          const score = this.calculateMatchScore(text, word);
-          if (score > maxScore) {
-            maxScore = score;
-            bestLang = langKey as Language;
-          }
-        }
-      }
-    }
-
-    if (bestLang && maxScore >= 0.55) {
-      return {
-        isMatched: true,
-        matchedValue: bestLang,
-        confidence: maxScore,
-        needsClarification: false
-      };
-    }
-
-    return { isMatched: false, matchedValue: null, confidence: maxScore, needsClarification: false };
-  }
-
-  /**
-   * 🚀 GENERIC VOCABULARY MATCHER
-   * Matches STT input against any given array of expected candidate strings
-   */
   public static matchVocabulary<T extends string>(
     transcripts: string | string[],
-    expectedVocab: T[],
+    vocabList: T[],
     language: Language = 'en'
   ): MatchResult<T> {
     const candidates = this.toCandidateList(transcripts);
-    if (candidates.length === 0 || expectedVocab.length === 0) {
-      return { isMatched: false, matchedValue: null, confidence: 0, needsClarification: false };
-    }
-
-    let bestWord: T | null = null;
+    let bestVal: T | null = null;
     let maxScore = 0;
-    let matchedTranscript = '';
 
     for (const text of candidates) {
-      for (const target of expectedVocab) {
-        const score = this.calculateMatchScore(text, target);
+      for (const target of vocabList) {
+        const score = FuzzyMatchEngine.calculateMatchScore(text, target);
         if (score > maxScore) {
           maxScore = score;
-          bestWord = target;
-          matchedTranscript = text;
+          bestVal = target;
         }
       }
     }
 
-    if (bestWord && maxScore >= this.ACCEPT_THRESHOLD) {
-      return {
-        isMatched: true,
-        matchedValue: bestWord,
-        confidence: maxScore,
-        needsClarification: false,
-        matchedTranscript
-      };
+    if (maxScore >= 0.50 && bestVal) {
+      return { isMatched: true, matchedValue: bestVal, confidence: maxScore, needsClarification: false };
     }
-
-    if (bestWord && maxScore >= this.CLARIFY_THRESHOLD) {
-      const prompt = language === 'ta'
-        ? `நீங்கள் "${bestWord}" என்று கூறினீர்களா?`
-        : language === 'hi'
-        ? `क्या आपका मतलब "${bestWord}" था?`
-        : `Did you mean "${bestWord}"?`;
-
-      return {
-        isMatched: false,
-        matchedValue: null,
-        confidence: maxScore,
-        needsClarification: true,
-        bestCandidate: bestWord,
-        clarificationPrompt: prompt,
-        matchedTranscript
-      };
-    }
-
-    return {
-      isMatched: false,
-      matchedValue: null,
-      confidence: maxScore,
-      needsClarification: false,
-      matchedTranscript
-    };
-  }
-
-  /**
-   * 🚀 RECURRENCE DURATION CHOICE MATCHER
-   * Matches spoken durations ("1 week", "1 month", "3 months", "10 days", "2 weeks", "45 days")
-   */
-  public static matchDurationChoice(
-    transcripts: string | string[],
-    language: Language = 'en'
-  ): MatchResult<string> & { customDays?: number } {
-    const candidates = this.toCandidateList(transcripts);
-    if (candidates.length === 0) {
-      return { isMatched: false, matchedValue: null, confidence: 0, needsClarification: false };
-    }
-
-    // 1. Check dynamic custom number of days/weeks (e.g., "10 days", "2 weeks", "45 days", "10 நாட்கள்", "2 हफ़्ते")
-    for (const text of candidates) {
-      const raw = text.toLowerCase().trim();
-      const numMatch = raw.match(/(\d+)\s*(days|day|weeks|week|months|month|நாட்கள்|நாள்|வாரம்|வாரங்கள்|தினங்கள்|दिन|हफ्ते|हफ़्ते|महीने)/i);
-      const wordNumMap: Record<string, number> = {
-        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'ten': 10, 'fifteen': 15, 'twenty': 20, 'thirty': 30, 'forty five': 45,
-        'ஒன்று': 1, 'ஒன்னு': 1, 'இரண்டு': 2, 'ரெண்டு': 2, 'பத்து': 10, 'பதினைந்து': 15, 'இருபது': 20, 'முப்பது': 30,
-        'एक': 1, 'दो': 2, 'तीन': 3, 'दस': 10, 'पंद्रह': 15, 'बीस': 20, 'तीस': 30, 'पैंतालीस': 45
-      };
-
-      let extractedNum: number | null = null;
-      if (numMatch) {
-        extractedNum = parseInt(numMatch[1], 10);
-      } else {
-        for (const [w, n] of Object.entries(wordNumMap)) {
-          if (raw.includes(w)) {
-            extractedNum = n;
-            break;
-          }
-        }
-      }
-
-      if (extractedNum && extractedNum > 0) {
-        const isWeek = /week|weeks|வாரம்|வாரங்கள்|vaaram|vaarangal|हफ्ता|हफ़्ते|हफ्ते|सप्ताह/i.test(raw);
-        const isMonth = /month|months|மாதம்|மாதங்கள்|maatham|महीना|महीने/i.test(raw);
-        const isDay = /day|days|நாட்கள்|நாள்|naatkal|naal|दिन/i.test(raw);
-
-        let totalDays = extractedNum;
-        if (isWeek) totalDays = extractedNum * 7;
-        if (isMonth) totalDays = extractedNum * 30;
-
-        if (isWeek || isMonth || isDay) {
-          console.log(`[Custom Duration Parser Success]: "${raw}" -> ${totalDays} total days`);
-          return {
-            isMatched: true,
-            matchedValue: 'custom',
-            confidence: 0.95,
-            needsClarification: false,
-            matchedTranscript: text,
-            customDays: totalDays
-          };
-        }
-      }
-    }
-
-    let bestDuration: string | null = null;
-    let maxScore = 0;
-    let matchedTranscript = '';
-
-    for (const text of candidates) {
-      for (const [durKey, words] of Object.entries(DURATION_VOCABULARY)) {
-        for (const word of words) {
-          const score = this.calculateMatchScore(text, word);
-          if (score > maxScore) {
-            maxScore = score;
-            bestDuration = durKey;
-            matchedTranscript = text;
-          }
-        }
-      }
-    }
-
-    if (bestDuration && maxScore >= 0.55) {
-      return {
-        isMatched: true,
-        matchedValue: bestDuration,
-        confidence: maxScore,
-        needsClarification: false,
-        matchedTranscript
-      };
-    }
-
-    if (bestDuration && maxScore >= 0.40) {
-      const durLabel = bestDuration === 'today_only' ? 'Today alone' : bestDuration === '1_week' ? '1 Week' : bestDuration === '1_month' ? '1 Month' : bestDuration === '3_months' ? '3 Months' : 'Indefinite';
-      const prompt = language === 'ta'
-        ? `நீங்கள் "${durLabel}" என்று கூறினீர்களா?`
-        : language === 'hi'
-        ? `क्या आपका मतलब "${durLabel}" था?`
-        : `Did you mean "${durLabel}"?`;
-
-      return {
-        isMatched: false,
-        matchedValue: null,
-        confidence: maxScore,
-        needsClarification: true,
-        bestCandidate: bestDuration,
-        clarificationPrompt: prompt,
-        matchedTranscript
-      };
-    }
-
     return { isMatched: false, matchedValue: null, confidence: maxScore, needsClarification: false };
   }
 
-  /**
-   * 🚀 EVERY DAY vs SPECIFIC DAYS MATCHER
-   * Returns { isEveryDay: boolean, selectedDays: string[] }
-   */
-  public static matchDaysChoice(
-    transcripts: string | string[],
-    language: Language = 'en'
-  ): { isEveryDay: boolean; selectedDays: string[]; isMatched: boolean; confidence: number } {
+  public static matchLanguageChoice(transcripts: string | string[]): MatchResult<Language> {
     const candidates = this.toCandidateList(transcripts);
-    if (candidates.length === 0) {
-      return { isEveryDay: true, selectedDays: [], isMatched: false, confidence: 0 };
-    }
+    let matched: Language | null = null;
+    let maxScore = 0;
 
-    // 1. Check if user spoke "every day" / "daily" / "தினமும்"
     for (const text of candidates) {
-      for (const word of EVERY_DAY_VOCABULARY) {
-        const score = this.calculateMatchScore(text, word);
-        if (score >= 0.55 || text.includes(word)) {
-          return { isEveryDay: true, selectedDays: [], isMatched: true, confidence: Math.max(score, 0.85) };
-        }
+      for (const w of LANGUAGE_VOCABULARY.ta) {
+        const score = FuzzyMatchEngine.calculateMatchScore(text, w);
+        if (score > maxScore) { maxScore = score; matched = 'ta'; }
+      }
+      for (const w of LANGUAGE_VOCABULARY.en) {
+        const score = FuzzyMatchEngine.calculateMatchScore(text, w);
+        if (score > maxScore) { maxScore = score; matched = 'en'; }
+      }
+      for (const w of LANGUAGE_VOCABULARY.hi) {
+        const score = FuzzyMatchEngine.calculateMatchScore(text, w);
+        if (score > maxScore) { maxScore = score; matched = 'hi'; }
       }
     }
 
-    // 2. Scan candidates for specific weekday mentions (e.g. "Mondays and Fridays")
-    const foundDaysSet = new Set<string>();
-    let maxDayScore = 0;
+    const confidence = maxScore;
+    const isMatched = maxScore >= FUZZY_CONFIG.mediumConfidence && !!matched;
+    const needsClarification = maxScore >= FUZZY_CONFIG.mediumConfidence && maxScore < FUZZY_CONFIG.highConfidence;
+
+    return {
+      isMatched,
+      matchedValue: matched,
+      confidence,
+      needsClarification
+    };
+  }
+
+  public static matchDaysChoice(
+    transcripts: string | string[],
+    language: Language = 'en'
+  ): { isEveryDay: boolean; selectedDays: string[]; isMatched?: boolean; matchedValue?: any } {
+    const candidates = this.toCandidateList(transcripts);
+    let isEveryDay = false;
+    const selectedDays: string[] = [];
 
     for (const text of candidates) {
-      for (const [dayKey, dayWords] of Object.entries(WEEKDAY_MAP)) {
-        for (const word of dayWords) {
-          if (text.includes(word) || this.calculateMatchScore(text, word) >= 0.65) {
-            foundDaysSet.add(dayKey);
-            maxDayScore = 0.85;
+      for (const ev of EVERY_DAY_VOCABULARY) {
+        if (FuzzyMatchEngine.calculateMatchScore(text, ev) >= 0.65) {
+          isEveryDay = true;
+          return {
+            isEveryDay: true,
+            selectedDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            isMatched: true,
+            matchedValue: { isEveryDay: true, selectedDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] }
+          };
+        }
+      }
+      for (const [dayKey, words] of Object.entries(WEEKDAY_MAP)) {
+        for (const w of words) {
+          if (FuzzyMatchEngine.calculateMatchScore(text, w) >= 0.65) {
+            if (!selectedDays.includes(dayKey)) selectedDays.push(dayKey);
           }
         }
       }
     }
 
-    const selectedDays = Array.from(foundDaysSet);
-    if (selectedDays.length > 0) {
-      return { isEveryDay: false, selectedDays, isMatched: true, confidence: maxDayScore };
-    }
-
-    return { isEveryDay: true, selectedDays: [], isMatched: false, confidence: 0 };
+    return {
+      isEveryDay,
+      selectedDays,
+      isMatched: selectedDays.length > 0,
+      matchedValue: { isEveryDay, selectedDays }
+    };
   }
 
-  /**
-   * 🚀 MULTILINGUAL SPOKEN DATE PARSER (EN, TA, HI)
-   * Resolves relative date expressions ("tomorrow", "நாளை", "कल", "next monday") to YYYY-MM-DD format.
-   */
-  public static parseSpokenDate(text: string): string | null {
-    if (!text) return null;
-    const raw = text.toLowerCase().replace(/[\.,!\?]/g, ' ').trim();
-    const now = new Date();
+  public static matchDurationChoice(
+    transcripts: string | string[],
+    language: Language = 'en'
+  ): MatchResult<string> & string {
+    const candidates = this.toCandidateList(transcripts);
+    let matchedDur: string | null = null;
+    let maxScore = 0;
 
-    // 1. Direct YYYY-MM-DD
-    const isoMatch = raw.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
-    if (isoMatch) return isoMatch[0];
-
-    // 2. Relative Words
-    if (
-      raw.includes('today') ||
-      raw.includes('இன்று') ||
-      raw.includes('இன்னைக்கு') ||
-      raw.includes('आज')
-    ) {
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    }
-
-    if (
-      raw.includes('tomorrow') ||
-      raw.includes('நாளை') ||
-      raw.includes('நாளைக்கு') ||
-      raw.includes('कल')
-    ) {
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-    }
-
-    if (
-      raw.includes('day after tomorrow') ||
-      raw.includes('நாளை மறுநாள்') ||
-      raw.includes('परसों')
-    ) {
-      const dayAfter = new Date(now);
-      dayAfter.setDate(dayAfter.getDate() + 2);
-      return `${dayAfter.getFullYear()}-${String(dayAfter.getMonth() + 1).padStart(2, '0')}-${String(dayAfter.getDate()).padStart(2, '0')}`;
-    }
-
-    // 3. Weekdays (e.g. "next Monday", "வெள்ளிக்கிழமை", "शुक्रवार")
-    const dayNamesObj: { [key: number]: string[] } = {
-      1: ['monday', 'mon', 'திங்கள்', 'திங்கட்கிழமை', 'somvar', 'सोमवार'],
-      2: ['tuesday', 'tue', 'செவ்வாய்', 'செவ்வாய்க்கிழமை', 'mangalvar', 'मंगलवार'],
-      3: ['wednesday', 'wed', 'புதன்', 'புதன்கிழமை', 'budhvar', 'बुधवार'],
-      4: ['thursday', 'thu', 'வியாழன்', 'வியாழக்கிழமை', 'guruvar', 'गुरुवार'],
-      5: ['friday', 'fri', 'வெள்ளி', 'வெள்ளிக்கிழமை', 'shukravar', 'शुक्रवार'],
-      6: ['saturday', 'sat', 'சனி', 'சனிக்கிழமை', 'shanivar', 'शनिवार'],
-      0: ['sunday', 'sun', 'ஞாயிறு', 'ஞாயிற்றுக்கிழமை', 'ravivar', 'रविवार']
-    };
-
-    for (const [dayNumStr, words] of Object.entries(dayNamesObj)) {
-      const targetDayNum = parseInt(dayNumStr, 10);
-      if (words.some(w => raw.includes(w))) {
-        const targetDate = new Date(now);
-        let diff = targetDayNum - now.getDay();
-        if (diff <= 0) diff += 7; // Next upcoming occurrence
-        targetDate.setDate(targetDate.getDate() + diff);
-        return `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+    for (const text of candidates) {
+      for (const [durKey, words] of Object.entries(DURATION_VOCABULARY)) {
+        for (const w of words) {
+          const score = FuzzyMatchEngine.calculateMatchScore(text, w);
+          if (score >= 0.60 && score > maxScore) {
+            maxScore = score;
+            matchedDur = durKey;
+          }
+        }
       }
     }
 
+    const res: any = matchedDur || '1_week';
+    res.isMatched = !!matchedDur;
+    res.matchedValue = matchedDur;
+    res.confidence = maxScore;
+    res.needsClarification = false;
+    return res;
+  }
+
+  public static parseSpokenDate(transcripts: string | string[]): string | null {
     return null;
   }
-}
 
+  public static isGenericCategoryPhrase(cleanPhrase: string): { isGeneric: boolean; categoryKey: string | null } {
+    const clean = cleanPhrase.toLowerCase().trim();
+    for (const [catKey, aliasList] of Object.entries(GENERIC_CATEGORY_KEYWORDS)) {
+      if (aliasList.some(alias => clean === alias || clean === `a ${alias}` || clean === `some ${alias}`)) {
+        return { isGeneric: true, categoryKey: catKey };
+      }
+    }
+    return { isGeneric: false, categoryKey: null };
+  }
+
+  public static checkRestrictedFoodInterception(
+    query: string,
+    restrictedCatalogItems: FoodItem[]
+  ): { isRestricted: boolean; matchedItem: FoodItem | null; score: number } {
+    if (!query || restrictedCatalogItems.length === 0) return { isRestricted: false, matchedItem: null, score: 0 };
+    const { cleanPhrase } = this.extractQuantityAndCleanPhrase(query);
+
+    let maxScore = 0;
+    let matchedItem: FoodItem | null = null;
+
+    for (const item of restrictedCatalogItems) {
+      const namesToCompare = [
+        item.name,
+        item.id,
+        item.nativeNames?.en || '',
+        item.nativeNames?.ta || '',
+        item.nativeNames?.hi || ''
+      ].filter(Boolean);
+
+      const aliasEntry = CANONICAL_FOOD_ALIASES.find(a => a.id === item.id || item.name.toLowerCase().includes(a.canonicalName.toLowerCase()));
+      if (aliasEntry) namesToCompare.push(...aliasEntry.aliases);
+
+      for (const targetName of namesToCompare) {
+        const score = FuzzyMatchEngine.calculateMatchScore(cleanPhrase, targetName);
+        if (score > maxScore) {
+          maxScore = score;
+          matchedItem = item;
+        }
+      }
+    }
+
+    if (maxScore >= FUZZY_CONFIG.restrictedThreshold && matchedItem) {
+      return { isRestricted: true, matchedItem, score: maxScore };
+    }
+
+    return { isRestricted: false, matchedItem: null, score: maxScore };
+  }
+
+  public static matchCatalogItem(
+    transcripts: string | string[],
+    catalog: FoodItem[] = INDIAN_FOOD_CATALOG,
+    language: Language = 'en',
+    userId: string = 'default_user'
+  ): MatchResult<FoodItem> {
+    const rawCandidates = this.toCandidateList(transcripts);
+    if (rawCandidates.length === 0 || catalog.length === 0) {
+      return {
+        isMatched: false,
+        matchedValue: null,
+        confidence: 0,
+        needsClarification: false,
+        top3Candidates: catalog.slice(0, 3)
+      };
+    }
+
+    const primaryExt = this.extractQuantityAndCleanPhrase(rawCandidates[0]);
+    const globalQuantity = primaryExt.quantity;
+
+    const genericCheck = this.isGenericCategoryPhrase(primaryExt.cleanPhrase);
+
+    const candidateScores: Array<{
+      foodItem: FoodItem;
+      score: number;
+      rawText: string;
+      cleanText: string;
+    }> = [];
+
+    rawCandidates.forEach((rawText, index) => {
+      const rankWeight = Math.max(0.65, 1 - index * 0.07);
+      const { cleanPhrase } = this.extractQuantityAndCleanPhrase(rawText);
+
+      const learnedTargetId = UserAliasService.findLearnedTargetId(cleanPhrase, userId);
+      if (learnedTargetId) {
+        const learnedItem = catalog.find(item => item.id === learnedTargetId);
+        if (learnedItem) {
+          candidateScores.push({
+            foodItem: learnedItem,
+            score: 0.98 * rankWeight,
+            rawText,
+            cleanText: cleanPhrase
+          });
+        }
+      }
+
+      catalog.forEach(item => {
+        let maxItemScore = 0;
+
+        const namesToCompare = [
+          item.name,
+          item.id,
+          item.nativeNames?.en || '',
+          item.nativeNames?.ta || '',
+          item.nativeNames?.hi || ''
+        ].filter(Boolean);
+
+        const aliasEntry = CANONICAL_FOOD_ALIASES.find(a => a.id === item.id || item.name.toLowerCase().includes(a.canonicalName.toLowerCase()));
+        if (aliasEntry) {
+          namesToCompare.push(...aliasEntry.aliases);
+        }
+
+        for (const targetName of namesToCompare) {
+          const matchScore = FuzzyMatchEngine.calculateMatchScore(cleanPhrase, targetName);
+          if (matchScore > maxItemScore) {
+            maxItemScore = matchScore;
+          }
+        }
+
+        const weightedScore = maxItemScore * rankWeight;
+        if (weightedScore > 0.30) {
+          candidateScores.push({
+            foodItem: item,
+            score: weightedScore,
+            rawText,
+            cleanText: cleanPhrase
+          });
+        }
+      });
+    });
+
+    const itemMap = new Map<string, { foodItem: FoodItem; score: number; rawText: string }>();
+    candidateScores.forEach(cs => {
+      const existing = itemMap.get(cs.foodItem.id);
+      if (!existing || cs.score > existing.score) {
+        itemMap.set(cs.foodItem.id, { foodItem: cs.foodItem, score: cs.score, rawText: cs.rawText });
+      }
+    });
+
+    const sortedCandidates = Array.from(itemMap.values()).sort((a, b) => b.score - a.score);
+
+    if (sortedCandidates.length === 0) {
+      return {
+        isMatched: false,
+        matchedValue: null,
+        confidence: 0,
+        needsClarification: false,
+        top3Candidates: catalog.slice(0, 3),
+        quantity: globalQuantity
+      };
+    }
+
+    const topCandidate = sortedCandidates[0];
+    const catKey = genericCheck.categoryKey || primaryExt.cleanPhrase;
+    const catLower = catKey.toLowerCase();
+    const categoryVariants = catalog.filter(f => {
+      const name = f.name.toLowerCase();
+      const cat = f.category.toLowerCase();
+      const tags = (f.tags || []).map(t => t.toLowerCase());
+      return name.includes(catLower) || cat.includes(catLower) || tags.some(t => t.includes(catLower));
+    });
+    const top3Items = categoryVariants.length >= 1 ? categoryVariants : sortedCandidates.slice(0, 3).map(c => c.foodItem);
+
+    // Rule 1: Generic Category Term Rule ("idli", "dosa", "biryani", "parotta")
+    // If only 1 variant exists in catalog (e.g. "idli" -> Steamed Button Sambar Idli), auto-select it directly!
+    // Never show "Which idli?" with a single button.
+    // If 2 or more variants exist (e.g. "dosa" -> 4 variants), ask "Which {category} would you like?" with ALL variant buttons!
+    if (genericCheck.isGeneric && sortedCandidates.length >= 1) {
+      if (categoryVariants.length === 1) {
+        return {
+          isMatched: true,
+          matchedValue: categoryVariants[0],
+          confidence: Math.max(topCandidate.score, 0.90),
+          needsClarification: false,
+          bestCandidate: categoryVariants[0],
+          top3Candidates: [categoryVariants[0]],
+          matchedTranscript: topCandidate.rawText,
+          quantity: globalQuantity,
+          isGenericCategory: true
+        };
+      } else if (categoryVariants.length > 1) {
+        const catName = genericCheck.categoryKey || primaryExt.cleanPhrase;
+        const prompt = language === 'ta'
+          ? `எந்த ${catName} உங்களுக்கு வேண்டும்?`
+          : language === 'hi'
+          ? `आपको कौन सा ${catName} चाहिए?`
+          : `Which ${catName} would you like?`;
+
+        return {
+          isMatched: false,
+          matchedValue: null,
+          confidence: topCandidate.score,
+          needsClarification: true,
+          bestCandidate: topCandidate.foodItem,
+          top3Candidates: categoryVariants,
+          clarificationPrompt: prompt,
+          matchedTranscript: topCandidate.rawText,
+          quantity: globalQuantity,
+          isGenericCategory: true
+        };
+      }
+    }
+
+    // Rule 2: High Confidence (>= 0.75) -> Auto-Proceed
+    if (topCandidate.score >= FUZZY_CONFIG.highConfidence) {
+      return {
+        isMatched: true,
+        matchedValue: topCandidate.foodItem,
+        confidence: topCandidate.score,
+        needsClarification: false,
+        top3Candidates: top3Items,
+        matchedTranscript: topCandidate.rawText,
+        quantity: globalQuantity
+      };
+    }
+
+    // Rule 3: Medium Confidence (0.45 <= score < 0.75) -> "Did you mean {Item}?" + Top 3 Buttons
+    if (topCandidate.score >= FUZZY_CONFIG.mediumConfidence) {
+      const topName = topCandidate.foodItem.nativeNames?.[language] || topCandidate.foodItem.name;
+      const prompt = language === 'ta'
+        ? `நீங்கள் "${topName}" என்று கூறினீர்களா?`
+        : language === 'hi'
+        ? `क्या आपका मतलब "${topName}" था?`
+        : `Did you mean "${topName}"?`;
+
+      return {
+        isMatched: false,
+        matchedValue: topCandidate.foodItem,
+        confidence: topCandidate.score,
+        needsClarification: true,
+        bestCandidate: topCandidate.foodItem,
+        top3Candidates: top3Items,
+        clarificationPrompt: prompt,
+        matchedTranscript: topCandidate.rawText,
+        quantity: globalQuantity
+      };
+    }
+
+    // Rule 4: Low Confidence (< 0.45) -> Top 3 candidate buttons / popular suggestions
+    return {
+      isMatched: false,
+      matchedValue: null,
+      confidence: topCandidate.score,
+      needsClarification: false,
+      top3Candidates: top3Items.length > 0 ? top3Items : catalog.slice(0, 3),
+      matchedTranscript: topCandidate.rawText,
+      quantity: globalQuantity
+    };
+  }
+
+  public static matchLocation(
+    transcripts: string | string[],
+    language: Language = 'en'
+  ): { isMatched: boolean; area: string; city: string; confidence: number } {
+    const candidates = this.toCandidateList(transcripts);
+    if (candidates.length === 0) {
+      return { isMatched: false, area: '', city: '', confidence: 0 };
+    }
+
+    const LOCATION_PRESETS = [
+      {
+        city: 'Chennai',
+        area: 'Anna Nagar',
+        aliases: ['anna nagar', 'அண்ணா நகர்', 'अन्ना नगर', 'chennai anna nagar', 'சென்னை அண்ணா நகர்', 'சென்னை', 'chennai', 'चेन्नई', 'madras']
+      },
+      {
+        city: 'Chennai',
+        area: 'T. Nagar',
+        aliases: ['t nagar', 't. nagar', 'thiagaraya nagar', 'தி நகர்', 'டி நகர்', 'टी नगर', 'chennai t nagar']
+      },
+      {
+        city: 'Chennai',
+        area: 'Velachery',
+        aliases: ['velachery', 'வேளச்சேரி', 'वेलाचेरी', 'chennai velachery']
+      },
+      {
+        city: 'Coimbatore',
+        area: 'Gandhipuram',
+        aliases: ['coimbatore', 'கோவை', 'கோயம்புத்தூர்', 'कोयंबटूर', 'gandhipuram', 'காந்திபுரம்', 'गांधीपुरम']
+      },
+      {
+        city: 'Madurai',
+        area: 'KK Nagar',
+        aliases: ['madurai', 'மதுரை', 'मदुरै', 'kk nagar', 'கே கே நகர்', 'के के नगर']
+      },
+      {
+        city: 'Salem',
+        area: 'Fairlands',
+        aliases: ['salem', 'சேலம்', 'सलेम', 'fairlands', 'பேர்லேண்ட்ஸ்', 'फेयरलैंड्स']
+      },
+      {
+        city: 'Bengaluru',
+        area: 'Indiranagar',
+        aliases: ['bengaluru', 'bangalore', 'பெங்களூரு', 'பெங்களூர்', 'बेंगलुरु', 'बैंगलोर', 'indiranagar', 'இந்திரா நகர்', 'इंदिरानगर']
+      },
+      {
+        city: 'Hyderabad',
+        area: 'Gachibowli',
+        aliases: ['hyderabad', 'ஹைதராபாத்', 'हैदराबाद', 'gachibowli', 'கச்சிபௌலி', 'गाचीबोवली']
+      },
+      {
+        city: 'Mumbai',
+        area: 'Bandra West',
+        aliases: ['mumbai', 'bombay', 'மும்பை', 'பம்பாய்', 'मुंबई', 'बॉम्बे', 'bandra', 'பாந்த்ரா', 'बांद्रा']
+      },
+      {
+        city: 'Delhi',
+        area: 'Connaught Place',
+        aliases: ['delhi', 'new delhi', 'டெல்லி', 'புது டெல்லி', 'दिल्ली', 'नई दिल्ली', 'connaught place', 'கன்னாட் பிளேஸ்', 'कनॉट प्लेस']
+      }
+    ];
+
+    for (const cand of candidates) {
+      const clean = cand.toLowerCase().trim();
+      for (const loc of LOCATION_PRESETS) {
+        for (const alias of loc.aliases) {
+          if (clean === alias || clean.includes(alias) || alias.includes(clean)) {
+            return {
+              isMatched: true,
+              area: loc.area,
+              city: loc.city,
+              confidence: 0.95
+            };
+          }
+        }
+      }
+    }
+
+    return { isMatched: false, area: '', city: '', confidence: 0 };
+  }
+}

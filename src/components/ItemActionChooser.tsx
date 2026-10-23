@@ -1,9 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
-import { SpeechService } from '../services/speechService';
+
 import { ChooserVoiceService, ChooserAction } from '../services/chooserVoiceService';
+import { SttMatcherService } from '../services/sttMatcherService';
+import { NomineeNotificationService } from '../services/nomineeNotificationService';
+import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { Zap, Clock, ShoppingCart, X, Volume2, Mic, MicOff, Sparkles, AlertCircle } from 'lucide-react';
+
+import { SpeechController } from '../services/speechController';
+import { debounceHandler } from '../utils/debounce';
 
 export interface ItemActionChooserProps {
   isOpen: boolean;
@@ -22,7 +28,16 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
   onSchedule,
   onAddToCart
 }) => {
-  const { language, speakText, t, showToast, accessibilitySettings } = useApp();
+  const {
+    language,
+    speakText,
+    t,
+    showToast,
+    accessibilitySettings,
+    currentUser,
+    checkIsItemRestrictedByNominee,
+    handleNomineeRestrictedInterception
+  } = useApp();
 
   const [isListening, setIsListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
@@ -49,7 +64,8 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
   }, [isOpen, items]);
 
   const cleanupSpeech = () => {
-    SpeechService.stopListening();
+    SpeechController.cancelSpeech();
+    SpeechController.releaseMic('item_chooser');
     setIsListening(false);
   };
 
@@ -72,35 +88,36 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
 
     activePromptRef.current = promptText;
     setStatusMessage(promptText);
-    console.log('[ItemActionChooser]: Prompting user aloud:', promptText);
 
-    // Speak prompt; show toast fallback if TTS voice not available
-    try {
-      speakText(promptText, () => {
+    SpeechController.speak(
+      promptText,
+      language,
+      () => {
         if (isComponentMounted.current && isOpen) {
           startListeningForChoice();
         }
-      });
-    } catch (err) {
-      console.warn('[ItemActionChooser TTS fallback]:', err);
-      showToast(promptText);
-      startListeningForChoice();
-    }
+      },
+      (fallbackText) => {
+        showToast(fallbackText, 'info');
+      },
+      'item_chooser'
+    );
   };
 
   const startListeningForChoice = () => {
-    if (!SpeechService.isSupported()) {
+    if (!SpeechController.isSupported()) {
       setIsListening(false);
       return;
     }
 
     setIsListening(true);
-    console.log('[ItemActionChooser]: Listening for user voice action choice...');
 
-    SpeechService.startListening({
+    SpeechController.startListening({
+      owner: 'item_chooser',
       language,
-      continuous: true,
+      continuous: false,
       interimResults: true,
+      maxAlternatives: 5,
       onStart: () => {
         if (isComponentMounted.current) setIsListening(true);
       },
@@ -109,12 +126,22 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
         setLiveTranscript(text);
         if (!isFinal) return;
 
-        const candidate = nBest && nBest.length > 0 ? nBest[0] : text;
-        console.log(`[ItemActionChooser Spoken Answer]: "${candidate}"`);
+        const candidates = nBest && nBest.length > 0 ? nBest : [text];
 
-        const action = ChooserVoiceService.parseChooserAction(candidate, activePromptRef.current);
+        // Check for cancel / close
+        const controlMatch = SttMatcherService.matchControlCommand(candidates);
+        if (controlMatch.isMatched && (controlMatch.matchedValue === 'CANCEL' || controlMatch.matchedValue === 'STOP')) {
+          cleanupSpeech();
+          onClose();
+          return;
+        }
 
-        if (action === 'order_now') {
+        const action = ChooserVoiceService.parseChooserAction(candidates, activePromptRef.current);
+
+        if (action === 'cancel') {
+          cleanupSpeech();
+          onClose();
+        } else if (action === 'order_now') {
           handleSelectAction('order_now');
         } else if (action === 'schedule') {
           handleSelectAction('schedule');
@@ -122,9 +149,13 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
           handleSelectAction('add_to_cart');
         } else if (action === 'retry' && !hasRetried) {
           setHasRetried(true);
-          const retryMsg = t('chooserRetry');
+          const retryMsg = language === 'ta'
+            ? 'மன்னிக்கவும், புரியவில்லை. ஆர்டர் செய்ய, அட்டவணைப்படுத்த அல்லது கார்ட்டில் சேர்க்க என்று சொல்லவும்.'
+            : language === 'hi'
+            ? 'क्षमा करें, समझ नहीं आया। ऑर्डर करें, शेड्यूल करें या कार्ट में जोड़ें बोलें।'
+            : 'Sorry, I did not catch that. Please say Order Now, Schedule, or Add to Cart.';
           setStatusMessage(retryMsg);
-          speakText(retryMsg, () => {
+          SpeechController.speak(retryMsg, language, () => {
             if (isComponentMounted.current && isOpen) startListeningForChoice();
           });
         }
@@ -142,15 +173,43 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
   const handleSelectAction = (action: ChooserAction) => {
     cleanupSpeech();
 
+    if (action === 'add_to_cart') {
+      // Add to Cart: Allowed even if restricted (item is marked "Needs helper approval" in cart)
+      onAddToCart(items);
+      onClose();
+      return;
+    }
+
+    // Order Now and Schedule: Blocked if restricted until nominee approval exists
+    if (NomineeNotificationService.hasRestrictedFetchError()) {
+      showToast(t('nominee.restrictedLoadError'), 'warning');
+      SpeechController.speak(t('nominee.restrictedLoadError'), language);
+      onClose();
+      return;
+    }
+
+    const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
+    for (const item of items) {
+      const isRestrictedByNominee = checkIsItemRestrictedByNominee(item.id, item.name);
+      const interception = SttMatcherService.checkRestrictedFoodInterception(item.name, restrictedCatalogItems);
+      if (isRestrictedByNominee || interception.isRestricted) {
+        handleNomineeRestrictedInterception(item, action === 'schedule' ? 'scheduled' : 'instant');
+        onClose();
+        return;
+      }
+    }
+
     if (action === 'order_now') {
       onOrderNow(items);
     } else if (action === 'schedule') {
       onSchedule(items);
-    } else if (action === 'add_to_cart') {
-      onAddToCart(items);
     }
     onClose();
   };
+
+  const debouncedSelectAction = useRef(debounceHandler((act: ChooserAction) => {
+    handleSelectAction(act);
+  }, 1000)).current;
 
   const handleClose = () => {
     cleanupSpeech();
@@ -231,7 +290,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
           {/* ORDER NOW BUTTON */}
           <button
             type="button"
-            onClick={() => handleSelectAction('order_now')}
+            onClick={() => debouncedSelectAction('order_now')}
             className="w-full min-h-[48px] bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
           >
             <Zap className="w-5 h-5 text-white" />
@@ -241,7 +300,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
           {/* SCHEDULE BUTTON */}
           <button
             type="button"
-            onClick={() => handleSelectAction('schedule')}
+            onClick={() => debouncedSelectAction('schedule')}
             className="w-full min-h-[48px] bg-[#DAF0F7] hover:bg-[#B2E2F0] text-[#1A1110] font-black py-3.5 px-4 rounded-2xl border-2 border-[#B2E2F0] shadow-sm transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
           >
             <Clock className="w-5 h-5 text-[#FF5A1F]" />
@@ -251,7 +310,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
           {/* ADD TO CART BUTTON */}
           <button
             type="button"
-            onClick={() => handleSelectAction('add_to_cart')}
+            onClick={() => debouncedSelectAction('add_to_cart')}
             className="w-full min-h-[48px] bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
           >
             <ShoppingCart className="w-5 h-5 text-white" />

@@ -1,13 +1,15 @@
 import Fuse, { IFuseOptions } from 'fuse.js';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
-import { FoodItem } from '../types';
+import { FoodItem, Language } from '../types';
 import { CrossScriptPhoneticMatcher } from './crossScriptPhoneticMatcher';
 import { LlmNluService, LlmFoodExtractionResult } from './llmNluService';
 import { SttMatcherService } from './sttMatcherService';
 import { FuzzyMatchEngine } from './fuzzyMatchService';
+import { detectFoodFamilyIntent } from './foodFamilyTable';
 
 export interface SearchFilterOptions {
   query: string;
+  language?: Language;
   selectedLocation?: string;
   selectedCuisine?: string;
   vegOnly?: boolean;
@@ -133,13 +135,134 @@ export class DynamicFoodSearchEngine {
       }
     }
 
+    // ── STEP 0: Family / Variant Pre-check (runs BEFORE LLM & fuzzy) ───────────
+    // Strip filler words then check if the query is a pure generic family name
+    // ("dosa", "தோசை", "डोसा", etc.) OR a specific variant ("masala dosa").
+    // This prevents the fuzzy engine from picking the top-1 item and showing
+    // a spurious "Did you mean Masala Dosa?" for a bare family name.
+    const familyIntent = detectFoodFamilyIntent(options.query);
+    const familyCheck = familyIntent?.kind === 'family' ? familyIntent.family : null;
+    const variantCheck = familyIntent?.kind === 'variant' && familyIntent.variantToken
+      ? { familyKey: familyIntent.family.key, variantToken: familyIntent.variantToken }
+      : null;
+
+    const isVegQuery = rawQuery.includes('veg') || rawQuery.includes('vegetarian') || rawQuery.includes('சைவம்') || options.vegOnly;
+
+    if (familyCheck) {
+      // ── GENERIC FAMILY QUERY: return ALL catalog items that share this family tag ──
+      const familyTag = familyCheck.familyTag;
+      console.log(`[Family Pre-check]: transcript="${options.query}" normalized="${familyIntent?.normalizedQuery}" score=${familyIntent?.score} rule=exact-family-alias family="${familyTag}"`);
+
+      const familyItems = INDIAN_FOOD_CATALOG.filter(item => {
+        const tags = (item.tags || []).map(t => t.toLowerCase());
+        if (!tags.includes(familyTag)) return false;
+        if (isVegQuery && !item.isVeg) return false;
+        if (extractedLocation && extractedLocation !== 'All') {
+          if (!item.locations.some(l => l.toLowerCase() === extractedLocation!.toLowerCase() || l === 'All')) return false;
+        }
+        if (extractedCuisine && extractedCuisine !== 'All') {
+          if (!item.cuisine.toLowerCase().includes(extractedCuisine.toLowerCase()) &&
+              !item.category.toLowerCase().includes(extractedCuisine.toLowerCase())) return false;
+        }
+        return true;
+      });
+
+      if (familyItems.length === 0) {
+        console.log(`[Food search no-match]: transcript="${options.query}" normalized="${familyIntent?.normalizedQuery}" score=${familyIntent?.score} rule=recognized-family-with-no-catalog-items`);
+        return {
+          query: options.query,
+          isExactMatch: false,
+          matchedItems: [],
+          suggestedItems: [],
+          extractedIntent: { foodKeyword: familyTag, confidence: 1 },
+        };
+      } else {
+        console.log(`[Family Pre-check]: Returning ${familyItems.length} items for family "${familyTag}".`);
+        return {
+          query: options.query,
+          isExactMatch: true,
+          matchedItems: familyItems,
+          suggestedItems: [],
+          // Never show "Did you mean" for a correctly detected generic family
+          didYouMean: undefined,
+          extractedIntent: {
+            foodKeyword: familyTag,
+            extractedItems: familyItems.map(i => i.name),
+            location: extractedLocation,
+            cuisine: extractedCuisine,
+            isVeg: isVegQuery,
+            confidence: 1.0,
+          },
+        };
+      }
+    }
+
+    if (variantCheck) {
+      // ── SPECIFIC VARIANT QUERY: filter to items that carry both the family tag
+      //    AND the variant token somewhere in their tags/name/nativeNames ─────────
+      const { familyKey, variantToken } = variantCheck;
+      console.log(`[Variant Pre-check]: transcript="${options.query}" normalized="${familyIntent?.normalizedQuery}" score=${familyIntent?.score} rule=family-and-variant-alias family="${familyKey}" token="${variantToken}"`);
+
+      const variantItems = INDIAN_FOOD_CATALOG.filter(item => {
+        const tags = (item.tags || []).map(t => t.toLowerCase());
+        const familyHit = tags.includes(familyKey);
+        if (!familyHit) return false;
+        const tokenLower = variantToken.toLowerCase();
+        const nameHit = item.name.toLowerCase().includes(tokenLower) ||
+          (item.nativeNames?.en || '').toLowerCase().includes(tokenLower) ||
+          (item.nativeNames?.ta || '').toLowerCase().includes(tokenLower) ||
+          (item.nativeNames?.hi || '').toLowerCase().includes(tokenLower) ||
+          tags.some(t => t.includes(tokenLower));
+        if (!nameHit) return false;
+        if (isVegQuery && !item.isVeg) return false;
+        if (extractedLocation && extractedLocation !== 'All') {
+          if (!item.locations.some(l => l.toLowerCase() === extractedLocation!.toLowerCase() || l === 'All')) return false;
+        }
+        return true;
+      });
+
+      if (variantItems.length > 0) {
+        console.log(`[Variant Pre-check]: Returning ${variantItems.length} items for variant "${variantToken}" in family "${familyKey}".`);
+        return {
+          query: options.query,
+          isExactMatch: true,
+          matchedItems: variantItems,
+          suggestedItems: [],
+          didYouMean: undefined,
+          extractedIntent: {
+            foodKeyword: variantToken,
+            extractedItems: variantItems.map(i => i.name),
+            location: extractedLocation,
+            cuisine: extractedCuisine,
+            isVeg: isVegQuery,
+            confidence: 0.95,
+          },
+        };
+      }
+      const relatedItems = INDIAN_FOOD_CATALOG.filter(item =>
+        (item.tags || []).some(tag => tag.toLowerCase() === familyIntent.family.familyTag)
+      ).slice(0, 3);
+      console.log(`[Food search no-match]: transcript="${options.query}" normalized="${familyIntent.normalizedQuery}" score=${familyIntent.score} rule=recognized-variant-with-no-catalog-match`);
+      return {
+        query: options.query,
+        isExactMatch: false,
+        matchedItems: [],
+        suggestedItems: relatedItems,
+        extractedIntent: {
+          foodKeyword: variantToken,
+          location: extractedLocation,
+          cuisine: extractedCuisine,
+          isVeg: isVegQuery,
+          confidence: 1,
+        },
+      };
+    }
+
     // 3. STEP 1: LLM Entity Extraction & Normalization
-    const llmExtraction: LlmFoodExtractionResult = LlmNluService.extractFoodItemWithLlmSync(options.query);
+    const llmExtraction: LlmFoodExtractionResult = LlmNluService.extractFoodItemWithLlmSync(options.query, options.language);
     const targetItems: string[] = (llmExtraction.items && llmExtraction.items.length > 0)
       ? llmExtraction.items
       : (llmExtraction.item ? [llmExtraction.item] : [options.query]);
-
-    const isVegQuery = rawQuery.includes('veg') || rawQuery.includes('vegetarian') || rawQuery.includes('சைவம்') || options.vegOnly;
 
     console.log(`[Two-Stage Search Pipeline]: Input: "${options.query}" → LLM Extracted: [${targetItems.join(', ')}] (Confidence: ${llmExtraction.confidence})`);
 
@@ -191,6 +314,7 @@ export class DynamicFoodSearchEngine {
       fuseResults.forEach(res => {
         const item = res.item;
         const fuseScore = res.score !== undefined ? 1.0 - res.score : 0.7; // Fuse.js score 0 = perfect match
+        if (fuseScore < 0.5) return;
 
         if (!matchedMap.has(item.id)) {
           matchedMap.set(item.id, { item, score: fuseScore });
@@ -234,10 +358,11 @@ export class DynamicFoodSearchEngine {
     // 5. Fallback Policy:
     // If no direct/fuse matches found, return top suggested items
     if (finalMatchedItems.length === 0) {
-      const suggestedItems = INDIAN_FOOD_CATALOG.filter(item => {
-        if (isVegQuery && !item.isVeg) return false;
-        return item.rating >= 4.7;
-      }).slice(0, 3);
+      const suggestedItems = overallFuzzy.topAlternatives
+        .filter(({ score }) => score >= 0.6)
+        .map(({ item }) => item)
+        .slice(0, 3);
+      console.log(`[Food search no-match]: transcript="${options.query}" normalized="${rawQuery}" score=${overallFuzzy.score} rule=no-relevant-fuzzy-candidate`);
 
       return {
         query: options.query,

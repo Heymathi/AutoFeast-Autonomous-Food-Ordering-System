@@ -1,24 +1,10 @@
+import { describe, test, expect, vi } from 'vitest';
 import { parsePinSpeech } from './pinVoiceParserService';
 
-function runTests() {
-  console.log('Running parsePinSpeech Unit Tests...');
-  let passedCount = 0;
-  let totalCount = 0;
-
-  function assert(condition: boolean, testName: string) {
-    totalCount++;
-    if (condition) {
-      passedCount++;
-      console.log(`  ✓ PASSED: ${testName}`);
-    } else {
-      console.error(`  ✗ FAILED: ${testName}`);
-    }
-  }
-
+describe('parsePinSpeech Unit Tests', () => {
   const languages = ['en', 'ta', 'hi'];
 
   languages.forEach((lang) => {
-    // 1. Standard 1234 inputs in various formats across languages
     const inputs1234 = [
       'one two three four',
       '1 2 3 4',
@@ -37,48 +23,90 @@ function runTests() {
     ];
 
     inputs1234.forEach((input, idx) => {
-      const res = parsePinSpeech(input, lang);
-      const isCorrect = res.status === 'success' && res.digits.join('') === '1234';
-      assert(isCorrect, `[Lang: ${lang}] Input #${idx + 1} parses to 1234`);
+      test(`[Lang: ${lang}] Input #${idx + 1} "${input}" parses to 1234`, () => {
+        const res = parsePinSpeech(input, lang);
+        expect(res.status).toBe('success');
+        expect(res.digits.join('')).toBe('1234');
+      });
     });
   });
 
-  // 2. Reject 5 digits
-  const fiveDigitsRes = parsePinSpeech('1 2 3 4 5');
-  assert(fiveDigitsRes.status === 'too_many' && fiveDigitsRes.digits.length === 0, '5 digits rejected');
+  test('5 digits rejected', () => {
+    const res = parsePinSpeech('1 2 3 4 5');
+    expect(res.status).toBe('too_many');
+    expect(res.digits.length).toBe(0);
+  });
 
-  // 3. Partial digits (3 digits)
-  const threeDigitsRes = parsePinSpeech('1 2 3');
-  assert(threeDigitsRes.status === 'need_more' && threeDigitsRes.digits.join('') === '123', '3 digits kept, status need_more');
+  test('3 digits kept, status need_more', () => {
+    const res = parsePinSpeech('1 2 3');
+    expect(res.status).toBe('need_more');
+    expect(res.digits.join('')).toBe('123');
+  });
 
-  // 4. Invalid text
-  const invalidRes = parsePinSpeech('xyz');
-  assert(invalidRes.status === 'no_speech' && invalidRes.digits.length === 0, 'Invalid text returns no_speech');
+  test('Invalid text returns no_speech', () => {
+    const res = parsePinSpeech('xyz');
+    expect(res.status).toBe('no_speech');
+    expect(res.digits.length).toBe(0);
+  });
 
-  // 5. Unsupported "double" command
-  const doubleRes = parsePinSpeech('double one two three');
-  assert(doubleRes.status === 'requires_each_digit' && doubleRes.digits.length === 0, '"double" returns requires_each_digit');
+  test('"double" returns requires_each_digit', () => {
+    const res = parsePinSpeech('double one two three');
+    expect(res.status).toBe('requires_each_digit');
+    expect(res.digits.length).toBe(0);
+  });
 
-  // 6. Voice commands
-  const clearEn = parsePinSpeech('clear');
-  assert(clearEn.status === 'command' && clearEn.command === 'clear', 'Command "clear" handled');
+  test('Command "clear" handled (English)', () => {
+    const res = parsePinSpeech('clear');
+    expect(res.status).toBe('command');
+    expect(res.command).toBe('clear');
+  });
 
-  const clearTa = parsePinSpeech('அழி');
-  assert(clearTa.status === 'command' && clearTa.command === 'clear', 'Command "அழி" handled');
+  test('Command "அழி" handled (Tamil clear)', () => {
+    const res = parsePinSpeech('அழி');
+    expect(res.status).toBe('command');
+    expect(res.command).toBe('clear');
+  });
 
-  const clearHi = parsePinSpeech('मिटाओ');
-  assert(clearHi.status === 'command' && clearHi.command === 'clear', 'Command "मिटाओ" handled');
+  test('Command "मिटाओ" handled (Hindi clear)', () => {
+    const res = parsePinSpeech('मिटाओ');
+    expect(res.status).toBe('command');
+    expect(res.command).toBe('clear');
+  });
 
-  const backTa = parsePinSpeech('பின்');
-  assert(backTa.status === 'command' && backTa.command === 'back', 'Command "பின்" handled');
+  test('Command "मिटாओ" handled (Legacy mixed Hindi/Tamil clear)', () => {
+    const res = parsePinSpeech('मिटாओ');
+    expect(res.status).toBe('command');
+    expect(res.command).toBe('clear');
+  });
 
-  const cancelHi = parsePinSpeech('रद्द');
-  assert(cancelHi.status === 'command' && cancelHi.command === 'cancel', 'Command "रद्द" handled');
+  test('Command "பின்" handled (Tamil back)', () => {
+    const res = parsePinSpeech('பின்');
+    expect(res.status).toBe('command');
+    expect(res.command).toBe('back');
+  });
 
-  console.log(`\nTest Execution Summary: ${passedCount}/${totalCount} tests passed.`);
-  if (passedCount !== totalCount) {
-    process.exit(1);
-  }
-}
+  test('Command "रद्द" handled (Hindi cancel)', () => {
+    const res = parsePinSpeech('रद्द');
+    expect(res.status).toBe('command');
+    expect(res.command).toBe('cancel');
+  });
 
-runTests();
+  test('Command "ரத்து" handled (Pure Tamil cancel)', () => {
+    const res = parsePinSpeech('ரத்து');
+    expect(res.status).toBe('command');
+    expect(res.command).toBe('cancel');
+  });
+
+  test('Command "ரद्द" handled (Legacy mixed Hindi/Tamil cancel)', () => {
+    const res = parsePinSpeech('ரद्द');
+    expect(res.status).toBe('command');
+    expect(res.command).toBe('cancel');
+  });
+
+  test('Console logs never print raw PIN digits in plain text', () => {
+    const consoleSpy = vi.spyOn(console, 'log');
+    parsePinSpeech('1 2 3 4');
+    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('1234'));
+    consoleSpy.mockRestore();
+  });
+});

@@ -1,4 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { FoodItem, Language } from '../types';
 
@@ -24,22 +23,6 @@ export class HealthDietaryNluService {
   private static DISCLAIMER_TA = 'இது ஒரு பொதுவான உணவுப் பரிந்துரை மட்டுமே, மருத்துவ ஆலோசனை அல்ல. உங்கள் உடல்நலக் கோளாறுக்கு மருத்துவரை அணுகவும்.';
   private static DISCLAIMER_HI = 'यह एक सामान्य आहार सुझाव है, चिकित्सीय सलाह नहीं — कृपया अपनी स्थिति के लिए डॉक्टर से परामर्श लें।';
 
-  private static getGeminiClient(): GoogleGenAI | null {
-    try {
-      const apiKey =
-        (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) ||
-        (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY) ||
-        '';
-
-      if (apiKey && apiKey !== 'MY_GEMINI_API_KEY') {
-        return new GoogleGenAI({ apiKey });
-      }
-    } catch (e) {
-      console.warn('[HealthDietaryNluService] Gemini API key missing, utilizing offline health fallback.');
-    }
-    return null;
-  }
-
   /**
    * Main Health / Dietary LLM NLU Engine with Offline Fallback
    */
@@ -54,84 +37,50 @@ export class HealthDietaryNluService {
     const cleanInput = transcript.trim();
     console.log(`[HealthDietaryNluService]: Analyzing health transcript in "${language}": "${cleanInput}"`);
 
-    const client = this.getGeminiClient();
-
-    if (client) {
-      try {
-        const catalogSummary = INDIAN_FOOD_CATALOG.map(f => `ID: ${f.id} | Name: ${f.name} | Tamil: ${f.nativeNames.ta} | Description: ${f.description}`).join('\n');
-
-        const systemPrompt = `You are a gentle health dietary food recommender for AutoFeast.
-The user speaks a free-form sentence describing a health situation, symptom, age, or dietary requirement for themselves or a relative (appa/amma/thatha/paati).
-
-AVAILABLE FOOD CATALOG (STRICT CONSTRAINT — YOU MUST ONLY SELECT ITEM IDs FROM THIS LIST):
-${catalogSummary}
-
-CRITICAL RULES:
-1. You MUST select 2 to 3 food item IDs ONLY from the above catalog list (e.g. "idli-sambar", "pongal-ghee", "kerala-appam-stew", "dosa-plain"). Never invent IDs or food names outside this catalog.
-2. Recommendations MUST be mild, general dietary food texture/spice suggestions (e.g., steamed, soft, non-spicy, low-fat, comforting).
-3. NEVER make a clinical diagnosis, medical claim, or treatment statement.
-4. For each selected food item ID, provide a short 1-line reason in English, Tamil, and Hindi explaining why it fits this health/dietary context.
-5. Identify who the food is for ("self", "appa", "amma", "thatha", "paati", etc).
-
-Respond ONLY with valid raw JSON:
-{
-  "healthContextSummary": "<brief summary of condition>",
-  "targetPerson": "self | appa | amma | thatha | paati | relative",
-  "suggestedItemIds": [
-    {
-      "itemId": "<exact catalog ID>",
-      "reasonEn": "<1 line reason in English>",
-      "reasonTa": "<1 line reason in Tamil>",
-      "reasonHi": "<1 line reason in Hindi>"
-    }
-  ]
-}
-
-User Spoken Description: "${cleanInput}"`;
-
-        const response = await client.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: systemPrompt,
-          config: {
-            responseMimeType: 'application/json',
-            maxOutputTokens: 350
-          }
-        });
-
-        const textResponse = response.text || '';
-        console.log('[HealthDietaryNluService Gemini Output]:', textResponse);
-        const parsed = JSON.parse(textResponse.trim());
-
-        if (parsed && parsed.suggestedItemIds && Array.isArray(parsed.suggestedItemIds)) {
-          const suggestions: HealthFoodSuggestion[] = [];
-
-          for (const itemReq of parsed.suggestedItemIds) {
-            const foundItem = INDIAN_FOOD_CATALOG.find(f => f.id === itemReq.itemId);
-            if (foundItem) {
-              suggestions.push({
-                foodItem: foundItem,
-                reasonEn: itemReq.reasonEn || `${foundItem.name} is mild and easy to consume.`,
-                reasonTa: itemReq.reasonTa || `${foundItem.nativeNames.ta} செரிமானத்திற்கு எளிதான லேசான உணவு.`,
-                reasonHi: itemReq.reasonHi || `${foundItem.nativeNames.hi} हल्का और सुपाच्य आहार है।`
-              });
-            }
-          }
-
-          if (suggestions.length > 0) {
-            return {
-              rawTranscript: cleanInput,
-              healthContextSummary: parsed.healthContextSummary || 'General health & dietary advice',
-              targetPerson: parsed.targetPerson || 'self',
-              suggestions,
-              disclaimerEn: this.DISCLAIMER_EN,
-              disclaimerTa: this.DISCLAIMER_TA,
-              disclaimerHi: this.DISCLAIMER_HI
-            };
+    try {
+      const response = await fetch('/api/voice/health-nlu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: cleanInput, language })
+      });
+      if (!response.ok) throw new Error(`Health NLU endpoint returned ${response.status}`);
+      const parsed = await response.json() as {
+        healthContextSummary?: unknown;
+        targetPerson?: unknown;
+        suggestedItemIds?: Array<{ itemId?: unknown; reasonEn?: unknown; reasonTa?: unknown; reasonHi?: unknown }>;
+      };
+      const allowedTargetPeople = ['self', 'appa', 'amma', 'thatha', 'paati', 'relative'];
+      const suggestions: HealthFoodSuggestion[] = [];
+      if (Array.isArray(parsed.suggestedItemIds)) {
+        for (const itemReq of parsed.suggestedItemIds.slice(0, 3)) {
+          if (typeof itemReq.itemId !== 'string' || typeof itemReq.reasonEn !== 'string' ||
+              typeof itemReq.reasonTa !== 'string' || typeof itemReq.reasonHi !== 'string') continue;
+          const foundItem = INDIAN_FOOD_CATALOG.find(food => food.id === itemReq.itemId);
+          if (foundItem) {
+            suggestions.push({
+              foodItem: foundItem,
+              reasonEn: itemReq.reasonEn,
+              reasonTa: itemReq.reasonTa,
+              reasonHi: itemReq.reasonHi
+            });
           }
         }
-      } catch (err) {
-        console.warn('[HealthDietaryNluService Gemini API Error, using offline health fallback]:', err);
       }
+      if (suggestions.length >= 2 && typeof parsed.healthContextSummary === 'string' &&
+          typeof parsed.targetPerson === 'string' && allowedTargetPeople.includes(parsed.targetPerson)) {
+        return {
+          rawTranscript: cleanInput,
+          healthContextSummary: parsed.healthContextSummary,
+          targetPerson: parsed.targetPerson,
+          suggestions,
+          disclaimerEn: this.DISCLAIMER_EN,
+          disclaimerTa: this.DISCLAIMER_TA,
+          disclaimerHi: this.DISCLAIMER_HI
+        };
+      }
+      throw new Error('Health NLU endpoint returned invalid or unverified suggestions');
+    } catch (error) {
+      console.warn('[HealthDietaryNluService] Gemini unavailable or invalid; using local health fallback.', error);
     }
 
     // Fallback: Synchronous offline rule-based dietary recommender

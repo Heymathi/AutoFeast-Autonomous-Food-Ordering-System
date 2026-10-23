@@ -4,7 +4,8 @@ import { FoodItem } from '../types';
 import { HealthDietaryNluService, HealthDietaryAnalysisResult, HealthFoodSuggestion } from '../services/healthDietaryNluService';
 import { PriceComparisonService, PriceComparisonSummary } from '../services/priceComparisonService';
 import { SttMatcherService, CONFIRMATION_VOCABULARY } from '../services/sttMatcherService';
-import { SpeechService } from '../services/speechService';
+import { NomineeNotificationService } from '../services/nomineeNotificationService';
+import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
 import { ItemActionChooser } from './ItemActionChooser';
 import { Mic, MicOff, X, HeartPulse, AlertTriangle, ShieldAlert, Sparkles, CheckCircle2, Zap, Clock, Volume2, Store, Star, Award, ChevronRight, ShoppingBag } from 'lucide-react';
@@ -15,6 +16,8 @@ interface HealthDietaryVoiceModalProps {
 }
 
 type HealthModalStep = 'speak_condition' | 'analyzing' | 'view_suggestions' | 'view_price_comparison';
+
+import { SpeechController } from '../services/speechController';
 
 export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = ({
   isOpen,
@@ -27,7 +30,10 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
     setVoiceDialogItem,
     addToCart,
     t,
-    showToast
+    showToast,
+    currentUser,
+    checkIsItemRestrictedByNominee,
+    handleNomineeRestrictedInterception
   } = useApp();
 
   const [step, setStep] = useState<HealthModalStep>('speak_condition');
@@ -46,7 +52,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
     isComponentMounted.current = true;
     return () => {
       isComponentMounted.current = false;
-      SpeechService.stopListening();
+      SpeechController.releaseMic('healthy_food');
     };
   }, []);
 
@@ -61,16 +67,20 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
   };
 
   const startListeningForCondition = () => {
-    if (!isOpen || !SpeechService.isSupported()) return;
+    if (!isOpen) return;
 
     stepRef.current = 'speak_condition';
     setStep('speak_condition');
-    console.log('[HealthDietaryVoiceModal]: Starting microphone stream for health condition description...');
+    console.log('[HealthDietaryVoiceModal]: Starting microphone stream via SpeechController...');
 
-    SpeechService.startListening({
+    SpeechController.startListening({
+      owner: 'healthy_food',
       language,
-      continuous: true,
+      continuous: false,
       interimResults: true,
+      maxAlternatives: 5,
+      silenceTimeoutMs: 8000,
+      onSilence: () => setIsListening(false),
       onStart: () => setIsListening(true),
       onResult: (text, isFinal, nBest) => {
         if (!text) return;
@@ -86,13 +96,6 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
       },
       onEnd: () => {
         setIsListening(false);
-        if (isOpen && stepRef.current === 'speak_condition') {
-          setTimeout(() => {
-            if (isOpen && stepRef.current === 'speak_condition') {
-              startListeningForCondition();
-            }
-          }, 400);
-        }
       }
     });
   };
@@ -100,12 +103,12 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
   const handleAnalyzeHealthText = async (text: string, candidates: string[] = [text]) => {
     if (!text || !text.trim()) return;
 
-    SpeechService.stopListening();
+    SpeechController.stopListening('healthy_food');
     setIsListening(false);
     setStep('analyzing');
     stepRef.current = 'analyzing';
 
-    console.log(`[HealthDietaryVoiceModal]: Processing spoken health input: "${text}" (candidates: ${candidates.join(', ')})`);
+    console.log(`[HealthDietaryVoiceModal]: Processing spoken health input: "${text}"`);
     const primaryInput = candidates[0] || text;
     const result = await HealthDietaryNluService.analyzeHealthContextAndSuggestFood(primaryInput, language);
     
@@ -113,7 +116,6 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
     setStep('view_suggestions');
     stepRef.current = 'view_suggestions';
 
-    // Speak Disclaimer + Suggestions aloud in active language
     speakSuggestionsAloud(result);
   };
 
@@ -132,9 +134,12 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
       return `${name}. ${reason}`;
     }).join('. ');
 
-    const fullSpeechText = `${introMsg} ${itemsSummary}. எந்த உணவைத் தேர்ந்தெடுக்க விரும்புகிறீர்கள் என்று சொல்லுங்கள்!`;
-
-    console.log('[HealthDietaryVoiceModal]: Speaking recommendations aloud ->', fullSpeechText);
+    const selectionPrompt = language === 'ta'
+      ? 'எந்த உணவைத் தேர்ந்தெடுக்க விரும்புகிறீர்கள் என்று சொல்லுங்கள்!'
+      : language === 'hi'
+      ? 'कृपया बताएं कि आप कौन सा भोजन चुनना चाहते हैं।'
+      : 'Please say which food you would like to choose.';
+    const fullSpeechText = `${introMsg} ${itemsSummary}. ${selectionPrompt}`;
 
     speakText(fullSpeechText, () => {
       if (isComponentMounted.current && isOpen) {
@@ -144,12 +149,13 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
   };
 
   const startListeningForItemSelection = (availableCatalog: FoodItem[]) => {
-    if (!isOpen || !SpeechService.isSupported()) return;
+    if (!isOpen) return;
 
     stepRef.current = 'view_suggestions';
-    console.log('[HealthDietaryVoiceModal]: Listening for spoken item choice selection...');
+    console.log('[HealthDietaryVoiceModal]: Listening for spoken item choice selection via SpeechController...');
 
-    SpeechService.startListening({
+    SpeechController.startListening({
+      owner: 'healthy_food',
       language,
       continuous: true,
       interimResults: true,
@@ -163,7 +169,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         const matchedFood = SttMatcherService.matchFoodItem(candidates, availableCatalog, language);
         if (matchedFood) {
           console.log(`🚀 [Health STT Choice Match Success]: Matched "${matchedFood.name}" from spoken input!`);
-          SpeechService.stopListening();
+          SpeechController.stopListening('healthy_food');
           setIsListening(false);
           handleSelectItem(matchedFood);
         }
@@ -174,13 +180,6 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
       },
       onEnd: () => {
         setIsListening(false);
-        if (isOpen && stepRef.current === 'view_suggestions') {
-          setTimeout(() => {
-            if (isOpen && stepRef.current === 'view_suggestions') {
-              startListeningForItemSelection(availableCatalog);
-            }
-          }, 400);
-        }
       }
     });
   };
@@ -193,70 +192,8 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
     setStep('view_price_comparison');
     stepRef.current = 'view_price_comparison';
 
-    const itemName = item.nativeNames?.[language] || item.name;
-    const bestValName = comparison.bestValue.platformName;
-    const cheapestName = comparison.cheapest.platformName;
-    const cheapestPrice = comparison.cheapest.price + comparison.cheapest.deliveryFee;
-
-    const summarySpeech = language === 'ta'
-      ? `${itemName} தேர்ந்தெடுக்கப்பட்டது. ${cheapestName}-இல் மிகக் குறைந்த விலையில் ₹${cheapestPrice}-க்குக் கிடைக்கிறது. இப்போதே ஆர்டர் செய்யவா அல்லது அட்டவணைப்படுத்தவா?`
-      : language === 'hi'
-      ? `${itemName} चुना गया। ${cheapestName} पर सबसे कम कीमत ₹${cheapestPrice} में उपलब्ध है। क्या अभी ऑर्डर करें या शेड्यूल करें?`
-      : `${itemName} selected. Lowest price available on ${cheapestName} for ₹${cheapestPrice}. Do you want to order now or schedule it?`;
-
-    speakText(summarySpeech, () => {
-      if (isComponentMounted.current && isOpen) {
-        startListeningForOrderOrSchedule(item);
-      }
-    });
-  };
-
-  const startListeningForOrderOrSchedule = (item: FoodItem) => {
-    if (!isOpen || !SpeechService.isSupported()) return;
-
-    SpeechService.startListening({
-      language,
-      continuous: true,
-      interimResults: true,
-      onStart: () => setIsListening(true),
-      onResult: (text, isFinal, nBest) => {
-        if (!text) return;
-        setLiveTranscript(text);
-        if (!isFinal) return;
-
-        const candidates = nBest && nBest.length > 0 ? nBest : [text];
-
-        const orderNowWords = [
-          ...CONFIRMATION_VOCABULARY.ORDER_NOW.en,
-          ...CONFIRMATION_VOCABULARY.ORDER_NOW.ta,
-          ...CONFIRMATION_VOCABULARY.ORDER_NOW.hi
-        ];
-        const scheduleWords = [
-          ...CONFIRMATION_VOCABULARY.SCHEDULE.en,
-          ...CONFIRMATION_VOCABULARY.SCHEDULE.ta,
-          ...CONFIRMATION_VOCABULARY.SCHEDULE.hi
-        ];
-
-        const matchOrderNow = SttMatcherService.matchVocabulary(candidates, orderNowWords, language);
-        const matchSchedule = SttMatcherService.matchVocabulary(candidates, scheduleWords, language);
-
-        if (matchOrderNow.isMatched || text.includes('now') || text.includes('இப்போதே') || text.includes('ஆர்டர்')) {
-          console.log('[Health Modal]: Voice intent = ORDER NOW');
-          SpeechService.stopListening();
-          setIsListening(false);
-          placeInstantOrder(item);
-          onClose();
-        } else if (matchSchedule.isMatched || text.includes('schedule') || text.includes('அட்டவணை')) {
-          console.log('[Health Modal]: Voice intent = SCHEDULE FOR LATER');
-          SpeechService.stopListening();
-          setIsListening(false);
-          onClose();
-          setVoiceDialogItem(item);
-        }
-      },
-      onError: (err) => setIsListening(false),
-      onEnd: () => setIsListening(false)
-    });
+    // Open shared ItemActionChooser for Order Now / Schedule / Add to Cart
+    setChooserItem(item);
   };
 
   useEffect(() => {
@@ -276,13 +213,15 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
 
       const timer = setTimeout(() => {
         speakText(promptMsg, () => {
-          startListeningForCondition();
+          if (isComponentMounted.current && isOpen) {
+            startListeningForCondition();
+          }
         });
       }, 100);
 
       return () => clearTimeout(timer);
     } else {
-      SpeechService.stopListening();
+      SpeechController.releaseMic('healthy_food');
     }
   }, [isOpen, language]);
 
@@ -295,7 +234,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         {/* Close Button */}
         <button
           onClick={() => {
-            SpeechService.stopListening();
+            SpeechController.releaseMic('healthy_food');
             setIsListening(false);
             onClose();
           }}

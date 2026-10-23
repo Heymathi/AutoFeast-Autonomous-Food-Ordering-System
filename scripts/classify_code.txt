@@ -1,0 +1,139 @@
+  /**
+   * Local heuristic / keyword classifier for location choice intent.
+   * Runs if Gemini is down or network fails.
+   */
+  public static classifyLocationChoiceLocally(
+    transcript: string,
+    language: Language = 'en',
+    candidates: string[] = [transcript]
+  ): LocationChoiceNluResult {
+    const knownPlaces = [
+      'salem', 'சேலம்', 'सेलम', 'सेलम्',
+      'chennai', 'சென்னை', 'चेन्नई',
+      'anna nagar chennai', 'anna nagar', 'அண்ணா நகர்', 'अन्ना नगर',
+      't nagar', 't. nagar', 'தி நகர்',
+      'coimbatore gandhipuram', 'coimbatore', 'gandhipuram', 'கோயம்புத்தூர் காந்திபுரம்', 'கோயம்புத்தூர்', 'காந்திபுரம்', 'कोयंबटूर',
+      'delhi', 'connaught place', 'दिल्ली', 'कनॉट प्लेस', 'नई दिल्ली',
+      'bengaluru', 'bangalore', 'indiranagar', 'பெங்களூரு', 'இந்திரா நகர்', 'बेंगलुरु', 'इंदिरा नगर',
+      'hyderabad', 'gachibowli', 'ஹைதராபாத்', 'கச்சிபௌலி', 'हैदराबाद', 'गाचीबोवली',
+      'mumbai', 'bandra west', 'bandra', 'மும்பை', 'பாந்த்ரா', 'मुंबई', 'बांद्रा',
+      'madurai', 'kk nagar', 'மதுரை', 'मदुरै', 'केके नगर',
+      'dharmapuri main road', 'dharmapuri', 'main road dharmapuri', 'தர்மபுரி', 'धर्मपुरी'
+    ];
+
+    const repeatPatterns = [
+      'repeat', 'pardon', 'what did you say', 'once again', 'tell me again', 'say again',
+      'say that again', 'repeat please', 'come again', 'repeat the question', 'didn t hear',
+      'say once more', 'repeat that', 'speak again', 'can you repeat',
+      'மீண்டும் சொல்', 'இன்னொரு முறை', 'திரும்ப சொல்', 'marupadiyum sollu', 'marubadiyum',
+      'thirumba sollu', 'thirumba pesu', 'marubadi sollu', 'innoru thadava', 'innoru murai sollu',
+      'marupadiyum kelu', 'thirumbavum sollu', 'puriyala thirumba sollu', 'marupadiyum solunga', 'திரும்பவும் சொல்',
+      'फिर से बोलो', 'दोबारा बताओ', 'phir se bolo', 'ek baar aur', 'dobara bolo',
+      'fir se bolo', 'sunai nahi diya', 'dobara kahiye', 'fir se batao', 'ek bar aur bolo',
+      'phir bolo', 'kya kaha', 'dobara sunao', 'fir se kahiye', 'samajh nahi aaya fir se bolo'
+    ];
+
+    const cancelPatterns = [
+      'cancel', 'close', 'stop', 'exit', 'dismiss', 'back', 'cancel that', 'close modal',
+      'cancel now', 'shut down', 'go back', 'abort', 'discard', 'stop now', 'close this',
+      'ரத்து செய்', 'நிறுத்து', 'மூடு', 'cancel pannu', 'close pannu', 'vendaam mudu',
+      'niruthu', 'rathu sei', 'veliya po', 'back po', 'stop pannu', 'vendam niruthu',
+      'moodu', 'rathu seiyavum', 'cancel seidu vidu',
+      'रद्द करो', 'बंद करो', 'रोक दो', 'cancel karo', 'ruk jao', 'wapas jao',
+      'band kar do', 'cancel kar do', 'radd karo', 'hatao', 'roko', 'peeche jao',
+      'band karo ise', 'cancel kijiye', 'chhod do abhi'
+    ];
+
+    const changePatterns = [
+      // English
+      'no', 'deny', 'change address', 'skip', 'change location', 'different address', 'another address',
+      'different place', 'another place', 'manual', 'choose location', 'enter address', 'not now', 'nope',
+      'dont use live location', 'don t use live location',
+      // Tamil / Tanglish
+      'venaam', 'illa', 'maathu', 'address maathu', 'vera idam', 'இல்லை', 'வேண்டாம்', 'முகவரி மாற்று',
+      'venam', 'illai', 'vera address', 'மாற்று', 'வேற இடம்', 'தவிர்க்கவும்', 'வேணாம்', 'தேவையில்லை', 'இல்ல',
+      // Hindi / Hinglish
+      'nahi', 'badlo', 'address badlo', 'दूसरा पता', 'नहीं', 'बदलो', 'nahin', 'dusra pata',
+      'dusra address', 'location badlo', 'मना', 'मना करें', 'पता बदलो', 'छोड़ो', 'बदलें'
+    ];
+
+    const allowPatterns = [
+      // English
+      'allow', 'yes', 'ok', 'sure', 'use my location', 'use live location', 'enable location',
+      'current location', 'live location', 'turn on location', 'yep', 'yeah', 'okay', 'fine', 'why not',
+      // Tamil / Tanglish
+      'aama', 'sari', 'seri', 'ஆமாம்', 'சரி', 'ok pannu', 'live address eduthukko', 'aamam',
+      'seri pannu', 'eduthuko', 'anumathi', 'kudukalam', 'கொடுக்கலாம்', 'அனுமதி', 'சரிதான்',
+      'அனுமதிக்கிறேன்', 'அனுமதிக்கலாம்', 'ஆமா', 'தாராளமா', 'இருப்பிடம் எடு',
+      // Hindi / Hinglish
+      'haan', 'theek hai', 'ठीक है', 'हाँ', 'लोकेशन चालू करो', 'haa', 'haanjee', 'sahi hai',
+      'sahi', 'le lo', 'chalega', 'अनुमति', 'अनुमति दें', 'स्थान का उपयोग करो'
+    ];
+
+    const effectiveCandidates = (candidates && candidates.length > 0) ? candidates : [transcript];
+
+    for (const cand of effectiveCandidates) {
+      const lower = cand.toLowerCase().trim();
+      const normalized = lower.replace(/[.,/#!$%^&*;:{}=\-_`~()?"']/g, ' ').replace(/\s+/g, ' ').trim();
+
+      // 1. Repeat check
+      if (repeatPatterns.some(p => normalized === p || normalized.startsWith(p) || normalized.includes(p))) {
+        return { intent: 'repeat', address: null, confidence: 0.95, source: 'local_fallback' };
+      }
+
+      // 2. Cancel check
+      if (cancelPatterns.some(p => normalized === p || normalized.startsWith(p) || normalized.includes(p))) {
+        return { intent: 'cancel', address: null, confidence: 0.95, source: 'local_fallback' };
+      }
+
+      // 3. Give Address: explicit phrasing or direct place mention
+      const directPlacePhrase = normalized.match(/मुझे\s+([a-zA-Z\u0B80-\u0BFF\u0900-\u097F\s]+?)\s+में\s+डिलीवरी/i);
+      if (directPlacePhrase && directPlacePhrase[1]) {
+        return { intent: 'give_address', address: directPlacePhrase[1].trim(), confidence: 0.95, source: 'local_fallback' };
+      }
+
+      const reverseDeliveryPhraseRegex = /([a-zA-Z\u0B80-\u0BFF\u0900-\u097F\s]+?)\s*(?:டெலிவரி|க்கு டெலிவரி|में डिलीवरी|la delivery|ku delivery|mein delivery|me delivery)/i;
+      const matchRev = normalized.match(reverseDeliveryPhraseRegex);
+      if (matchRev && matchRev[1] && matchRev[1].trim().length >= 2) {
+        return { intent: 'give_address', address: matchRev[1].trim(), confidence: 0.92, source: 'local_fallback' };
+      }
+
+      const deliveryPhraseRegex = /(?:deliver(?:y)?\s+(?:to|in)|delivery|டெலிவரி|க்கு டெலிவரி|டெலிவரி செய்|में डिलीवरी|डिलीवरी चाहिए|डिलीवरी)\s*([a-zA-Z\u0B80-\u0BFF\u0900-\u097F\s]+)/i;
+      const matchFwd = normalized.match(deliveryPhraseRegex);
+      if (matchFwd && matchFwd[1] && matchFwd[1].trim().length >= 2) {
+        return { intent: 'give_address', address: matchFwd[1].trim(), confidence: 0.92, source: 'local_fallback' };
+      }
+
+      for (const place of knownPlaces) {
+        if (normalized === place || normalized.includes(place)) {
+          const extracted = place.length > 2
+            ? place.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+            : place;
+          return { intent: 'give_address', address: extracted, confidence: 0.92, source: 'local_fallback' };
+        }
+      }
+
+      // 4. Change Location (no, venaam, nahi, badlo, etc.)
+      const hasChange = changePatterns.some(p => {
+        const regex = new RegExp(`(^|\\s)${p.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}($|\\s)`, 'i');
+        return regex.test(normalized) || normalized === p;
+      });
+
+      // 5. Use Live Location (allow, aama, haan, etc.)
+      const isNegativeLiveLocation = /dont use live|don't use live|do not use live|live location (?:venaam|nahi|badlo|maathu)/i.test(cand);
+      const isExactChaluKaro = normalized === 'चालू करो' || normalized === 'chalu karo';
+      const hasAllow = !isNegativeLiveLocation && (isExactChaluKaro || allowPatterns.some(p => {
+        const regex = new RegExp(`(^|\\s)${p.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}($|\\s)`, 'i');
+        return regex.test(normalized) || normalized === p;
+      }));
+
+      if (hasAllow && !hasChange) {
+        return { intent: 'use_live_location', address: null, confidence: 0.95, source: 'local_fallback' };
+      }
+      if (hasChange && !hasAllow) {
+        return { intent: 'change_location', address: null, confidence: 0.95, source: 'local_fallback' };
+      }
+    }
+
+    return { intent: 'unclear', address: null, confidence: 0.3, source: 'local_fallback' };
+  }

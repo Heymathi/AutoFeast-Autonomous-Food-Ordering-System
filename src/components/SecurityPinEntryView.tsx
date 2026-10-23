@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { SpeechService } from '../services/speechService';
+import { SpeechController } from '../services/speechController';
 import { parsePinSpeech } from '../services/pinVoiceParserService';
-import { Lock, ShieldCheck, Mic, Delete, AlertTriangle, Grid as KeypadIcon, Volume2 } from 'lucide-react';
+import { debounceHandler } from '../utils/debounce';
+import { Lock, ShieldCheck, Mic, Delete, AlertTriangle, Volume2 } from 'lucide-react';
 
 export interface SecurityPinEntryViewProps {
   title?: string;
@@ -10,6 +11,7 @@ export interface SecurityPinEntryViewProps {
   onPinComplete: (pinStr: string) => void | Promise<void>;
   onCancel?: () => void;
   isVerifying?: boolean;
+  lockSecondsLeft?: number;
   errorMessage?: string | null;
   setErrorMessage?: (msg: string | null) => void;
   submitButtonText?: string;
@@ -23,13 +25,14 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
   onPinComplete,
   onCancel,
   isVerifying = false,
+  lockSecondsLeft = 0,
   errorMessage = null,
   setErrorMessage,
   submitButtonText,
   cancelButtonText,
   summaryCard
 }) => {
-  const { language, t, speakText, accessibilitySettings } = useApp();
+  const { language, t, accessibilitySettings } = useApp();
 
   const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '']);
   const [micState, setMicState] = useState<'idle' | 'listening' | 'processing' | 'error'>('idle');
@@ -37,48 +40,101 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const activeRetryIndex = useRef<number>(0);
+  const isComponentMounted = useRef<boolean>(false);
+  const hasSpokenPromptRef = useRef<boolean>(false);
+  const activePromptsRef = useRef<string[]>([]);
 
-  // Define locale fallback chain based on app language
+  // Prompts in 3 languages - NEVER contains PIN digits!
+  const PROMPT_EN = 'Please say your 4-digit PIN';
+  const PROMPT_TA = 'தயவுசெய்து உங்கள் 4 இலக்க PIN கூறவும்';
+  const PROMPT_HI = 'कृपया अपना 4 अंकों का पिन कहें';
+
+  const getPromptForLanguage = () => {
+    switch (language) {
+      case 'ta': return PROMPT_TA;
+      case 'hi': return PROMPT_HI;
+      default: return PROMPT_EN;
+    }
+  };
+
   const getLocaleChain = (): string[] => {
     switch (language) {
-      case 'ta':
-        return ['ta-IN', 'en-IN', 'hi-IN'];
-      case 'hi':
-        return ['hi-IN', 'en-IN', 'ta-IN'];
-      case 'en':
-      default:
-        return ['en-IN', 'ta-IN', 'hi-IN'];
+      case 'ta': return ['ta-IN', 'en-IN', 'hi-IN'];
+      case 'hi': return ['hi-IN', 'en-IN', 'ta-IN'];
+      default: return ['en-IN', 'ta-IN', 'hi-IN'];
     }
   };
 
   const localeChain = getLocaleChain();
 
-  // Reset PIN digits and stop mic on mount / unmount
   useEffect(() => {
+    isComponentMounted.current = true;
+    activePromptsRef.current = [PROMPT_EN, PROMPT_TA, PROMPT_HI];
     setPinDigits(['', '', '', '']);
     setMicState('idle');
     setStatusMessage(null);
-    SpeechService.stopListening();
+
+    // Initial prompt speak once on open (STT is OFF during TTS)
+    if (!hasSpokenPromptRef.current) {
+      hasSpokenPromptRef.current = true;
+      const promptText = getPromptForLanguage();
+
+      SpeechController.speak(
+        promptText,
+        language || 'en',
+        () => {
+          if (!isComponentMounted.current) return;
+          const timer = setTimeout(() => {
+            if (isComponentMounted.current) {
+              startVoicePinListening(0);
+            }
+          }, 300);
+        },
+        undefined,
+        'voice_pin'
+      );
+    }
 
     return () => {
-      SpeechService.stopListening();
+      isComponentMounted.current = false;
+      cleanupSpeech();
     };
   }, []);
 
+  const cleanupSpeech = () => {
+    SpeechController.cancelSpeech();
+    SpeechController.releaseMic('voice_pin');
+    setMicState('idle');
+  };
+
   const currentPinString = pinDigits.join('');
+  const isInputBlocked = isVerifying || lockSecondsLeft > 0;
+
+  const debouncedPinComplete = useRef(
+    debounceHandler((pinStr: string) => {
+      if (pinStr.length === 4) {
+        cleanupSpeech();
+        onPinComplete(pinStr);
+      }
+    }, 500)
+  ).current;
 
   // Auto-submit when all 4 digits filled
   useEffect(() => {
     if (currentPinString.length === 4 && !isVerifying) {
-      SpeechService.stopListening();
-      setMicState('idle');
-      onPinComplete(currentPinString);
+      cleanupSpeech();
+      debouncedPinComplete(currentPinString);
     }
   }, [currentPinString, isVerifying]);
+
+  useEffect(() => {
+    if (lockSecondsLeft > 0) setPinDigits(['', '', '', '']);
+  }, [lockSecondsLeft]);
 
   // Physical Keyboard Listener (0-9, Backspace, Enter)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isInputBlocked) return;
       if (e.key >= '0' && e.key <= '9') {
         const num = e.key;
         if (setErrorMessage) setErrorMessage(null);
@@ -107,17 +163,17 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
         });
       } else if (e.key === 'Enter') {
         if (currentPinString.length === 4) {
-          onPinComplete(currentPinString);
+          debouncedPinComplete(currentPinString);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentPinString]);
+  }, [currentPinString, isInputBlocked]);
 
-  // Handle digit click from Keypad
   const handleDigitClick = (num: number) => {
+    if (isInputBlocked) return;
     if (setErrorMessage) setErrorMessage(null);
     setStatusMessage(null);
     const emptyIdx = pinDigits.findIndex(d => d === '');
@@ -129,6 +185,7 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
   };
 
   const handleBackspace = () => {
+    if (isInputBlocked) return;
     if (setErrorMessage) setErrorMessage(null);
     setStatusMessage(null);
     setPinDigits(prev => {
@@ -143,20 +200,18 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
     });
   };
 
-
   const handleClear = () => {
+    if (isInputBlocked) return;
     if (setErrorMessage) setErrorMessage(null);
     setStatusMessage(null);
     setPinDigits(['', '', '', '']);
   };
 
-  // STT Voice Handler with Locale Retry Chain
-  const startVoiceRecognition = (retryIdx: number = 0) => {
+  const startVoicePinListening = (retryIdx: number = 0) => {
+    if (isInputBlocked || !SpeechController.isSupported() || !isComponentMounted.current) return;
     if (retryIdx >= localeChain.length) {
       setMicState('error');
-      const err = t('noSpeech');
-      if (setErrorMessage) setErrorMessage(err);
-      speakText(err, undefined, language);
+      setStatusMessage('Voice recognition unavailable. Please use keypad.');
       return;
     }
 
@@ -164,123 +219,142 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
     const targetLocale = localeChain[retryIdx];
     setActiveLocale(targetLocale);
     setMicState('listening');
-    setStatusMessage(t('pinListening'));
 
-    // STT MUST BE OFF WHILE APP IS SPEAKING (TTS)
-    SpeechService.stopListening();
-
-    const success = SpeechService.startListening({
-      language,
-      overrideLocale: targetLocale,
-      continuous: true,
+    SpeechController.requestMic({
+      owner: 'voice_pin',
+      language: targetLocale,
+      continuous: false,
       interimResults: true,
       maxAlternatives: 5,
+      isPinScreen: true,
       onStart: () => {
-        setMicState('listening');
+        if (isComponentMounted.current) setMicState('listening');
       },
-      onResult: (rawTranscript, _isFinal) => {
-        if (!rawTranscript || !rawTranscript.trim()) return;
-
+      onResult: (rawTranscript, isFinal, nBestTranscripts) => {
+        if (!isComponentMounted.current || !isFinal || !rawTranscript) return;
         setMicState('processing');
-        const parsed = parsePinSpeech(rawTranscript, language);
 
-        if (parsed.status === 'command') {
-          if (parsed.command === 'clear') {
-            handleClear();
-          } else if (parsed.command === 'back') {
-            handleBackspace();
-          } else if (parsed.command === 'cancel') {
-            SpeechService.stopListening();
+        const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [rawTranscript];
+
+        // Echo filter: ignore any transcript equal to or contained in the app's prompt
+        const isEcho = candidates.some(cand =>
+          activePromptsRef.current.some(prompt => cand.toLowerCase().includes(prompt.toLowerCase().substring(0, 10)))
+        );
+        if (isEcho) {
+          console.log('[SecurityPinEntryView]: Ignored app prompt echo.');
+          setMicState('listening');
+          return;
+        }
+
+        // Try parsing every alternative candidate
+        let parseResult = parsePinSpeech(candidates[0], language);
+        for (const cand of candidates) {
+          const res = parsePinSpeech(cand, language);
+          if (res.status === 'success' || res.status === 'command') {
+            parseResult = res;
+            break;
+          }
+        }
+
+        if (parseResult.status === 'command') {
+          if (parseResult.command === 'clear') handleClear();
+          else if (parseResult.command === 'back') handleBackspace();
+          else if (parseResult.command === 'cancel') {
+            cleanupSpeech();
             if (onCancel) onCancel();
           }
           return;
         }
 
-        if (parsed.status === 'requires_each_digit') {
-          setStatusMessage(t('pinSayDigits'));
-          speakText(t('pinSayDigits'), undefined, language);
-          return;
-        }
+        if (parseResult.status === 'requires_each_digit' || parseResult.status === 'too_many') {
+          const invalidCountMsg = language === 'ta'
+            ? 'தயவுசெய்து 4 தனித்தனி இலக்கங்களை கூறவும். அழிக்க "அழி" எனக் கூறவும்.'
+            : language === 'hi'
+            ? 'कृपया 4 अलग-अलग अंक कहें। रीसेट के लिए "मिटाओ" कहें।'
+            : 'Please say 4 single digits. Say "clear" to reset.';
 
-        if (parsed.status === 'too_many') {
-          setStatusMessage(t('pinTooMany'));
+          setStatusMessage(invalidCountMsg);
           setPinDigits(['', '', '', '']);
-          speakText(t('pinTooMany'), undefined, language);
+          SpeechController.speak(invalidCountMsg, language || 'en', () => {
+            if (isComponentMounted.current) startVoicePinListening(retryIdx);
+          }, undefined, 'voice_pin');
           return;
         }
 
-        if (parsed.status === 'need_more' && parsed.digits.length > 0) {
+        if (parseResult.status === 'need_more' && parseResult.digits.length > 0) {
           const newDigits = ['', '', '', ''];
-          parsed.digits.forEach((d, i) => {
+          parseResult.digits.forEach((d, i) => {
             if (i < 4) newDigits[i] = d;
           });
           setPinDigits(newDigits);
-          setStatusMessage(t('pinNeedMore'));
+          const remainMsg = language === 'ta'
+            ? 'மீதமுள்ள இலக்கங்களை கூறுங்கள்'
+            : language === 'hi'
+            ? 'शेष अंक कहें'
+            : 'Say the remaining digits';
+          setStatusMessage(remainMsg);
+          SpeechController.speak(remainMsg, language || 'en', () => {
+            if (isComponentMounted.current) startVoicePinListening(retryIdx);
+          }, undefined, 'voice_pin');
           return;
         }
 
-        if (parsed.status === 'success' && parsed.digits.length === 4) {
-          SpeechService.stopListening();
+        if (parseResult.status === 'success' && parseResult.digits.length === 4) {
+          SpeechController.releaseMic('voice_pin');
+          setPinDigits(parseResult.digits);
           setMicState('idle');
-          setPinDigits(parsed.digits);
-          setStatusMessage(t('pinReceived'));
 
-          // Security Rule: Confirmation speech says ONLY "PIN received", never digits!
-          speakText(t('pinReceived'), () => {
-            onPinComplete(parsed.digits.join(''));
-          }, language);
+          const confirmText = language === 'ta'
+            ? 'PIN பெறப்பட்டது'
+            : language === 'hi'
+            ? 'पिन प्राप्त हुआ'
+            : 'PIN received';
+
+          setStatusMessage(confirmText);
+
+          // SECURITY RULE: Confirmation speech says ONLY "PIN received", NEVER the digits!
+          SpeechController.speak(confirmText, language || 'en', () => {
+            debouncedPinComplete(parseResult.digits.join(''));
+          }, undefined, 'voice_pin');
         }
       },
-      onError: (err) => {
-        console.warn(`[Voice PIN STT Error on locale ${targetLocale}]:`, err);
-        if (err === 'not-allowed' || err === 'Permission denied') {
+      onError: (errCode) => {
+        if (!isComponentMounted.current) return;
+        console.warn(`[Voice PIN Error on locale ${targetLocale}]:`, errCode);
+        if (errCode === 'not-allowed') {
           setMicState('error');
-          const msg = t('micDenied');
-          if (setErrorMessage) setErrorMessage(msg);
-          speakText(msg, undefined, language);
+          setStatusMessage('Microphone access denied. Please use keypad.');
         } else {
-          // Try next locale in fallback chain
-          startVoiceRecognition(retryIdx + 1);
+          startVoicePinListening(retryIdx + 1);
         }
       },
       onEnd: () => {
-        if (micState === 'listening' && currentPinString.length < 4) {
+        if (isComponentMounted.current && currentPinString.length < 4) {
           setMicState('idle');
         }
       }
     });
-
-    if (!success) {
-      setMicState('error');
-      const msg = t('micDenied');
-      if (setErrorMessage) setErrorMessage(msg);
-      speakText(msg, undefined, language);
-    }
   };
 
   const handleMicToggle = () => {
     if (micState === 'listening') {
-      SpeechService.stopListening();
-      setMicState('idle');
-      setStatusMessage(null);
+      cleanupSpeech();
     } else {
-      const prompt = t('pinSayDigits');
-      speakText(prompt, () => {
-        startVoiceRecognition(0);
-      }, language);
+      SpeechController.cancelSpeech();
+      startVoicePinListening(0);
     }
   };
 
   return (
     <div className="space-y-3.5">
-      
+
       {/* Title & Lock Icon */}
       <div className="text-center space-y-1">
         <div className="inline-flex p-2.5 bg-[#FF5A1F]/10 rounded-2xl border border-[#FF5A1F]/30 text-[#FF5A1F] shadow-sm">
           <Lock className="w-6 h-6" />
         </div>
         <h2 className="text-xl sm:text-2xl font-black text-[#1A1110]">
-          {title || t('pinEnter4')}
+          {title || t('pinEnter4') || 'Enter 4-Digit PIN'}
         </h2>
         {subtitle && (
           <p className="text-xs font-bold text-[#4A5568]">
@@ -297,6 +371,7 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
         {pinDigits.map((digit, idx) => (
           <div
             key={idx}
+            data-testid={`pin-box-${idx}`}
             className={`w-12 h-14 sm:w-14 sm:h-16 rounded-2xl border-3 flex items-center justify-center text-2xl font-black transition-all shadow-inner ${
               digit
                 ? 'border-[#FF5A1F] bg-[#FF5A1F]/10 text-[#FF5A1F] scale-105'
@@ -315,6 +390,15 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
           <span>{errorMessage}</span>
         </div>
       )}
+      {lockSecondsLeft > 0 && (
+        <div role="status" className="text-center text-xs font-bold text-red-700">
+          {language === 'ta'
+            ? `${lockSecondsLeft} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கலாம்.`
+            : language === 'hi'
+            ? `${lockSecondsLeft} सेकंड बाद फिर कोशिश कर सकते हैं।`
+            : `Retry becomes available in ${lockSecondsLeft} seconds.`}
+        </div>
+      )}
 
       {statusMessage && !errorMessage && (
         <div className="p-2 bg-[#DAF0F7] border border-[#B2E2F0] rounded-xl text-[#0284C7] font-bold text-xs text-center flex items-center justify-center space-x-2 animate-fadeIn">
@@ -323,12 +407,14 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
         </div>
       )}
 
-      {/* 🚀 VOICE MIC SECTION (PROMINENT TOP BANNER FOR VOICE INPUT) */}
+      {/* Prominent Voice Mic Banner */}
       <div className="bg-slate-50 p-3.5 rounded-2xl border-2 border-[#FF5A1F]/30 flex items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center space-x-3">
           <button
             type="button"
+            data-testid="btn-speak-pin-mic"
             onClick={handleMicToggle}
+            disabled={isInputBlocked}
             className={`p-3 rounded-2xl transition-all cursor-pointer shadow-md active:scale-95 shrink-0 ${
               micState === 'listening'
                 ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-300'
@@ -343,20 +429,22 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
           <div className="space-y-0.5 text-left">
             <span className="text-xs font-black uppercase text-slate-800 block">
               {micState === 'listening'
-                ? `${t('pinListening')} (${activeLocale})`
+                ? `Listening for PIN... (${activeLocale})`
                 : micState === 'processing'
                 ? 'Processing PIN...'
-                : t('useVoice')}
+                : 'Speak PIN Digits'}
             </span>
             <span className="text-[10px] font-bold text-[#FF5A1F] block">
-              💡 {t('pinAnyLang')}
+              💡 Say 4 digits in English, Tamil, or Hindi
             </span>
           </div>
         </div>
 
         <button
           type="button"
+          data-testid="btn-speak-pin-toggle"
           onClick={handleMicToggle}
+          disabled={isInputBlocked}
           className={`px-3 py-1.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
             micState === 'listening'
               ? 'bg-red-100 text-red-600 border border-red-300'
@@ -369,16 +457,18 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
 
       {/* Privacy Warning Note */}
       <div className="text-[10px] font-semibold text-slate-500 text-center px-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
-        🛡️ {t('pinPrivacy')}
+        🛡️ Voice PIN security: Digits are never logged, displayed, or spoken aloud.
       </div>
 
-      {/* 🚀 TOUCH KEYPAD & TEXT ENTRY SECTION (ALWAYS VISIBLE TOGETHER WITH VOICE) */}
+      {/* Keypad Buttons */}
       <div className="grid grid-cols-3 gap-2">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
           <button
             key={num}
             type="button"
+            data-testid={`keypad-digit-${num}`}
             onClick={() => handleDigitClick(num)}
+            disabled={isInputBlocked}
             className="py-2.5 sm:py-3 rounded-2xl bg-slate-100 hover:bg-[#FF5A1F] hover:text-white text-[#1A1110] font-black text-lg sm:text-xl shadow-xs active:scale-95 transition-all border border-slate-200 cursor-pointer"
           >
             {num}
@@ -387,13 +477,16 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
         <button
           type="button"
           onClick={handleClear}
+          disabled={isInputBlocked}
           className="py-2.5 sm:py-3 rounded-2xl bg-slate-200 hover:bg-slate-300 text-xs font-black uppercase text-[#4A5568] transition-all cursor-pointer"
         >
-          {t('clear')}
+          Clear
         </button>
         <button
           type="button"
+          data-testid="keypad-digit-0"
           onClick={() => handleDigitClick(0)}
+          disabled={isInputBlocked}
           className="py-2.5 sm:py-3 rounded-2xl bg-slate-100 hover:bg-[#FF5A1F] hover:text-white text-[#1A1110] font-black text-lg sm:text-xl shadow-xs active:scale-95 transition-all border border-slate-200 cursor-pointer"
         >
           0
@@ -401,8 +494,9 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
         <button
           type="button"
           onClick={handleBackspace}
+          disabled={isInputBlocked}
           className="py-2.5 sm:py-3 rounded-2xl bg-slate-200 hover:bg-slate-300 text-[#4A5568] flex items-center justify-center transition-all cursor-pointer"
-          title={t('back')}
+          title="Backspace"
         >
           <Delete className="w-5 h-5" />
         </button>
@@ -416,17 +510,17 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
             onClick={onCancel}
             className="w-1/3 py-3 px-3 bg-slate-100 hover:bg-slate-200 text-[#4A5568] font-black rounded-xl text-xs transition-all border border-slate-300 cursor-pointer text-center"
           >
-            {cancelButtonText || t('pinConfirm.cancel')}
+            {cancelButtonText || 'Cancel'}
           </button>
         )}
         <button
           type="button"
           onClick={() => {
             if (currentPinString.length === 4) {
-              onPinComplete(currentPinString);
+              debouncedPinComplete(currentPinString);
             }
           }}
-          disabled={isVerifying || currentPinString.length !== 4}
+          disabled={isInputBlocked || currentPinString.length !== 4}
           className={`flex-1 py-3.5 px-4 font-black rounded-xl text-xs sm:text-sm shadow-xl transition-all flex items-center justify-center space-x-2 cursor-pointer ${
             currentPinString.length === 4
               ? 'bg-[#16A34A] hover:bg-[#15803D] text-white shadow-[#16A34A]/40 ring-4 ring-[#16A34A]/30 animate-pulse'
@@ -434,7 +528,17 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
           }`}
         >
           <ShieldCheck className="w-4 h-4 text-white" />
-          <span>{isVerifying ? 'Verifying...' : submitButtonText || t('pinConfirm.confirmOrderBtn')}</span>
+          <span>
+            {isVerifying
+              ? 'Verifying...'
+              : lockSecondsLeft > 0
+                ? language === 'ta'
+                  ? `${lockSecondsLeft} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கவும்`
+                  : language === 'hi'
+                    ? `${lockSecondsLeft} सेकंड बाद फिर कोशिश करें`
+                    : `Retry in ${lockSecondsLeft}s`
+                : submitButtonText || 'Confirm PIN'}
+          </span>
         </button>
       </div>
 

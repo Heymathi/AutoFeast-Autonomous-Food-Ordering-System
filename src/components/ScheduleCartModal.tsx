@@ -5,6 +5,9 @@ import { ScheduleCheckoutModal, ScheduleCheckoutItem } from './ScheduleCheckoutM
 import { PreOrderBillModal } from './PreOrderBillModal';
 import { ParsedOrderBill } from '../services/nlpParserService';
 
+import { SpeechController } from '../services/speechController';
+import { ChooserVoiceService } from '../services/chooserVoiceService';
+
 export interface ScheduleCartModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -26,7 +29,71 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isScheduleCheckoutOpen, setIsScheduleCheckoutOpen] = useState(false);
-  const [isOrderNowBillOpen, setIsOrderNowBillOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (isOpen && cart.length > 0) {
+      const numItems = cart.reduce((sum, item) => sum + item.qty, 0);
+      const restaurantCount = new Set(cart.map(item => item.restaurantName || 'Saravana Bhavan')).size;
+      const totalAmount = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+
+      let speakMsg = '';
+      if (language === 'ta') {
+        speakMsg = `${restaurantCount} உணவகங்களிலிருந்து ${numItems} பொருட்கள். மொத்தம் ${totalAmount} ரூபாய். இப்போதே ஆர்டர் செய்யவா அல்லது அட்டவணைப்படுத்தவா?`;
+      } else if (language === 'hi') {
+        speakMsg = `आपके पास ${restaurantCount} रेस्तरां से ${numItems} आइटम हैं। कुल ${totalAmount} रुपये। अभी ऑर्डर करें या शेड्यूल करें?`;
+      } else {
+        speakMsg = `You have ${numItems} items from ${restaurantCount} ${restaurantCount === 1 ? 'restaurant' : 'restaurants'}. Total ${totalAmount} rupees. Order now or schedule?`;
+      }
+
+      SpeechController.speak(
+        speakMsg,
+        language,
+        () => {
+          if (isOpen && SpeechController.isSupported()) {
+            SpeechController.startListening({
+              owner: 'cart_checkout',
+              language,
+              continuous: false,
+              interimResults: true,
+              maxAlternatives: 5,
+              onResult: (transcript: string, isFinal?: boolean, nBest?: string[]) => {
+                if (!transcript) return;
+                if (!isFinal) return;
+
+                const candidates = nBest && nBest.length > 0 ? nBest : [transcript];
+                const action = ChooserVoiceService.parseChooserAction(candidates, speakMsg);
+
+                if (action === 'cancel') {
+                  SpeechController.cancelSpeech();
+                  SpeechController.releaseMic('cart_checkout');
+                  onClose();
+                } else if (action === 'order_now') {
+                  SpeechController.cancelSpeech();
+                  SpeechController.releaseMic('cart_checkout');
+                  handleProceedToOrderNow();
+                } else if (action === 'schedule') {
+                  SpeechController.cancelSpeech();
+                  SpeechController.releaseMic('cart_checkout');
+                  handleProceedToSchedule();
+                }
+              }
+            });
+          }
+        },
+        (fallbackText: string) => {
+          showToast(fallbackText, 'info');
+        },
+        'cart_checkout'
+      );
+    } else {
+      SpeechController.releaseMic('cart_checkout');
+    }
+
+    return () => {
+      SpeechController.cancelSpeech();
+      SpeechController.releaseMic('cart_checkout');
+    };
+  }, [isOpen, cart.length, language]);
 
   if (!isOpen) return null;
 

@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { AutoOrderSchedule, FoodItem, OrderStrategy, ScheduleDuration, ScheduleOverride } from '../types';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
 import { FuzzyMatchEngine } from '../services/fuzzyMatchService';
 import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
+import { NomineeNotificationService } from '../services/nomineeNotificationService';
 import { ItemActionChooser } from './ItemActionChooser';
 import { WeekdaySelector } from './WeekdaySelector';
-import { Clock, Calendar, CheckCircle2, ShieldCheck, Wallet, Plus, Trash2, Edit, AlertCircle, Sparkles, Utensils, Search, Zap, Star, X, Settings2, Ban, Check, ShoppingBag } from 'lucide-react';
+import { Clock, Calendar, CheckCircle2, ShieldCheck, Wallet, Plus, Trash2, Edit, AlertCircle, Sparkles, Utensils, Search, Zap, Star, X, Settings2, Ban, Check, ShoppingBag, Mic, MicOff, Volume2 } from 'lucide-react';
+import { SpeechController } from '../services/speechController';
+import { SttMatcherService } from '../services/sttMatcherService';
 
 interface ScheduleOverrideModalProps {
   schedule: AutoOrderSchedule | null;
@@ -16,7 +19,7 @@ interface ScheduleOverrideModalProps {
 }
 
 const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule, isOpen, onClose }) => {
-  const { saveOverride, deleteOverride, getOverridesForSchedule, executeScheduleNow, t, language } = useApp();
+  const { saveOverride, deleteOverride, getOverridesForSchedule, executeScheduleNow, t, language, checkIsItemRestrictedByNominee, handleNomineeRestrictedInterception, showToast } = useApp();
 
   const getTodayFormattedDate = (): string => {
     const today = new Date();
@@ -47,6 +50,18 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
   );
 
   const handleSaveOverride = () => {
+    if (actionType === 'modify') {
+      if (NomineeNotificationService.hasRestrictedFetchError()) {
+        showToast(t('nominee.restrictedLoadError'), 'warning');
+        return;
+      }
+      if (checkIsItemRestrictedByNominee(selectedItem.id, selectedItem.name)) {
+        handleNomineeRestrictedInterception(selectedItem, 'scheduled');
+        onClose();
+        return;
+      }
+    }
+
     const override: ScheduleOverride = {
       id: currentOverrideForDate?.id || `override-${Date.now()}`,
       scheduleId: schedule.id,
@@ -369,6 +384,87 @@ export const AutoOrderScheduler: React.FC = () => {
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState<boolean>(false);
   const [chooserItem, setChooserItem] = useState<FoodItem | null>(null);
 
+  // Voice & Matcher State
+  const [isListening, setIsListening] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const [clarificationData, setClarificationData] = useState<{ item: FoodItem; prompt: string } | null>(null);
+  const [genericVariants, setGenericVariants] = useState<{ term: string; variants: FoodItem[] } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      SpeechController.releaseMic('auto_scheduler');
+    };
+  }, []);
+
+  // Speak guidance message once when scheduler screen mounts / language changes
+  useEffect(() => {
+    const guidance = language === 'ta'
+      ? 'தானியங்கி ஆர்டர் திட்டமிடல். உணவு பெயரை குரல் மூலம் தேடுங்கள் அல்லது கீழே பட்டியலிலிருந்து தேர்ந்தெடுங்கள்.'
+      : language === 'hi'
+      ? 'ऑटो-ऑर्डर शेड्यूलर। आवाज़ से भोजन खोजें या नीचे सूची से चुनें।'
+      : 'Auto-Order Scheduler. Search for a food item by voice or pick from the list below.';
+    const timer = setTimeout(() => speakText(guidance, undefined, language), 400);
+    return () => clearTimeout(timer);
+  }, [language]);
+
+  const startListeningForScheduler = () => {
+    setLiveTranscript('');
+    setClarificationData(null);
+    setGenericVariants(null);
+
+    SpeechController.startListening({
+      owner: 'auto_scheduler',
+      language,
+      continuous: true,
+      interimResults: true,
+      onStart: () => setIsListening(true),
+      onResult: (text, isFinal, nBest) => {
+        if (!text) return;
+        setLiveTranscript(text);
+        if (!isFinal) return;
+
+        const candidates = nBest && nBest.length > 0 ? nBest : [text];
+        handleSpokenSchedulerInput(text, candidates);
+      },
+      onError: (err) => {
+        console.warn('[AutoOrderScheduler Mic Error]:', err);
+        setIsListening(false);
+      },
+      onEnd: () => {
+        setIsListening(false);
+      }
+    });
+  };
+
+  const handleSpokenSchedulerInput = (text: string, candidates: string[]) => {
+    const matchRes = SttMatcherService.matchCatalogItem(candidates, INDIAN_FOOD_CATALOG, language);
+
+    if (matchRes.needsClarification) {
+      if (matchRes.top3Candidates && matchRes.top3Candidates.length > 1) {
+        const term = text.trim();
+        setGenericVariants({ term, variants: matchRes.top3Candidates });
+        const prompt = language === 'ta' ? `எந்த ${term}? தேர்ந்தெடுக்கவும்:` : language === 'hi' ? `कौन सा ${term}? चुनें:` : `Which ${term}? Please choose:`;
+        speakText(prompt, undefined, language);
+      } else if (matchRes.matchedValue && matchRes.clarificationPrompt) {
+        setClarificationData({ item: matchRes.matchedValue, prompt: matchRes.clarificationPrompt });
+        speakText(matchRes.clarificationPrompt, undefined, language);
+      }
+      return;
+    }
+
+    if (matchRes.isMatched && matchRes.matchedValue) {
+      const item = matchRes.matchedValue;
+      setSelectedFoodItem(item);
+      setChooserItem(item);
+      const confirmMsg = language === 'ta'
+        ? `${item.nativeNames?.ta || item.name} தேர்ந்தெடுக்கப்பட்டது.`
+        : language === 'hi'
+        ? `${item.nativeNames?.hi || item.name} चुना गया।`
+        : `${item.name} selected.`;
+      speakText(confirmMsg, undefined, language);
+    }
+  };
+
   const calculatedEndDatePreview = calculateScheduleEndDate(startDate, duration, customEndDate);
 
   // Filter catalog based on scheduler food search bar using FuzzyMatchEngine
@@ -454,6 +550,101 @@ export const AutoOrderScheduler: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 🚀 VOICE SCHEDULER BAR */}
+      <div className="bg-[#DAF0F7] p-4 rounded-2xl border-2 border-[#B2E2F0] flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center space-x-3 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={startListeningForScheduler}
+            className={`p-3.5 rounded-2xl flex items-center space-x-2 font-black text-xs shadow-md transition-all cursor-pointer ${
+              isListening
+                ? 'bg-slate-900 text-white ring-2 ring-[#FF5A1F] animate-pulse'
+                : 'bg-[#FF5A1F] hover:bg-[#E04812] text-white'
+            }`}
+          >
+            <Mic className={`w-5 h-5 ${isListening ? 'text-yellow-300 animate-spin' : 'text-white'}`} />
+            <span>
+              {isListening
+                ? (language === 'ta' ? 'கேட்கிறது...' : 'Listening...')
+                : (language === 'ta' ? 'குரல் மூலம் அட்டவணைப்படுத்த பேசவும்' : 'Speak to Schedule (Voice)')}
+            </span>
+          </button>
+          {liveTranscript && (
+            <span className="text-xs font-black text-[#C2185B] bg-white px-3 py-1.5 rounded-xl border border-rose-200">
+              "{liveTranscript}"
+            </span>
+          )}
+        </div>
+        <span className="text-[11px] font-extrabold text-[#4A5568]">
+          📢 {language === 'ta' ? 'எ.கா: "காலை 8 மணிக்கு தோசை"' : 'e.g., "Schedule dosa for 8 AM"'}
+        </span>
+      </div>
+
+      {/* 🚀 GENERIC TERM SELECTION BUTTONS ("Which dosa?") */}
+      {genericVariants && (
+        <div className="bg-amber-50 p-4 rounded-2xl border-2 border-amber-400 space-y-3 shadow-md animate-fade-in">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase text-amber-900 flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-[#FF5A1F]" />
+              {language === 'ta' ? `எந்த ${genericVariants.term}? தேர்ந்தெடுக்கவும்:` : `Which ${genericVariants.term}? Please select a variant:`}
+            </span>
+            <button
+              onClick={() => setGenericVariants(null)}
+              className="text-xs text-amber-800 hover:text-amber-950 font-bold underline cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {genericVariants.variants.map((varItem) => (
+              <button
+                key={varItem.id}
+                onClick={() => {
+                  setSelectedFoodItem(varItem);
+                  setChooserItem(varItem);
+                  setGenericVariants(null);
+                }}
+                className="p-3 bg-white hover:bg-amber-100 rounded-xl border-2 border-amber-300 font-black text-xs text-left shadow-sm transition-all flex items-center space-x-2 cursor-pointer"
+              >
+                <img src={varItem.image} alt={varItem.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                <div className="overflow-hidden">
+                  <span className="block truncate text-[#1A1110]">{varItem.nativeNames?.[language] || varItem.name}</span>
+                  <span className="text-[10px] text-[#FF5A1F] font-bold">₹{varItem.basePrice}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 🚀 "DID YOU MEAN" CLARIFICATION PROMPT CARD */}
+      {clarificationData && (
+        <div className="bg-blue-50 p-4 rounded-2xl border-2 border-blue-400 space-y-3 shadow-md animate-fade-in">
+          <div className="flex items-center space-x-2 text-blue-900 font-black text-xs">
+            <Sparkles className="w-5 h-5 text-blue-600 shrink-0 animate-bounce" />
+            <span>{clarificationData.prompt}</span>
+          </div>
+          <div className="flex items-center space-x-3 pt-1">
+            <button
+              onClick={() => {
+                setSelectedFoodItem(clarificationData.item);
+                setChooserItem(clarificationData.item);
+                setClarificationData(null);
+              }}
+              className="px-5 py-2 bg-[#16A34A] hover:bg-[#15803D] text-white font-black text-xs rounded-xl shadow-sm cursor-pointer"
+            >
+              ✓ Yes, {clarificationData.item.name}
+            </button>
+            <button
+              onClick={() => setClarificationData(null)}
+              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-[#4A5568] font-black text-xs rounded-xl cursor-pointer"
+            >
+              ✕ No, Try Again
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 4 PRESET SCHEDULE SLOTS NAVIGATION */}
       <div className="space-y-3">

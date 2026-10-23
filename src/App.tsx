@@ -22,6 +22,8 @@ import { NomineeControlModal } from './components/NomineeControlModal';
 import { CenteredToastContainer } from './components/CenteredToastContainer';
 import { ScheduleCheckoutModal } from './components/ScheduleCheckoutModal';
 import { ScheduleCartModal } from './components/ScheduleCartModal';
+import { SpeechDebugPanel } from './components/SpeechDebugPanel';
+import { NomineeSetupScreen } from './components/NomineeSetupScreen';
 import { Volume2, Sparkles, Clock, ShoppingBag } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
@@ -49,8 +51,12 @@ const MainLayout: React.FC = () => {
     scheduleCart,
     clearScheduleCart,
     isScheduleCartModalOpen,
-    setIsScheduleCartModalOpen
+    setIsScheduleCartModalOpen,
+    language
   } = useApp();
+
+  const isNomineeSetupRoute =
+    typeof window !== 'undefined' && window.location.pathname.startsWith('/nominee/setup');
 
   const currentTheme =
     accessibilitySettings.themeMode ||
@@ -64,7 +70,10 @@ const MainLayout: React.FC = () => {
         ? 'bg-slate-900 text-slate-100'
         : 'bg-[#FFFFFF] text-[#1A1110]'
     }`}>
-      
+
+      {/* Dev Debug Speech Controller Panel */}
+      {(import.meta as any).env?.DEV && <SpeechDebugPanel activeLanguage={language} />}
+
       {/* Centered Toast Container for all system toasts & notifications */}
       <CenteredToastContainer />
 
@@ -89,11 +98,17 @@ const MainLayout: React.FC = () => {
 
       {/* Main View Container (Dashboard visible after all entry steps complete) */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeView === 'search' && <DynamicFoodSearch />}
-        {activeView === 'scheduler' && <AutoOrderScheduler />}
-        {activeView === 'wallet' && <WalletModal />}
-        {activeView === 'orders' && <OrderHistoryModal />}
-        {activeView === 'tracking' && <LiveOrderTrackingView />}
+        {isNomineeSetupRoute ? (
+          <NomineeSetupScreen />
+        ) : (
+          <>
+            {activeView === 'search' && <DynamicFoodSearch />}
+            {activeView === 'scheduler' && <AutoOrderScheduler />}
+            {activeView === 'wallet' && <WalletModal />}
+            {activeView === 'orders' && <OrderHistoryModal />}
+            {activeView === 'tracking' && <LiveOrderTrackingView />}
+          </>
+        )}
       </main>
 
       {/* EXACT 5-STEP ENTRY SEQUENCE MODALS */}

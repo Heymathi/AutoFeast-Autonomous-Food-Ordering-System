@@ -2,15 +2,15 @@
  * Configuration & Threshold Settings for Unified Fuzzy Matching Engine
  */
 export interface FuzzyThresholdConfig {
-  highConfidence: number;   // >= 0.85: Auto-proceed
-  mediumConfidence: number; // 0.60 - 0.84: Ask "Did you mean {item}?"
+  highConfidence: number;      // >= 0.75: Auto-proceed
+  mediumConfidence: number;    // 0.45 - 0.74: Ask "Did you mean {item}?" with top 3 buttons
   restrictedThreshold: number; // Stricter threshold for restricted food checks (>= 0.50)
 }
 
 export const FUZZY_CONFIG: FuzzyThresholdConfig = {
-  highConfidence: 0.85,
-  mediumConfidence: 0.60,
-  restrictedThreshold: 0.50
+  highConfidence: 0.75,
+  mediumConfidence: 0.45,
+  restrictedThreshold: 0.40 // Stricter threshold for restricted food checks so typos are never bypassed
 };
 
 /**
@@ -37,8 +37,8 @@ export const CANONICAL_FOOD_ALIASES: CanonicalItemAlias[] = [
       hi: 'घी सांभर इडली'
     },
     aliases: [
-      'idli', 'idly', 'iddli', 'italy', 'eatly', 'idlee', 'idles',
-      'இட்லி', 'சாம்பார் இட்லி', 'நெய் இட்லி',
+      'idli', 'idly', 'iddli', 'italy', 'eatly', 'itli', 'edli', 'it lee', 'idlee', 'idles',
+      'இட்லி', 'இட்டலி', 'சாம்பார் இட்லி', 'நெய் இட்லி',
       'इडली', 'सांभर इडली', 'घी इडली'
     ]
   },
@@ -51,7 +51,7 @@ export const CANONICAL_FOOD_ALIASES: CanonicalItemAlias[] = [
       hi: 'क्रिस्पी मसाला डोसा'
     },
     aliases: [
-      'dosa', 'dosai', 'dhosai', 'dosaa', 'dosha', 'dosah',
+      'dosa', 'dosai', 'dhosai', 'dosaa', 'dosha', 'dosah', 'doser',
       'தோசை', 'மசாலா தோசை', 'மொறுமொறு தோசை',
       'डोसा', 'मसाला डोसा', 'डोशा'
     ]
@@ -65,7 +65,7 @@ export const CANONICAL_FOOD_ALIASES: CanonicalItemAlias[] = [
       hi: 'पानी पूरी'
     },
     aliases: [
-      'panipuri', 'pani puri', 'paani puri', 'golgappa', 'gol gappa', 'puchka',
+      'panipuri', 'pani puri', 'paani puri', 'paani poori', 'panipoori', 'golgappa', 'gol gappa', 'puchka',
       'பானி பூரி', 'கோல்கப்பா',
       'पानी पूरी', 'गोलगप्पा', 'पुचका'
     ]
@@ -80,9 +80,9 @@ export const CANONICAL_FOOD_ALIASES: CanonicalItemAlias[] = [
     },
     aliases: [
       'chicken kothu parotta', 'kothu parotta chicken', 'kothu parota chicken',
-      'kothu parotta', 'kothu parota', 'chick koth', 'kottu parotta',
-      'கொத்து பரோட்டா', 'சிக்கன் கொத்து',
-      'कोथू परोठा', 'चिकन कोथू'
+      'kothu parotta', 'kothu parota', 'coat a parotta', 'barota', 'parota', 'chick koth', 'kottu parotta',
+      'கொத்து பரோட்டா', 'பரோட்டா', 'சிக்கன் கொத்து',
+      'कोथू परोठा', 'परोटा', 'चिकन कोथू'
     ]
   },
   {
@@ -94,7 +94,7 @@ export const CANONICAL_FOOD_ALIASES: CanonicalItemAlias[] = [
       hi: 'हैदराबादी चिकन दम बिरयानी'
     },
     aliases: [
-      'biryani', 'biriyani', 'birani', 'chicken biryani', 'dum biryani', 'briyani',
+      'biryani', 'biriyani', 'birani', 'beer yani', 'berryani', 'chicken biryani', 'dum biryani', 'briyani',
       'பிரியாணி', 'சிக்கன் பிரியாணி',
       'बिरयानी', 'चिकन बिरयानी'
     ]
@@ -140,17 +140,45 @@ export const CANONICAL_FOOD_ALIASES: CanonicalItemAlias[] = [
       'வடை', 'மெது வடை',
       'वड़ा', 'मेदू वड़ा'
     ]
+  },
+  {
+    id: 'coffee-filter',
+    canonicalName: 'Kumbakonam Degree Coffee',
+    nativeNames: {
+      en: 'Kumbakonam Degree Coffee',
+      ta: 'கும்பகோணம் டிகிரி காபி',
+      hi: 'कुंभकोणम डिग्री कॉफी'
+    },
+    aliases: [
+      'coffee', 'filter coffee', 'kaapi', 'degree coffee', 'kumbakonam coffee',
+      'காபி', 'டிகிரி காபி',
+      'कॉफ़ी', 'डिग्री कॉफी'
+    ]
+  },
+  {
+    id: 'gulab-jamun',
+    canonicalName: 'Gulab Jamun (2 Pcs)',
+    nativeNames: {
+      en: 'Gulab Jamun (2 Pcs)',
+      ta: 'குலாப் ஜாமுன் (2)',
+      hi: 'गुलाब जामुन (2)'
+    },
+    aliases: [
+      'gulab jamun', 'jamun', 'gulab jamoon',
+      'குலாப் ஜாமுன்', 'ஜாமுன்',
+      'गुलाब जामुन', 'जामुन'
+    ]
   }
 ];
 
 export const CANONICAL_RESTAURANT_ALIASES = [
   {
     canonicalName: 'Saravana Bhavan',
-    aliases: ['saravana bhavan', 'saravana bavan', 'hotel saravana bhavan', 'saravana', 'சரவண பவன்', 'சரவண', 'सरवना भवन']
+    aliases: ['saravana bhavan', 'saravana bavan', 'sharavana', 'hotel saravana bhavan', 'saravana', 'சரவண பவன்', 'சரவண', 'सरवना भवन']
   },
   {
     canonicalName: 'Murugan Idli Shop',
-    aliases: ['murugan idli shop', 'murugan idli', 'murugan idly', 'murugan', 'முருகன் இட்லி கடை', 'मुरुगन इडली शॉप']
+    aliases: ['murugan idli shop', 'murugan idli', 'murugan idly', 'murugan', 'முருகன் இட்லி கடை', 'மொருகன்', 'मुरुगन इडली शॉप']
   },
   {
     canonicalName: 'Bawarchi Biryani',

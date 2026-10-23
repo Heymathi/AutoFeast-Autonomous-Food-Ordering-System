@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShieldCheck, Lock, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, Mail, ShieldAlert, KeyRound, Clock } from 'lucide-react';
+import { ShieldCheck, Lock, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, Mail, ShieldAlert, KeyRound, Clock, Mic } from 'lucide-react';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { FoodItem } from '../types';
 import { AuthService } from '../services/authService';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
+import { VoicePinInput } from './VoicePinInput';
+import { SpeechController } from '../services/speechController';
 
 interface NomineeControlModalProps {
   isOpen: boolean;
@@ -20,16 +22,36 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
     denyNomineeRequest,
     t,
     language,
-    showToast
+    showToast,
+    speakText
   } = useApp();
 
   const [enteredPin, setEnteredPin] = useState('');
   const [isPinVerified, setIsPinVerified] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const [newNomineePin, setNewNomineePin] = useState('');
+  const [nomineeEmail, setNomineeEmail] = useState(currentUser?.nomineeEmail || '');
+  const [nomineePassword, setNomineePassword] = useState('');
+  const [nomineeToken, setNomineeToken] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [lockCountdown, setLockCountdown] = useState<number | null>(null);
+  const [pinPromptKey, setPinPromptKey] = useState(0);
 
   const [selectedFoodToAdd, setSelectedFoodToAdd] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) {
+      setNomineeToken(null);
+      setNomineePassword('');
+      setEnteredPin('');
+      setNewNomineePin('');
+      setIsPinVerified(false);
+      setPinError(null);
+      setLockCountdown(null);
+      setPinPromptKey(0);
+      setNomineeEmail(currentUser?.nomineeEmail || '');
+    }
+  }, [isOpen, currentUser]);
 
   useEffect(() => {
     let timer: any;
@@ -45,19 +67,99 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
 
   const nomineeName = currentUser?.nomineeName || 'Emergency Nominee';
   const nomineePhone = currentUser?.nomineePhone || '+91 98765 00000';
-  const nomineeEmail = currentUser?.nomineeEmail || `${nomineeName.toLowerCase().replace(/\s+/g, '')}@autofeast.app`;
   const restrictedIds = currentUser?.restrictedFoodIds || [];
 
-  const handleVerifyPin = async () => {
+  const getLocalizedAuthError = (status: number) => {
+    if (status === 401) return t('nominee.auth401');
+    if (status === 403) return t('nominee.auth403');
+    if (status === 429) return t('nominee.auth429');
+    if (status === 503) return t('nominee.auth503');
+    return t('nominee.authError');
+  };
+
+  const handleNomineeLogin = async () => {
+    if (!nomineeEmail.trim() || !nomineePassword) {
+      setPinError(t('nominee.credentialsRequired'));
+      return;
+    }
+
+    setIsSubmitting(true);
+    setPinError(null);
+    try {
+      const token = await AuthService.loginNominee(nomineeEmail, nomineePassword);
+      setNomineeToken(token);
+      setNomineePassword('');
+    } catch (err) {
+      const status = err instanceof Error && 'status' in err && typeof err.status === 'number'
+        ? err.status
+        : 503;
+      setPinError(getLocalizedAuthError(status));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveNomineeCredentials = async () => {
+    if (!nomineeEmail.trim() || !nomineePassword) {
+      setPinError(t('nominee.credentialsRequired'));
+      return;
+    }
+
+    setIsSubmitting(true);
+    setPinError(null);
+    try {
+      await AuthService.saveNomineeCredentials(nomineeEmail, nomineePassword);
+      const token = await AuthService.loginNominee(nomineeEmail, nomineePassword);
+      setNomineeToken(token);
+      setNomineePassword('');
+    } catch (err) {
+      const status = err instanceof Error && 'status' in err && typeof err.status === 'number'
+        ? err.status
+        : 503;
+      setPinError(getLocalizedAuthError(status));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const appendPinDigit = (target: 'verify' | 'change', digit: string) => {
+    const setPin = target === 'verify' ? setEnteredPin : setNewNomineePin;
+    setPin(previous => previous.length < 4 ? previous + digit : previous);
+    setPinError(null);
+  };
+
+  const editPin = (target: 'verify' | 'change', action: 'clear' | 'backspace') => {
+    const setPin = target === 'verify' ? setEnteredPin : setNewNomineePin;
+    setPin(previous => action === 'clear' ? '' : previous.slice(0, -1));
+    setPinError(null);
+  };
+
+  const handleVerifyPin = async (voicePin?: string) => {
+    SpeechController.releaseMic('nominee_verify_pin');
+    if (!nomineeToken) {
+      setPinError(getLocalizedAuthError(401));
+      return;
+    }
     if (lockCountdown && lockCountdown > 0) {
       return;
     }
-    if (!enteredPin || enteredPin.length !== 4) {
-      setPinError(language === 'ta' ? '4-இலக்க PIN உள்ளிடவும்.' : 'Please enter a valid 4-digit PIN.');
+    const pinToVerify = voicePin ?? enteredPin;
+    if (!pinToVerify || pinToVerify.length !== 4) {
+      setPinError(t('nominee.pinInvalid'));
       return;
     }
 
-    const res = await AuthService.verifyNomineePinServer(enteredPin, currentUser?.pinHash, currentUser?.id);
+    setIsSubmitting(true);
+    setPinError(null);
+    let res: Awaited<ReturnType<typeof AuthService.verifyNomineePinServer>>;
+    try {
+      res = await AuthService.verifyNomineePinServer(pinToVerify, nomineeToken);
+    } catch {
+      setPinError(getLocalizedAuthError(503));
+      setIsSubmitting(false);
+      return;
+    }
+    setIsSubmitting(false);
 
     if (res.success) {
       setIsPinVerified(true);
@@ -69,16 +171,15 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
         ? 'नामांकित पिन सत्यापित!'
         : 'Nominee PIN verified successfully!';
       showToast(successMsg);
+      speakText(successMsg);
     } else {
-      if (res.locked && res.lockTimeRemaining) {
-        setLockCountdown(res.lockTimeRemaining);
-        const mins = Math.ceil(res.lockTimeRemaining / 60);
-        const lockMsg = language === 'ta'
-          ? `அதிகமுறை தவறான PIN. ${mins} நிமிடங்களுக்குப் பின் முயற்சிக்கவும்.`
-          : language === 'hi'
-          ? `बहुत सारे गलत प्रयास। ${mins} मिनट के बाद पुनः प्रयास करें।`
-          : `3 wrong PIN tries! Nominee access locked for ${mins} minute(s).`;
-        setPinError(res.error || lockMsg);
+      if (res.status === 401 || res.status === 403 || res.status === 503) {
+        setPinError(getLocalizedAuthError(res.status));
+      } else if (res.status === 429 || res.locked) {
+        setLockCountdown(15 * 60);
+        setPinError(getLocalizedAuthError(429));
+      } else if (res.status === 409) {
+        setPinError(t('nominee.pinNotSet'));
       } else {
         const tries = res.remainingTries !== undefined ? res.remainingTries : 2;
         const err = language === 'ta'
@@ -86,37 +187,40 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
           : language === 'hi'
           ? `गलत नामांकित पिन! ${tries} प्रयास शेष हैं।`
           : `Incorrect Nominee Security PIN. ${tries} try(ies) remaining.`;
-        setPinError(res.error || err);
+        setPinError(err);
+        setPinPromptKey(previous => previous + 1);
+        speakText(err);
       }
     }
   };
 
-  const handleSetNewPin = () => {
+  const handleSetNewPin = async () => {
+    SpeechController.releaseMic('nominee_change_pin');
+    if (!nomineeToken) {
+      setPinError(getLocalizedAuthError(401));
+      return;
+    }
     if (newNomineePin.length !== 4 || !/^\d{4}$/.test(newNomineePin)) {
-      setPinError('Nominee PIN must be 4 digits.');
+      setPinError(t('nominee.pinInvalid'));
       return;
     }
 
-    if (newNomineePin === currentUser?.pinHash) {
-      setPinError(language === 'ta'
-        ? 'Nominee PIN பயனரின் PIN உடன் ஒன்றாக இருக்கக்கூடாது!'
-        : language === 'hi'
-        ? 'नामांकित पिन मुख्य उपयोगकर्ता पिन से अलग होना चाहिए!'
-        : 'Nominee Security PIN must be DIFFERENT from the main user\'s PIN!');
-      return;
-    }
-
-    updateUserProfile({ nomineePinHash: newNomineePin });
-    setIsPinVerified(true);
-    setNewNomineePin('');
+    setIsSubmitting(true);
     setPinError(null);
-
-    const setMsg = language === 'ta'
-      ? 'புதிய Nominee PIN வெற்றிகரமாக உருவாக்கப்பட்டது!'
-      : language === 'hi'
-      ? 'नया नामांकित पिन सफलतापूर्वक सहेजा गया!'
-      : 'New Nominee Security PIN saved successfully!';
-    showToast(setMsg);
+    try {
+      await AuthService.setNomineePin(newNomineePin, nomineeToken);
+      setEnteredPin('');
+      setNewNomineePin('');
+      showToast(t('nominee.pinSaved'));
+      speakText(t('nominee.pinSaved'));
+    } catch (err) {
+      const status = err instanceof Error && 'status' in err && typeof err.status === 'number'
+        ? err.status
+        : 503;
+      setPinError(status === 400 ? t('nominee.pinCannotMatch') : getLocalizedAuthError(status));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleToggleRestrictedItem = async (foodId: string) => {
@@ -165,7 +269,79 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
     onClose();
   };
 
+  const [isVoiceApproving, setIsVoiceApproving] = useState(false);
+  const startVoiceApprovalListening = () => {
+    if (!SpeechController.isSupported()) return;
+    setIsVoiceApproving(true);
+    SpeechController.startListening({
+      owner: 'nominee_voice_decision',
+      language,
+      continuous: false,
+      interimResults: true,
+      maxAlternatives: 5,
+      silenceTimeoutMs: 8000,
+      onSilence: () => setIsVoiceApproving(false),
+      onStart: () => setIsVoiceApproving(true),
+      onResult: (transcript, isFinal, nBest) => {
+        if (!transcript || !isFinal) return;
+        setIsVoiceApproving(false);
+        const candidates = nBest && nBest.length > 0 ? nBest : [transcript];
+        const firstPending = pendingNomineeApprovals.find(r => r.status === 'pending');
+        if (!firstPending) return;
+
+        // Check approve
+        const isApprove = candidates.some(c => {
+          const l = c.toLowerCase();
+          return l.includes('approve') || l.includes('approved') || l.includes('ஒப்புதல்') || l.includes('மஞ்சூர்') || l.includes('मंजूर') || l.includes('स्वीकृत');
+        });
+
+        // Check reject
+        const isDeny = candidates.some(c => {
+          const l = c.toLowerCase();
+          return l.includes('deny') || l.includes('reject') || l.includes('rejected') || l.includes('மறு') || l.includes('நிராகரி') || l.includes('अस्वीकृत') || l.includes('मना');
+        });
+
+        const isCancel = candidates.some(c => {
+          const l = c.toLowerCase();
+          return l.includes('cancel') || l.includes('close') || l.includes('ரத்து') || l.includes('बंद');
+        });
+
+        if (isApprove) {
+          handleApprove(firstPending.id);
+        } else if (isDeny) {
+          handleDeny(firstPending.id);
+        } else if (isCancel) {
+          onClose();
+        }
+      },
+      onError: () => setIsVoiceApproving(false),
+      onEnd: () => setIsVoiceApproving(false)
+    });
+  };
+
   const pendingCount = pendingNomineeApprovals.filter(r => r.status === 'pending').length;
+  const renderPinKeypad = (target: 'verify' | 'change', disabled = false) => (
+    <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto" aria-label={t('nominee.pinKeypad')}>
+      {(['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'backspace'] as const).map(key => (
+        <button
+          key={key}
+          type="button"
+          aria-label={key === 'clear'
+            ? t('nominee.clearPin')
+            : key === 'backspace'
+            ? t('nominee.backspacePin')
+            : `${t('nominee.pinDigit')} ${key}`}
+          disabled={disabled}
+          onClick={() => key === 'clear' || key === 'backspace'
+            ? editPin(target, key)
+            : appendPinDigit(target, key)}
+          className="py-3 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-lg font-black text-slate-900 dark:text-white disabled:opacity-50"
+        >
+          {key === 'clear' ? t('nominee.clearPin') : key === 'backspace' ? t('nominee.backspacePin') : key}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
@@ -196,8 +372,69 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
           </button>
         </div>
 
-        {/* NOMINEE PIN SECURITY VERIFICATION GATE */}
-        {!isPinVerified ? (
+        {!nomineeToken ? (
+          <form
+            onSubmit={event => {
+              event.preventDefault();
+              void handleNomineeLogin();
+            }}
+            className="p-6 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 rounded-2xl space-y-4"
+          >
+            <div className="text-center">
+              <h4 className="text-lg font-black text-slate-900 dark:text-white">{t('nominee.loginTitle')}</h4>
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1">{t('nominee.loginPrompt')}</p>
+            </div>
+
+            {pinError && (
+              <div role="alert" className="p-3 bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 rounded-xl text-xs font-black flex items-center justify-center space-x-2">
+                <AlertCircle className="w-4 h-4" />
+                <span>{pinError}</span>
+              </div>
+            )}
+
+            <label className="block text-left text-xs font-black text-slate-700 dark:text-slate-300">
+              {t('nominee.emailLabel')}
+              <input
+                type="email"
+                autoComplete="username"
+                required
+                value={nomineeEmail}
+                onChange={event => setNomineeEmail(event.target.value)}
+                className="mt-1 w-full py-3 px-4 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white"
+              />
+            </label>
+
+            <label className="block text-left text-xs font-black text-slate-700 dark:text-slate-300">
+              {t('nominee.loginPasswordLabel')}
+              <input
+                type="password"
+                autoComplete="current-password"
+                required
+                value={nomineePassword}
+                onChange={event => setNomineePassword(event.target.value)}
+                className="mt-1 w-full py-3 px-4 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white"
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3 px-6 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-400 text-white font-black text-sm rounded-xl shadow-md"
+            >
+              {isSubmitting ? t('nominee.loading') : t('nominee.loginBtn')}
+            </button>
+            {pinError && (
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => void handleSaveNomineeCredentials()}
+                className="w-full py-2 px-4 border-2 border-amber-600 text-amber-800 dark:text-amber-200 font-black text-xs rounded-xl disabled:opacity-50"
+              >
+                {t('nominee.repairCredentialsBtn')}
+              </button>
+            )}
+          </form>
+        ) : !isPinVerified ? (
           <div className="p-6 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 rounded-2xl space-y-4 text-center">
             <div className="inline-flex p-3 bg-amber-200 dark:bg-amber-900 rounded-full text-amber-800 dark:text-amber-200">
               <KeyRound className="w-8 h-8 animate-bounce" />
@@ -213,27 +450,40 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
             </div>
 
             {pinError && (
-              <div className="p-3 bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 rounded-xl text-xs font-black flex items-center justify-center space-x-2">
+              <div role="alert" className="p-3 bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 rounded-xl text-xs font-black flex items-center justify-center space-x-2">
                 <AlertCircle className="w-4 h-4" />
                 <span>{pinError}</span>
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-sm mx-auto">
+            <div className="flex flex-col items-center justify-center gap-3 max-w-sm mx-auto">
               <input
                 type="password"
+                readOnly
+                aria-label={t('nominee.pinLabel')}
                 maxLength={4}
                 disabled={Boolean(lockCountdown && lockCountdown > 0)}
                 value={enteredPin}
-                onChange={(e) => setEnteredPin(e.target.value.replace(/\D/g, ''))}
-                placeholder="Enter 4-Digit Nominee PIN"
-                className="w-full text-center tracking-widest text-xl font-black py-3 px-4 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 disabled:opacity-50"
+                placeholder={t('nominee.pinLabel')}
+                className="w-full text-center tracking-widest text-xl font-black py-3 px-4 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white disabled:opacity-50"
               />
-
+              <VoicePinInput
+                key={pinPromptKey}
+                language={language}
+                owner="nominee_verify_pin"
+                purpose="nominee"
+                autoStart
+                disabled={Boolean(lockCountdown && lockCountdown > 0) || isSubmitting}
+                onPinChange={pin => {
+                  setEnteredPin(pin);
+                  void handleVerifyPin(pin);
+                }}
+              />
+              {renderPinKeypad('verify', Boolean(lockCountdown && lockCountdown > 0) || isSubmitting)}
               <button
                 type="button"
-                disabled={Boolean(lockCountdown && lockCountdown > 0)}
-                onClick={handleVerifyPin}
+                disabled={Boolean(lockCountdown && lockCountdown > 0) || isSubmitting}
+                onClick={() => void handleVerifyPin()}
                 className="w-full sm:w-auto py-3 px-6 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-400 text-white font-black text-sm rounded-xl shadow-md cursor-pointer transition-all active:scale-95 whitespace-nowrap flex items-center justify-center space-x-2"
               >
                 {lockCountdown && lockCountdown > 0 ? (
@@ -242,7 +492,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                     <span>Locked ({Math.floor(lockCountdown / 60)}m {lockCountdown % 60}s)</span>
                   </>
                 ) : (
-                  <span>Verify PIN</span>
+                  <span>{t('nominee.verifyPinBtn')}</span>
                 )}
               </button>
             </div>
@@ -250,21 +500,31 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
             {/* Change/Set Nominee PIN block */}
             <div className="pt-4 border-t border-amber-200 dark:border-amber-900/60 text-left space-y-2">
               <span className="text-xs font-black text-slate-700 dark:text-slate-300 block">
-                {language === 'ta' ? 'புதிய Nominee PIN அமைக்கவா?' : 'Set or Change Nominee Security PIN:'}
+                {t('nominee.changePinPrompt')}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="space-y-3">
                 <input
                   type="password"
+                  readOnly
+                  aria-label={t('nominee.newPinLabel')}
                   maxLength={4}
                   value={newNomineePin}
-                  onChange={(e) => setNewNomineePin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="New 4-Digit PIN"
-                  className="py-2 px-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white w-36"
+                  placeholder={t('nominee.newPinLabel')}
+                  className="w-full py-2 px-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white text-center tracking-widest"
                 />
+                <VoicePinInput
+                  language={language}
+                  owner="nominee_change_pin"
+                  purpose="nominee"
+                  disabled={isSubmitting}
+                  onPinChange={setNewNomineePin}
+                />
+                {renderPinKeypad('change', isSubmitting)}
                 <button
                   type="button"
-                  onClick={handleSetNewPin}
-                  className="py-2 px-3 bg-slate-800 dark:bg-slate-700 text-white text-xs font-black rounded-xl cursor-pointer"
+                  disabled={isSubmitting}
+                  onClick={() => void handleSetNewPin()}
+                  className="py-2 px-3 bg-slate-800 dark:bg-slate-700 text-white text-xs font-black rounded-xl cursor-pointer disabled:opacity-50"
                 >
                   {t('nominee.setPinBtn')}
                 </button>
@@ -281,9 +541,26 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                   <ShieldAlert className="w-5 h-5 text-amber-500" />
                   {t('nominee.pendingRequestTitle')}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-500 text-white">
-                  {pendingCount} Pending
-                </span>
+                <div className="flex items-center gap-2">
+                  {pendingCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={startVoiceApprovalListening}
+                      className={`px-3 py-1 text-xs font-black rounded-xl shadow-sm flex items-center gap-1 cursor-pointer transition-all ${
+                        isVoiceApproving
+                          ? 'bg-red-600 text-white animate-pulse'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      }`}
+                      title="Speak 'Approve' or 'Reject' by voice"
+                    >
+                      <Mic className="w-3.5 h-3.5" />
+                      <span>{isVoiceApproving ? 'Listening...' : 'Voice Decision'}</span>
+                    </button>
+                  )}
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-500 text-white">
+                    {pendingCount} Pending
+                  </span>
+                </div>
               </h4>
 
               {pendingNomineeApprovals.length === 0 ? (

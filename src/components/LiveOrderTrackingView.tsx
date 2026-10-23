@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { LiveGPSMapTracker } from './LiveGPSMapTracker';
 import { LiveOrderTracking } from '../types';
-import { Bike, CheckCircle2, Clock, MapPin, PhoneCall, ShieldCheck, Volume2, ArrowLeft, Building2, Sparkles, AlertCircle } from 'lucide-react';
+import { Bike, CheckCircle2, Clock, MapPin, PhoneCall, ShieldCheck, Volume2, ArrowLeft, Building2, Sparkles, AlertCircle, Mic, MicOff } from 'lucide-react';
+import { SpeechController } from '../services/speechController';
+import { SttMatcherService } from '../services/sttMatcherService';
 
 export const LiveOrderTrackingView: React.FC = () => {
   const { activeLiveOrder: stateOrder, setActiveView, t, speakText, userLocation, linkedBank, accessibilitySettings, language } = useApp();
@@ -17,6 +19,9 @@ export const LiveOrderTrackingView: React.FC = () => {
       return null;
     }
   });
+
+  const [isListening, setIsListening] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
 
   useEffect(() => {
     if (stateOrder) {
@@ -33,24 +38,94 @@ export const LiveOrderTrackingView: React.FC = () => {
 
   const [secondsLeft, setSecondsLeft] = useState(0);
 
+  const startTrackingVoiceCommands = () => {
+    if (!SpeechController.isSupported()) return;
+
+    setIsListening(true);
+    SpeechController.startListening({
+      owner: 'live_tracking',
+      language,
+      continuous: false,
+      interimResults: true,
+      maxAlternatives: 5,
+      silenceTimeoutMs: 8000,
+      onSilence: () => setIsListening(false),
+      onStart: () => setIsListening(true),
+      onResult: (transcript, isFinal, nBest) => {
+        if (!transcript) return;
+        setLiveTranscript(transcript);
+        if (!isFinal) return;
+
+        const candidates = nBest && nBest.length > 0 ? nBest : [transcript];
+        const text = transcript.toLowerCase();
+
+        // 1. Check for Repeat
+        const controlMatch = SttMatcherService.matchControlCommand(candidates);
+        if (controlMatch.isMatched && controlMatch.matchedValue === 'REPEAT') {
+          speakConfirmationAloud();
+          return;
+        }
+        if (controlMatch.isMatched && (controlMatch.matchedValue === 'STOP' || controlMatch.matchedValue === 'CANCEL')) {
+          SpeechController.cancelSpeech();
+          SpeechController.releaseMic('live_tracking');
+          setIsListening(false);
+          return;
+        }
+        if (controlMatch.isMatched && controlMatch.matchedValue === 'BACK') {
+          SpeechController.cancelSpeech();
+          SpeechController.releaseMic('live_tracking');
+          setActiveView('search');
+          return;
+        }
+
+        // 2. Where is my order / ETA status check
+        const isStatusQuery = candidates.some(c => {
+          const l = c.toLowerCase();
+          return l.includes('where') || l.includes('order') || l.includes('status') ||
+            l.includes('எங்கே') || l.includes('நிலை') || l.includes('कहाँ') || l.includes('स्टेटस');
+        });
+
+        if (isStatusQuery && activeLiveOrder) {
+          const mins = Math.max(1, Math.floor(secondsLeft / 60));
+          const statusMsg = language === 'ta'
+            ? `உங்கள் ஆர்டர் தற்போது வழியில் உள்ளது. இன்னும் தோராயமாக ${mins} நிமிடங்களில் டெலிவரி செய்யப்படும்.`
+            : language === 'hi'
+            ? `आपका ऑर्डर रास्ते में है। लगभग ${mins} मिनट में डिलीवरी हो जाएगी।`
+            : `Your order is on the way. Arriving in approximately ${mins} minutes.`;
+          speakText(statusMsg, undefined, language);
+        }
+      },
+      onError: () => setIsListening(false),
+      onEnd: () => setIsListening(false)
+    });
+  };
+
+  const speakConfirmationAloud = () => {
+    if (!activeLiveOrder) return;
+    const areaStr = userLocation?.area || 'Anna Nagar';
+    const cityStr = userLocation?.city || 'Chennai';
+    const locStr = activeLiveOrder.deliveryAddress || `${areaStr}, ${cityStr}`;
+
+    const msg = language === 'ta'
+      ? `${activeLiveOrder.foodName} ஆர்டர் ${activeLiveOrder.platformName} மூலம் வெற்றிகரமாக பதிவு செய்யப்பட்டது. டெலிவரி இடம்: ${locStr}.`
+      : language === 'hi'
+      ? `${activeLiveOrder.foodName} का ऑर्डर ${activeLiveOrder.platformName} से सफलतापूर्वक दिया गया। डिलीवरी स्थान: ${locStr}।`
+      : `${activeLiveOrder.foodName} order placed successfully via ${activeLiveOrder.platformName}. Delivering to: ${locStr}.`;
+
+    console.log('[LiveOrderTrackingView]: Speaking order confirmation aloud ->', msg);
+    speakText(msg, undefined, language);
+  };
+
   useEffect(() => {
     if (activeLiveOrder) {
       console.log(`[ORDER_FLOW_DEBUG - Step 8: Confirmed Order Render Read]: order ID: "${activeLiveOrder.orderId}", foodName: "${activeLiveOrder.foodName}", restaurant: "${activeLiveOrder.restaurant}"`);
       setSecondsLeft(activeLiveOrder.remainingSeconds || 1500);
-
-      const areaStr = userLocation?.area || 'Anna Nagar';
-      const cityStr = userLocation?.city || 'Chennai';
-      const locStr = activeLiveOrder.deliveryAddress || `${areaStr}, ${cityStr}`;
-
-      const msg = language === 'ta'
-        ? `${activeLiveOrder.foodName} ஆர்டர் ${activeLiveOrder.platformName} மூலம் வெற்றிகரமாக பதிவு செய்யப்பட்டது. டெலிவரி இடம்: ${locStr}.`
-        : language === 'hi'
-        ? `${activeLiveOrder.foodName} का ऑर्डर ${activeLiveOrder.platformName} से सफलतापूर्वक दिया गया। डिलीवरी स्थान: ${locStr}।`
-        : `${activeLiveOrder.foodName} order placed successfully via ${activeLiveOrder.platformName}. Delivering to: ${locStr}.`;
-
-      console.log('[LiveOrderTrackingView]: Speaking order confirmation aloud ->', msg);
-      speakText(msg);
+      speakConfirmationAloud();
     }
+
+    return () => {
+      SpeechController.releaseMic('live_tracking');
+    };
   }, [activeLiveOrder?.orderId, language]);
 
   useEffect(() => {
@@ -215,16 +290,43 @@ export const LiveOrderTrackingView: React.FC = () => {
           </a>
         </div>
 
-        {/* Speak Status Button */}
-        <button
-          onClick={() => speakText(`${activeLiveOrder.foodName} ${t('tracking.orderPlaced')} via ${activeLiveOrder.platformName}. ${t('tracking.eta')}: ${minutes} ${t('tracking.minsRemaining')}.`)}
-          className="p-4 bg-slate-900 text-white hover:bg-slate-800 font-black rounded-3xl shadow-lg flex items-center justify-center space-x-2 text-xs cursor-pointer"
-        >
-          <Volume2 className="w-5 h-5 text-yellow-300 animate-bounce" />
-          <span>Speak Live Delivery Status Audio</span>
-        </button>
+        {/* Voice Commands & Speak Status Box */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            onClick={() => speakConfirmationAloud()}
+            className="flex-1 p-4 bg-slate-900 text-white hover:bg-slate-800 font-black rounded-3xl shadow-lg flex items-center justify-center space-x-2 text-xs cursor-pointer"
+          >
+            <Volume2 className="w-5 h-5 text-yellow-300" />
+            <span>Speak Status</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (isListening) {
+                SpeechController.stopListening('live_tracking');
+                setIsListening(false);
+              } else {
+                startTrackingVoiceCommands();
+              }
+            }}
+            className={`flex-1 p-4 font-black rounded-3xl shadow-lg flex items-center justify-center space-x-2 text-xs cursor-pointer transition-all ${
+              isListening
+                ? 'bg-red-600 text-white animate-pulse'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+            }`}
+          >
+            {isListening ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
+            <span>{isListening ? 'Listening...' : 'Voice: "Where is my order?"'}</span>
+          </button>
+        </div>
 
       </div>
+
+      {liveTranscript && (
+        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 rounded-2xl text-center text-xs font-bold text-emerald-800 dark:text-emerald-200 animate-fade-in">
+          Heard: "{liveTranscript}"
+        </div>
+      )}
 
     </div>
   );

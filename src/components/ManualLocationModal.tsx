@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { UserLocation } from '../types';
 import { MapPin, Navigation, CheckCircle2, X, Building2, Mic, MicOff, Volume2, ArrowRight } from 'lucide-react';
-import { SpeechService } from '../services/speechService';
+import { SpeechController } from '../services/speechController';
 import { SttMatcherService } from '../services/sttMatcherService';
+import { debounceHandler } from '../utils/debounce';
+import { forwardGeocode, GeocodedPlace } from '../services/locationService';
 
 interface ManualLocationModalProps {
   isOpen: boolean;
@@ -11,7 +13,7 @@ interface ManualLocationModalProps {
 }
 
 export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen, onClose }) => {
-  const { userLocation, setManualUserLocation, detectGPSLocation, language, speakText, showToast } = useApp();
+  const { userLocation, setManualUserLocation, setSelectedLocation, detectGPSLocation, language, speakText, showToast } = useApp();
 
   const [step, setStep] = useState<'confirm' | 'manual'>('confirm');
   const [customArea, setCustomArea] = useState(userLocation.area || '');
@@ -19,8 +21,9 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [recognizedVoiceText, setRecognizedVoiceText] = useState('');
-
-  const listeningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<GeocodedPlace[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const popularCities = [
     { city: 'Chennai', area: 'Anna Nagar', lat: 13.0827, lng: 80.2707 },
@@ -80,7 +83,7 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
       setRecognizedVoiceText('');
       startStepVoiceFlow(initialStep);
     } else {
-      SpeechService.stopListening();
+      SpeechController.releaseMic('manual_location');
       setIsListening(false);
     }
   }, [isOpen]);
@@ -108,7 +111,8 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
     if (!isOpen) return;
 
     setIsListening(true);
-    SpeechService.startListening({
+    SpeechController.requestMic({
+      owner: 'manual_location',
       language,
       continuous: true,
       interimResults: true,
@@ -126,13 +130,6 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
       },
       onEnd: () => {
         setIsListening(false);
-        if (isOpen) {
-          setTimeout(() => {
-            if (isOpen) {
-              startVoiceListening(targetStep);
-            }
-          }, 400);
-        }
       }
     });
   };
@@ -145,7 +142,7 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
 
       if (matchResult.isMatched) {
         if (matchResult.matchedValue === 'YES') {
-          SpeechService.stopListening();
+          SpeechController.releaseMic('manual_location');
           setStep('manual');
           startStepVoiceFlow('manual');
         } else if (matchResult.matchedValue === 'NO') {
@@ -160,19 +157,22 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
         speakText(cue, () => startVoiceListening('confirm'));
       }
     } else if (currentStep === 'manual') {
-      // Parse spoken address for area and city
-      let area = text;
-      let city = userLocation.city || 'Chennai';
+      // Check multilingual location matching first (English, Tamil, Hindi)
+      const locMatch = SttMatcherService.matchLocation(candidates, language);
+      let area = locMatch.isMatched ? locMatch.area : text;
+      let city = locMatch.isMatched ? locMatch.city : (userLocation.city || 'Chennai');
 
-      if (text.includes(',')) {
-        const parts = text.split(',');
-        area = parts[0].trim();
-        city = parts[1].trim() || city;
-      } else {
-        const words = text.trim().split(/\s+/);
-        if (words.length >= 2) {
-          city = words[words.length - 1];
-          area = words.slice(0, words.length - 1).join(' ');
+      if (!locMatch.isMatched) {
+        if (text.includes(',')) {
+          const parts = text.split(',');
+          area = parts[0].trim();
+          city = parts[1].trim() || city;
+        } else {
+          const words = text.trim().split(/\s+/);
+          if (words.length >= 2) {
+            city = words[words.length - 1];
+            area = words.slice(0, words.length - 1).join(' ');
+          }
         }
       }
 
@@ -183,13 +183,13 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
   };
 
   const handleConfirmYes = () => {
-    SpeechService.stopListening();
+    SpeechController.releaseMic('manual_location');
     setStep('manual');
     startStepVoiceFlow('manual');
   };
 
   const handleConfirmNo = () => {
-    SpeechService.stopListening();
+    SpeechController.releaseMic('manual_location');
     setIsListening(false);
 
     const msg = language === 'ta'
@@ -203,22 +203,23 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
     onClose();
   };
 
-  const saveLocation = (areaName: string, cityName: string) => {
-    SpeechService.stopListening();
+  const saveLocation = (areaName: string, cityName: string, lat?: number, lng?: number) => {
+    SpeechController.releaseMic('manual_location');
     setIsListening(false);
 
     const newLoc: UserLocation = {
-      latitude: userLocation.latitude || 13.0827,
-      longitude: userLocation.longitude || 80.2707,
+      latitude: lat || userLocation.latitude || 13.0827,
+      longitude: lng || userLocation.longitude || 80.2707,
       addressName: `${areaName.trim()}, ${cityName.trim()}`,
       city: cityName.trim(),
       area: areaName.trim(),
-      isLiveGPS: true,
+      isLiveGPS: false,
       isApproximate: false,
       isManualOverride: true
     };
 
     setManualUserLocation(newLoc);
+    setSelectedLocation(cityName.trim());
 
     const msg = language === 'ta'
       ? `இருப்பிடம் மாற்றப்பட்டது: ${areaName}, ${cityName}`
@@ -235,7 +236,31 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
     setSelectedPreset(`${preset.area}, ${preset.city}`);
     setCustomArea(preset.area);
     setCustomCity(preset.city);
-    saveLocation(preset.area, preset.city);
+    saveLocation(preset.area, preset.city, preset.lat, preset.lng);
+  };
+
+  const handleSearchNominatim = async (queryToSearch?: string) => {
+    const q = (queryToSearch || searchQuery).trim();
+    if (!q) return;
+    setIsSearching(true);
+    try {
+      const results = await forwardGeocode(q);
+      setSearchResults(results);
+      if (results.length === 0) {
+        showToast(
+          language === 'ta' ? 'முகவரி கிடைக்கவில்லை.' : language === 'hi' ? 'कोई स्थान नहीं मिला।' : 'No location matches found.',
+          'warning'
+        );
+      }
+    } catch (e) {
+      console.warn('Geocode search failed', e);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSelectSearchResult = (res: GeocodedPlace) => {
+    saveLocation(res.area, res.city, res.latitude, res.longitude);
   };
 
   const handleCustomSubmit = (e: React.FormEvent) => {
@@ -246,6 +271,11 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
 
   if (!isOpen) return null;
 
+  const debouncedDetectGPS = useRef(debounceHandler(() => {
+    detectGPSLocation();
+    onClose();
+  }, 1000)).current;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
       <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-orange-500 relative space-y-5">
@@ -253,7 +283,7 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
         {/* Close Button */}
         <button
           onClick={() => {
-            SpeechService.stopListening();
+            SpeechController.releaseMic('manual_location');
             onClose();
           }}
           className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-500 cursor-pointer"
@@ -353,10 +383,7 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
             {/* Quick GPS Auto-Detect Button */}
             <button
               type="button"
-              onClick={() => {
-                detectGPSLocation();
-                onClose();
-              }}
+              onClick={debouncedDetectGPS}
               className="w-full p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black rounded-2xl shadow-md hover:from-emerald-700 hover:to-teal-700 flex items-center justify-center space-x-2 text-xs sm:text-sm cursor-pointer"
             >
               <Navigation className="w-4 h-4 text-yellow-300 animate-spin" style={{ animationDuration: '6s' }} />
@@ -380,6 +407,58 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
               >
                 {isListening ? 'Listening...' : 'Speak Now 🎙️'}
               </button>
+            </div>
+
+            {/* Nominatim Address Search Box */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder={
+                    language === 'ta'
+                      ? 'முகவரி அல்லது ஊரைத் தேடவும் (எ.கா: Salem)...'
+                      : language === 'hi'
+                      ? 'पता या शहर खोजें (उदा: Salem)...'
+                      : 'Search address or place (e.g. Salem, Dharmapuri)...'
+                  }
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSearchNominatim();
+                    }
+                  }}
+                  className="flex-1 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSearchNominatim()}
+                  disabled={isSearching}
+                  className="px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-black shadow cursor-pointer disabled:opacity-50"
+                >
+                  {isSearching ? '...' : (language === 'ta' ? 'தேடு' : language === 'hi' ? 'खोजें' : 'Search')}
+                </button>
+              </div>
+
+              {searchResults.length > 0 && (
+                <div className="space-y-1.5 p-2 bg-orange-50/60 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800/50 rounded-xl max-h-36 overflow-y-auto">
+                  {searchResults.map((res, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSelectSearchResult(res)}
+                      className="w-full text-left p-2 rounded-lg bg-white dark:bg-slate-800 hover:bg-orange-100 dark:hover:bg-orange-950/50 border border-slate-200 dark:border-slate-700 text-xs transition-colors flex items-center justify-between cursor-pointer"
+                    >
+                      <div className="truncate mr-2">
+                        <span className="font-black text-slate-900 dark:text-white block">{res.area}, {res.city}</span>
+                        <span className="text-[10px] text-slate-500 truncate block">{res.addressName}</span>
+                      </div>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Popular Preset City Chips */}

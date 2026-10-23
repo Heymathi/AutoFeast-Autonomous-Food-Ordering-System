@@ -67,12 +67,16 @@ export class NomineeNotificationService {
     this.savePendingApprovals(currentList);
 
     // Sync to backend MongoDB API asynchronously
+    const token = localStorage.getItem('autofeast_jwt_token') || '';
+    // Sync to backend MongoDB API asynchronously
     fetch('/api/nominee/approval-requests', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({
-        ...newRequest,
-        userId: userId || 'user_karthik_001'
+        ...newRequest
       })
     }).catch(err => console.warn('[NomineeNotificationService] Sync approval request error:', err));
 
@@ -97,8 +101,10 @@ export class NomineeNotificationService {
    */
   public static async fetchApprovalRequests(userId?: string): Promise<PendingNomineeApproval[]> {
     try {
-      const uId = userId || 'user_karthik_001';
-      const res = await fetch(`/api/nominee/approval-requests?userId=${uId}`);
+      const token = localStorage.getItem('autofeast_jwt_token') || '';
+      const res = await fetch(`/api/nominee/approval-requests`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.requests)) {
         this.savePendingApprovals(data.requests);
@@ -108,18 +114,34 @@ export class NomineeNotificationService {
     return this.getPendingApprovals();
   }
 
+  private static restrictedFetchError: boolean = false;
+
+  public static hasRestrictedFetchError(): boolean {
+    return this.restrictedFetchError;
+  }
+
+  public static setRestrictedFetchError(hasError: boolean): void {
+    this.restrictedFetchError = hasError;
+  }
+
   /**
    * Sync restricted items for user from backend MongoDB
    */
   public static async fetchRestrictedItemIds(userId?: string): Promise<string[]> {
     try {
-      const uId = userId || 'user_karthik_001';
-      const res = await fetch(`/api/nominee/restricted-items?userId=${uId}`);
+      const token = localStorage.getItem('autofeast_jwt_token') || '';
+      const res = await fetch(`/api/nominee/restricted-items`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.restrictedFoodIds)) {
+        this.restrictedFetchError = false;
         return data.restrictedFoodIds;
       }
-    } catch (e) {}
+      this.restrictedFetchError = true;
+    } catch (e) {
+      this.restrictedFetchError = true;
+    }
     return [];
   }
 
@@ -133,10 +155,14 @@ export class NomineeNotificationService {
     category?: string
   ): Promise<string[]> {
     try {
+      const token = localStorage.getItem('autofeast_jwt_token') || '';
       const res = await fetch('/api/nominee/restricted-items', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, foodItemId, foodItemName, category })
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ foodItemId, foodItemName, category })
       });
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.restrictedFoodIds)) {

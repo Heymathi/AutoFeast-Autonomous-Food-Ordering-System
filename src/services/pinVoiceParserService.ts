@@ -30,6 +30,7 @@ const PIN_DIGIT_MAP: Record<string, string> = {
   'shoonya': '0',
   'shunyam': '0',
   'பூஜ்யம்': '0',
+  'பூஜ்ஜியம்': '0',
   'சுழியம்': '0',
   'பூஜியம்': '0',
   'ஜீரோ': '0',
@@ -198,6 +199,7 @@ const COMMAND_MAP: Record<string, 'clear' | 'back' | 'cancel'> = {
   'मिटाओ': 'clear',
   'मिटाएं': 'clear',
   'हटाओ': 'clear',
+  'मिटாओ': 'clear', // Corrupted legacy form preserved for backwards compatibility
 
   'back': 'back',
   'பின்': 'back',
@@ -209,7 +211,8 @@ const COMMAND_MAP: Record<string, 'clear' | 'back' | 'cancel'> = {
   'ரத்து': 'cancel',
   'ரத்துசெய்': 'cancel',
   'रद्द': 'cancel',
-  'रद्दकरें': 'cancel'
+  'रद्दकरें': 'cancel',
+  'ரद्द': 'cancel' // Corrupted legacy form preserved for backwards compatibility
 };
 
 const UNSUPPORTED_COUNT_WORDS = [

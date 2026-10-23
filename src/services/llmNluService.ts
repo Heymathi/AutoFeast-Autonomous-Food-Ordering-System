@@ -1,9 +1,12 @@
-import { GoogleGenAI } from '@google/genai';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { FoodItem, Language, ScheduleDuration } from '../types';
 import { NLPParserService, ParsedOrderBill, ParsedItem } from './nlpParserService';
 import { PriceComparisonService } from './priceComparisonService';
 import { FuzzyMatchEngine } from './fuzzyMatchService';
+
+const voiceNluDebug = (message: string, details?: unknown) => {
+  if ((import.meta as any).env?.DEV) console.info(message, details ?? '');
+};
 
 export interface ExtractedLlmOrder {
   items: { name: string; quantity: number }[];
@@ -22,28 +25,82 @@ export interface LlmFoodExtractionResult {
   original_phrase: string;
 }
 
+export interface VoiceNluResult {
+  intent: 'order_now' | 'schedule' | 'yes' | 'no' | 'search' | 'repeat' | 'stop' | 'cancel' | 'back' | 'unknown';
+  item: string | null;
+  quantity: number | null;
+  time: string | null;
+  language: Language;
+  confidence: number;
+}
+
 export class LlmNluService {
   private static extractionCache: Map<string, LlmFoodExtractionResult> = new Map();
+  private static pendingExtractionRequests: Set<string> = new Set();
+  private static voiceNluCache: Map<string, VoiceNluResult> = new Map();
+  private static locationNluCache: Map<string, LocationChoiceNluResult> = new Map();
 
   public static clearCache(): void {
-    console.log('[ORDER_FLOW_DEBUG - Cache Reset]: LlmNluService extraction cache cleared.');
+    voiceNluDebug('[ORDER_FLOW_DEBUG - Cache Reset]: LlmNluService extraction cache cleared.');
     this.extractionCache.clear();
+    this.pendingExtractionRequests.clear();
+    this.voiceNluCache.clear();
+    this.locationNluCache.clear();
   }
 
-  private static getGeminiClient(): GoogleGenAI | null {
-    try {
-      const apiKey = 
-        (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) ||
-        (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY) ||
-        '';
-
-      if (apiKey && apiKey !== 'MY_GEMINI_API_KEY') {
-        return new GoogleGenAI({ apiKey });
-      }
-    } catch (e) {
-      console.warn('[LlmNluService] Gemini API key not found in env, using offline NLP fallback.');
+  public static async interpretVoiceTurn(
+    transcript: string,
+    options: {
+      alternatives?: string[];
+      step: string;
+      expectedOptions?: string[];
+      cart?: Array<{ name: string; quantity: number }>;
+      language?: Language;
     }
-    return null;
+  ): Promise<VoiceNluResult | null> {
+    const cleanTranscript = transcript.trim();
+    if (!cleanTranscript) return null;
+    const payload = {
+      transcript: cleanTranscript,
+      alternatives: (options.alternatives || []).slice(0, 5),
+      step: options.step,
+      expectedOptions: (options.expectedOptions || []).slice(0, 40),
+      cart: (options.cart || []).slice(0, 20),
+      language: options.language || 'en'
+    };
+    const cacheKey = JSON.stringify(payload).toLowerCase();
+    const cached = this.voiceNluCache.get(cacheKey);
+    if (cached) {
+      voiceNluDebug('[Voice NLU]', { step: options.step, chosenIntent: cached.intent, confidence: cached.confidence, source: 'cache' });
+      return cached;
+    }
+
+    try {
+      const response = await fetch('/api/voice/nlu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`Voice NLU endpoint returned ${response.status}`);
+      const parsed = await response.json() as VoiceNluResult;
+      const valid = parsed && typeof parsed === 'object' &&
+        ['order_now', 'schedule', 'yes', 'no', 'search', 'repeat', 'stop', 'cancel', 'back', 'unknown'].includes(parsed.intent) &&
+        (parsed.item === null || (typeof parsed.item === 'string' && parsed.item.length <= 120)) &&
+        (parsed.quantity === null || (Number.isInteger(parsed.quantity) && parsed.quantity >= 1 && parsed.quantity <= 99)) &&
+        (parsed.time === null || (typeof parsed.time === 'string' && parsed.time.length <= 40)) &&
+        ['en', 'ta', 'hi'].includes(parsed.language) &&
+        Number.isFinite(parsed.confidence) && parsed.confidence >= 0 && parsed.confidence <= 1;
+      if (!valid) throw new Error('Voice NLU endpoint returned an invalid response shape');
+      this.voiceNluCache.set(cacheKey, parsed);
+      if (this.voiceNluCache.size > 100) {
+        this.voiceNluCache.delete(this.voiceNluCache.keys().next().value!);
+      }
+      voiceNluDebug('[Voice NLU]', { step: options.step, chosenIntent: parsed.intent, confidence: parsed.confidence, source: 'Gemini' });
+      return parsed;
+    } catch (error) {
+      console.warn('[Voice NLU] Gemini unavailable; using local intent and catalog matching.', error);
+      return null;
+    }
   }
 
   /**
@@ -51,7 +108,7 @@ export class LlmNluService {
    * Extracts core food item name(s) from Tamil script, Tanglish, or English natural sentences.
    * Caches results for repeated inputs to eliminate latency & API costs.
    */
-  public static async extractFoodItemWithLlm(transcript: string): Promise<LlmFoodExtractionResult> {
+  public static async extractFoodItemWithLlm(transcript: string, language: Language = 'en'): Promise<LlmFoodExtractionResult> {
     if (!transcript || !transcript.trim()) {
       return { item: null, confidence: 0, original_phrase: '', items: [] };
     }
@@ -62,67 +119,38 @@ export class LlmNluService {
     // Check in-memory cache first
     if (this.extractionCache.has(cacheKey)) {
       const cached = this.extractionCache.get(cacheKey)!;
-      console.log(`[ORDER_FLOW_DEBUG - Step 2: NLU Extraction (Cache Hit)]: Raw Transcript: "${cleanInput}" → Extracted Item: "${cached.item}"`, cached);
+      voiceNluDebug(`[ORDER_FLOW_DEBUG - Step 2: NLU Extraction (Cache Hit)]: Raw Transcript: "${cleanInput}" → Extracted Item: "${cached.item}"`, cached);
       return cached;
     }
 
-    const client = this.getGeminiClient();
-
-    if (client) {
-      try {
-        const systemPrompt = `You are a food-order entity extractor. The user will type a sentence in Tamil script, Tanglish (Tamil written in English letters), or English, asking for a food item.
-
-Extract ONLY the core food item name, ignoring filler words (venum, kavanum, please, I want, etc). Normalize the item name to standard English spelling (e.g. "தோசா" / "dosa" / "dosai" → "Dosa"; "பிரைட் ரைஸ்" / "fried rice" → "Fried Rice").
-
-Respond ONLY with raw JSON, nothing else:
-{"item": "<normalized English name>", "confidence": <0-1>, "original_phrase": "${cleanInput}", "items": ["<normalized English name 1>", "<normalized English name 2>"]}
-
-If multiple items are mentioned, return an array under "items" and set "item" to the primary item.
-If no food item is identifiable, return {"item": null, "confidence": 0, "original_phrase": "${cleanInput}", "items": []}.
-
-User sentence: "${cleanInput}"`;
-
-        const response = await client.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: systemPrompt,
-          config: {
-            responseMimeType: 'application/json',
-            maxOutputTokens: 150
-          }
-        });
-
-        const textResponse = response.text || '';
-        console.log('[LlmNluService LLM Extraction Response]:', textResponse);
-        const parsed: LlmFoodExtractionResult = JSON.parse(textResponse.trim());
-        
-        const result: LlmFoodExtractionResult = {
-          item: parsed.item || (parsed.items && parsed.items.length > 0 ? parsed.items[0] : null),
-          items: parsed.items || (parsed.item ? [parsed.item] : []),
-          confidence: parsed.confidence || 0.95,
-          original_phrase: cleanInput
-        };
-
-        // Cache the response
+    const nluResult = await this.interpretVoiceTurn(cleanInput, {
+      step: 'item_search',
+      expectedOptions: INDIAN_FOOD_CATALOG.slice(0, 40).map(food => food.name),
+      language
+    });
+    if (nluResult?.item && nluResult.confidence >= 0.7) {
+      const catalogMatch = FuzzyMatchEngine.matchCatalogFoodItem(nluResult.item, INDIAN_FOOD_CATALOG);
+      if (catalogMatch.item && catalogMatch.confidence === 'high') {
+        const safeItem = catalogMatch.item.name;
+        const result = { item: safeItem, items: [safeItem], confidence: nluResult.confidence, original_phrase: cleanInput };
         this.extractionCache.set(cacheKey, result);
-        console.log('[NLP Log]:', { original_phrase: cleanInput, llm_output: result });
+        voiceNluDebug('[NLP Log]', { step: 'item_search', transcript: cleanInput, chosenIntent: nluResult.intent, item: safeItem, confidence: nluResult.confidence, source: 'Gemini+catalog verification' });
         return result;
-
-      } catch (err) {
-        console.warn('[LlmNluService LLM Extraction failed, falling back to smart rule parser]:', err);
       }
+      voiceNluDebug('[Voice NLU] Gemini item did not meet catalog confidence; falling back to local matching.');
     }
 
     // Fallback: Synchronous offline rule-based extractor
     const offlineResult = this.extractFoodItemOfflineFallback(cleanInput);
     this.extractionCache.set(cacheKey, offlineResult);
-    console.log('[NLP Log (Offline Fallback)]:', { original_phrase: cleanInput, llm_output: offlineResult });
+    voiceNluDebug('[NLP Log (Offline Fallback)]:', { original_phrase: cleanInput, llm_output: offlineResult });
     return offlineResult;
   }
 
   /**
    * Fast synchronous accessor for LLM extraction (utilizing cache and rule fallback)
    */
-  public static extractFoodItemWithLlmSync(transcript: string): LlmFoodExtractionResult {
+  public static extractFoodItemWithLlmSync(transcript: string, language: Language = 'en'): LlmFoodExtractionResult {
     if (!transcript || !transcript.trim()) {
       return { item: null, confidence: 0, original_phrase: '', items: [] };
     }
@@ -135,10 +163,14 @@ User sentence: "${cleanInput}"`;
     }
 
     const result = this.extractFoodItemOfflineFallback(cleanInput);
-    this.extractionCache.set(cacheKey, result);
-
-    // Trigger background LLM extraction to populate cache for next turn if client exists
-    this.extractFoodItemWithLlm(cleanInput).catch(() => {});
+    if (!this.pendingExtractionRequests.has(cacheKey)) {
+      this.pendingExtractionRequests.add(cacheKey);
+      void this.extractFoodItemWithLlm(cleanInput, language)
+        .catch(error => {
+          console.error('[Voice NLU] Background extraction failed unexpectedly.', error);
+        })
+        .finally(() => this.pendingExtractionRequests.delete(cacheKey));
+    }
 
     return result;
   }
@@ -200,7 +232,9 @@ User sentence: "${cleanInput}"`;
   public static async parseFreeFormOrder(
     transcript: string,
     userLocationAddress: string = 'Anna Nagar 2nd Avenue, Chennai',
-    lang: Language = 'en'
+    lang: Language = 'en',
+    alternatives: string[] = [transcript],
+    currentCart: Array<{ name: string; quantity: number }> = []
   ): Promise<{
     intent: 'order' | 'schedule' | 'search';
     bill: ParsedOrderBill | null;
@@ -222,59 +256,31 @@ User sentence: "${cleanInput}"`;
       return { intent: 'search', bill: null };
     }
 
-    console.log(`[LlmNluService] Parsing free-form voice sentence in "${lang}": "${transcript}"`);
+    voiceNluDebug(`[LlmNluService] Parsing free-form voice sentence in "${lang}": "${transcript}"`);
 
     const scheduleDetails = NLPParserService.parseScheduleDetailsFromVoice(transcript);
 
-    const client = this.getGeminiClient();
     let llmResult: ExtractedLlmOrder | null = null;
 
-    if (client) {
-      try {
-        const catalogNames = INDIAN_FOOD_CATALOG.map(f => `${f.name} (${f.nativeNames.ta} / ${f.nativeNames.hi}) - Restaurant: ${f.restaurant}`).join(', ');
-        
-        const systemPrompt = `You are an expert NLU (Natural Language Understanding) food order parser for AutoFeast.
-Extract structured order information from the user's spoken input in English, Tamil, Hindi, or Tanglish.
-
-Food Catalog Available:
-[${catalogNames}]
-
-You MUST determine:
-1. "intent":
-   - "schedule": if sentence indicates scheduling for later, recurring order, specifying a time, or specifying duration/frequency (e.g. "daily", "everyday", "for 1 month", "oru masathuku", "1 masathuku", "for 1 week", "at 8am", "8 maniku", "schedule pannu", "schedule", "slot podu", "order potru", "every week", "Mondays and Fridays").
-   - "order": if sentence indicates instant ordering NOW without any future time or recurrence duration (e.g. "order now", "ipove order", "kudunga", "vaangu").
-   - "search": if just inquiring or searching without order/schedule action verbs.
-
-2. "items": Array of extracted items with their quantities.
-3. "restaurant": Restaurant Name if mentioned, else null.
-4. "time": Extracted time if mentioned (e.g. "08:00", "8 AM"), else null.
-
-Respond ONLY with raw valid JSON:
-{
-  "intent": "order" | "schedule" | "search",
-  "items": [
-    { "name": "Item Name", "quantity": number }
-  ],
-  "restaurant": "Restaurant Name or null",
-  "time": "Time string or null"
-}
-
-User Spoken Input: "${transcript}"`;
-
-        const response = await client.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: systemPrompt,
-          config: {
-            responseMimeType: 'application/json'
-          }
-        });
-
-        const textResponse = response.text || '';
-        console.log('[LlmNluService Gemini Output]:', textResponse);
-        llmResult = JSON.parse(textResponse.trim());
-      } catch (err) {
-        console.warn('[LlmNluService Gemini API error, using offline NLP parser fallback]:', err);
-        llmResult = null;
+    const nlu = await this.interpretVoiceTurn(transcript, {
+      alternatives,
+      step: 'free_form_order',
+      expectedOptions: INDIAN_FOOD_CATALOG.slice(0, 40).map(food => food.name),
+      cart: currentCart,
+      language: lang
+    });
+    if (nlu && nlu.confidence >= 0.75 && nlu.item) {
+      const match = FuzzyMatchEngine.matchCatalogFoodItem(nlu.item, INDIAN_FOOD_CATALOG);
+      if (match.item && match.confidence === 'high') {
+        llmResult = {
+          items: [{ name: match.item.name, quantity: nlu.quantity || 1 }],
+          restaurant: null,
+          intent: nlu.intent === 'schedule' ? 'schedule' : nlu.intent === 'order_now' ? 'order' : 'search',
+          time: nlu.time,
+          location: null
+        };
+      } else {
+        voiceNluDebug('[Voice NLU] Free-form item failed catalog verification; using local NLP fallback.');
       }
     }
 
@@ -382,7 +388,7 @@ User Spoken Input: "${transcript}"`;
     }
 
     // Fallback to offline rule-based NLP parser if LLM yields empty or offline
-    console.log('[LlmNluService] Executing offline NLP Parser fallback...');
+    voiceNluDebug('[LlmNluService] Executing offline NLP Parser fallback...');
     const offlineBill = NLPParserService.parseNaturalLanguageOrder(transcript, userLocationAddress);
     
     if (!offlineBill) {
@@ -398,115 +404,239 @@ User Spoken Input: "${transcript}"`;
     return { intent: detectedIntent, bill: offlineBill, scheduleDetails };
   }
 
+        /**
+   * Local heuristic / keyword classifier for location choice intent.
+   * Runs if Gemini is down or network fails.
+   */
+  public static classifyLocationChoiceLocally(
+    transcript: string,
+    language: Language = 'en',
+    candidates: string[] = [transcript]
+  ): LocationChoiceNluResult {
+    const knownPlaces = [
+      'salem', 'சேலம்', 'सेलम', 'सेलम्',
+      'chennai', 'சென்னை', 'चेन्नई',
+      'anna nagar chennai', 'anna nagar', 'அண்ணா நகர்', 'अन्ना नगर',
+      't nagar', 't. nagar', 'தி நகர்',
+      'coimbatore gandhipuram', 'coimbatore', 'gandhipuram', 'கோயம்புத்தூர் காந்திபுரம்', 'கோயம்புத்தூர்', 'காந்திபுரம்', 'कोयंबटूर',
+      'delhi', 'connaught place', 'दिल्ली', 'कनॉट प्लेस', 'नई दिल्ली',
+      'bengaluru', 'bangalore', 'indiranagar', 'பெங்களூரு', 'இந்திரா நகர்', 'बेंगलुरु', 'इंदिरा नगर',
+      'hyderabad', 'gachibowli', 'ஹைதராபாத்', 'கச்சிபௌலி', 'हैदराबाद', 'गाचीबोवली',
+      'mumbai', 'bandra west', 'bandra', 'மும்பை', 'பாந்த்ரா', 'मुंबई', 'बांद्रा',
+      'madurai', 'kk nagar', 'மதுரை', 'मदुरै', 'केके नगर',
+      'dharmapuri main road', 'dharmapuri', 'main road dharmapuri', 'தர்மபுரி', 'धर्मपुरी'
+    ];
+
+    const repeatPatterns = [
+      'repeat', 'pardon', 'what did you say', 'once again', 'tell me again', 'say again',
+      'say that again', 'repeat please', 'come again', 'repeat the question', 'didn t hear',
+      'say once more', 'repeat that', 'speak again', 'can you repeat',
+      'மீண்டும் சொல்', 'இன்னொரு முறை', 'திரும்ப சொல்', 'marupadiyum sollu', 'marubadiyum',
+      'thirumba sollu', 'thirumba pesu', 'marubadi sollu', 'innoru thadava', 'innoru murai sollu',
+      'marupadiyum kelu', 'thirumbavum sollu', 'puriyala thirumba sollu', 'marupadiyum solunga', 'திரும்பவும் சொல்',
+      'फिर से बोलो', 'दोबारा बताओ', 'phir se bolo', 'ek baar aur', 'dobara bolo',
+      'fir se bolo', 'sunai nahi diya', 'dobara kahiye', 'fir se batao', 'ek bar aur bolo',
+      'phir bolo', 'kya kaha', 'dobara sunao', 'fir se kahiye', 'samajh nahi aaya fir se bolo'
+    ];
+
+    const cancelPatterns = [
+      'cancel', 'close', 'stop', 'exit', 'dismiss', 'back', 'cancel that', 'close modal',
+      'cancel now', 'shut down', 'go back', 'abort', 'discard', 'stop now', 'close this',
+      'ரத்து செய்', 'நிறுத்து', 'மூடு', 'cancel pannu', 'close pannu', 'vendaam mudu',
+      'niruthu', 'rathu sei', 'veliya po', 'back po', 'stop pannu', 'vendam niruthu',
+      'moodu', 'rathu seiyavum', 'cancel seidu vidu',
+      'रद्द करो', 'बंद करो', 'रोक दो', 'cancel karo', 'ruk jao', 'wapas jao',
+      'band kar do', 'cancel kar do', 'radd karo', 'hatao', 'roko', 'peeche jao',
+      'band karo ise', 'cancel kijiye', 'chhod do abhi'
+    ];
+
+    const changePatterns = [
+      // English
+      'no', 'deny', 'change address', 'skip', 'change location', 'different address', 'another address',
+      'different place', 'another place', 'manual', 'choose location', 'enter address', 'not now', 'nope',
+      'dont use live location', 'don t use live location',
+      // Tamil / Tanglish
+      'venaam', 'illa', 'maathu', 'address maathu', 'vera idam', 'இல்லை', 'வேண்டாம்', 'முகவரி மாற்று',
+      'venam', 'illai', 'vera address', 'மாற்று', 'வேற இடம்', 'தவிர்க்கவும்', 'வேணாம்', 'தேவையில்லை', 'இல்ல',
+      // Hindi / Hinglish
+      'nahi', 'badlo', 'address badlo', 'दूसरा पता', 'नहीं', 'बदलो', 'nahin', 'dusra pata',
+      'dusra address', 'location badlo', 'मना', 'मना करें', 'पता बदलो', 'छोड़ो', 'बदलें'
+    ];
+
+    const allowPatterns = [
+      // English
+      'allow', 'yes', 'ok', 'sure', 'use my location', 'use live location', 'enable location',
+      'current location', 'live location', 'turn on location', 'yep', 'yeah', 'okay', 'fine', 'why not',
+      // Tamil / Tanglish
+      'aama', 'sari', 'seri', 'ஆமாம்', 'சரி', 'ok pannu', 'live address eduthukko', 'aamam',
+      'seri pannu', 'eduthuko', 'anumathi', 'kudukalam', 'கொடுக்கலாம்', 'அனுமதி', 'சரிதான்',
+      'அனுமதிக்கிறேன்', 'அனுமதிக்கலாம்', 'ஆமா', 'தாராளமா', 'இருப்பிடம் எடு',
+      // Hindi / Hinglish
+      'haan', 'theek hai', 'ठीक है', 'हाँ', 'लोकेशन चालू करो', 'haa', 'haanjee', 'sahi hai',
+      'sahi', 'le lo', 'chalega', 'अनुमति', 'अनुमति दें', 'स्थान का उपयोग करो'
+    ];
+
+    const effectiveCandidates = (candidates && candidates.length > 0) ? candidates : [transcript];
+
+    for (const cand of effectiveCandidates) {
+      const lower = cand.toLowerCase().trim();
+      const normalized = lower.replace(/[.,/#!$%^&*;:{}=\-_`~()?"']/g, ' ').replace(/\s+/g, ' ').trim();
+
+      // 1. Repeat check
+      if (repeatPatterns.some(p => normalized === p || normalized.startsWith(p) || normalized.includes(p))) {
+        return { intent: 'repeat', address: null, confidence: 0.95, source: 'local_fallback' };
+      }
+
+      // 2. Cancel check
+      if (cancelPatterns.some(p => normalized === p || normalized.startsWith(p) || normalized.includes(p))) {
+        return { intent: 'cancel', address: null, confidence: 0.95, source: 'local_fallback' };
+      }
+
+      // 3. Give Address: explicit phrasing or direct place mention
+      const directPlacePhrase = normalized.match(/मुझे\s+([a-zA-Z\u0B80-\u0BFF\u0900-\u097F\s]+?)\s+में\s+डिलीवरी/i);
+      if (directPlacePhrase && directPlacePhrase[1]) {
+        return { intent: 'give_address', address: directPlacePhrase[1].trim(), confidence: 0.95, source: 'local_fallback' };
+      }
+
+      const reverseDeliveryPhraseRegex = /([a-zA-Z\u0B80-\u0BFF\u0900-\u097F\s]+?)\s*(?:டெலிவரி|க்கு டெலிவரி|में डिलीवरी|la delivery|ku delivery|mein delivery|me delivery)/i;
+      const matchRev = normalized.match(reverseDeliveryPhraseRegex);
+      if (matchRev && matchRev[1] && matchRev[1].trim().length >= 2) {
+        return { intent: 'give_address', address: matchRev[1].trim(), confidence: 0.92, source: 'local_fallback' };
+      }
+
+      const deliveryPhraseRegex = /(?:deliver(?:y)?\s+(?:to|in)|delivery|டெலிவரி|க்கு டெலிவரி|டெலிவரி செய்|में डिलीवरी|डिलीवरी चाहिए|डिलीवरी)\s*([a-zA-Z\u0B80-\u0BFF\u0900-\u097F\s]+)/i;
+      const matchFwd = normalized.match(deliveryPhraseRegex);
+      if (matchFwd && matchFwd[1] && matchFwd[1].trim().length >= 2) {
+        return { intent: 'give_address', address: matchFwd[1].trim(), confidence: 0.92, source: 'local_fallback' };
+      }
+
+      for (const place of knownPlaces) {
+        if (normalized === place || normalized.includes(place)) {
+          const extracted = place.length > 2
+            ? place.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+            : place;
+          return { intent: 'give_address', address: extracted, confidence: 0.92, source: 'local_fallback' };
+        }
+      }
+
+      // 4. Change Location (no, venaam, nahi, badlo, etc.)
+      const hasChange = changePatterns.some(p => {
+        const regex = new RegExp(`(^|\\s)${p.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}($|\\s)`, 'i');
+        return regex.test(normalized) || normalized === p;
+      });
+
+      // 5. Use Live Location (allow, aama, haan, etc.)
+      const isNegativeLiveLocation = /dont use live|don't use live|do not use live|live location (?:venaam|nahi|badlo|maathu)/i.test(cand);
+      const isExactChaluKaro = normalized === 'चालू करो' || normalized === 'chalu karo';
+      const hasAllow = !isNegativeLiveLocation && (isExactChaluKaro || allowPatterns.some(p => {
+        const regex = new RegExp(`(^|\\s)${p.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}($|\\s)`, 'i');
+        return regex.test(normalized) || normalized === p;
+      }));
+
+      if (hasAllow && !hasChange) {
+        return { intent: 'use_live_location', address: null, confidence: 0.95, source: 'local_fallback' };
+      }
+      if (hasChange && !hasAllow) {
+        return { intent: 'change_location', address: null, confidence: 0.95, source: 'local_fallback' };
+      }
+    }
+
+    return { intent: 'unclear', address: null, confidence: 0.3, source: 'local_fallback' };
+  }
+
+
+  public static async interpretLocationChoice(
+    transcript: string,
+    options: { language?: Language; alternatives?: string[]; step?: string } = {}
+  ): Promise<LocationChoiceNluResult> {
+    const cleanTranscript = (transcript || '').trim();
+    if (!cleanTranscript) {
+      return { intent: 'unclear', address: null, confidence: 0, source: 'local_fallback' };
+    }
+
+    const lang: Language = options.language || 'en';
+    const cacheKey = `${lang}:${cleanTranscript.toLowerCase()}`;
+    const cached = this.locationNluCache.get(cacheKey);
+    if (cached) {
+      voiceNluDebug('[Location NLU Cache Hit]:', cached);
+      return { ...cached, source: 'cache' };
+    }
+
+    // Try Gemini LLM via backend endpoint
+    try {
+      const response = await fetch('/api/voice/nlu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript: cleanTranscript,
+          alternatives: (options.alternatives || []).slice(0, 5),
+          step: options.step || 'location_choice',
+          language: lang
+        })
+      });
+
+      if (response.ok) {
+        const parsed = await response.json();
+        if (
+          parsed &&
+          ['use_live_location', 'change_location', 'give_address', 'repeat', 'cancel', 'unclear'].includes(parsed.intent)
+        ) {
+          const result: LocationChoiceNluResult = {
+            intent: parsed.intent,
+            address: parsed.address || null,
+            confidence: Number.isFinite(parsed.confidence) ? parsed.confidence : 0.9,
+            source: 'gemini'
+          };
+          this.locationNluCache.set(cacheKey, result);
+          if (this.locationNluCache.size > 150) {
+            this.locationNluCache.delete(this.locationNluCache.keys().next().value!);
+          }
+          return result;
+        }
+      }
+    } catch (err) {
+      console.warn('[LlmNluService]: Gemini call failed or offline, using local fallback pipeline:', err);
+    }
+
+    // Fallback to local keyword/phrasal matching
+    const candidates = (options.alternatives && options.alternatives.length > 0)
+      ? options.alternatives
+      : [cleanTranscript];
+    const local = this.classifyLocationChoiceLocally(cleanTranscript, lang, candidates);
+    this.locationNluCache.set(cacheKey, local);
+    return local;
+  }
+
   /**
    * LLM + Fuzzy NLU classifier for Location Permission responses.
-   * Understands natural Tamil, English, and Hindi phrasings for ALLOW / DENY intents,
-   * while classifying off-topic or unclear speech as AMBIGUOUS.
+   * Backward-compatible bridge to interpretLocationChoice.
    */
   public static async interpretLocationPermissionIntent(
     transcript: string,
     language: Language = 'en'
   ): Promise<{ intent: 'ALLOW' | 'DENY' | 'AMBIGUOUS'; confidence: number; explanation: string }> {
-    if (!transcript || !transcript.trim()) {
-      return { intent: 'AMBIGUOUS', confidence: 0, explanation: 'Empty transcript' };
+    const choice = await this.interpretLocationChoice(transcript, { language, step: 'location_permission' });
+    if (choice.intent === 'use_live_location') {
+      return { intent: 'ALLOW', confidence: choice.confidence, explanation: 'Affirmative live location' };
     }
-
-    const cleanInput = transcript.trim();
-    const lower = cleanInput.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, ' ').replace(/\s+/g, ' ');
-
-    // 1. FAST RULE & FUZZY PRE-CHECK LAYER (Tamil, English, Hindi, Tanglish)
-    const allowPatterns = [
-      // Tamil script
-      'அனுமதி', 'அனுமதிக்கிறேன்', 'அனுமதிக்கலாம்', 'ஆமா', 'ஆமாம்', 'சரி', 'சரிதான்',
-      'கொடு', 'பரவாயில்லை', 'ஓகே', 'ஓகேப்பா', 'எடுத்துக்கோ', 'தறேன்', 'மாத்தலாம்',
-      'ஓகே தான்', 'இருப்பிடம் எடு', 'இருப்பிடம் கொடு', 'எடுத்துக்க', 'தாராளமா', 'கொடுக்கலாம்',
-      'அனுமதி உண்டு', 'இருப்பிடம் பயன்படுத்தலாம்', 'எடுத்துக்கலாம்', 'எடுத்துக்கங்க',
-      // Tanglish
-      'aama', 'aamam', 'sari', 'seri', 'kodu', 'paravaillai', 'okay', 'ok', 'aamampaa',
-      'kudukalam', 'anumaadhi', 'anumathi', 'yeduthuko', 'thalam', 'eduthukonga',
-      // English
-      'allow', 'yes', 'sure', 'yep', 'yeah', 'grant', 'accept', 'go ahead', 'proceed',
-      'fine', 'why not', 'use my location', 'enable location', 'agree', 'allow it', 'yes please',
-      // Hindi
-      'अनुमति', 'हाँ', 'हाँजी', 'ठीक', 'ठीक है', 'दे दो', 'मंजूर', 'चल जाएगा', 'अनुमति दें',
-      'haa', 'haan', 'teek', 'le lo', 'haanjee'
-    ];
-
-    const denyPatterns = [
-      // Tamil script
-      'வேண்டாம்', 'வேண்டாம் பா', 'வேண்டாம்மா', 'வேண்டாத்', 'இல்ல', 'இல்லை', 'மாட்டேன்',
-      'தேவையில்ல', 'தேவையில்லை', 'தவிர்க்கவும்', 'வேணாம்', 'வேணாம்ப்பா', 'வேண்டாம் என்று',
-      'வேண்டாம்னு', 'இருப்பிடம் வேண்டாம்', 'நோ', 'வேண்டாதீங்க', 'வேணாம் பா',
-      // Tanglish
-      'vendam', 'vaendaam', 'venam', 'illa', 'illai', 'maaten', 'thevaiyillai', 'thevaiyilla',
-      'thavirkavum', 'don\'t', 'dont',
-      // English
-      'deny', 'no', 'nope', 'nah', 'skip', 'cancel', 'decline', 'never', 'refuse',
-      'don\'t allow', 'block', 'stop', 'reject', 'not now', 'no thanks',
-      // Hindi
-      'मना', 'नहीं', 'मना करें', 'रहने दो', 'स्किप', 'नही', 'नहीं चाहिए', 'मना है',
-      'nahin', 'nahi', 'rehnedo'
-    ];
-
-    const hasAllowMatch = allowPatterns.some(p => lower.includes(p));
-    const hasDenyMatch = denyPatterns.some(p => lower.includes(p));
-
-    // Clear non-contradictory match
-    if (hasAllowMatch && !hasDenyMatch) {
-      console.log(`[LocationNLU] Rule/Fuzzy fast-match -> ALLOW: "${cleanInput}"`);
-      return { intent: 'ALLOW', confidence: 0.98, explanation: 'Matched affirmative phrasing' };
+    if (choice.intent === 'change_location') {
+      return { intent: 'DENY', confidence: choice.confidence, explanation: 'Declined live location' };
     }
-    if (hasDenyMatch && !hasAllowMatch) {
-      console.log(`[LocationNLU] Rule/Fuzzy fast-match -> DENY: "${cleanInput}"`);
-      return { intent: 'DENY', confidence: 0.98, explanation: 'Matched negative phrasing' };
-    }
-
-    // 2. GEMINI LLM NLU LAYER FOR COMPLEX / AMBIGUOUS / PHRASAL INPUTS
-    const client = this.getGeminiClient();
-    if (client) {
-      try {
-        const systemPrompt = `You are an intent classifier for a food ordering app asking for GPS location permission.
-The prompt asked: "Can we access your location to find nearby restaurants?"
-The user spoken response (in Tamil, Tanglish, Hindi, or English) is: "${cleanInput}"
-
-Classify into EXACTLY ONE intent:
-- "ALLOW": User agrees, permits, says yes, okay, sari, aama, kodu, paravaillai, sure, grant access, etc.
-- "DENY": User declines, denies access, says no, vendam, venam, illa, skip, don't allow, refuse, etc.
-- "AMBIGUOUS": User input is off-topic (e.g. ordering food like "biryani", asking unrelated questions, noise), ambiguous, or unclear.
-
-Respond strictly with JSON:
-{"intent": "ALLOW" | "DENY" | "AMBIGUOUS", "confidence": 0.95, "explanation": "reason"}`;
-
-        const response = await client.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: systemPrompt,
-          config: {
-            responseMimeType: 'application/json',
-            maxOutputTokens: 100
-          }
-        });
-
-        const textRes = response.text || '';
-        console.log('[LocationNLU] Gemini NLU Response:', textRes);
-        const parsed = JSON.parse(textRes.trim());
-        if (parsed.intent === 'ALLOW' || parsed.intent === 'DENY' || parsed.intent === 'AMBIGUOUS') {
-          return {
-            intent: parsed.intent,
-            confidence: parsed.confidence || 0.9,
-            explanation: parsed.explanation || 'LLM classified'
-          };
-        }
-      } catch (err) {
-        console.warn('[LocationNLU] Gemini LLM call failed, falling back to rule decision:', err);
-      }
-    }
-
-    // 3. FALLBACK FOR UNMATCHED INPUTS
-    console.log(`[LocationNLU] Unmatched input -> AMBIGUOUS: "${cleanInput}"`);
-    return {
-      intent: 'AMBIGUOUS',
-      confidence: 0.5,
-      explanation: 'Could not confidently determine ALLOW or DENY intent'
-    };
+    return { intent: 'AMBIGUOUS', confidence: choice.confidence, explanation: `Intent: ${choice.intent}` };
   }
+}
+
+export type LocationChoiceIntent =
+  | 'use_live_location'
+  | 'change_location'
+  | 'give_address'
+  | 'repeat'
+  | 'cancel'
+  | 'unclear';
+
+export interface LocationChoiceNluResult {
+  intent: LocationChoiceIntent;
+  address: string | null;
+  confidence: number;
+  source: 'gemini' | 'local_fallback' | 'cache';
 }

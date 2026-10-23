@@ -3,10 +3,19 @@ import { CartItem } from '../types';
 const API_BASE = '/api/cart';
 
 export class CartService {
+  private static getHeaders(): Record<string, string> {
+    const token = localStorage.getItem('autofeast_jwt_token') || '';
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  }
+
   public static async fetchCart(userId: string): Promise<CartItem[]> {
     try {
-      const uid = userId || 'user_karthik_001';
-      const res = await fetch(`${API_BASE}?userId=${encodeURIComponent(uid)}`);
+      const res = await fetch(`${API_BASE}`, {
+        headers: this.getHeaders()
+      });
       if (!res.ok) throw new Error('Failed to fetch server cart');
       const data = await res.json();
       return data.cart || [];
@@ -33,11 +42,10 @@ export class CartService {
     }
   ): Promise<CartItem[]> {
     try {
-      const uid = userId || 'user_karthik_001';
       const res = await fetch(`${API_BASE}/add`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: uid, ...payload })
+        headers: this.getHeaders(),
+        body: JSON.stringify({ ...payload })
       });
       if (!res.ok) throw new Error('Failed to add item to cart');
       const data = await res.json();
@@ -55,11 +63,10 @@ export class CartService {
     qty: number
   ): Promise<CartItem[]> {
     try {
-      const uid = userId || 'user_karthik_001';
       const res = await fetch(`${API_BASE}/update-qty`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: uid, itemId, restaurantName, qty })
+        headers: this.getHeaders(),
+        body: JSON.stringify({ itemId, restaurantName, qty })
       });
       if (!res.ok) throw new Error('Failed to update cart quantity');
       const data = await res.json();
@@ -76,11 +83,10 @@ export class CartService {
     restaurantName: string
   ): Promise<CartItem[]> {
     try {
-      const uid = userId || 'user_karthik_001';
       const res = await fetch(`${API_BASE}/remove`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: uid, itemId, restaurantName })
+        headers: this.getHeaders(),
+        body: JSON.stringify({ itemId, restaurantName })
       });
       if (!res.ok) throw new Error('Failed to remove item from cart');
       const data = await res.json();
@@ -93,11 +99,9 @@ export class CartService {
 
   public static async clearCart(userId: string): Promise<CartItem[]> {
     try {
-      const uid = userId || 'user_karthik_001';
       const res = await fetch(`${API_BASE}/clear`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: uid })
+        headers: this.getHeaders()
       });
       if (!res.ok) throw new Error('Failed to clear cart');
       const data = await res.json();

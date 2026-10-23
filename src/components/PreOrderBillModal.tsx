@@ -1,100 +1,146 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { ParsedOrderBill } from '../services/nlpParserService';
-import { SpeechService } from '../services/speechService';
+import { SpeechController } from '../services/speechController';
+import { debounceHandler } from '../utils/debounce';
+import { ChooserVoiceService } from '../services/chooserVoiceService';
 import { SttMatcherService } from '../services/sttMatcherService';
-import { FileText, CheckCircle, XCircle, Mic, MapPin, Clock, X } from 'lucide-react';
+import { NomineeNotificationService } from '../services/nomineeNotificationService';
+import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
+import { FileText, CheckCircle, XCircle, Mic, MapPin, Clock, X, Loader2 } from 'lucide-react';
 
 interface PreOrderBillModalProps {
   bill: ParsedOrderBill | null;
   isOpen: boolean;
   onClose: () => void;
   onConfirmProceedToPin: (bill: ParsedOrderBill) => void;
+  onScheduleOrder?: (bill: ParsedOrderBill) => void;
 }
 
 export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
   bill,
   isOpen,
   onClose,
-  onConfirmProceedToPin
+  onConfirmProceedToPin,
+  onScheduleOrder
 }) => {
-  const { language, accessibilitySettings, speakText } = useApp();
+  const {
+    language,
+    accessibilitySettings,
+    speakText,
+    showToast,
+    t,
+    currentUser,
+    checkIsItemRestrictedByNominee,
+    handleNomineeRestrictedInterception
+  } = useApp();
   const [isListening, setIsListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
+  /** True while the synchronous restricted-item check is running (guarded by a 5 s timeout). */
+  const [isChecking, setIsChecking] = useState(false);
 
   useEffect(() => {
     if (isOpen && bill) {
       setLiveTranscript('');
 
-      // Format spoken bill summary prompt
-      const itemNamesList = bill.items.map(i => `${i.quantity} ${i.foodItem.nativeNames?.[language] || i.foodItem.name}`).join(', ');
-
-      // Price Comparison Readout String
-      let priceCompMsg = '';
-      if (bill.priceComparison) {
-        const cheapest = bill.priceComparison.cheapest;
-        const fastest = bill.priceComparison.fastest;
-        const cheapestPrice = cheapest.price + cheapest.deliveryFee;
-
-        if (language === 'ta') {
-          priceCompMsg = ` விலை ஒப்பீடு: இதே உணவு ${cheapest.platformName}-இல் குறைந்த விலையாக ₹${cheapestPrice}-க்கு கிடைக்கிறது, ${fastest.platformName}-இல் ${fastest.deliveryTime} நிமிடத்தில் வேகமானது.`;
-        } else if (language === 'hi') {
-          priceCompMsg = ` कीमत तुलना: यही आइटम ${cheapest.platformName} पर ₹${cheapestPrice} में सबसे सस्ता और ${fastest.platformName} पर ${fastest.deliveryTime} मिनट में सबसे तेज़ है।`;
-        } else {
-          priceCompMsg = ` Price Comparison: Same item is cheapest on ${cheapest.platformName} at ₹${cheapestPrice}, and fastest on ${fastest.platformName} in ${fastest.deliveryTime} mins.`;
-        }
-      }
+      const numItems = bill.items.reduce((sum, item) => sum + item.quantity, 0);
+      const restaurantCount = new Set(bill.items.map(i => i.foodItem?.restaurant || bill.restaurantName)).size;
+      const grandTotal = bill.grandTotal;
 
       let speakMsg = '';
       if (language === 'ta') {
-        speakMsg = `உங்கள் ஆர்டர்: ${bill.restaurantName}-லிருந்து ${itemNamesList}. சப்-டோட்டல் ₹${bill.subtotal.toFixed(2)}, ஜிஎஸ்டி ₹${bill.totalGst.toFixed(2)}, மொத்தம் ₹${bill.grandTotal}.${priceCompMsg} இப்போது இந்த ஆர்டரை செய்யவா?`;
+        speakMsg = `${restaurantCount} உணவகங்களிலிருந்து ${numItems} பொருட்கள். மொத்தம் ${grandTotal} ரூபாய். இப்போதே ஆர்டர் செய்யவா அல்லது அட்டவணைப்படுத்தவா?`;
       } else if (language === 'hi') {
-        speakMsg = `आपका ऑर्डर: ${bill.restaurantName} से ${itemNamesList}। सब-टोटल ₹${bill.subtotal.toFixed(2)}, जीएसटी ₹${bill.totalGst.toFixed(2)}, कुल ₹${bill.grandTotal}।${priceCompMsg} क्या मैं यह ऑर्डर अभी रखूं?`;
+        speakMsg = `आपके पास ${restaurantCount} रेस्तरां से ${numItems} आइटम हैं। कुल ${grandTotal} रुपये। अभी ऑर्डर करें या शेड्यूल करें?`;
       } else {
-        speakMsg = `Your order: ${itemNamesList} from ${bill.restaurantName}. Subtotal ₹${bill.subtotal.toFixed(2)}, GST ₹${bill.totalGst.toFixed(2)}, Total ₹${bill.grandTotal}.${priceCompMsg} Should I place this order now?`;
+        speakMsg = `You have ${numItems} items from ${restaurantCount} ${restaurantCount === 1 ? 'restaurant' : 'restaurants'}. Total ${grandTotal} rupees. Order now or schedule?`;
       }
 
-      console.log('[PreOrderBillModal]: Speaking bill summary aloud ->', speakMsg);
+      console.log('[PreOrderBillModal]: Speaking bill prompt aloud ->', speakMsg);
 
-      // Stop any existing mic session before TTS speaks
-      SpeechService.stopListening();
-      setIsListening(false);
-
-      speakText(speakMsg, () => {
-        // Start listening for spoken "Yes" or "No" after TTS finishes
-        startListeningForConfirmation();
-      }, language);
+      SpeechController.speak(
+        speakMsg,
+        language,
+        () => {
+          if (isOpen) {
+            startListeningForConfirmation();
+          }
+        },
+        (fallbackText) => {
+          showToast(fallbackText, 'info');
+        },
+        'cart_checkout'
+      );
     } else {
-      SpeechService.stopListening();
+      SpeechController.releaseMic('cart_checkout');
       setIsListening(false);
     }
+
+    return () => {
+      SpeechController.cancelSpeech();
+      SpeechController.releaseMic('cart_checkout');
+    };
   }, [isOpen, bill, language]);
 
   const startListeningForConfirmation = () => {
-    if (!isOpen || !SpeechService.isSupported()) return;
+    if (!isOpen || !SpeechController.isSupported()) return;
 
-    SpeechService.startListening({
+    SpeechController.startListening({
+      owner: 'cart_checkout',
       language,
-      continuous: true,
+      continuous: false,
       interimResults: true,
+      maxAlternatives: 5,
+      silenceTimeoutMs: 8000,
+      onSilence: () => setIsListening(false),
       onStart: () => setIsListening(true),
       onResult: (transcript, isFinal, nBestTranscripts) => {
         if (!transcript) return;
         setLiveTranscript(transcript);
-        if (!isFinal) return; // Live transcript shown above; process match ONLY on final result
+        if (!isFinal) return;
 
         console.log('[PreOrderBillModal Spoken Confirmation Reply]:', transcript);
 
         const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [transcript];
-        const matchResult = SttMatcherService.matchConfirmation(candidates, language);
 
+        // Check for cancel/stop first
+        const controlMatch = SttMatcherService.matchControlCommand(candidates);
+        if (controlMatch.isMatched && (controlMatch.matchedValue === 'CANCEL' || controlMatch.matchedValue === 'STOP')) {
+          SpeechController.cancelSpeech();
+          SpeechController.releaseMic('cart_checkout');
+          setIsListening(false);
+          onClose();
+          return;
+        }
+
+        const actionChoice = ChooserVoiceService.parseChooserAction(candidates);
+
+        if (actionChoice === 'order_now') {
+          handleConfirmProceed();
+          return;
+        } else if (actionChoice === 'schedule' && onScheduleOrder && bill) {
+          SpeechController.cancelSpeech();
+          SpeechController.releaseMic('cart_checkout');
+          setIsListening(false);
+          onScheduleOrder(bill);
+          onClose();
+          return;
+        } else if (actionChoice === 'cancel') {
+          SpeechController.cancelSpeech();
+          SpeechController.releaseMic('cart_checkout');
+          setIsListening(false);
+          onClose();
+          return;
+        }
+
+        const matchResult = SttMatcherService.matchConfirmation(candidates, language);
         if (matchResult.isMatched) {
           if (matchResult.matchedValue === 'YES') {
-            console.log('🚀 [PreOrderBillModal via SttMatcherService]: Spoken Yes confirmed! Advancing to PIN Modal...');
+            console.log('🚀 [PreOrderBillModal]: Spoken Yes confirmed! Advancing to PIN Modal...');
             handleConfirmProceed();
           } else if (matchResult.matchedValue === 'NO') {
-            console.log('[PreOrderBillModal via SttMatcherService]: Spoken No detected. Cancelling order.');
-            SpeechService.stopListening();
+            console.log('[PreOrderBillModal]: Spoken No detected. Cancelling order.');
+            SpeechController.releaseMic('cart_checkout');
             setIsListening(false);
             onClose();
           }
@@ -103,23 +149,85 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
       onError: () => setIsListening(false),
       onEnd: () => {
         setIsListening(false);
-        if (isOpen) {
-          setTimeout(() => {
-            if (isOpen) {
-              startListeningForConfirmation();
-            }
-          }, 400);
-        }
       }
     });
   };
 
-  const handleConfirmProceed = () => {
+  // ---------------------------------------------------------------------------
+  // Core confirm handler — uses useCallback so it always captures fresh props.
+  // The restricted check is purely synchronous; no async/await, no hang risk.
+  // ---------------------------------------------------------------------------
+  const handleConfirmProceed = useCallback(() => {
     if (!bill) return;
-    SpeechService.stopListening();
+
+    // Release mic and cancel TTS fire-and-forget — never await these.
+    SpeechController.cancelSpeech();
+    SpeechController.releaseMic('cart_checkout');
     setIsListening(false);
-    onConfirmProceedToPin(bill);
-  };
+
+    // FAIL-CLOSED: if the restricted list could not be fetched, surface a
+    // localized toast and do NOT proceed to PIN — let the user retry.
+    if (NomineeNotificationService.hasRestrictedFetchError()) {
+      console.log('[DEBUG Test 7]: NomineeNotificationService.hasRestrictedFetchError returned TRUE!');
+      showToast(t('nominee.restrictedLoadError'), 'warning');
+      // Modal stays open so the user can press the button again after network recovery.
+      return;
+    }
+
+    // Show brief loading state while the synchronous check runs.
+    setIsChecking(true);
+
+    // 5-second safety timeout — prevents any future async refactor from hanging the UI.
+    const checkTimer = setTimeout(() => {
+      console.warn('[PreOrderBillModal]: Restricted-item check timed out — aborting.');
+      setIsChecking(false);
+      showToast(t('nominee.restrictedLoadError'), 'warning');
+    }, 5000);
+
+    try {
+      const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
+      for (const item of bill.items) {
+        if (!item || !item.foodItem) continue;
+        const isRestrictedByNominee = checkIsItemRestrictedByNominee(item.foodItem.id, item.foodItem.name);
+        const interception = SttMatcherService.checkRestrictedFoodInterception(item.foodItem.name, restrictedCatalogItems);
+        if (isRestrictedByNominee || interception.isRestricted) {
+          console.log('[DEBUG Test 7]: Restricted item blocked:', item.foodItem.name, 'isRestrictedByNominee:', isRestrictedByNominee, 'interception:', interception);
+          clearTimeout(checkTimer);
+          setIsChecking(false);
+          handleNomineeRestrictedInterception(item.foodItem, 'instant');
+          onClose();
+          return;
+        }
+      }
+
+      clearTimeout(checkTimer);
+      setIsChecking(false);
+      console.log('[DEBUG Test 7]: Calling onConfirmProceedToPin with bill!');
+      onConfirmProceedToPin(bill);
+    } catch (err) {
+      clearTimeout(checkTimer);
+      setIsChecking(false);
+      console.error('[PreOrderBillModal]: Unexpected error during restricted check:', err);
+      showToast(t('nominee.restrictedLoadError'), 'warning');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bill, currentUser, checkIsItemRestrictedByNominee, handleNomineeRestrictedInterception, onConfirmProceedToPin, onClose, t, showToast]);
+
+  // ---------------------------------------------------------------------------
+  // Debounce wrapper: stores a ref to the LATEST handleConfirmProceed so the
+  // debounce closure (created once at mount) never holds a stale version.
+  // Leading-edge semantics: first click within 1 s window fires immediately.
+  // ---------------------------------------------------------------------------
+  const handleConfirmProceedRef = useRef(handleConfirmProceed);
+  useEffect(() => {
+    handleConfirmProceedRef.current = handleConfirmProceed;
+  }, [handleConfirmProceed]);
+
+  const debouncedConfirmProceed = useRef(
+    debounceHandler(() => {
+      handleConfirmProceedRef.current();
+    }, 1000)
+  ).current;
 
   if (!isOpen || !bill) return null;
 
@@ -134,7 +242,8 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
         {/* Close Button */}
         <button
           onClick={() => {
-            SpeechService.stopListening();
+            SpeechController.cancelSpeech();
+    SpeechController.releaseMic('cart_checkout');
             setIsListening(false);
             onClose();
           }}
@@ -297,7 +406,8 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
         <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center gap-2 shrink-0">
           <button
             onClick={() => {
-              SpeechService.stopListening();
+              SpeechController.cancelSpeech();
+    SpeechController.releaseMic('cart_checkout');
               setIsListening(false);
               onClose();
             }}
@@ -307,11 +417,26 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             <span>{language === 'ta' ? 'ரத்து' : language === 'hi' ? 'रद्द करें' : 'Cancel'}</span>
           </button>
           <button
-            onClick={handleConfirmProceed}
-            className="w-full sm:w-2/3 py-3 px-5 bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#FF5A1F]/30 transition-transform active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
+            data-testid="btn-confirm-proceed-pin"
+            onClick={debouncedConfirmProceed}
+            disabled={isChecking}
+            aria-busy={isChecking}
+            className={`w-full sm:w-2/3 py-3 px-5 font-black rounded-2xl text-xs sm:text-sm shadow-lg transition-transform active:scale-95 flex items-center justify-center space-x-2 ${
+              isChecking
+                ? 'bg-[#FF5A1F]/60 text-white cursor-not-allowed'
+                : 'bg-[#FF5A1F] hover:bg-[#E04812] text-white shadow-[#FF5A1F]/30 cursor-pointer'
+            }`}
           >
-            <CheckCircle className="w-4.5 h-4.5 text-white shrink-0" />
-            <span>{language === 'ta' ? 'ஆம், PIN செலுத்தச் செல்' : language === 'hi' ? 'हाँ, पिन दर्ज करें' : 'Yes, Proceed to PIN & Pay'}</span>
+            {isChecking ? (
+              <Loader2 className="w-4 h-4 text-white shrink-0 animate-spin" />
+            ) : (
+              <CheckCircle className="w-4.5 h-4.5 text-white shrink-0" />
+            )}
+            <span>
+              {isChecking
+                ? (language === 'ta' ? 'சரிபார்க்கிறது...' : language === 'hi' ? 'जाँच हो रही है...' : 'Checking...')
+                : (language === 'ta' ? 'ஆம், PIN செலுத்தச் செல்' : language === 'hi' ? 'हाँ, पिन दर्ज करें' : 'Yes, Proceed to PIN & Pay')}
+            </span>
           </button>
         </div>
 

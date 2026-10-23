@@ -1,18 +1,7 @@
+import { describe, test, expect } from 'vitest';
 import { groupCartByRestaurant, validateCartItem, CartGroupItem } from './cartGrouping';
 
-export function runCartGroupingUnitTests() {
-  const testResults: Array<{ testName: string; passed: boolean; details: string }> = [];
-
-  const addResult = (testName: string, passed: boolean, details: string) => {
-    testResults.push({ testName, passed, details });
-    if (passed) {
-      console.log(`[PASS] ${testName}: ${details}`);
-    } else {
-      console.error(`[FAIL] ${testName}: ${details}`);
-    }
-  };
-
-  // Test 1: Multi-restaurant cart grouping (3 restaurants, 4 items)
+describe('cartGrouping Unit Tests', () => {
   const mockItems: CartGroupItem[] = [
     {
       foodItem: {
@@ -100,39 +89,27 @@ export function runCartGroupingUnitTests() {
     }
   ];
 
-  const summary = groupCartByRestaurant(mockItems);
-  const correctRestaurantCount = summary.restaurantCount === 3;
-  const correctDeliveryFee = summary.totalDeliveryFee === 90; // 3 * 30
+  test('Multi-Restaurant Cart Grouping (3 restaurants, 4 items)', () => {
+    const summary = groupCartByRestaurant(mockItems);
+    expect(summary.restaurantCount).toBe(3);
+    expect(summary.totalDeliveryFee).toBe(90); // 3 * 30
+    expect(summary.groups.length).toBe(3);
+  });
 
-  addResult(
-    'Multi-Restaurant Cart Grouping',
-    correctRestaurantCount && correctDeliveryFee,
-    `Grouped ${summary.groups.length} restaurants, total delivery fee ₹${summary.totalDeliveryFee}`
-  );
+  test('Cart Item Validation', () => {
+    const validCheck = validateCartItem(mockItems[0]);
+    const invalidCheck = validateCartItem({ foodItem: { id: 'x' } as any, quantity: 0 });
+    expect(validCheck.isValid).toBe(true);
+    expect(invalidCheck.isValid).toBe(false);
+  });
 
-  // Test 2: Item validation test
-  const validCheck = validateCartItem(mockItems[0]);
-  const invalidCheck = validateCartItem({ foodItem: { id: 'x' } as any, quantity: 0 });
-  addResult(
-    'Cart Item Validation',
-    validCheck.isValid && !invalidCheck.isValid,
-    `Valid item passed, invalid item correctly caught (${invalidCheck.itemError})`
-  );
+  test('Multi-Restaurant Restricted Item Separation', () => {
+    const restrictedFoodIds = ['dosa-podi'];
+    const restrictedItems = mockItems.filter(item => restrictedFoodIds.includes(item.foodItem.id));
+    const allowedItems = mockItems.filter(item => !restrictedFoodIds.includes(item.foodItem.id));
 
-  // Test 3: Restricted item identification in multi-restaurant cart
-  const restrictedFoodIds = ['dosa-podi']; // Ghee Podi Dosa is restricted
-  const restrictedItems = mockItems.filter(item => restrictedFoodIds.includes(item.foodItem.id));
-  const allowedItems = mockItems.filter(item => !restrictedFoodIds.includes(item.foodItem.id));
-
-  addResult(
-    'Multi-Restaurant Restricted Item Separation',
-    restrictedItems.length === 1 && allowedItems.length === 3,
-    `Restricted item (${restrictedItems[0]?.foodItem.name}) identified; ${allowedItems.length} allowed items proceed.`
-  );
-
-  return {
-    total: testResults.length,
-    passed: testResults.filter(r => r.passed).length,
-    results: testResults
-  };
-}
+    expect(restrictedItems.length).toBe(1);
+    expect(allowedItems.length).toBe(3);
+    expect(restrictedItems[0].foodItem.name).toBe('Ghee Podi Dosa');
+  });
+});

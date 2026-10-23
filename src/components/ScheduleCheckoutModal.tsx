@@ -13,10 +13,13 @@ import {
 } from '../utils/scheduleCalculator';
 import { Clock, Calendar, CheckCircle2, ShieldCheck, Wallet, Lock, X, AlertTriangle, ArrowRight, Utensils, Tag, FileText, Check, Mic } from 'lucide-react';
 import { SpeechService } from '../services/speechService';
+import { NomineeNotificationService } from '../services/nomineeNotificationService';
 import { AuthService } from '../services/authService';
 import { SttMatcherService } from '../services/sttMatcherService';
 import { groupCartByRestaurant, validateCartItem } from '../utils/cartGrouping';
 import { SecurityPinEntryView } from './SecurityPinEntryView';
+import { SpeechController } from '../services/speechController';
+import { parseSpokenTimeTo24Hr } from './VoiceOrderDialogModal';
 
 
 export interface ScheduleCheckoutItem {
@@ -104,6 +107,8 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
   const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '']);
   const [pinError, setPinError] = useState<string | null>(null);
   const [isListeningPin, setIsListeningPin] = useState<boolean>(false);
+  const [isPinVerifying, setIsPinVerifying] = useState(false);
+  const [pinLockSecondsLeft, setPinLockSecondsLeft] = useState(0);
 
   // Validation & Error Feedback State
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -113,6 +118,15 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
     nextSlotTime: string;
   } | null>(null);
   const [isValidating, setIsValidating] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (pinLockSecondsLeft <= 0) return;
+    const timer = setInterval(() => {
+      setPinLockSecondsLeft(current => Math.max(0, current - 1));
+      if (pinLockSecondsLeft === 1) setPinError(null);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [pinLockSecondsLeft]);
 
   // Reset state and set smart default start date when modal opens
   useEffect(() => {
@@ -130,6 +144,14 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
       setIsValidating(false);
       lastSpokenMsgRef.current = '';
 
+      // Speak Step 1 guidance on open
+      const guidance = language === 'ta'
+        ? 'அட்டவணை செய்தி. நேரம், முறைமை மற்றும் காலஅளவை தேர்ந்தெடுங்கள்.'
+        : language === 'hi'
+        ? 'शेड्यूल सेटअप। समय, फ्रीक्वेंसी और अवधि चुनें।'
+        : 'Schedule setup. Choose a time, frequency, and duration for your auto-order.';
+      const timer = setTimeout(() => speakText(guidance, undefined, language), 300);
+
       // Smart default: if today's default time has passed, start date defaults to TOMORROW
       const todayISO = getTodayISO();
       if (checkIsPastTime(initT, todayISO)) {
@@ -137,8 +159,10 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
       } else {
         setStartDate(todayISO);
       }
+
+      return () => clearTimeout(timer);
     }
-  }, [isOpen, initialTime, initialSlotName]);
+  }, [isOpen, initialTime, initialSlotName, language]);
 
   if (!isOpen || items.length === 0) return null;
 
@@ -146,6 +170,103 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
   const cartSummary = groupCartByRestaurant(items);
   const { groups, subtotal, totalDeliveryFee, platformFee, gstTax, perOrderTotal } = cartSummary;
   const grandTotal = perOrderTotal;
+
+  // Step 2 Bill Voice Confirmation Effect (Yes -> Proceed to PIN, No -> Go back to Step 1)
+  useEffect(() => {
+    if (isOpen && step === 2) {
+      const billMsg = language === 'ta'
+        ? `மொத்த அட்டவணை பில் ${grandTotal} ரூபாய். உறுதி செய்து தொடரவா? ஆம் அல்லது இல்லை என்று சொல்லுங்கள்.`
+        : language === 'hi'
+        ? `कुल शेड्यूल बिल ${grandTotal} रुपये है। क्या आप पुष्टि करना चाहते हैं? हाँ या नहीं बोलें।`
+        : `Schedule total bill is ${grandTotal} rupees. Confirm schedule? Say yes to proceed or no to cancel.`;
+
+      speakText(billMsg, () => {
+        if (isOpen && step === 2 && SpeechController.isSupported()) {
+          SpeechController.startListening({
+            owner: 'schedule_bill_confirm',
+            language,
+            continuous: false,
+            interimResults: true,
+            maxAlternatives: 5,
+            silenceTimeoutMs: 8000,
+            onResult: (transcript, isFinal, nBest) => {
+              if (!transcript || !isFinal) return;
+              const candidates = nBest && nBest.length > 0 ? nBest : [transcript];
+              const match = SttMatcherService.matchConfirmation(candidates, language);
+              if (match.isMatched) {
+                if (match.matchedValue === 'YES') {
+                  SpeechController.releaseMic('schedule_bill_confirm');
+                  handleProceedToPin();
+                } else if (match.matchedValue === 'NO') {
+                  SpeechController.releaseMic('schedule_bill_confirm');
+                  setStep(1);
+                }
+              }
+            }
+          });
+        }
+      }, language);
+    }
+
+    return () => {
+      SpeechController.releaseMic('schedule_bill_confirm');
+    };
+  }, [isOpen, step, grandTotal, language]);
+
+  const [isListeningStep1, setIsListeningStep1] = useState(false);
+  const startListeningForStep1 = () => {
+    if (!SpeechController.isSupported()) return;
+    setIsListeningStep1(true);
+    SpeechController.startListening({
+      owner: 'schedule_step1',
+      language,
+      continuous: false,
+      interimResults: true,
+      maxAlternatives: 5,
+      silenceTimeoutMs: 8000,
+      onSilence: () => setIsListeningStep1(false),
+      onStart: () => setIsListeningStep1(true),
+      onResult: (transcript, isFinal, nBest) => {
+        if (!transcript || !isFinal) return;
+        setIsListeningStep1(false);
+        const candidates = nBest && nBest.length > 0 ? nBest : [transcript];
+
+        // 1. Time parsing
+        for (const cand of candidates) {
+          const timeRes = parseSpokenTimeTo24Hr(cand);
+          if (timeRes) {
+            setTimeInput(timeRes.time24);
+            break;
+          }
+        }
+
+        // 2. Frequency parsing
+        for (const cand of candidates) {
+          const l = cand.toLowerCase();
+          if (l.includes('daily') || l.includes('every day') || l.includes('தினமும்') || l.includes('தினசரி') || l.includes('रोजाना') || l.includes('प्रतिदिन')) {
+            setFrequency('daily');
+            break;
+          }
+          if (l.includes('weekday') || l.includes('வேலை நாட்கள்') || l.includes('सोमवार से शुक्रवार')) {
+            setFrequency('weekdays');
+            break;
+          }
+          if (l.includes('weekend') || l.includes('வார இறுதி') || l.includes('शनिवार रविवार')) {
+            setFrequency('weekends');
+            break;
+          }
+        }
+
+        // 3. Duration parsing
+        const durMatch = SttMatcherService.matchDurationChoice(candidates);
+        if (durMatch.isMatched && durMatch.matchedValue) {
+          setDuration(durMatch.matchedValue as ScheduleDuration);
+        }
+      },
+      onError: () => setIsListeningStep1(false),
+      onEnd: () => setIsListeningStep1(false)
+    });
+  };
 
   const computedEndDate = calculateScheduleEndDate(startDate, duration, customEndDate);
 
@@ -234,7 +355,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
 
         if (lastSpokenMsgRef.current !== err) {
           lastSpokenMsgRef.current = err;
-          speakText(err);
+          speakText(err, undefined, language);
         }
         
         setPastTimeSuggestion({
@@ -254,11 +375,21 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
       }
 
       // 4. Nominee Restrictions Check
+      if (NomineeNotificationService.hasRestrictedFetchError()) {
+        const loadErr = t('nominee.restrictedLoadError');
+        setValidationError(loadErr);
+        showToast(loadErr, 'warning');
+        setIsValidating(false);
+        return;
+      }
+
+      const restrictedCatalogItems = (currentUser?.restrictedFoodIds || []).map(id => items.find(i => i.foodItem?.id === id)?.foodItem).filter(Boolean) as FoodItem[];
       for (const item of items) {
         if (!item || !item.foodItem) continue;
         const foodId = item.foodItem.id || '';
         const foodName = item.foodItem.name || '';
-        if (checkIsItemRestrictedByNominee(foodId, foodName)) {
+        const interception = SttMatcherService.checkRestrictedFoodInterception(foodName, restrictedCatalogItems);
+        if (checkIsItemRestrictedByNominee(foodId, foodName) || interception.isRestricted) {
           handleNomineeRestrictedInterception(item.foodItem, 'scheduled', {
             time: timeInput,
             slotName: slotTitle,
@@ -292,7 +423,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
       : language === 'hi'
       ? 'सुरक्षा पिन सत्यापन: कृपया अपना 4-अंकीय पिन दर्ज करें।'
       : 'Security PIN verification. Please enter your 4-digit PIN.';
-    speakText(pinMsg);
+    speakText(pinMsg, undefined, language);
   };
 
   // Handle PIN Key Input
@@ -334,7 +465,10 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
 
   // Verify PIN & Save Schedules via server-side verification service
   const verifyAndConfirmPin = async (enteredPin: string) => {
+    if (isPinVerifying || pinLockSecondsLeft > 0) return;
+    setIsPinVerifying(true);
     const res = await AuthService.verifyPIN(enteredPin);
+    setIsPinVerifying(false);
     if (res.success && res.token) {
       // Save all schedules
       items.forEach((item, idx) => {
@@ -367,15 +501,29 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
         ? 'शेड्यूल सफलतापूर्वक बनाया गया!'
         : 'Schedule created successfully!';
       showToast(successMsg, 'success');
-      speakText(successMsg);
+      speakText(successMsg, undefined, language);
 
       if (onSuccess) onSuccess();
     } else {
-      const err = res.error || (language === 'ta'
-        ? 'தவறான PIN. மீண்டும் முயற்சிக்கவும்.'
-        : language === 'hi'
-        ? 'गलत पिन। कृपया पुनः प्रयास करें।'
-        : 'Invalid PIN. Please try again.');
+      const seconds = res.lockRemainingSeconds || 0;
+      if (res.isLocked) setPinLockSecondsLeft(seconds);
+      const err = res.isLocked
+        ? language === 'ta'
+          ? `நான்கு தவறான PIN முயற்சிகள். ${seconds} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கலாம்.`
+          : language === 'hi'
+          ? `चार गलत पिन प्रयास। ${seconds} सेकंड बाद फिर कोशिश कर सकते हैं।`
+          : `Four incorrect PIN attempts. Retry becomes available in ${seconds} seconds.`
+        : res.serverError
+          ? language === 'ta'
+            ? 'இப்போது PIN சரிபார்க்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.'
+            : language === 'hi'
+            ? 'अभी पिन सत्यापित नहीं हो सका। कृपया फिर कोशिश करें।'
+            : 'Cannot verify PIN right now. Please try again.'
+          : language === 'ta'
+            ? `தவறான PIN. ${res.attemptsLeft ?? 0} முயற்சிகள் மீதமுள்ளன.`
+            : language === 'hi'
+            ? `गलत पिन। ${res.attemptsLeft ?? 0} प्रयास शेष।`
+            : `Incorrect PIN. ${res.attemptsLeft ?? 0} attempts remaining.`;
       setPinError(err);
       setPinDigits(['', '', '', '']);
       showToast(err, 'error');
@@ -468,12 +616,27 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
                   className="w-full p-3.5 rounded-2xl border border-[#B2E2F0] bg-slate-50 text-[#1A1110] font-black text-lg text-center focus:outline-none focus:border-[#FF5A1F]"
                 />
 
-                <input
-                  type="text"
-                  placeholder='Try "8 AM", "night 8", "evening 7:30"'
-                  onBlur={e => handleTimeBlurOrChange(e.target.value)}
-                  className="w-full p-3.5 rounded-2xl border border-[#B2E2F0] bg-slate-50 text-xs font-bold text-[#1A1110]"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder='Try "8 AM", "night 8", "evening 7:30"'
+                    onBlur={e => handleTimeBlurOrChange(e.target.value)}
+                    className="flex-1 p-3.5 rounded-2xl border border-[#B2E2F0] bg-slate-50 text-xs font-bold text-[#1A1110]"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={startListeningForStep1}
+                    className={`px-3 py-2 rounded-2xl border flex items-center justify-center cursor-pointer transition-all ${
+                      isListeningStep1
+                        ? 'bg-red-600 text-white animate-pulse border-red-700'
+                        : 'bg-[#FF5A1F] hover:bg-[#E04812] text-white border-[#E04812]'
+                    }`}
+                    title="Speak time, daily or weekly"
+                  >
+                    <Mic className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Ambiguous Hour Disambiguation Prompt */}
@@ -754,6 +917,8 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
               onCancel={() => setStep(2)}
               cancelButtonText={t('backToBill')}
               submitButtonText={t('pinConfirm.confirmScheduleBtn')}
+              isVerifying={isPinVerifying}
+              lockSecondsLeft={pinLockSecondsLeft}
               errorMessage={pinError}
               setErrorMessage={setPinError}
               summaryCard={

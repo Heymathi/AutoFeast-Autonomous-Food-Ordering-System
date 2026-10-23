@@ -31,6 +31,16 @@ export interface VerifyPinResult {
   error?: string;
   isLocked?: boolean;
   lockRemainingSeconds?: number;
+  attemptsLeft?: number;
+  /** True when a network/server error prevented verification (not a wrong PIN). */
+  serverError?: boolean;
+}
+
+export class NomineeRequestError extends Error {
+  constructor(public readonly status: number) {
+    super(`Nominee request failed with status ${status}.`);
+    this.name = 'NomineeRequestError';
+  }
 }
 
 export class AuthService {
@@ -139,8 +149,10 @@ export class AuthService {
     email: string,
     password: string,
     pin: string,
-    nomineeName: string = 'Emergency Nominee',
-    nomineePhone: string = '+91 98765 00000',
+    nomineeName: string,
+    nomineePhone: string,
+    nomineeEmail: string,
+    nomineePassword: string,
     initialCredential?: RegisteredCredential
   ): Promise<UserProfile> {
     const cleanEmail = email.toLowerCase().trim();
@@ -162,6 +174,8 @@ export class AuthService {
           pin: cleanPin,
           nomineeName,
           nomineePhone,
+          nomineeEmail: nomineeEmail.toLowerCase().trim(),
+          nomineePassword,
           initialCredential
         })
       });
@@ -172,8 +186,14 @@ export class AuthService {
 
     const data = await res.json().catch(() => ({ error: 'server_error' }));
     if (!res.ok || !data.success) {
-      if (res.status === 400 && data.error && data.error.includes('already exists')) {
+      if (res.status === 409 || data.error === 'account_exists' || (typeof data.error === 'string' && data.error.includes('already exists'))) {
         throw new Error('An account with this email already exists.');
+      }
+      if (res.status === 400 || data.error === 'invalid_input') {
+        throw new Error(data.message || 'Please check your details and try again.');
+      }
+      if (res.status === 503 || data.error === 'database_unavailable') {
+        throw new Error('Database service unavailable. Please try again later.');
       }
       throw new Error(data.message || data.error || 'Server error occurred. Please try again later.');
     }
@@ -183,6 +203,9 @@ export class AuthService {
       pinHash: cleanPin
     };
 
+    if (data.token) {
+      localStorage.setItem('autofeast_jwt_token', data.token);
+    }
     this.setCurrentUser(user);
     return user;
   }
@@ -224,12 +247,26 @@ export class AuthService {
       if (res.status === 429 || data.error === 'rate_limit_exceeded') {
         throw new Error('Too many login attempts. Please try again in 15 minutes.');
       }
+      if (res.status === 503 || data.error === 'database_unavailable') {
+        throw new Error('Database service unavailable. Please try again later.');
+      }
       throw new Error(data.message || data.error || 'Server error occurred. Please try again later.');
     }
 
     const user: UserProfile = data.user;
+    if (data.token) {
+      localStorage.setItem('autofeast_jwt_token', data.token);
+    }
     this.setCurrentUser(user);
     return user;
+  }
+
+  public static getAuthToken(): string {
+    try {
+      return localStorage.getItem('autofeast_jwt_token') || '';
+    } catch {
+      return '';
+    }
   }
 
   /**
@@ -285,7 +322,7 @@ export class AuthService {
         success: false,
         isLocked: true,
         lockRemainingSeconds: rem,
-        error: `3 incorrect attempts. Security locked for ${rem} seconds.`
+        error: `Too many incorrect attempts. Security locked for ${rem} more seconds.`
       };
     }
 
@@ -294,56 +331,94 @@ export class AuthService {
       return { success: false, error: 'Please enter a valid 4-digit numeric PIN.' };
     }
 
+    let serverDefinitivelyWrong = false;
     let isMatch = false;
+    let serverAttemptsLeft: number | undefined;
+    let serverLocked = false;
+    let serverLockMs: number | undefined;
 
     try {
-      const res = await fetch('/api/auth/verify-pin', {
+      const res = await fetch('/api/verify-pin', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin: cleanPin })
       });
 
       if (res.ok) {
         const data = await res.json();
-        if (data.success) isMatch = true;
+        if (data.success) {
+          isMatch = true;
+        } else {
+          serverDefinitivelyWrong = true;
+        }
+      } else if (res.status === 400 || res.status === 429) {
+        // 400 = wrong PIN with attempts remaining; 429 = account locked
+        const data = await res.json().catch(() => ({}));
+        serverDefinitivelyWrong = res.status === 400;
+        serverLocked = res.status === 429 || Boolean(data.locked);
+        serverAttemptsLeft = typeof data.attemptsLeft === 'number' ? data.attemptsLeft : undefined;
+        serverLockMs = typeof data.lockExpiresMs === 'number' ? data.lockExpiresMs : undefined;
+
+        if (serverLocked) {
+          // Sync the frontend lockout with the server-enforced lockout
+          const lockUntilMs = serverLockMs ?? (Date.now() + 30000);
+          this.lockoutUntil = lockUntilMs;
+          this.failedPinAttempts = 0;
+          const remSecs = Math.ceil((lockUntilMs - Date.now()) / 1000);
+          return {
+            success: false,
+            isLocked: true,
+            lockRemainingSeconds: remSecs,
+            attemptsLeft: 0,
+            error: `Incorrect PIN. Account locked for ${remSecs} seconds due to too many failed attempts.`
+          };
+        }
+        // Wrong PIN, not yet locked — use server's attemptsLeft
+        const attemptsMsg = typeof serverAttemptsLeft === 'number'
+          ? `Incorrect PIN. ${serverAttemptsLeft} attempt${serverAttemptsLeft !== 1 ? 's' : ''} remaining.`
+          : 'Incorrect PIN. Please try again.';
+        if (serverDefinitivelyWrong) this.failedPinAttempts += 1;
+        return { success: false, attemptsLeft: serverAttemptsLeft, error: attemptsMsg };
+      } else {
+        // HTTP 401, 503, 500 etc. — transient server/auth error, do NOT count as wrong attempt
+        const serverErrMsg = 'Cannot verify PIN right now, please try again.';
+        console.warn(`[AuthService] Server verify-pin HTTP ${res.status}`);
+        return { success: false, serverError: true, error: serverErrMsg };
       }
     } catch (e) {
+      const serverErrMsg = 'Cannot verify PIN right now, please try again.';
       console.warn('[AuthService] Server verify-pin request error:', e);
-    }
-
-    // Fallback to active user session PIN comparison if server offline
-    if (!isMatch) {
-      const currentUser = this.getCurrentUser();
-      if (currentUser && currentUser.pinHash && currentUser.pinHash === cleanPin) {
-        isMatch = true;
-      } else if (!currentUser && cleanPin.length === 4) {
-        // Fallback for default onboarding initial session
-        isMatch = true;
-      }
+      return { success: false, serverError: true, error: serverErrMsg };
     }
 
     if (isMatch) {
       this.failedPinAttempts = 0;
+      this.lockoutUntil = 0;
       const token = `tok_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
-      // Issued token valid for 2 minutes (120,000 ms)
       this.verifiedTokensMap.set(token, { expiry: Date.now() + 120000 });
       console.log(`[AuthService]: PIN verified. Single-use token issued: "${token}" (expires in 2m)`);
       return { success: true, token };
     } else {
-      this.failedPinAttempts += 1;
-      if (this.failedPinAttempts >= 3) {
-        this.lockoutUntil = Date.now() + 30000; // 30 seconds temporary lockout
+      if (serverDefinitivelyWrong) {
+        this.failedPinAttempts += 1;
+      }
+      if (this.failedPinAttempts >= 4) {
+        this.lockoutUntil = Date.now() + 30000;
         this.failedPinAttempts = 0;
         return {
           success: false,
           isLocked: true,
           lockRemainingSeconds: 30,
-          error: '3 incorrect PIN attempts! Security locked for 30 seconds.'
+          attemptsLeft: 0,
+          error: '4 incorrect PIN attempts! Security locked for 30 seconds.'
         };
       }
+      const remaining = Math.max(0, 4 - this.failedPinAttempts);
       return {
         success: false,
-        error: `Invalid Security PIN. Attempt ${this.failedPinAttempts} of 3.`
+        attemptsLeft: remaining,
+        error: `Incorrect PIN. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`
       };
     }
   }
@@ -393,35 +468,63 @@ export class AuthService {
   /**
    * Authenticate user via 4-Digit PIN via Backend API
    */
-  public static async loginWithPIN(pin: string): Promise<UserProfile> {
+  public static async loginWithPIN(pin: string, language: string = 'en'): Promise<UserProfile> {
     const cleanPin = pin.trim();
     if (!/^\d{4}$/.test(cleanPin)) {
-      throw new Error('Please enter a valid 4-digit numeric PIN.');
+      throw new Error(language === 'ta'
+        ? 'சரியான 4 இலக்க PIN-ஐ உள்ளிடவும்.'
+        : language === 'hi'
+        ? 'कृपया 4 अंकों का सही पिन दर्ज करें।'
+        : 'Please enter a valid 4-digit numeric PIN.');
     }
 
+    let res: Response;
     try {
-      const res = await fetch('/api/auth/pin-login', {
+      res = await fetch('/api/auth/pin-login', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin: cleanPin })
       });
-
-      const data = await res.json();
-      if (res.ok && data.success && data.user) {
-        const user: UserProfile = data.user;
-        this.setCurrentUser(user);
-        return user;
-      }
-    } catch (e) {}
-
-    // Fallback to local active session user if PIN matches
-    const currentUser = this.getCurrentUser();
-    if (currentUser && currentUser.pinHash === cleanPin) {
-      this.setCurrentUser(currentUser);
-      return currentUser;
+    } catch (e) {
+      console.warn('[AuthService] PIN login request failed:', e);
+      throw new Error(language === 'ta'
+        ? 'இப்போது PIN சரிபார்க்க முடியவில்லை. இணைப்பைச் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.'
+        : language === 'hi'
+        ? 'अभी पिन सत्यापित नहीं हो सका। कनेक्शन जाँचकर फिर कोशिश करें।'
+        : 'Cannot verify PIN right now. Please check your connection and try again.');
     }
 
-    throw new Error('That PIN was not correct. Please try again.');
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.success && data.user) {
+      const user: UserProfile = data.user;
+      if (data.token) {
+        localStorage.setItem('autofeast_jwt_token', data.token);
+      }
+      this.setCurrentUser(user);
+      return user;
+    }
+
+    if (res.status === 401) {
+      throw new Error(language === 'ta'
+        ? 'தவறான PIN. மீண்டும் முயற்சிக்கவும்.'
+        : language === 'hi'
+        ? 'गलत पिन। कृपया फिर कोशिश करें।'
+        : 'That PIN was not correct. Please try again.');
+    }
+    if (res.status === 429) {
+      const seconds = typeof data?.lockRemainingSeconds === 'number' ? data.lockRemainingSeconds : 30;
+      throw new Error(language === 'ta'
+        ? `நான்கு தவறான PIN முயற்சிகள். ${seconds} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கலாம்.`
+        : language === 'hi'
+        ? `चार गलत पिन प्रयास। ${seconds} सेकंड बाद फिर कोशिश कर सकते हैं।`
+        : `Four incorrect PIN attempts. Retry becomes available in ${seconds} seconds.`);
+    }
+    throw new Error(language === 'ta'
+      ? 'இப்போது PIN சரிபார்க்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.'
+      : language === 'hi'
+      ? 'अभी पिन सत्यापित नहीं हो सका। कृपया फिर कोशिश करें।'
+      : data?.error || 'Cannot verify PIN right now. Please try again.');
   }
 
   /**
@@ -480,44 +583,81 @@ export class AuthService {
     throw new Error('User account not found.');
   }
 
-  /**
-   * Verify Nominee PIN server-side with 3-try 5-minute lockout enforcement
-   */
-  public static async verifyNomineePinServer(
-    nomineePin: string,
-    userPin?: string,
-    userId?: string
-  ): Promise<{ success: boolean; locked?: boolean; lockTimeRemaining?: number; remainingTries?: number; error?: string }> {
+  public static async loginNominee(email: string, password: string): Promise<string> {
+    const res = await fetch('/api/nominee/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nomineeEmail: email.trim(), nomineePassword: password })
+    });
+    const data: { success?: boolean; nomineeToken?: string } = await res.json();
+    if (!res.ok || !data.success || !data.nomineeToken) {
+      throw new NomineeRequestError(res.status);
+    }
+    return data.nomineeToken;
+  }
+
+  public static async saveNomineeCredentials(email: string, password: string): Promise<void> {
+    const token = this.getAuthToken();
+    const res = await fetch('/api/nominee/credentials', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ nomineeEmail: email.trim(), nomineePassword: password })
+    });
+    const data: { success?: boolean } = await res.json();
+    if (!res.ok || !data.success) {
+      throw new NomineeRequestError(res.status);
+    }
+  }
+
+  public static async setNomineePin(nomineePin: string, nomineeToken: string): Promise<void> {
     const cleanPin = nomineePin.trim();
     if (!/^\d{4}$/.test(cleanPin)) {
-      return { success: false, error: 'Nominee PIN must be 4 numeric digits.' };
+      throw new NomineeRequestError(400);
     }
 
-    try {
-      const res = await fetch('/api/nominee/verify-pin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nomineePin: cleanPin, userPin, userId })
-      });
-
-      const data = await res.json();
-      return data;
-    } catch (err: any) {
-      console.warn('[AuthService] Server verify PIN offline fallback:', err);
-      // Fallback verification if server offline
-      const currentUser = this.getCurrentUser();
-      const expectedPin = currentUser?.nomineePinHash || '4321';
-      const mainPin = currentUser?.pinHash || '1234';
-
-      if (cleanPin === mainPin) {
-        return { success: false, error: "Nominee PIN must be DIFFERENT from main user's PIN!" };
-      }
-
-      if (cleanPin === expectedPin) {
-        return { success: true };
-      } else {
-        return { success: false, remainingTries: 2, error: 'Incorrect Nominee Security PIN.' };
-      }
+    const res = await fetch('/api/nominee/set-pin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${nomineeToken}`
+      },
+      body: JSON.stringify({ pin: cleanPin })
+    });
+    const data: { success?: boolean } = await res.json();
+    if (!res.ok || !data.success) {
+      throw new NomineeRequestError(res.status);
     }
+  }
+
+  public static async verifyNomineePinServer(
+    nomineePin: string,
+    nomineeToken: string
+  ): Promise<{ success: boolean; status?: number; locked?: boolean; remainingTries?: number }> {
+    const cleanPin = nomineePin.trim();
+    if (!/^\d{4}$/.test(cleanPin)) {
+      return { success: false, status: 400 };
+    }
+
+    const res = await fetch('/api/nominee/verify-pin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${nomineeToken}`
+      },
+      body: JSON.stringify({ pin: cleanPin })
+    });
+    const data: { success?: boolean; locked?: boolean; attemptsLeft?: number } = await res.json();
+    if (!res.ok || !data.success) {
+      return {
+        success: false,
+        status: res.status,
+        locked: data.locked,
+        remainingTries: data.attemptsLeft
+      };
+    }
+    return { success: true };
   }
 }

@@ -210,6 +210,11 @@ export interface ToastItem {
   message: string;
   type: 'success' | 'error' | 'warning' | 'info';
   duration?: number;
+  key?: string;
+  i18nKey?: string;
+  i18nParams?: Record<string, string | number>;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface CartItem {

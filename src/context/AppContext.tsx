@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Language, AccessibilitySettings, AppView, AutoOrderSchedule, ScheduleOverride, ExecutedOrder, WalletTransaction, UserLocation, LiveOrderTracking, FoodItem, OrderStrategy, LinkedBank, PendingPinVerification, EntryStep, PendingNomineeApproval, ToastItem, ScheduleCartItem, CartItem } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 import { DynamicFoodSearchEngine, SearchResult } from '../services/dynamicFoodSearch';
@@ -7,6 +7,7 @@ import { AutoOrderBackgroundService, calculateScheduleEndDate } from '../service
 import { PriceComparisonService } from '../services/priceComparisonService';
 import { fetchLiveGPSLocation, calculateHaversineDistance } from '../services/locationService';
 import { SpeechService } from '../services/speechService';
+import { SpeechController } from '../services/speechController';
 import { AuthService, UserProfile } from '../services/authService';
 import { WebAuthnService, RegisteredCredential } from '../services/webAuthnService';
 import { NLPParserService, ParsedOrderBill } from '../services/nlpParserService';
@@ -40,7 +41,17 @@ interface AppContextType {
   loginWithPIN: (pin: string) => Promise<UserProfile>;
   resetPINWithPassword: (email: string, pass: string, newPin: string) => Promise<UserProfile>;
   loginWithPassword: (email: string, pass: string) => Promise<UserProfile>;
-  signupUser: (name: string, email: string, pass: string, pin: string, nomineeName: string, nomineePhone: string, enableFaceID: boolean) => Promise<boolean>;
+  signupUser: (
+    name: string,
+    email: string,
+    pass: string,
+    pin: string,
+    nomineeName: string,
+    nomineePhone: string,
+    nomineeEmail: string,
+    nomineePassword: string,
+    enableFaceID: boolean
+  ) => Promise<boolean>;
   renewLimitWithFaceID: () => Promise<{ success: boolean; error?: string }>;
   renewLimitWithPIN: (pin: string) => { success: boolean; error?: string };
   renewLimitWithNominee: (name: string, phone: string) => { success: boolean; error?: string };
@@ -89,7 +100,7 @@ interface AppContextType {
   setIsBillModalOpen: (open: boolean) => void;
   isHealthModalOpen: boolean;
   setIsHealthModalOpen: (open: boolean) => void;
-  processNaturalLanguageVoiceCommand: (transcript: string) => Promise<boolean>;
+  processNaturalLanguageVoiceCommand: (transcript: string, alternatives?: string[]) => Promise<boolean>;
   onConfirmProceedToPinFromBill: (bill: ParsedOrderBill) => void;
 
   // Wallet & Linked Bank Account
@@ -153,7 +164,14 @@ interface AppContextType {
   speakText: (text: string, onEnd?: () => void, targetLang?: Language) => void;
   toastMessage: string | null;
   toasts: ToastItem[];
-  showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info', duration?: number) => void;
+  showToast: (
+    msg: string,
+    type?: 'success' | 'error' | 'warning' | 'info',
+    duration?: number,
+    key?: string,
+    i18nKey?: string,
+    i18nParams?: Record<string, string | number>
+  ) => void;
   cart: CartItem[];
   addToCart: (item: FoodItem, quantity?: number, addedFrom?: 'voice_search' | 'dynamic_search' | 'auto_scheduler' | 'healthy_food' | 'general') => Promise<void>;
   removeFromCart: (itemId: string, restaurantName?: string) => Promise<void>;
@@ -215,7 +233,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const loginWithPIN = async (pin: string): Promise<UserProfile> => {
-    const user = await AuthService.loginWithPIN(pin);
+    const user = await AuthService.loginWithPIN(pin, language);
     setCurrentUser(user);
     setIsAuthenticated(true);
     setIsAuthGateOpen(false);
@@ -248,6 +266,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     pin: string,
     nomineeName: string,
     nomineePhone: string,
+    nomineeEmail: string,
+    nomineePassword: string,
     enableFaceID: boolean
   ): Promise<boolean> => {
     let initialCred: RegisteredCredential | undefined = undefined;
@@ -257,7 +277,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         initialCred = regResult.credential;
       }
     }
-    const newUser = await AuthService.createUser(name, email, pass, pin || '1234', nomineeName, nomineePhone, initialCred);
+    const newUser = await AuthService.createUser(
+      name,
+      email,
+      pass,
+      pin,
+      nomineeName,
+      nomineePhone,
+      nomineeEmail,
+      nomineePassword,
+      initialCred
+    );
     setCurrentUser(newUser);
     setIsAuthenticated(true);
     setIsAuthGateOpen(false);
@@ -440,9 +470,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return stored ? JSON.parse(stored) : {
         latitude: 13.0827,
         longitude: 80.2707,
-        addressName: 'Anna Nagar 2nd Avenue, Chennai',
-        city: 'Chennai',
-        area: 'Anna Nagar',
+        addressName: 'Location not set',
+        city: 'Not set',
+        area: '',
         isLiveGPS: false,
         isApproximate: true
       };
@@ -450,9 +480,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return {
         latitude: 13.0827,
         longitude: 80.2707,
-        addressName: 'Anna Nagar 2nd Avenue, Chennai',
-        city: 'Chennai',
-        area: 'Anna Nagar',
+        addressName: 'Location not set',
+        city: 'Not set',
+        area: '',
         isLiveGPS: false,
         isApproximate: true
       };
@@ -461,6 +491,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const setUserLocation = (loc: UserLocation) => {
     setUserLocationState(loc);
+    if (loc.city && loc.city !== 'Not set') {
+      setSelectedLocation(loc.city);
+    }
     try {
       localStorage.setItem('smart_food_user_location', JSON.stringify(loc));
     } catch (e) {}
@@ -470,29 +503,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setUserLocation(loc);
   };
 
+  const prevGpsLocationRef = useRef<{ lat: number; lng: number; area: string; city: string } | null>(null);
+
   const detectGPSLocation = async (isSilent: boolean = false) => {
     try {
       const loc = await fetchLiveGPSLocation();
+      const prevLoc = prevGpsLocationRef.current;
+      const hasLocationChanged = !prevLoc ||
+        prevLoc.lat !== loc.latitude ||
+        prevLoc.lng !== loc.longitude ||
+        prevLoc.area !== loc.area ||
+        prevLoc.city !== loc.city;
+
+      prevGpsLocationRef.current = {
+        lat: loc.latitude,
+        lng: loc.longitude,
+        area: loc.area,
+        city: loc.city
+      };
+
       setUserLocation(loc);
 
       if (!isSilent) {
-        let placeMsg = '';
-        if (loc.isApproximate) {
-          placeMsg = language === 'ta'
-            ? `சுமாரான இருப்பிடம்: ${loc.area}, ${loc.city}. சரியான இடத்தைத் தேர்ந்தெடுக்க கிளிக் செய்யவும்.`
-            : language === 'hi'
-            ? `अनुमानित स्थान: ${loc.area}, ${loc.city}. सही स्थान सेट करने के लिए टैप करें।`
-            : `Approximate location: ${loc.area}, ${loc.city}. Tap location badge to set exact location.`;
-        } else {
-          placeMsg = language === 'ta'
-            ? `ஜிபிஎஸ் இருப்பிடம்: ${loc.area}, ${loc.city}`
-            : language === 'hi'
-            ? `जीपीएस स्थान: ${loc.area}, ${loc.city}`
-            : `High accuracy GPS location: ${loc.area}, ${loc.city}`;
-        }
+        const areaStr = loc.area || (language === 'ta' ? 'தற்போதைய பகுதி' : language === 'hi' ? 'वर्तमान क्षेत्र' : 'Current Area');
+        const cityStr = loc.city || (language === 'ta' ? 'தற்போதைய நகரம்' : language === 'hi' ? 'वर्तमान शहर' : 'Current City');
+        const i18nKey = loc.isApproximate ? 'toast.gpsApproximate' : 'toast.gpsHighAccuracy';
+        const i18nParams = { area: areaStr, city: cityStr };
+        const rawT = t(i18nKey);
+        const placeMsg = rawT.replace(/\{area\}/g, areaStr).replace(/\{city\}/g, cityStr);
 
-        showToast(placeMsg);
-        speakText(placeMsg);
+        showToast(placeMsg, 'info', 5000, 'gps_location_toast', i18nKey, i18nParams);
+        speakText(placeMsg, undefined, language);
       }
     } catch (err: any) {
       console.warn('GPS location fetch error:', err);
@@ -625,24 +666,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         : `Your scheduled order for ${itemName} from ${restaurant} is set for 5 minutes from now. Do you want to proceed or skip today?`;
 
       showToast(promptText);
-      speakText(promptText, undefined, language);
-
-      // 2. Open voice recognition to listen for user confirmation
-      setTimeout(() => {
-        setIsVoiceModalOpen(true);
-        SpeechService.startListening({
+      speakText(promptText, () => {
+        SpeechController.requestMic({
+          owner: 'scheduled_preorder_confirmation',
           language,
-          onResult: (transcript, isFinal) => {
-            if (!transcript) return;
-            const lower = transcript.toLowerCase();
+          continuous: true,
+          interimResults: true,
+          maxAlternatives: 5,
+          onResult: (transcript, isFinal, alternatives) => {
+            if (!isFinal || !transcript) return;
+            const candidates = alternatives?.length ? alternatives : [transcript];
+            const match = SttMatcherService.matchConfirmation(candidates, language);
+            const lower = candidates.join(' ').toLowerCase();
+            const affirmative = match.isMatched && match.matchedValue === 'YES';
+            const negative = (match.isMatched && match.matchedValue === 'NO') ||
+              /skip|not today|இன்னைக்கு வேண்டாம்|வேண்டாம் விடு|आज नहीं/.test(lower);
 
-            // Check Confirmation vocabulary (Natural Phrases per language)
-            const isAffirmative = /yes|proceed|confirm|order|sure|ok|yeah|go ahead|ஆமா|சரி|ஆர்டர் போடு|ஓகே|ஆமா போடு|हाँ|ऑर्डर कर दो|कर दो|ठीक है|हाँ जी/.test(lower);
-            const isNegative = /no|cancel|don't order|dont order|skip|stop|not today|வேண்டாம்|ரத்து|இன்னைக்கு வேண்டாம்|வேண்டாம் விடு|नहीं|मत करो|कैंसल|आज नहीं|नहीं चाहिए/.test(lower);
+            if (!affirmative && !negative) return;
+            SpeechController.releaseMic('scheduled_preorder_confirmation');
 
-            if (isAffirmative) {
-              SpeechService.stopListening();
-              setIsVoiceModalOpen(false);
+            if (affirmative) {
               const confirmMsg = language === 'ta'
                 ? `${itemName} ஆர்டர் உறுதி செய்யப்பட்டது! 5 நிமிடங்களில் ஆர்டர் செய்யப்படும்.`
                 : language === 'hi'
@@ -650,10 +693,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 : `Scheduled order for ${itemName} confirmed! Auto-placing in 5 minutes.`;
               showToast(confirmMsg);
               speakText(confirmMsg, undefined, language);
-            } else if (isNegative) {
-              SpeechService.stopListening();
-              setIsVoiceModalOpen(false);
-              // Save single-day skip override for today
+            } else {
               const override: ScheduleOverride = {
                 id: `override-${Date.now()}`,
                 scheduleId: schedule.id,
@@ -672,11 +712,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               speakText(skipMsg, undefined, language);
             }
           },
-          onError: (err) => {
-            console.warn('[PreOrder Voice Prompt]: Voice timeout or error -> falling back to auto-placing as scheduled.', err);
+          onError: (_code, message) => {
+            showToast(message, 'warning');
           }
         });
-      }, 1500);
+      }, language);
     });
 
     return () => unsubscribe();
@@ -876,6 +916,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   }, [currentUser?.id]);
 
+  const lastAddToCartTimeMap = useRef<Map<string, number>>(new Map());
+
   const addToCart = async (
     foodItem: FoodItem,
     quantity: number = 1,
@@ -885,6 +927,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       showToast('Cannot add invalid item to cart.', 'error');
       return;
     }
+
+    // Idempotency per click burst (~1s throttle per itemId)
+    const lastTime = lastAddToCartTimeMap.current.get(foodItem.id) || 0;
+    const now = Date.now();
+    if (now - lastTime < 1000) {
+      return;
+    }
+    lastAddToCartTimeMap.current.set(foodItem.id, now);
 
     const price = foodItem.basePrice || (foodItem.platforms && foodItem.platforms.length > 0 ? foodItem.platforms[0].price : 0);
     if (!price || price <= 0 || isNaN(price)) {
@@ -942,7 +992,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       showToast(msg, 'success');
       speakText(msg, undefined, language);
     } catch (err) {
-      showToast('Failed to sync cart with server. Please try again.', 'error');
+      console.warn('[AppContext addToCart fallback]: Network sync offline, updating local cart state.');
+      setCart(prev => {
+        const existingIdx = prev.findIndex(i => i.itemId === foodItem.id && i.restaurantName === resName);
+        if (existingIdx !== -1) {
+          const updated = [...prev];
+          updated[existingIdx] = { ...updated[existingIdx], qty: updated[existingIdx].qty + quantity };
+          return updated;
+        }
+        const newCartItem: CartItem = {
+          id: `cart_${foodItem.id}_${Date.now()}`,
+          userId: uid,
+          itemId: foodItem.id,
+          name: foodItem.name,
+          restaurantId: resId,
+          restaurantName: resName,
+          price,
+          qty: quantity,
+          addedFrom,
+          image: foodItem.image,
+          category: foodItem.category,
+          isVegetarian: Boolean(foodItem.isVeg),
+          needsNomineeApproval: isRestricted,
+          foodItem
+        };
+        return [...prev, newCartItem];
+      });
+
+      const itemName = foodItem.nativeNames?.[language] || foodItem.name;
+      const msg = t('addedToCart')
+        .replace('{qty}', String(quantity))
+        .replace('{item}', itemName)
+        .replace('{restaurant}', resName)
+        .replace('{n}', '1');
+      showToast(msg, 'success');
+      speakText(msg, undefined, language);
     }
   };
 
@@ -1052,152 +1136,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
 
-  // Available Voices Cache
-  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      const updateVoices = () => {
-        const voices = window.speechSynthesis.getVoices();
-        setAvailableVoices(voices);
-      };
-      updateVoices();
-      window.speechSynthesis.onvoiceschanged = updateVoices;
-    }
-  }, []);
-
   const speakText = (text: string, onEnd?: () => void, targetLang?: Language) => {
-    if (!('speechSynthesis' in window)) {
+    // Respect the Auto Voice ON/OFF toggle from the Accessibility toolbar
+    if (!autoVoicePromptEnabled) {
+      console.log('[speakText MUTED]: autoVoicePromptEnabled=false — skipping TTS for:', text?.substring(0, 50));
       if (onEnd) onEnd();
       return;
     }
-
-    if (!text || !text.trim()) {
-      console.warn('[speakText WARN]: Empty or undefined text passed to TTS engine. Skipping speak.');
-      if (onEnd) onEnd();
-      return;
-    }
-
-    try {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-      window.speechSynthesis.cancel();
-    } catch (e) {}
-
-    // 🚀 MIC BUG FIX: Stop speech recognition while TTS engine speaks
-    SpeechService.stopListening();
-
-    let isCallbackFired = false;
-    const safeOnEnd = () => {
-      if (!isCallbackFired) {
-        isCallbackFired = true;
-        setTimeout(() => {
-          SpeechService.setLastSpokenText('');
-        }, 500);
-        if (onEnd) onEnd();
-      }
-    };
-
-    // Sanitize text for speech engine (strip emojis and weird symbol clusters)
-    const cleanText = (text || '')
-      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
-      .replace(/[()]/g, ' ')
-      .trim();
-
-    if (!cleanText) {
-      if (onEnd) onEnd();
-      return;
-    }
-
     const activeLang = targetLang || language;
-
-    // 🚀 BRAND NAME PHONETIC TRANSLITERATION FOR NON-ENGLISH VOICES
-    // Transliterates English proper nouns like "AutoFeast" into native Tamil/Hindi phonetics
-    // so browser ta-IN and hi-IN TTS engines pronounce the brand name naturally instead of skipping/garbling
-    let engineText = cleanText;
-    if (activeLang === 'ta') {
-      engineText = engineText
-        .replace(/AutoFeast/gi, 'ஆட்டோஃபீஸ்ட்')
-        .replace(/Saravana Bhavan/gi, 'சரவண பவன்')
-        .replace(/Murugan Idli/gi, 'முருகன் இட்லி');
-    } else if (activeLang === 'hi') {
-      engineText = engineText
-        .replace(/AutoFeast/gi, 'ऑटोफीस्ट')
-        .replace(/Saravana Bhavan/gi, 'सरवणा भवन')
-        .replace(/Murugan Idli/gi, 'मुरुगन इडली');
-    }
-
-    // 🚀 DYNAMIC SAFETY TIMEOUT FALLBACK
-    // Calculates generous time window based on sentence length (e.g. 100 chars -> ~15s)
-    // Ensures long bill readbacks, prompts, and welcome messages never cut off prematurely
-    const maxTimeoutMs = Math.max(5000, Math.min(25000, cleanText.length * 120 + 3000));
-    const timeoutId = setTimeout(() => {
-      console.warn(`[speakText Safety Fallback]: TTS onend did not fire within ${maxTimeoutMs}ms for "${cleanText.substring(0, 30)}...". Executing safe callback fallback.`);
-      safeOnEnd();
-    }, maxTimeoutMs);
-
-    // 📢 LOGGING EXACT SPOKEN TEXT FOR TESTING AUDIT
-    console.log(`================ [TTS SPOKEN OUTPUT AUDIT] ================`);
-    console.log(`[Target Language]: "${activeLang}"`);
-    console.log(`[Raw Text]: "${text}"`);
-    console.log(`[Engine Phonetic Spoken Text]: "${engineText}"`);
-    console.log(`[Calculated Safety Timeout]: ${maxTimeoutMs}ms`);
-    console.log(`===========================================================`);
-
-    const utterance = new SpeechSynthesisUtterance(engineText);
-
-    if (activeLang === 'ta') {
-      utterance.lang = 'ta-IN';
-    } else if (activeLang === 'hi') {
-      utterance.lang = 'hi-IN';
-    } else {
-      utterance.lang = 'en-US';
-    }
-
-    utterance.rate = 0.95;
-
-    const voices = availableVoices.length > 0 ? availableVoices : window.speechSynthesis.getVoices();
-    const matchedVoice = voices.find(v => {
-      const vLang = v.lang.toLowerCase().replace('_', '-');
-      const targetCode = utterance.lang.toLowerCase();
-      return (
-        vLang.startsWith(targetCode) ||
-        (activeLang === 'ta' && (v.name.toLowerCase().includes('tamil') || vLang.includes('ta'))) ||
-        (activeLang === 'hi' && (v.name.toLowerCase().includes('hindi') || vLang.includes('hi')))
-      );
-    });
-
-    if (matchedVoice) {
-      utterance.voice = matchedVoice;
-    }
-
-    utterance.onend = () => {
-      console.log(`[TTS SPOKEN OUTPUT SUCCESS]: Completed utterance -> "${cleanText.substring(0, 40)}..."`);
-      clearTimeout(timeoutId);
-      safeOnEnd();
-    };
-
-    utterance.onerror = (err) => {
-      console.warn('[speakText Error Event]:', err);
-      clearTimeout(timeoutId);
-      safeOnEnd();
-    };
-
-    try {
-      SpeechService.setLastSpokenText(cleanText);
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.warn('Speech synthesis playback exception:', e);
-      clearTimeout(timeoutId);
-      safeOnEnd();
-    }
+    console.log(`[speakText]: lang=${activeLang} | text="${text?.substring(0, 60)}${(text?.length || 0) > 60 ? '...' : ''}"`); 
+    SpeechController.speak(
+      text,
+      activeLang,
+      onEnd,
+      (fallbackText) => {
+        setToasts(prev => {
+          if (prev.some(t => t.message === fallbackText)) return prev;
+          const id = `toast-fallback-${Date.now()}`;
+          return [{ id, message: fallbackText, type: 'info', duration: 5000, createdAt: Date.now() }, ...prev].slice(0, 3);
+        });
+      }
+    );
   };
 
   const setLanguage = (newLang: Language) => {
     console.log(`[AppContext]: setLanguage called -> Updating active language state to: "${newLang}"`);
     setLanguageState(newLang);
     SpeechService.setLanguage(newLang);
+    SpeechController.setLanguage(newLang);
     try {
       localStorage.setItem('autofeast_language_preference', newLang);
     } catch (e) {}
@@ -1234,7 +1200,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return language === 'ta' ? 'தினமும் (ஒவ்வொரு நாளும்)' : language === 'hi' ? 'हर रोज (रोजाना)' : 'Every day';
     }
     if (lowerKey.endsWith('.weekly') || lowerKey === 'weekly') {
-      return language === 'ta' ? 'வாரம் ஒரு முறை' : language === 'hi' ? 'हर हफ्ते' : 'Every week';
+      return language === 'ta' ? 'வாரம் ஒரு முறை' : language === 'hi' ? 'ஹர் ஹஃப்தே' : 'Every week';
     }
 
     // Clean up dot notation/camelCase if key is unmapped
@@ -1242,18 +1208,154 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return rawName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim();
   };
 
+  const languageRef = useRef<Language>(language);
+  useEffect(() => {
+    languageRef.current = language;
+
+    // Update open toasts when language changes
+    setToasts(prev =>
+      prev.map(toast => {
+        const targetKey = toast.i18nKey || toast.key;
+        let updatedMsg = toast.message;
+        if (targetKey) {
+          const translated = t(targetKey);
+          if (translated && translated !== targetKey) {
+            updatedMsg = translated;
+          }
+        }
+
+        if (toast.i18nParams) {
+          Object.entries(toast.i18nParams).forEach(([k, v]) => {
+            if (v !== undefined && v !== null && String(v).trim() !== '') {
+              updatedMsg = updatedMsg.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v).trim());
+            }
+          });
+        }
+
+        if (updatedMsg.includes('{area}') || updatedMsg.includes('{city}')) {
+          let resolvedArea = (toast.i18nParams?.area as string)?.trim() || userLocation?.area?.trim() || '';
+          let resolvedCity = (toast.i18nParams?.city as string)?.trim() || userLocation?.city?.trim() || '';
+          if (!resolvedArea || !resolvedCity) {
+            try {
+              const stored = localStorage.getItem('smart_food_user_location');
+              if (stored) {
+                const parsed = JSON.parse(stored);
+                if (!resolvedArea && parsed?.area) resolvedArea = parsed.area.trim();
+                if (!resolvedCity && parsed?.city) resolvedCity = parsed.city.trim();
+              }
+            } catch (e) {}
+          }
+          const fallbackArea = language === 'ta' ? 'தற்போதைய பகுதி' : language === 'hi' ? 'वर्तमान क्षेत्र' : 'Current Area';
+          const fallbackCity = language === 'ta' ? 'தற்போதைய நகரம்' : language === 'hi' ? 'वर्तमान शहर' : 'Current City';
+          updatedMsg = updatedMsg
+            .replace(/\{area\}/g, resolvedArea || fallbackArea)
+            .replace(/\{city\}/g, resolvedCity || fallbackCity);
+        }
+
+        return { ...toast, message: updatedMsg };
+      })
+    );
+  }, [language]);
+
   const removeToast = (id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  const showToast = (msg: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', duration = 5000) => {
-    setToastMessage(msg);
-    const id = `toast-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const newToast: ToastItem = { id, message: msg, type, duration };
-    setToasts(prev => [newToast, ...prev.slice(0, 4)]);
+  const showToast = (
+    msg: string,
+    type: 'success' | 'error' | 'warning' | 'info' = 'info',
+    duration = 5000,
+    key?: string,
+    i18nKey?: string,
+    i18nParams?: Record<string, string | number>,
+    skipSpeak?: boolean
+  ) => {
+    const toastKey = key || i18nKey || msg;
+    const now = Date.now();
+    const id = `toast-${toastKey.replace(/[^a-zA-Z0-9_-]/g, '_')}-${now}`;
 
-    if (accessibilitySettings.readAloud) {
-      speakText(msg);
+    // Read current language at show-time via ref to prevent stale closures
+    const activeLang = languageRef.current;
+
+    let displayMsg = msg;
+    if (i18nKey) {
+      displayMsg = t(i18nKey);
+    } else if (key && TRANSLATIONS[activeLang]?.[key]) {
+      displayMsg = TRANSLATIONS[activeLang][key];
+    }
+
+    if (i18nParams) {
+      Object.entries(i18nParams).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && String(v).trim() !== '') {
+          displayMsg = displayMsg.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v).trim());
+        }
+      });
+    }
+
+    let resolvedArea = (i18nParams?.area as string)?.trim() || userLocation?.area?.trim() || '';
+    let resolvedCity = (i18nParams?.city as string)?.trim() || userLocation?.city?.trim() || '';
+    if (!resolvedArea || !resolvedCity) {
+      try {
+        const stored = localStorage.getItem('smart_food_user_location');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (!resolvedArea && parsed?.area) resolvedArea = parsed.area.trim();
+          if (!resolvedCity && parsed?.city) resolvedCity = parsed.city.trim();
+        }
+      } catch (e) {}
+    }
+    const fallbackArea = activeLang === 'ta' ? 'தற்போதைய பகுதி' : activeLang === 'hi' ? 'वर्तमान क्षेत्र' : 'Current Area';
+    const fallbackCity = activeLang === 'ta' ? 'தற்போதைய நகரம்' : activeLang === 'hi' ? 'वर्तमान शहर' : 'Current City';
+
+    if (displayMsg.includes('{area}') || displayMsg.includes('{city}')) {
+      displayMsg = displayMsg
+        .replace(/\{area\}/g, resolvedArea || fallbackArea)
+        .replace(/\{city\}/g, resolvedCity || fallbackCity);
+    }
+
+    const finalI18nParams = (displayMsg.includes(resolvedArea) || displayMsg.includes(resolvedCity) || i18nKey?.includes('gps'))
+      ? { ...i18nParams, area: resolvedArea || fallbackArea, city: resolvedCity || fallbackCity }
+      : i18nParams;
+
+    setToastMessage(displayMsg);
+
+    setToasts(prev => {
+      const existingIdx = prev.findIndex(t => (t.key || t.message) === toastKey);
+      const newToastItem: ToastItem = {
+        id,
+        message: displayMsg,
+        type,
+        duration,
+        key: toastKey,
+        i18nKey,
+        i18nParams: finalI18nParams,
+        createdAt: now
+      };
+
+      if (existingIdx !== -1) {
+        // Keep the SAME id to prevent component unmount/flicker; update text and set updatedAt to restart timer
+        const existingId = prev[existingIdx].id;
+        const updated = [...prev];
+        updated[existingIdx] = {
+          id: existingId,
+          message: displayMsg,
+          type,
+          duration,
+          key: toastKey,
+          i18nKey,
+          i18nParams: finalI18nParams,
+          createdAt: prev[existingIdx].createdAt || now,
+          updatedAt: now
+        };
+        return updated;
+      }
+
+      // Max 3 visible toasts of different keys
+      return [newToastItem, ...prev].slice(0, 3);
+    });
+
+    if (accessibilitySettings.readAloud && autoVoicePromptEnabled && !skipSpeak) {
+      speakText(displayMsg, undefined, languageRef.current);
     }
     setTimeout(() => {
       setToastMessage(null);
@@ -1267,7 +1369,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       query: q,
       selectedLocation,
       selectedCuisine,
-      vegOnly
+      vegOnly,
+      language
     });
 
     const enrichDistance = (items: FoodItem[]) => {
@@ -1329,13 +1432,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const processNaturalLanguageVoiceCommand = async (transcript: string): Promise<boolean> => {
+  const processNaturalLanguageVoiceCommand = async (transcript: string, alternatives: string[] = [transcript]): Promise<boolean> => {
     if (!transcript || !transcript.trim()) return false;
     const textLower = transcript.toLowerCase().trim();
 
     if (checkDailyOrderLimitReached()) {
       return false;
     }
+
+    const listenForCartConfirmation = (onConfirmed: () => void) => {
+      SpeechController.requestMic({
+        owner: 'cart_voice_confirmation',
+        language,
+        continuous: false,
+        interimResults: true,
+        maxAlternatives: 5,
+        onResult: (spokenText, isFinal, alternatives) => {
+          if (!isFinal || !spokenText) return;
+          SpeechController.releaseMic('cart_voice_confirmation');
+          const candidates = alternatives?.length ? alternatives : [spokenText];
+          const match = SttMatcherService.matchConfirmation(candidates, language);
+          if (match.isMatched && match.matchedValue === 'YES') onConfirmed();
+        },
+        onError: (_code, message) => showToast(message, 'warning')
+      });
+    };
 
     // 🚀 STEP 0: Check Cart Voice Commands (Add, Multi-Add, Show/Read, Remove, Update Qty, Clear, Checkout, Schedule Cart)
     const cartCmd = CartVoiceService.parseCartCommand(transcript, language);
@@ -1350,18 +1471,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (cartCmd.requiresConfirmation && cartCmd.confirmationPrompt) {
         showToast(cartCmd.confirmationPrompt, 'warning');
         speakText(cartCmd.confirmationPrompt, () => {
-          SpeechService.startListening({
-            language,
-            onResult: (text, isFinal) => {
-              if (!isFinal || !text) return;
-              const match = SttMatcherService.matchConfirmation([text], language);
-              if (match.isMatched && match.matchedValue === 'YES') {
-                clearCart();
-                const clearedMsg = t('cartEmpty');
-                showToast(clearedMsg, 'info');
-                speakText(clearedMsg, undefined, language);
-              }
-            }
+          listenForCartConfirmation(() => {
+            clearCart();
+            const clearedMsg = t('cartEmpty');
+            showToast(clearedMsg, 'info');
+            speakText(clearedMsg, undefined, language);
           });
         }, language);
       } else {
@@ -1388,15 +1502,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (cartCmd.requiresConfirmation && cartCmd.confirmationPrompt) {
         showToast(cartCmd.confirmationPrompt, 'info');
         speakText(cartCmd.confirmationPrompt, () => {
-          SpeechService.startListening({
-            language,
-            onResult: async (text, isFinal) => {
-              if (!isFinal || !text) return;
-              const match = SttMatcherService.matchConfirmation([text], language);
-              if (match.isMatched && match.matchedValue === 'YES') {
-                await addToCart(target.foodItem, target.quantity, 'voice_search');
-              }
-            }
+          listenForCartConfirmation(async () => {
+            await addToCart(target.foodItem, target.quantity, 'voice_search');
           });
         }, language);
       } else {
@@ -1409,17 +1516,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (cartCmd.requiresConfirmation && cartCmd.confirmationPrompt) {
         showToast(cartCmd.confirmationPrompt, 'info');
         speakText(cartCmd.confirmationPrompt, () => {
-          SpeechService.startListening({
-            language,
-            onResult: async (text, isFinal) => {
-              if (!isFinal || !text) return;
-              const match = SttMatcherService.matchConfirmation([text], language);
-              if (match.isMatched && match.matchedValue === 'YES') {
-                for (const item of cartCmd.items!) {
-                  await addToCart(item.foodItem, item.quantity, 'voice_search');
-                }
+          listenForCartConfirmation(async () => {
+            for (const item of cartCmd.items!) {
+              await addToCart(item.foodItem, item.quantity, 'voice_search');
               }
-            }
           });
         }, language);
       } else {
@@ -1448,7 +1548,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const deliveryAddress = `${userLocation.addressName}, ${userLocation.area}, ${userLocation.city}`;
-    const result = await LlmNluService.parseFreeFormOrder(transcript, deliveryAddress, language);
+    const result = await LlmNluService.parseFreeFormOrder(
+      transcript,
+      deliveryAddress,
+      language,
+      alternatives,
+      cart.map(entry => ({ name: entry.name, quantity: entry.qty }))
+    );
 
     if (result.clarificationPrompt) {
       showToast(result.clarificationPrompt);
@@ -1767,7 +1873,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return;
     }
 
-    SpeechService.stopListening();
+    SpeechController.stopMic();
     setVoiceDialogItem(null);
 
     const subtotal = item.basePrice || 100;

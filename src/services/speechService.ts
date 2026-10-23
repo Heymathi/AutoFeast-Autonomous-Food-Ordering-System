@@ -3,8 +3,9 @@ import { parsePinSpeech, ParsePinSpeechResult } from './pinVoiceParserService';
 
 
 export interface SpeechRecognitionOptions {
-  language: Language;
+  language: Language | string;
   overrideLocale?: string;
+  isSensitive?: boolean;
   continuous?: boolean;
   interimResults?: boolean;
   maxAlternatives?: number;
@@ -36,17 +37,16 @@ export class SpeechService {
     const cleanRaw = transcript.toLowerCase().trim();
     if (!cleanRaw) return false;
 
-    // 1. Suppress recognition if browser TTS synthesis is actively speaking
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking) {
-      return true;
+    // Never consider short user responses as echo (e.g. "allow", "deny", "yes", food items, numbers, etc.)
+    if (cleanRaw.length < 25) {
+      return false;
     }
 
-    // 2. Suppress recognition if transcript matches last spoken TTS prompt
-    if (this.lastSpokenText) {
+    // Only filter if transcript is long (>25 chars) AND matches the majority of the last spoken TTS prompt
+    if (this.lastSpokenText && this.lastSpokenText.length > 20) {
       if (cleanRaw === this.lastSpokenText) return true;
-      if (this.lastSpokenText.length > 8 && (cleanRaw.includes(this.lastSpokenText) || this.lastSpokenText.includes(cleanRaw))) {
-        return true;
-      }
+      if (cleanRaw.includes(this.lastSpokenText)) return true;
+      if (this.lastSpokenText.includes(cleanRaw)) return true;
     }
 
     return false;
@@ -66,16 +66,12 @@ export class SpeechService {
     return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
   }
 
-  public static getLocale(lang: Language): string {
-    switch (lang) {
-      case 'ta':
-        return 'ta-IN';
-      case 'hi':
-        return 'hi-IN';
-      case 'en':
-      default:
-        return 'en-IN';
-    }
+  public static getLocale(lang: Language | string): string {
+    const normalized = String(lang || 'en').toLowerCase().replace('_', '-');
+    if (normalized.startsWith('ta')) return 'ta-IN';
+    if (normalized.startsWith('hi')) return 'hi-IN';
+    if (normalized.startsWith('en-')) return normalized;
+    return 'en-IN';
   }
 
   public static getLowConfidenceCue(lang: Language): string {
@@ -189,12 +185,17 @@ export class SpeechService {
         const nBestTranscripts = Array.from(nBestSet);
 
         if (SpeechService.isEchoText(recognizedText)) {
-          console.log(`[SpeechService ECHO FILTER]: Suppressed app's own spoken prompt echo -> "${recognizedText}"`);
+          if (!options.isSensitive) {
+            console.log(`[SpeechService ECHO FILTER]: Suppressed app's own spoken prompt echo -> "${recognizedText}"`);
+          }
           return;
         }
 
-        // Temporary logging: Raw transcript, isFinal status, and results length
-        console.log(`[SpeechService RAW TRANSCRIPT LOG]: "${recognizedText}" | isFinal: ${isFinal} | n-best: ${nBestTranscripts.join(' | ')}`);
+        if (options.isSensitive) {
+          console.log(`[SpeechService Session #${currentSessionId}]: Sensitive speech input received; transcript redacted.`);
+        } else {
+          console.log(`[SpeechService RAW TRANSCRIPT LOG]: "${recognizedText}" | isFinal: ${isFinal} | n-best: ${nBestTranscripts.join(' | ')}`);
+        }
         options.onResult(recognizedText, isFinal, nBestTranscripts);
       };
 
@@ -256,4 +257,3 @@ export class SpeechService {
     return parsePinSpeech(rawTranscript, lang);
   }
 }
-

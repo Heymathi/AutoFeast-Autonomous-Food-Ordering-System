@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
-import { SpeechService } from '../services/speechService';
+import { SpeechController } from '../services/speechController';
 import { SttMatcherService } from '../services/sttMatcherService';
+import { UserAliasService } from '../services/userAliasService';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { CategoryVoiceService } from '../services/categoryVoiceService';
 import { DynamicFoodSearchEngine } from '../services/dynamicFoodSearch';
+import { detectFoodFamilyIntent } from '../services/foodFamilyTable';
 import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
 import { ItemActionChooser } from './ItemActionChooser';
-import { Search, MapPin, Utensils, Leaf, Star, Clock, Sparkles, AlertCircle, ShieldCheck, Zap, Navigation, Mic, MicOff, Volume2 } from 'lucide-react';
+import { PriceComparisonModal } from './PriceComparisonModal';
+import { Search, MapPin, Utensils, Leaf, Star, Clock, Sparkles, AlertCircle, ShieldCheck, Zap, Navigation, Mic, MicOff, Volume2, BarChart2 } from 'lucide-react';
 
 export const DynamicFoodSearch: React.FC = () => {
   const {
@@ -38,28 +41,41 @@ export const DynamicFoodSearch: React.FC = () => {
   const [isMicListening, setIsMicListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [categoryStatusText, setCategoryStatusText] = useState('');
+  const [topSuggestions, setTopSuggestions] = useState<{ items: FoodItem[]; prompt?: string } | null>(null);
   const [schedulingItem, setSchedulingItem] = useState<FoodItem | null>(null);
   const [chooserItem, setChooserItem] = useState<FoodItem | null>(null);
+  const [priceCompareItem, setPriceCompareItem] = useState<FoodItem | null>(null);
 
   useEffect(() => {
     return () => {
-      SpeechService.stopListening();
+      SpeechController.releaseMic('dynamic_search');
+      SpeechController.releaseMic('dynamic_search_followup');
     };
   }, []);
 
+  const handleSelectSuggestion = (item: FoodItem) => {
+    if (liveTranscript) {
+      UserAliasService.learnAlias('default_user', liveTranscript, item.id, item.name);
+    }
+    const searchInput = item.nativeNames?.[language] || item.name;
+    setSearchQuery(searchInput);
+    setTopSuggestions(null);
+    executeSearch(searchInput, true);
+  };
+
   const startCategoryFollowUpListening = (categoryVarieties: FoodItem[]) => {
-    console.log('[Category Follow-up]: Starting follow-up listening for category selection...');
-    SpeechService.startListening({
+    console.log('[Category Follow-up]: Starting follow-up listening for category selection via SpeechController...');
+    SpeechController.requestMic({
+      owner: 'dynamic_search_followup',
       language,
-      continuous: true,
+      continuous: false,
       interimResults: true,
-      onStart: () => {
-        setIsMicListening(true);
-      },
+      maxAlternatives: 5,
+      onStart: () => setIsMicListening(true),
       onResult: (followUpText, isFinal, nBestTranscripts) => {
         if (!followUpText) return;
         setLiveTranscript(followUpText);
-        if (!isFinal) return; // Live transcript updated; process selection on final result only
+        if (!isFinal) return;
 
         console.log(`[Category Follow-up Spoken Reply]: "${followUpText}" (isFinal: ${isFinal})`);
         const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [followUpText];
@@ -69,11 +85,13 @@ export const DynamicFoodSearch: React.FC = () => {
           console.log(`[Category Follow-up SUCCESS]: Matched specific variety -> "${matchedVariety.name}"`);
           setCategoryStatusText('');
           setChooserItem(matchedVariety);
+          SpeechController.releaseMic('dynamic_search_followup');
         }
       },
-      onError: (err) => {
-        console.warn('[Category Follow-up Error]:', err);
+      onError: (errCode, errMsg) => {
+        console.warn('[Category Follow-up Error]:', errCode, errMsg);
         setIsMicListening(false);
+        showToast(errMsg);
       },
       onEnd: () => {
         setIsMicListening(false);
@@ -82,14 +100,14 @@ export const DynamicFoodSearch: React.FC = () => {
   };
 
   const toggleSearchMic = () => {
-    if (isMicListening) {
+    if (isMicListening || SpeechController.getOwner() === 'dynamic_search') {
       console.log('[Search Voice Mic] Manual stop toggled by user.');
-      SpeechService.stopListening();
+      SpeechController.stopMic();
       setIsMicListening(false);
       return;
     }
 
-    if (!SpeechService.isSupported()) {
+    if (!SpeechController.isSupported()) {
       console.warn('[Search Voice Mic] Web Speech API not supported in this browser.');
       const noSupportMsg = language === 'ta'
         ? 'குரல் தேடல் இந்த உலாவியில் ஆதரிக்கப்படவில்லை.'
@@ -104,54 +122,73 @@ export const DynamicFoodSearch: React.FC = () => {
     setSearchQuery('');
     setLiveTranscript('');
     setCategoryStatusText('');
+    setTopSuggestions(null);
     setIsMicListening(true);
-    console.log('[Search Voice Mic]: Opening microphone immediately...');
+    console.log('[Search Voice Mic]: Requesting mic via SpeechController...');
 
-    SpeechService.startListening({
+    SpeechController.requestMic({
+      owner: 'dynamic_search',
       language,
-      continuous: true,
+      continuous: false,
       interimResults: true,
-      onStart: () => {
-        console.log('[Search Voice Mic SUCCESS]: Microphone active and listening...');
-        setIsMicListening(true);
-      },
+      maxAlternatives: 5,
+      onStart: () => setIsMicListening(true),
       onResult: (transcribedText, isFinal, nBestTranscripts) => {
         if (!transcribedText) return;
         setLiveTranscript(transcribedText);
-        setSearchQuery(transcribedText);
 
-        if (!isFinal) return; // Live transcript shown in input bar; execute search ONLY on final speech result
+        if (!isFinal) return;
 
         console.log(`[Search Voice Mic]: Speech Finalized -> "${transcribedText}"`);
         const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [transcribedText];
-        const bestMatch = SttMatcherService.matchFoodItem(candidates, INDIAN_FOOD_CATALOG, language);
-        const searchInput = bestMatch ? (bestMatch.nativeNames?.[language] || bestMatch.name) : transcribedText;
+        const familyIntent = detectFoodFamilyIntent(candidates);
+        if (familyIntent) {
+          console.log(`[Search Voice Family Match]: alternatives=${JSON.stringify(candidates)} transcript="${familyIntent.transcript}" normalized="${familyIntent.normalizedQuery}" score=${familyIntent.score} rule=${familyIntent.kind === 'family' ? 'generic-family-alias' : 'specific-variant-alias'} family="${familyIntent.family.key}" variant="${familyIntent.variantToken || ''}"`);
+          setSearchQuery(familyIntent.transcript);
+          setTopSuggestions(null);
+          setCategoryStatusText('');
+          executeSearch(familyIntent.transcript, false);
+          return;
+        }
 
-        if (searchInput.trim()) {
-          console.log(`[Search Voice Mic]: Auto-triggering food search execution for: "${searchInput}"`);
+        const matchRes = SttMatcherService.matchCatalogItem(candidates, INDIAN_FOOD_CATALOG, language);
+
+        if (matchRes.isMatched && matchRes.matchedValue) {
+          const searchInput = matchRes.matchedValue.nativeNames?.[language] || matchRes.matchedValue.name;
+          setSearchQuery(searchInput);
+          setTopSuggestions(null);
           executeSearch(searchInput, true);
 
-          // Check if query is a generic category query (e.g. "dosa", "biryani", "pizza")
           const categoryResult = CategoryVoiceService.checkCategoryQuery(searchInput, language);
-
           if (categoryResult.isCategoryQuery && categoryResult.varieties.length >= 2) {
             setCategoryStatusText(`📢 Listing ${categoryResult.categoryName} Varieties...`);
-            console.log(`[Search Voice Mic Category Listing]: Speaking varieties aloud...`);
-
             speakText(categoryResult.spokenPromptText, () => {
-              setCategoryStatusText(`🎙️ Listening for variety selection (e.g. "${categoryResult.varieties[0].name}")...`);
+              setCategoryStatusText(`🎙️ Listening for variety selection...`);
               startCategoryFollowUpListening(categoryResult.varieties);
             });
           }
+        } else if (matchRes.needsClarification && matchRes.top3Candidates && matchRes.top3Candidates.length > 0) {
+          // Medium Confidence Rule: Prompt "Did you mean X?" + Top 3 Buttons
+          setTopSuggestions({ items: matchRes.top3Candidates, prompt: matchRes.clarificationPrompt });
+          if (matchRes.clarificationPrompt) {
+            speakText(matchRes.clarificationPrompt);
+          }
+        } else if (matchRes.top3Candidates && matchRes.top3Candidates.length > 0) {
+          // Low Confidence Rule: Show top 3 candidates / popular dishes as suggestions
+          const notFoundPrompt = language === 'ta'
+            ? 'தெளிவாகப் புரியவில்லை. இந்த பிரபலமான உணவுகளில் ஒன்றா?'
+            : language === 'hi'
+            ? 'स्पष्ट नहीं हुआ। क्या आप इनमें से कुछ चाहते हैं?'
+            : "Didn't catch that clearly. Did you mean one of these popular dishes?";
+          setTopSuggestions({ items: matchRes.top3Candidates, prompt: notFoundPrompt });
+          speakText(notFoundPrompt);
         }
       },
-      onError: (err) => {
-        console.warn('[Search Voice Mic ERROR]: Recognition error:', err);
+      onError: (errCode, errMsg) => {
+        console.warn('[Search Voice Mic ERROR]: Recognition error:', errCode, errMsg);
         setIsMicListening(false);
-
-        if (err !== 'no-speech' && err !== 'aborted') {
-          const lowConfidenceCue = SpeechService.getLowConfidenceCue(language);
-          showToast(lowConfidenceCue);
+        if (errCode !== 'no-speech' && errCode !== 'aborted') {
+          showToast(errMsg);
         }
       },
       onEnd: () => {
@@ -244,6 +281,36 @@ export const DynamicFoodSearch: React.FC = () => {
                 <span className="text-[10px] bg-[#C2185B] text-white px-2.5 py-0.5 rounded-md uppercase font-bold">
                   Listening Active 🎙️
                 </span>
+              </div>
+            )}
+
+            {/* "Did You Mean?" Top 3 Candidate Suggestion Buttons */}
+            {topSuggestions && topSuggestions.items.length > 0 && (
+              <div className="mt-3 p-3 bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl space-y-2 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    {topSuggestions.prompt || 'Did you mean one of these?'}
+                  </span>
+                  <button
+                    onClick={() => setTopSuggestions(null)}
+                    className="text-[10px] font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {topSuggestions.items.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSelectSuggestion(item)}
+                      className="px-3 py-1.5 bg-white hover:bg-amber-50 text-[#1A1110] font-black text-xs rounded-xl border border-amber-400 shadow-sm flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
+                    >
+                      <span>{item.nativeNames?.[language] || item.name}</span>
+                      <span className="text-[10px] text-slate-500 font-normal">({item.restaurant})</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -511,6 +578,16 @@ export const DynamicFoodSearch: React.FC = () => {
                 </button>
               </div>
 
+              {/* Live Price Comparison Button */}
+              <button
+                type="button"
+                onClick={() => setPriceCompareItem(item)}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-black transition-all border border-purple-400/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 cursor-pointer"
+              >
+                <BarChart2 className="w-3.5 h-3.5" />
+                <span>📊 Live Price Comparison</span>
+              </button>
+
             </div>
 
           </div>
@@ -546,6 +623,19 @@ export const DynamicFoodSearch: React.FC = () => {
         onClose={() => setSchedulingItem(null)}
         items={schedulingItem ? [{ foodItem: schedulingItem, quantity: 1 }] : []}
         initialSlotName={schedulingItem ? `${schedulingItem.name} Schedule` : 'Scheduled Order'}
+      />
+
+      {/* LIVE PRICE COMPARISON MODAL */}
+      <PriceComparisonModal
+        isOpen={Boolean(priceCompareItem)}
+        item={priceCompareItem}
+        onClose={() => setPriceCompareItem(null)}
+        onSelectPlatform={(platform, price) => {
+          if (priceCompareItem) {
+            placeInstantOrder(priceCompareItem);
+            setPriceCompareItem(null);
+          }
+        }}
       />
 
     </div>

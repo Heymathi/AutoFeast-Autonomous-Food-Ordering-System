@@ -31,7 +31,7 @@ export class CategoryVoiceService {
       return { isCategoryQuery: false, categoryName: '', varieties: [], spokenPromptText: '' };
     }
 
-    const llmExtraction = LlmNluService.extractFoodItemWithLlmSync(rawQuery);
+    const llmExtraction = LlmNluService.extractFoodItemWithLlmSync(rawQuery, lang);
     const extractedQuery = llmExtraction.item || rawQuery;
 
     for (const [catKey, catMeta] of Object.entries(this.categoryMap)) {

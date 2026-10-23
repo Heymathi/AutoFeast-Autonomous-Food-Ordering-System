@@ -1,21 +1,37 @@
 import { Language } from '../types';
 import { FuzzyMatchEngine } from './fuzzyMatchService';
 
-export type ChooserAction = 'order_now' | 'schedule' | 'add_to_cart';
+export type ChooserAction = 'order_now' | 'schedule' | 'add_to_cart' | 'cancel';
 
 export class ChooserVoiceService {
   /**
    * Parse user spoken response for ItemActionChooser in English, Tamil, Hindi, Tanglish, and Hinglish.
+   * Supports both a single transcript string and an array of nBest alternatives.
    */
-  static parseChooserAction(spokenText: string, lastSpokenPrompt?: string): ChooserAction | 'retry' | null {
+  static parseChooserAction(spokenText: string | string[], lastSpokenPrompt?: string): ChooserAction | 'retry' | null {
+    const list = Array.isArray(spokenText) ? spokenText : [spokenText];
+    let foundRetry = false;
+
+    for (const item of list) {
+      if (!item || !item.trim()) continue;
+      const res = this.parseSingleChooserAction(item, lastSpokenPrompt);
+      if (res && res !== 'retry') return res;
+      if (res === 'retry') foundRetry = true;
+    }
+
+    return foundRetry ? 'retry' : null;
+  }
+
+  private static parseSingleChooserAction(spokenText: string, lastSpokenPrompt?: string): ChooserAction | 'retry' | null {
     if (!spokenText || !spokenText.trim()) return null;
 
     const text = spokenText.toLowerCase().trim();
 
-    // 1. ECHO CANCELLATION: Ignore transcript if it matches the app's prompt
+    // 1. ECHO CANCELLATION: Ignore transcript if it matches the app's full prompt
     if (lastSpokenPrompt) {
       const promptLower = lastSpokenPrompt.toLowerCase().trim();
-      if (text === promptLower || text.includes(promptLower) || promptLower.includes(text)) {
+      const isFullEcho = text === promptLower || (text.length > 20 && (text.includes(promptLower) || promptLower.includes(text)));
+      if (isFullEcho) {
         console.log('[ChooserVoiceService]: Ignored echo of app prompt:', text);
         return null;
       }
@@ -24,8 +40,8 @@ export class ChooserVoiceService {
     // Keywords dictionary
     const orderKeywords = [
       'order now', 'instant', 'now', 'order', 'buy now', 'place order',
-      'ippove order pannu', 'ippove order', 'ippove', 'udane', 'ஆர்டர்', 'இப்போதே', 'உடனே', 'இப்போதே ஆர்டர்', 'ஆர்டர் செய்',
-      'अभी', 'तुरंत ऑर्डर', 'अभी ऑर्डर करें', 'तुरंत', 'abhi', 'turant', 'abhi order'
+      'ippove order pannu', 'ippove order', 'ippove', 'udane', 'ஆர்டர்', 'இப்போதே', 'உடனே', 'இப்போதே ஆர்டர்', 'ஆர்டர் செய்', 'ஆர்டர் பண்ணு',
+      'अभी', 'तुरंत ऑर्डर', 'अभी ऑर्डर करें', 'ऑर्डर करो', 'तुरंत', 'abhi', 'turant', 'abhi order', 'order karo'
     ];
 
     const scheduleKeywords = [
@@ -40,7 +56,16 @@ export class ChooserVoiceService {
       'कार्ट', 'कार्ट में डालो', 'कार्ट में जोड़ें', 'cart me dalo', 'cart me jod'
     ];
 
+    const cancelKeywords = [
+      'cancel', 'close', 'exit', 'never mind', 'stop',
+      'ரத்து', 'வேண்டாம்', 'வேணாம்', 'மூடு', 'வெளியேறு',
+      'रद्द', 'रद्द करें', 'कैंसल', 'नहीं चाहिए', 'बंद', 'वापस'
+    ];
+
     // Check exact or phrase inclusion first
+    for (const kw of cancelKeywords) {
+      if (text.includes(kw.toLowerCase())) return 'cancel';
+    }
     for (const kw of orderKeywords) {
       if (text.includes(kw.toLowerCase())) return 'order_now';
     }
@@ -52,11 +77,13 @@ export class ChooserVoiceService {
     }
 
     // Fuzzy matching fallback
+    const bestCancel = FuzzyMatchEngine.findBestMatch(text, cancelKeywords);
     const bestOrder = FuzzyMatchEngine.findBestMatch(text, orderKeywords);
     const bestSchedule = FuzzyMatchEngine.findBestMatch(text, scheduleKeywords);
     const bestCart = FuzzyMatchEngine.findBestMatch(text, cartKeywords);
 
     const scores = [
+      { action: 'cancel' as ChooserAction, score: bestCancel ? bestCancel.score : 0 },
       { action: 'order_now' as ChooserAction, score: bestOrder ? bestOrder.score : 0 },
       { action: 'schedule' as ChooserAction, score: bestSchedule ? bestSchedule.score : 0 },
       { action: 'add_to_cart' as ChooserAction, score: bestCart ? bestCart.score : 0 }

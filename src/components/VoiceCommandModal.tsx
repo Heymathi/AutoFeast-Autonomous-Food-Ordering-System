@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
-import { SpeechService } from '../services/speechService';
+import { SpeechController } from '../services/speechController';
 import { SttMatcherService } from '../services/sttMatcherService';
-import { Mic, MicOff, X, Command, CheckCircle2, XCircle, Volume2 } from 'lucide-react';
+import { NomineeNotificationService } from '../services/nomineeNotificationService';
+import { Mic, MicOff, X, Command, CheckCircle2, XCircle, Volume2, Bug } from 'lucide-react';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { DynamicFoodSearchEngine } from '../services/dynamicFoodSearch';
 import { parseSpokenTimeTo24Hr } from './VoiceOrderDialogModal';
 import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
 import { NLPParserService } from '../services/nlpParserService';
 import { ItemActionChooser } from './ItemActionChooser';
+
+const voiceDebug = (message: string, details?: unknown) => {
+  if ((import.meta as any).env?.DEV) console.info(message, details ?? '');
+};
 
 export const VoiceCommandModal: React.FC = () => {
   const {
@@ -30,7 +35,10 @@ export const VoiceCommandModal: React.FC = () => {
     checkDailyOrderLimitReached,
     processNaturalLanguageVoiceCommand,
     requestWalletBalanceReveal,
-    skipScheduleByVoiceCommand
+    skipScheduleByVoiceCommand,
+    currentUser,
+    checkIsItemRestrictedByNominee,
+    handleNomineeRestrictedInterception
   } = useApp();
 
   const [isListening, setIsListening] = useState(false);
@@ -38,9 +46,12 @@ export const VoiceCommandModal: React.FC = () => {
   const [pendingCommand, setPendingCommand] = useState('');
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [chooserItems, setChooserItems] = useState<FoodItem[] | null>(null);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   const pendingCommandRef = useRef(pendingCommand);
   const awaitingConfirmationRef = useRef(awaitingConfirmation);
+  const silenceRepeatCount = useRef(0);
+  const pendingAlternativesRef = useRef<string[]>([]);
 
   useEffect(() => {
     pendingCommandRef.current = pendingCommand;
@@ -52,7 +63,8 @@ export const VoiceCommandModal: React.FC = () => {
 
   useEffect(() => {
     if (!isVoiceModalOpen) {
-      SpeechService.stopListening();
+      SpeechController.stopListening('VoiceCommandModal');
+      SpeechController.cancelSpeech();
       setIsListening(false);
       setTranscript('');
       setPendingCommand('');
@@ -61,54 +73,96 @@ export const VoiceCommandModal: React.FC = () => {
       startListeningSession();
     }
     return () => {
-      SpeechService.stopListening();
+      SpeechController.stopListening('VoiceCommandModal');
+      SpeechController.cancelSpeech();
     };
   }, [isVoiceModalOpen]);
 
   const startListeningSession = () => {
-    if (!SpeechService.isSupported()) return;
+    if (!SpeechController.isSupported()) {
+      const message = language === 'ta'
+        ? 'இந்த உலாவியில் குரல் வசதி இல்லை. Chrome பயன்படுத்தவும் அல்லது தேடல் பெட்டியைத் தொடவும்.'
+        : language === 'hi'
+        ? 'इस ब्राउज़र में आवाज़ सुविधा उपलब्ध नहीं है। Chrome का उपयोग करें या खोज बॉक्स चुनें।'
+        : 'Voice recognition is unavailable. Please use Chrome or tap the search box.';
+      setTranscript(message);
+      showToast(message);
+      speakText(message, undefined, language);
+      return;
+    }
 
     setIsListening(true);
-    SpeechService.startListening({
+    SpeechController.startListening({
+      owner: 'VoiceCommandModal',
       language,
       continuous: true,
       interimResults: true,
+      maxAlternatives: 5,
+      silenceTimeoutMs: 8000,
+      onSilence: () => {
+        setIsListening(false);
+        if (silenceRepeatCount.current === 0) {
+          silenceRepeatCount.current = 1;
+          const message = language === 'ta'
+            ? 'உணவுப் பெயரைச் சொல்லுங்கள். மீண்டும் ஒருமுறை கேட்கிறேன்.'
+            : language === 'hi'
+            ? 'कृपया भोजन का नाम बोलें। मैं एक बार फिर सुनूँगा।'
+            : 'Please say a food name. I will listen once more.';
+          setTranscript(message);
+          speakText(message, startListeningSession, language);
+        } else {
+          const message = language === 'ta'
+            ? 'கேட்பது நிறுத்தப்பட்டது. தொடர மைக்கை மீண்டும் முயற்சிக்கவும் அல்லது தேடலைத் தொடவும்.'
+            : language === 'hi'
+            ? 'सुनना रोक दिया गया है। Retry mic दबाएँ या खोज शुरू करें।'
+            : 'Listening stopped. Tap Retry mic or search on screen.';
+          setTranscript(message);
+          showToast(message);
+        }
+      },
       onStart: () => setIsListening(true),
       onResult: (text, isFinal, nBestTranscripts) => {
         if (text && text.trim()) {
           const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [text.trim()];
           if (isFinal) {
+            silenceRepeatCount.current = 0;
+            voiceDebug('[Voice Turn]', {
+              state: SpeechController.getState(),
+              step: awaitingConfirmationRef.current ? 'confirmation' : 'item_search',
+              transcript: text.trim(),
+              alternatives: candidates,
+              chosenIntent: 'pending-local-match',
+              source: 'Web Speech'
+            });
             handleSpeechResult(text.trim(), candidates);
           } else {
             setTranscript(text);
           }
         }
       },
-      onError: (err) => {
-        console.warn('[VoiceCommandModal Error]:', err);
+      onError: (errorCode, errorMessage) => {
+        console.warn('[VoiceCommandModal Error]:', errorCode, errorMessage);
         setIsListening(false);
+        setTranscript(errorMessage);
+        showToast(errorMessage);
+        speakText(errorMessage, undefined, language);
       },
       onEnd: () => {
         setIsListening(false);
-        if (isVoiceModalOpen) {
-          setTimeout(() => {
-            if (isVoiceModalOpen) {
-              startListeningSession();
-            }
-          }, 400);
-        }
       }
     });
   };
 
   const toggleListening = () => {
     if (isListening) {
-      SpeechService.stopListening();
+      SpeechController.stopListening('VoiceCommandModal');
       setIsListening(false);
     } else {
       startListeningSession();
     }
   };
+
+  const [variantSuggestions, setVariantSuggestions] = useState<{ prompt: string; items: FoodItem[] } | null>(null);
 
   const handleSpeechResult = (spokenText: string, candidates: string[] = [spokenText]) => {
     const lower = spokenText.toLowerCase().trim();
@@ -116,33 +170,92 @@ export const VoiceCommandModal: React.FC = () => {
     // Check if user is answering YES/NO to a pending command prompt
     if (awaitingConfirmationRef.current && pendingCommandRef.current) {
       const matchConfirm = SttMatcherService.matchConfirmation(candidates, language);
+      voiceDebug('[Voice Turn Decision]', {
+        state: SpeechController.getState(),
+        step: 'confirmation',
+        chosenIntent: matchConfirm.isMatched ? matchConfirm.matchedValue : 'unknown',
+        confidence: matchConfirm.confidence,
+        source: 'local N-best vote'
+      });
 
       if (matchConfirm.isMatched && matchConfirm.matchedValue === 'YES') {
-        console.log(`[VoiceCommandModal]: User confirmed with YES via SttMatcherService! Executing "${pendingCommandRef.current}"...`);
+        voiceDebug(`[VoiceCommandModal]: User confirmed with YES via SttMatcherService! Executing "${pendingCommandRef.current}"...`);
         const cmdToRun = pendingCommandRef.current;
         setPendingCommand('');
         setAwaitingConfirmation(false);
-        processCommand(cmdToRun);
+        processCommand(cmdToRun, candidates);
         return;
       } else if (matchConfirm.isMatched && matchConfirm.matchedValue === 'NO') {
-        console.log(`[VoiceCommandModal]: User cancelled with NO via SttMatcherService.`);
+        voiceDebug(`[VoiceCommandModal]: User cancelled with NO via SttMatcherService.`);
         handleCancelCommand();
         return;
       }
+      const retryPrompt = language === 'ta'
+        ? 'ஆம் அல்லது இல்லை என்று சொல்லுங்கள். அல்லது திரையில் உள்ள பொத்தானைத் தொடவும்.'
+        : language === 'hi'
+        ? 'हाँ या नहीं बोलें। या स्क्रीन पर दिया बटन चुनें।'
+        : 'Please say Yes or No, or choose a button on screen.';
+      setTranscript(retryPrompt);
+      showToast(retryPrompt);
+      SpeechController.stopListening('VoiceCommandModal');
+      speakText(retryPrompt, startListeningSession, language);
+      return;
     }
 
-    // New spoken command e.g., "Order Dosa", "Order Parotta", "Schedule Dosa at 8 AM"
-    setTranscript(spokenText);
+    // Match spoken input using SttMatcherService
+    const matchRes = SttMatcherService.matchCatalogItem(candidates, INDIAN_FOOD_CATALOG, language);
+    voiceDebug('[Voice Turn Decision]', {
+      state: SpeechController.getState(),
+      step: 'item_search',
+      chosenIntent: matchRes.isMatched ? 'catalog_item' : matchRes.needsClarification ? 'clarify_item' : 'unknown',
+      confidence: matchRes.confidence,
+      alternatives: candidates,
+      source: 'local catalog matcher'
+    });
+
+    // Case 1: Generic query with multiple catalog variants ("order dosa" -> 4 variants)
+    if (matchRes.needsClarification && matchRes.top3Candidates && matchRes.top3Candidates.length > 1) {
+      const prompt = matchRes.clarificationPrompt || (language === 'ta' ? 'எந்த தோசை உங்களுக்கு வேண்டும்?' : language === 'hi' ? 'आपको कौन सा डोसा चाहिए?' : 'Which dosa would you like?');
+      setTranscript(spokenText);
+      setVariantSuggestions({ prompt, items: matchRes.top3Candidates });
+      setAwaitingConfirmation(false);
+      SpeechController.stopListening('VoiceCommandModal');
+      speakText(prompt, () => {
+        startListeningSession();
+      });
+      return;
+    }
+
+    // Case 2: Specific item matched or single-variant auto-selected (e.g. "idli" -> Steamed Button Sambar Idli)
+    if (!matchRes.isMatched || !matchRes.matchedValue) {
+      const retryPrompt = language === 'ta'
+        ? 'உணவு தெளிவாகப் புரியவில்லை. பட்டியலில் உள்ள உணவுப் பெயரைச் சொல்லுங்கள் அல்லது தேடலைத் தொடவும்.'
+        : language === 'hi'
+        ? 'खाने का नाम स्पष्ट नहीं है। कैटलॉग में दिया नाम बोलें या खोज शुरू करने के लिए टैप करें।'
+        : 'I could not match that to a menu item. Say a menu item name or tap to search.';
+      setTranscript(retryPrompt);
+      showToast(retryPrompt);
+      SpeechController.stopListening('VoiceCommandModal');
+      speakText(retryPrompt, startListeningSession, language);
+      return;
+    }
+
+    const matchedItem = matchRes.matchedValue;
+    const targetItemName = matchedItem.nativeNames?.[language] || matchedItem.name;
+
+    setVariantSuggestions(null);
+    setTranscript(targetItemName);
     setPendingCommand(spokenText);
+    pendingAlternativesRef.current = candidates;
     setAwaitingConfirmation(true);
 
     const askPrompt = language === 'ta'
-      ? `"${spokenText}" தொடரவா? "ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள்.`
+      ? `"${targetItemName}" தொடரவா? "ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள்.`
       : language === 'hi'
-      ? `क्या "${spokenText}" जारी रखें? "हाँ" या "नहीं" बोलें।`
-      : `Proceed with "${spokenText}"? Say Yes or No.`;
+      ? `क्या "${targetItemName}" जारी रखें? "हाँ" या "नहीं" बोलें।`
+      : `Proceed with "${targetItemName}"? Say Yes or No.`;
 
-    SpeechService.stopListening();
+    SpeechController.stopListening('VoiceCommandModal');
     speakText(askPrompt, () => {
       startListeningSession();
     });
@@ -153,14 +266,14 @@ export const VoiceCommandModal: React.FC = () => {
     if (!cmdToRun) return;
     setPendingCommand('');
     setAwaitingConfirmation(false);
-    processCommand(cmdToRun);
+    processCommand(cmdToRun, pendingAlternativesRef.current);
   };
 
   const handleCancelCommand = () => {
     setPendingCommand('');
     setTranscript('');
     setAwaitingConfirmation(false);
-    SpeechService.stopListening();
+    SpeechController.stopListening('VoiceCommandModal');
 
     const cancelMsg = language === 'ta'
       ? 'கட்டளை ரத்து செய்யப்பட்டது. புதிய கட்டளையைக் கூறுங்கள்.'
@@ -174,7 +287,7 @@ export const VoiceCommandModal: React.FC = () => {
     });
   };
 
-  const processCommand = async (cmdText: string) => {
+  const processCommand = async (cmdText: string, alternatives: string[] = [cmdText]) => {
     if (!cmdText || !cmdText.trim()) return;
 
     const raw = cmdText.toLowerCase().trim();
@@ -182,15 +295,15 @@ export const VoiceCommandModal: React.FC = () => {
     // 🚀 STEP -1: Check single-day schedule skip/cancel voice command
     const isSkipHandled = await skipScheduleByVoiceCommand(cmdText);
     if (isSkipHandled) {
-      console.log(`[VoiceCommandModal]: Single-day schedule skip voice command processed for "${cmdText}"`);
+      voiceDebug(`[VoiceCommandModal]: Single-day schedule skip voice command processed for "${cmdText}"`);
       setIsVoiceModalOpen(false);
       return;
     }
 
     // 🚀 STEP 0: Run NLP Algorithm parser for multi-item / Tanglish / Saravana Bhavan orders
-    const isNlpHandled = await processNaturalLanguageVoiceCommand(cmdText);
+    const isNlpHandled = await processNaturalLanguageVoiceCommand(cmdText, alternatives);
     if (isNlpHandled) {
-      console.log(`[VoiceCommandModal]: Handled by NLP algorithm -> Voice command processed!`);
+      voiceDebug('[VoiceCommandModal]: Handled by NLP algorithm -> Voice command processed!');
       setIsVoiceModalOpen(false);
       return;
     }
@@ -230,7 +343,19 @@ export const VoiceCommandModal: React.FC = () => {
 
     // 🚀 RULE 1: SCHEDULE INTENT ("schedule [item]") -> LAUNCH FULL INTERACTIVE VOICE SCHEDULING WIZARD
     if (isScheduleIntent && matchedItem) {
-      console.log(`[VoiceCommandModal]: Schedule Intent Triggered for "${matchedItem.name}" -> Launching Interactive Voice Scheduling Wizard...`);
+      voiceDebug(`[VoiceCommandModal]: Schedule Intent Triggered for "${matchedItem.name}" -> Launching Interactive Voice Scheduling Wizard...`);
+      if (NomineeNotificationService.hasRestrictedFetchError()) {
+        showToast(t('nominee.restrictedLoadError'), 'warning');
+        setIsVoiceModalOpen(false);
+        return;
+      }
+      const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
+      const interception = SttMatcherService.checkRestrictedFoodInterception(matchedItem.name, restrictedCatalogItems);
+      if (checkIsItemRestrictedByNominee(matchedItem.id, matchedItem.name) || interception.isRestricted) {
+        handleNomineeRestrictedInterception(matchedItem, 'scheduled');
+        setIsVoiceModalOpen(false);
+        return;
+      }
       if (checkDailyOrderLimitReached()) {
         setIsVoiceModalOpen(false);
         return;
@@ -242,7 +367,19 @@ export const VoiceCommandModal: React.FC = () => {
 
     // 🚀 RULE 2: ORDER INSTANT INTENT ("order [item]" / "order [item] now") -> DIRECT INSTANT ORDER WITHOUT QUESTIONS
     if (isOrderNowIntent && matchedItem) {
-      console.log(`[VoiceCommandModal]: Direct Instant Order Triggered for "${matchedItem.name}" (Spoken: "${cmdText}")`);
+      voiceDebug(`[VoiceCommandModal]: Direct Instant Order Triggered for "${matchedItem.name}" (Spoken: "${cmdText}")`);
+      if (NomineeNotificationService.hasRestrictedFetchError()) {
+        showToast(t('nominee.restrictedLoadError'), 'warning');
+        setIsVoiceModalOpen(false);
+        return;
+      }
+      const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
+      const interception = SttMatcherService.checkRestrictedFoodInterception(matchedItem.name, restrictedCatalogItems);
+      if (checkIsItemRestrictedByNominee(matchedItem.id, matchedItem.name) || interception.isRestricted) {
+        handleNomineeRestrictedInterception(matchedItem, 'instant');
+        setIsVoiceModalOpen(false);
+        return;
+      }
       if (checkDailyOrderLimitReached()) {
         setIsVoiceModalOpen(false);
         return;
@@ -254,7 +391,7 @@ export const VoiceCommandModal: React.FC = () => {
 
     // 🚀 RULE 3: ONLY ITEM NAME SPOKEN (e.g. just "Parotta", "Dosa", "பரோட்டா") -> OPEN ITEM ACTION CHOOSER
     if (matchedItem) {
-      console.log(`[VoiceCommandModal]: Item matched ("${cmdText}") -> Opening ItemActionChooser for "${matchedItem.name}"`);
+      voiceDebug(`[VoiceCommandModal]: Item matched ("${cmdText}") -> Opening ItemActionChooser for "${matchedItem.name}"`);
       setChooserItems([matchedItem]);
       return;
     }
@@ -271,16 +408,29 @@ export const VoiceCommandModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in">
       <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-[#DAF0F7] relative text-[#1A1110]">
         
-        {/* Close Button */}
-        <button
-          onClick={() => {
-            SpeechService.stopListening();
-            setIsVoiceModalOpen(false);
-          }}
-          className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-100 text-[#4A5568] cursor-pointer"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* Close Button & Debug Toggle (Dev Only) */}
+        <div className="absolute top-4 right-4 flex items-center space-x-2">
+          {(import.meta as any).env?.DEV && (
+            <button
+              onClick={() => setShowDebugPanel(!showDebugPanel)}
+              className={`p-2 rounded-full cursor-pointer transition-colors ${
+                showDebugPanel ? 'bg-[#FF5A1F] text-white' : 'bg-slate-100 hover:bg-slate-200 text-[#4A5568]'
+              }`}
+              title="Toggle SpeechController Debug Logs"
+            >
+              <Bug className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={() => {
+              SpeechController.stopListening('VoiceCommandModal');
+              setIsVoiceModalOpen(false);
+            }}
+            className="p-2 rounded-full hover:bg-slate-100 text-[#4A5568] cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
         {/* Modal Header */}
         <div className="flex items-center space-x-3 mb-4">
@@ -342,6 +492,33 @@ export const VoiceCommandModal: React.FC = () => {
           )}
         </div>
 
+        {/* Generic Category Variant Buttons */}
+        {variantSuggestions && variantSuggestions.items.length > 0 && (
+          <div className="mb-4 p-4 bg-[#FF5A1F]/10 rounded-2xl border border-[#FF5A1F]/30 space-y-2">
+            <p className="text-xs font-black text-[#FF5A1F] flex items-center gap-1">
+              <Volume2 className="w-4 h-4 animate-pulse" /> {variantSuggestions.prompt}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {variantSuggestions.items.map(vItem => (
+                <button
+                  key={vItem.id}
+                  onClick={() => {
+                    setVariantSuggestions(null);
+                    setChooserItems([vItem]);
+                  }}
+                  className="p-3 bg-white hover:bg-[#DAF0F7] text-[#1A1110] font-black rounded-xl text-xs border border-[#B2E2F0] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
+                >
+                  <div>
+                    <div className="font-extrabold">{vItem.nativeNames?.[language] || vItem.name}</div>
+                    <div className="text-[10px] text-[#4A5568]">{vItem.restaurant} • ₹{vItem.basePrice}</div>
+                  </div>
+                  <CheckCircle2 className="w-4 h-4 text-[#FF5A1F]" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Voice or Tap Confirmation Action Buttons */}
         {awaitingConfirmation && (
           <div className="grid grid-cols-2 gap-3 mb-4">
@@ -375,6 +552,25 @@ export const VoiceCommandModal: React.FC = () => {
           >
             Process Voice Command Now 🚀
           </button>
+        )}
+
+        {/* Real Debug Log Panel (Dev Only) */}
+        {(import.meta as any).env?.DEV && showDebugPanel && (
+          <div className="mb-4 p-3 bg-slate-900 text-green-400 rounded-2xl font-mono text-[10px] max-h-40 overflow-y-auto border border-slate-700">
+            <div className="font-bold text-white mb-1 border-b border-slate-700 pb-1 flex justify-between">
+              <span>SpeechController Debug Event Logs</span>
+              <span className="text-slate-400">Owner: VoiceCommandModal</span>
+            </div>
+            {SpeechController.getDebugLogs().length === 0 ? (
+              <p className="text-slate-500 italic">No events logged yet...</p>
+            ) : (
+              SpeechController.getDebugLogs().map((log, idx) => (
+                <div key={idx} className="leading-tight py-0.5 border-b border-slate-800">
+                  <span className="text-slate-400">[{log.timestamp}]</span> <span className="text-yellow-400 font-bold">[{log.type}]</span>: {log.detail}
+                </div>
+              ))
+            )}
+          </div>
         )}
 
         {/* Quick Sample Voice Command Presets */}
@@ -432,7 +628,7 @@ export const VoiceCommandModal: React.FC = () => {
           const firstItemName = items[0].nativeNames?.[language] || items[0].name;
           const addedMsg = t('addedNext').replace('{item}', items.length > 1 ? `${items.length} items` : firstItemName);
           showToast(addedMsg);
-          speakText(addedMsg);
+          speakText(addedMsg, undefined, language);
           setIsVoiceModalOpen(false);
         }}
       />

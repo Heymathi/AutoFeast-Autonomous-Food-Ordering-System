@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem, ScheduleDuration } from '../types';
-import { SpeechService } from '../services/speechService';
+import { SpeechController } from '../services/speechController';
 import { AuthService } from '../services/authService';
-import { SttMatcherService, CONFIRMATION_VOCABULARY } from '../services/sttMatcherService';
+import { SttMatcherService } from '../services/sttMatcherService';
+import { parsePinSpeech } from '../services/pinVoiceParserService';
 import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
 import { calculateScheduleOccurrences, calculateScheduleDatesList } from '../utils/scheduleCalculator';
 import { ScheduleBill } from './ScheduleBill';
@@ -16,13 +17,17 @@ interface VoiceOrderDialogModalProps {
   onClose: () => void;
 }
 
+const voiceDebug = (message: string, details?: unknown) => {
+  if ((import.meta as any).env?.DEV) console.info(message, details ?? '');
+};
+
 /**
  * 🚀 ROBUST MULTILINGUAL SPOKEN TIME PARSER (EN, TA, HI)
  */
 export function parseSpokenTimeTo24Hr(text: string): { time24: string; time12Formatted: string } | null {
   if (!text) return null;
   const raw = text.toLowerCase().replace(/\./g, '').trim();
-  console.log('[Time Parser Input Raw Cleaned]:', raw);
+  voiceDebug('[Time Parser Input Raw Cleaned]:', raw);
 
   let hours = -1;
   let minutes = 0;
@@ -44,39 +49,53 @@ export function parseSpokenTimeTo24Hr(text: string): { time24: string; time12For
     isPM = true;
   }
 
+  const namedSlots: Array<{ words: string[]; time: string }> = [
+    { words: ['morning', 'காலை', 'सुबह', 'प्रातः'], time: '08:00' },
+    { words: ['lunch', 'noon', 'மதியம்', 'दोपहर'], time: '12:00' },
+    { words: ['snacks', 'tea time', 'சிற்றுண்டி', 'शाम का नाश्ता'], time: '16:00' },
+    { words: ['dinner', 'இரவு', 'रात का खाना', 'रात्रि'], time: '19:00' }
+  ];
+  const namedSlot = namedSlots.find(slot => slot.words.some(word => raw.includes(word)));
+  if (namedSlot && !/\d/.test(raw)) {
+    const [hours, minutes] = namedSlot.time.split(':').map(Number);
+    return {
+      time24: namedSlot.time,
+      time12Formatted: `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`
+    };
+  }
+
   if (raw.includes('half past') || raw.includes('அரை') || raw.includes('साढ़े')) minutes = 30;
   if (raw.includes('quarter past') || raw.includes('கால்') || raw.includes('सवा')) minutes = 15;
   if (raw.includes('quarter to') || raw.includes('முக்கால்')) minutes = 45;
 
-  // 2. Tamil & Hindi Number Word Mapping
-  const wordNumMap: { [key: string]: number } = {
-    // Tamil
-    'ஒன்று': 1, 'ஒன்னு': 1, 'இரண்டு': 2, 'ரெண்டு': 2, 'மூன்று': 3, 'மூணு': 3,
-    'நான்கு': 4, 'நாளு': 4, 'ஐந்து': 5, 'அஞ்சு': 5, 'ஆறு': 6, 'ஏழு': 7,
-    'எட்டு': 8, 'ஒன்பது': 9, 'பத்து': 10, 'பதினொன்று': 11, 'பனிரெண்டு': 12,
-    // Hindi
-    'एक': 1, 'दो': 2, 'तीन': 3, 'चार': 4, 'पांच': 5, 'छह': 6, 'सात': 7, 'आठ': 8, 'नौ': 9, 'दस': 10, 'ग्यारह': 11, 'बारह': 12
-  };
-
-  for (const [word, numVal] of Object.entries(wordNumMap)) {
-    if (raw.includes(word)) {
-      hours = numVal;
-      break;
+  // 2. Extract explicit digits first
+  const numbers = raw.match(/\d+/g);
+  if (numbers && numbers.length > 0) {
+    hours = parseInt(numbers[0], 10);
+    if (numbers.length > 1) {
+      minutes = parseInt(numbers[1], 10);
     }
-  }
+  } else {
+    // 3. Tamil & Hindi Number Word Mapping (clean slot words first to prevent substring false-matches like 'दो' in 'दोपहर')
+    const rawWithoutSlots = raw.replace(/दोपहर|सुबह|शाम का नाश्ता|रात का खाना|शाम|रात|சிற்றுண்டி|மதியம்|காலை|இரவு|breakfast|lunch|dinner|snacks/g, ' ');
+    const wordNumMap: { [key: string]: number } = {
+      // Tamil
+      'ஒன்று': 1, 'ஒன்னு': 1, 'இரண்டு': 2, 'ரெண்டு': 2, 'மூன்று': 3, 'மூணு': 3,
+      'நான்கு': 4, 'நாளு': 4, 'ஐந்து': 5, 'அஞ்சு': 5, 'ஆறு': 6, 'ஏழு': 7,
+      'எட்டு': 8, 'ஒன்பது': 9, 'பத்து': 10, 'பதினொன்று': 11, 'பனிரெண்டு': 12,
+      // Hindi
+      'एक': 1, 'दो': 2, 'तीन': 3, 'चार': 4, 'पांच': 5, 'पाँच': 5, 'छह': 6, 'सात': 7, 'आठ': 8, 'नौ': 9, 'दस': 10, 'ग्यारह': 11, 'बारह': 12
+    };
 
-  // 3. Extract Digits if word not found
-  if (hours === -1) {
-    const numbers = raw.match(/\d+/g);
-    if (numbers && numbers.length > 0) {
-      hours = parseInt(numbers[0], 10);
-      if (numbers.length > 1) {
-        minutes = parseInt(numbers[1], 10);
+    for (const [word, numVal] of Object.entries(wordNumMap)) {
+      if (rawWithoutSlots.includes(word)) {
+        hours = numVal;
+        break;
       }
     }
   }
 
-  if (hours === -1 || hours > 24) {
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
     console.warn('[Time Parser Failed]: Could not extract valid hour from:', raw);
     return null;
   }
@@ -93,12 +112,13 @@ export function parseSpokenTimeTo24Hr(text: string): { time24: string; time12For
   const ampm = hours >= 12 ? 'PM' : 'AM';
   const time12Formatted = `${displayHours}:${String(minutes).padStart(2, '0')} ${ampm}`;
 
-  console.log(`[Time Parser Success]: "${raw}" -> 24h: ${time24}, Display: ${time12Formatted}`);
+  voiceDebug(`[Time Parser Success]: "${raw}" -> 24h: ${time24}, Display: ${time12Formatted}`);
   return { time24, time12Formatted };
 }
 
 export type VoiceDialogStep =
   | 'ask_type'
+  | 'confirm_instant'
   | 'confirm_item'
   | 'ask_time'
   | 'ask_frequency_days'
@@ -114,7 +134,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { placeInstantOrder, saveSchedule, language, speakText, currentUser, showToast, t } = useApp();
+  const { placeInstantOrder, saveSchedule, language, setLanguage, speakText, currentUser, showToast, t } = useApp();
   const [step, setStep] = useState<VoiceDialogStep>('ask_type');
   const [scheduleTimeInput, setScheduleTimeInput] = useState('08:00');
   const [formattedSpokenTime, setFormattedSpokenTime] = useState('8:00 AM');
@@ -139,12 +159,16 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
+  const [voiceMessage, setVoiceMessage] = useState('');
   
   // PIN Verification State
   const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '']);
   const [pinError, setPinError] = useState<string | null>(null);
+  const [pinLockSecondsLeft, setPinLockSecondsLeft] = useState(0);
+  const [isPinVerifying, setIsPinVerifying] = useState(false);
 
   const isComponentMounted = useRef<boolean>(false);
+  const silenceRepeatCount = useRef(0);
 
   // 🚀 REFS TO PREVENT STALE CLOSURE IN SPEECHRECOGNITION CALLBACKS
   const stepRef = useRef<VoiceDialogStep>(step);
@@ -154,6 +178,16 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
   const customEndDateRef = useRef<string>(customEndDate);
   const isEveryDayRef = useRef<boolean>(isEveryDay);
   const selectedDaysRef = useRef<string[]>(selectedDays);
+
+  const logDecision = (activeStep: VoiceDialogStep, chosenIntent: string, confidence: number, source = 'local N-best') => {
+    voiceDebug('[Voice Turn Decision]', {
+      state: SpeechController.getState(),
+      step: activeStep,
+      chosenIntent,
+      confidence,
+      source
+    });
+  };
 
   useEffect(() => {
     stepRef.current = step;
@@ -224,43 +258,75 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
   };
 
   const startListeningSession = () => {
-    if (!isOpen || !SpeechService.isSupported()) return;
+    if (!isOpen) return;
+    if (!SpeechController.isSupported()) {
+      const message = language === 'ta'
+        ? 'குரல் சேவை ஆதரிக்கப்படவில்லை. Chrome பயன்படுத்தவும் அல்லது கீழே உள்ள பொத்தானைத் தொடவும்.'
+        : language === 'hi'
+        ? 'आवाज़ सेवा समर्थित नहीं है। Chrome का उपयोग करें या नीचे दिए बटन को चुनें।'
+        : 'Voice recognition is unavailable. Please use Chrome or choose a button below.';
+      setVoiceMessage(message);
+      showToast(message);
+      speakText(message, undefined, language);
+      return;
+    }
 
-    console.log(`[VoiceOrderDialogModal]: Starting SpeechService mic listening session for step: "${stepRef.current}"`);
-    SpeechService.startListening({
+    voiceDebug(`[VoiceOrderDialogModal]: Starting shared speech mic session for step: "${stepRef.current}"`);
+    SpeechController.requestMic({
+      owner: 'voice_order_dialog',
       language,
       continuous: true,
       interimResults: true,
+      isPinScreen: stepRef.current === 'verify_pin',
+      maxAlternatives: 5,
+      silenceTimeoutMs: 8000,
+      onSilence: () => {
+        setIsListening(false);
+        if (silenceRepeatCount.current === 0) {
+          silenceRepeatCount.current = 1;
+          setVoiceMessage(language === 'ta'
+            ? 'பதில் கேட்கவில்லை. கேள்வியை மீண்டும் சொல்கிறேன்.'
+            : language === 'hi'
+            ? 'उत्तर नहीं मिला। मैं प्रश्न दोहरा रहा हूँ।'
+            : 'I did not hear a response. I will repeat the question once.');
+          speakStepPrompt(stepRef.current);
+        } else {
+          setVoiceMessage(language === 'ta'
+            ? 'மைக்ரோஃபோன் நிறுத்தப்பட்டது. தொடர கீழே உள்ள பொத்தானைத் தொடவும்.'
+            : language === 'hi'
+            ? 'माइक्रोफ़ोन रुक गया है। आगे बढ़ने के लिए नीचे दिए बटन को चुनें।'
+            : 'Listening stopped. Choose a button below or tap Retry mic.');
+        }
+      },
       onStart: () => {
         setIsListening(true);
+        setVoiceMessage('');
       },
       onResult: (transcribedText, isFinal, nBestTranscripts) => {
         if (!transcribedText) return;
-        setLiveTranscript(transcribedText);
+        if (stepRef.current !== 'verify_pin') setLiveTranscript(transcribedText);
         const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [transcribedText];
-
-        // For PIN step, voice entry is disabled per security guidelines (Keypad/Tap only)
-        if (stepRef.current === 'verify_pin') {
-          return;
-        }
 
         // Only process general dialog steps on final speech results
         if (!isFinal) return;
+        voiceDebug('[Voice Turn]', {
+          state: SpeechController.getState(),
+          step: stepRef.current,
+          transcript: stepRef.current === 'verify_pin' ? '[REDACTED PIN DATA]' : transcribedText,
+          alternatives: stepRef.current === 'verify_pin' ? '[REDACTED PIN DATA]' : candidates,
+          source: 'Web Speech'
+        });
         processSpokenReply(transcribedText, candidates);
       },
-      onError: (err) => {
-        console.warn(`[VoiceOrderDialogModal Mic Error]:`, err);
+      onError: (errCode, errMessage) => {
+        console.warn(`[VoiceOrderDialogModal Mic Error]: ${errCode} | ${errMessage}`);
         setIsListening(false);
+        setVoiceMessage(errMessage);
+        showToast(errMessage);
+        speakText(errMessage, undefined, language);
       },
       onEnd: () => {
         setIsListening(false);
-        if (isComponentMounted.current && isOpen) {
-          setTimeout(() => {
-            if (isComponentMounted.current && isOpen) {
-              startListeningSession();
-            }
-          }, 400);
-        }
       }
     });
   };
@@ -274,6 +340,12 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
 
     if (currentStep === 'ask_type') {
       promptMsg = getSpokenPromptText();
+    } else if (currentStep === 'confirm_instant') {
+      promptMsg = language === 'ta'
+        ? `${nativeName} ஆர்டரை உறுதிசெய்யவா? "ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள்.`
+        : language === 'hi'
+        ? `${nativeName} का ऑर्डर पक्का करें? "हाँ" या "नहीं" बोलें।`
+        : `Confirm the order for ${item.name}? Say Yes or No.`;
     } else if (currentStep === 'confirm_item') {
       promptMsg = language === 'ta'
         ? `${nativeName} (${item.restaurant}) என்ற உணவை அட்டவணைப்படுத்த விரும்புகிறீர்களா? "ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள்.`
@@ -335,20 +407,12 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         : `Confirm to create schedule? Say "Yes".`;
     }
 
-    console.log(`[VoiceOrderDialogModal Step ${currentStep}]: Speaking prompt -> "${promptMsg}"`);
+    voiceDebug(`[VoiceOrderDialogModal Step ${currentStep}]: Speaking prompt -> "${promptMsg}"`);
 
-    SpeechService.stopListening();
+    SpeechController.releaseMic('voice_order_dialog');
     setIsListening(false);
 
-    const fallbackDelay = Math.max(7000, promptMsg.length * 120 + 3000);
-    const listeningFallbackTimer = setTimeout(() => {
-      if (isComponentMounted.current && isOpen) {
-        startListeningSession();
-      }
-    }, fallbackDelay);
-
     speakText(promptMsg, () => {
-      clearTimeout(listeningFallbackTimer);
       if (isComponentMounted.current && isOpen) {
         startListeningSession();
       }
@@ -359,7 +423,8 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
     isComponentMounted.current = true;
     return () => {
       isComponentMounted.current = false;
-      SpeechService.stopListening();
+      SpeechController.releaseMic('voice_order_dialog');
+      SpeechController.cancelSpeech();
     };
   }, []);
 
@@ -377,14 +442,20 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
 
       return () => clearTimeout(timer);
     } else {
-      SpeechService.stopListening();
+      SpeechController.releaseMic('voice_order_dialog');
+      SpeechController.cancelSpeech();
     }
   }, [isOpen, item?.id, language]);
 
   // Validate 4-digit PIN via server-side verification
   const verifyPinAndProceed = async (pinStr: string) => {
-    const isPinValid = await AuthService.verifyPIN(pinStr);
-    if (isPinValid) {
+    if (pinLockSecondsLeft > 0 || isPinVerifying) return;
+    SpeechController.releaseMic('voice_order_dialog');
+    setLiveTranscript('');
+    setIsPinVerifying(true);
+    const result = await AuthService.verifyPIN(pinStr);
+    setIsPinVerifying(false);
+    if (result.success) {
       setPinError(null);
       const verifiedMsg = language === 'ta'
         ? 'பாதுகாப்பு PIN வெற்றிகரமாக சரிபார்க்கப்பட்டது!'
@@ -393,50 +464,147 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         : 'Security PIN Verified successfully!';
       
       showToast(verifiedMsg);
-
-      setTimeout(() => {
-        finalizeAndSaveSchedule();
-      }, 500);
+      setStep('confirm_schedule');
+      stepRef.current = 'confirm_schedule';
+      speakStepPrompt('confirm_schedule');
     } else {
-      const errMsg = language === 'ta'
-        ? 'தவறான PIN. மீண்டும் முயற்சிக்கவும்.'
-        : language === 'hi'
-        ? 'गलत पिन। कृपया पुन: प्रयास करें।'
-        : 'Invalid PIN. Please try again.';
+      const remaining = result.lockRemainingSeconds || 0;
+      if (result.isLocked) setPinLockSecondsLeft(remaining);
+      const errMsg = result.isLocked
+        ? language === 'ta'
+          ? `நான்கு தவறான முயற்சிகள். ${remaining} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கலாம்.`
+          : language === 'hi'
+          ? `चार गलत प्रयास। ${remaining} सेकंड बाद फिर कोशिश कर सकते हैं।`
+          : `Four incorrect attempts. You can retry in ${remaining} seconds.`
+        : result.serverError
+          ? language === 'ta'
+            ? 'இப்போது PIN சரிபார்க்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.'
+            : language === 'hi'
+            ? 'अभी पिन सत्यापित नहीं हो सका। कृपया फिर कोशिश करें।'
+            : 'Cannot verify PIN right now. Please try again.'
+          : language === 'ta'
+            ? `தவறான PIN. ${result.attemptsLeft ?? 0} முயற்சிகள் மீதமுள்ளன.`
+            : language === 'hi'
+            ? `गलत पिन। ${result.attemptsLeft ?? 0} प्रयास शेष।`
+            : `Incorrect PIN. ${result.attemptsLeft ?? 0} attempts remaining.`;
       setPinError(errMsg);
       setPinDigits(['', '', '', '']);
+      speakText(errMsg, result.isLocked || result.serverError ? undefined : () => {
+        if (isComponentMounted.current && isOpen) startListeningSession();
+      }, language);
     }
   };
+
+  useEffect(() => {
+    if (pinLockSecondsLeft <= 0) return;
+    const timer = setInterval(() => {
+      setPinLockSecondsLeft(current => Math.max(0, current - 1));
+      if (pinLockSecondsLeft === 1) {
+        setPinError(language === 'ta'
+          ? 'இப்போது மீண்டும் முயற்சிக்கலாம்.'
+          : language === 'hi'
+          ? 'अब फिर कोशिश कर सकते हैं।'
+          : 'You can retry now.');
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [pinLockSecondsLeft, language]);
 
   // Multilingual Intent & Step Handler
   const processSpokenReply = (text: string, candidates: string[] = [text]) => {
     const activeStep = stepRef.current;
     const raw = (text || '').toLowerCase().replace(/[\.,!\?]/g, ' ').trim();
 
-    console.log(`[processSpokenReply]: "${raw}" for step: "${activeStep}"`);
+    silenceRepeatCount.current = 0;
+    setVoiceMessage('');
+
+    const languageMatch = SttMatcherService.matchLanguageChoice(candidates);
+    if (languageMatch.isMatched) {
+      logDecision(activeStep, languageMatch.matchedValue || 'unknown', languageMatch.confidence);
+    }
+    if (languageMatch.isMatched && languageMatch.matchedValue && languageMatch.matchedValue !== language) {
+      setLanguage(languageMatch.matchedValue);
+      showToast(languageMatch.matchedValue === 'ta'
+        ? 'மொழி தமிழாக மாற்றப்பட்டது.'
+        : languageMatch.matchedValue === 'hi'
+        ? 'भाषा हिंदी में बदल दी गई है।'
+        : 'Language changed to English.');
+      return;
+    }
+
+    const control = SttMatcherService.matchControlCommand(candidates);
+    if (control.isMatched) logDecision(activeStep, control.matchedValue || 'unknown', control.confidence);
+    if (control.isMatched && control.matchedValue === 'STOP') {
+      SpeechController.releaseMic('voice_order_dialog');
+      setIsListening(false);
+      setVoiceMessage(language === 'ta'
+        ? 'கேட்பது நிறுத்தப்பட்டது. தொடர மைக்கை மீண்டும் முயற்சிக்கவும் அல்லது பொத்தானைத் தேர்ந்தெடுக்கவும்.'
+        : language === 'hi'
+        ? 'सुनना रोक दिया गया। फिर से शुरू करने के लिए Retry mic या नीचे का बटन चुनें।'
+        : 'Listening stopped. Tap Retry mic or choose a button to continue.');
+      return;
+    }
+    if (control.isMatched && control.matchedValue === 'REPEAT') {
+      speakStepPrompt(activeStep);
+      return;
+    }
+    if (control.isMatched && control.matchedValue === 'CANCEL') {
+      handleCancelSchedule();
+      return;
+    }
+    if (control.isMatched && control.matchedValue === 'BACK') {
+      const previousStep: Partial<Record<VoiceDialogStep, VoiceDialogStep>> = {
+        confirm_item: 'ask_type',
+        ask_time: 'confirm_item',
+        ask_frequency_days: 'ask_time',
+        ask_duration: 'ask_frequency_days',
+        confirm_dates: 'ask_duration',
+        show_bill: 'ask_duration',
+        confirm_schedule: 'show_bill',
+        confirm_instant: 'ask_type'
+      };
+      const targetStep = previousStep[activeStep];
+      if (targetStep) {
+        setStep(targetStep);
+        stepRef.current = targetStep;
+        speakStepPrompt(targetStep);
+        return;
+      }
+    }
+
+    if (activeStep === 'verify_pin') {
+      const fourDigits = candidates
+        .map(candidate => parsePinSpeech(candidate, language))
+        .find(result => result.status === 'success' && result.digits.length === 4)?.digits;
+      logDecision(activeStep, fourDigits ? 'PIN' : 'unknown', fourDigits ? 1 : 0, 'local PIN parser');
+
+      if (fourDigits) {
+        setPinDigits(fourDigits);
+        verifyPinAndProceed(fourDigits.join(''));
+      } else {
+        const retryPrompt = language === 'ta'
+          ? 'நான்கு இலக்க PIN-ஐ ஒவ்வொன்றாகத் தெளிவாகக் கூறுங்கள்.'
+          : language === 'hi'
+          ? 'कृपया चार अंकों का पिन एक-एक करके साफ़ बोलें।'
+          : 'Please say the four PIN digits clearly, one at a time.';
+        setPinError(retryPrompt);
+        speakText(retryPrompt, undefined, language);
+      }
+      return;
+    }
+
+    voiceDebug(`[processSpokenReply]: "${raw}" for step: "${activeStep}"`);
 
     // STEP 0: Ask Order Type Intent Matcher
     if (activeStep === 'ask_type') {
-      const orderNowWords = [
-        ...CONFIRMATION_VOCABULARY.ORDER_NOW.en,
-        ...CONFIRMATION_VOCABULARY.ORDER_NOW.ta,
-        ...CONFIRMATION_VOCABULARY.ORDER_NOW.hi
-      ];
-      const scheduleWords = [
-        ...CONFIRMATION_VOCABULARY.SCHEDULE.en,
-        ...CONFIRMATION_VOCABULARY.SCHEDULE.ta,
-        ...CONFIRMATION_VOCABULARY.SCHEDULE.hi
-      ];
-
-      const matchOrderNow = SttMatcherService.matchVocabulary(candidates, orderNowWords, language);
-      const matchSchedule = SttMatcherService.matchVocabulary(candidates, scheduleWords, language);
-
-      if (matchOrderNow.isMatched || raw.includes('now') || raw.includes('instant') || raw.includes('இப்போதே') || raw.includes('ஆர்டர்')) {
+      const orderType = SttMatcherService.matchOrderType(candidates);
+      logDecision(activeStep, orderType.matchedValue || 'unknown', orderType.confidence);
+      if (orderType.isMatched && orderType.matchedValue === 'ORDER_NOW') {
         handleInstantOrder();
         return;
       }
 
-      if (matchSchedule.isMatched || raw.includes('schedule') || raw.includes('later') || raw.includes('அட்டவணை') || raw.includes('திட்டமிடு')) {
+      if (orderType.isMatched && orderType.matchedValue === 'SCHEDULE') {
         setStep('confirm_item');
         stepRef.current = 'confirm_item';
         speakStepPrompt('confirm_item');
@@ -444,9 +612,25 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
       }
     }
 
+    if (activeStep === 'confirm_instant') {
+      const confirmation = SttMatcherService.matchConfirmation(candidates, language);
+      logDecision(activeStep, confirmation.matchedValue || 'unknown', confirmation.confidence);
+      if (confirmation.isMatched && confirmation.matchedValue === 'YES') {
+        placeInstantOrderConfirmed();
+        return;
+      }
+      if (confirmation.isMatched && confirmation.matchedValue === 'NO') {
+        setStep('ask_type');
+        stepRef.current = 'ask_type';
+        speakStepPrompt('ask_type');
+        return;
+      }
+    }
+
     // STEP 1: Confirm Item Choice -> Move to Time
     if (activeStep === 'confirm_item') {
       const matchConfirm = SttMatcherService.matchConfirmation(candidates, language);
+      logDecision(activeStep, matchConfirm.matchedValue || 'unknown', matchConfirm.confidence);
       if (matchConfirm.isMatched) {
         if (matchConfirm.matchedValue === 'YES') {
           setStep('ask_time');
@@ -460,7 +644,8 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
 
     // STEP 2: Delivery Time -> Move to Frequency/Days
     if (activeStep === 'ask_time') {
-      const parsed = parseSpokenTimeTo24Hr(text);
+      const parsed = candidates.map(candidate => parseSpokenTimeTo24Hr(candidate)).find(Boolean);
+      logDecision(activeStep, parsed ? `TIME ${parsed.time24}` : 'unknown', parsed ? 1 : 0, 'local time parser');
       if (parsed) {
         scheduleTimeInputRef.current = parsed.time24;
         setScheduleTimeInput(parsed.time24);
@@ -476,6 +661,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
     // STEP 3: Frequency & Days -> Move to Duration
     if (activeStep === 'ask_frequency_days') {
       const daysMatch = SttMatcherService.matchDaysChoice(candidates, language);
+      logDecision(activeStep, daysMatch.isMatched ? 'DAYS' : 'unknown', daysMatch.isMatched ? 1 : 0);
       if (daysMatch.isMatched) {
         setIsEveryDay(daysMatch.isEveryDay);
         isEveryDayRef.current = daysMatch.isEveryDay;
@@ -492,6 +678,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
     // STEP 4: Duration Choice -> Move to Confirm Dates (or Custom Dates)
     if (activeStep === 'ask_duration') {
       const durMatch = SttMatcherService.matchDurationChoice(candidates, language);
+      logDecision(activeStep, durMatch.matchedValue || 'unknown', durMatch.confidence || 0);
       if (durMatch.isMatched && durMatch.matchedValue) {
         const dur = durMatch.matchedValue;
         setSelectedDuration(dur);
@@ -523,6 +710,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
     // STEP 5: Confirm Delivery Dates -> Move to Bill
     if (activeStep === 'confirm_dates') {
       const matchConfirm = SttMatcherService.matchConfirmation(candidates, language);
+      logDecision(activeStep, matchConfirm.matchedValue || 'unknown', matchConfirm.confidence);
       if (matchConfirm.isMatched) {
         if (matchConfirm.matchedValue === 'YES') {
           setStep('show_bill');
@@ -539,9 +727,12 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
     // STEP 6: Show Bill Preview -> Move to PIN
     if (activeStep === 'show_bill') {
       const matchConfirm = SttMatcherService.matchConfirmation(candidates, language);
+      logDecision(activeStep, matchConfirm.matchedValue || 'unknown', matchConfirm.confidence);
       if (matchConfirm.isMatched && matchConfirm.matchedValue === 'YES') {
         setStep('verify_pin');
         stepRef.current = 'verify_pin';
+        setLiveTranscript('');
+        setPinDigits(['', '', '', '']);
         speakStepPrompt('verify_pin');
       } else if (matchConfirm.isMatched && matchConfirm.matchedValue === 'NO') {
         setStep('ask_duration');
@@ -550,20 +741,10 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
       }
     }
 
-    // STEP 7: Security PIN Verification
-    if (activeStep === 'verify_pin') {
-      const fourDigits = SpeechService.extractFourDigits(text);
-      if (fourDigits && fourDigits.length === 4) {
-        const fullPin = fourDigits.join('');
-        setPinDigits(fourDigits);
-        verifyPinAndProceed(fullPin);
-        return;
-      }
-    }
-
     // STEP 8: Final Schedule Confirmation
     if (activeStep === 'confirm_schedule') {
       const matchConfirm = SttMatcherService.matchConfirmation(candidates, language);
+      logDecision(activeStep, matchConfirm.matchedValue || 'unknown', matchConfirm.confidence);
       if (matchConfirm.isMatched) {
         if (matchConfirm.matchedValue === 'YES') {
           finalizeAndSaveSchedule();
@@ -572,12 +753,21 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         }
       }
     }
+
+    const retryHint = language === 'ta'
+      ? 'புரியவில்லை. திரையில் உள்ள தேர்வுகளில் ஒன்றைச் சொல்லுங்கள் அல்லது தொடுங்கள்.'
+      : language === 'hi'
+      ? 'समझ नहीं आया। कृपया एक विकल्प बोलें या नीचे दिए बटन को चुनें।'
+      : 'I did not understand. Say one of the choices or tap a button below.';
+    setVoiceMessage(retryHint);
+    showToast(retryHint);
+    speakStepPrompt(activeStep);
   };
 
   const finalizeAndSaveSchedule = () => {
     if (!item) return;
-    console.log('[VoiceOrderDialogModal] Creating & Saving schedule after PIN + Duration + Confirmation...');
-    SpeechService.stopListening();
+    voiceDebug('[VoiceOrderDialogModal] Creating & Saving schedule after PIN + Duration + Confirmation...');
+    SpeechController.releaseMic('voice_order_dialog');
     setIsListening(false);
 
     const sDate = selectedDuration === 'custom' ? customStartDate : getTodayFormattedStr();
@@ -611,21 +801,27 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
       ? `${item.name} का शेड्यूल सफलतापूर्वक बन गया!`
       : `Schedule created successfully for ${item.name}!`;
 
-    speakText(createdMsg);
     showToast(createdMsg);
-    onClose();
+    speakText(createdMsg, onClose, language);
   };
 
   const handleInstantOrder = () => {
     if (!item) return;
-    SpeechService.stopListening();
+    setStep('confirm_instant');
+    stepRef.current = 'confirm_instant';
+    speakStepPrompt('confirm_instant');
+  };
+
+  const placeInstantOrderConfirmed = () => {
+    if (!item) return;
+    SpeechController.releaseMic('voice_order_dialog');
     setIsListening(false);
     placeInstantOrder(item);
     onClose();
   };
 
   const handleCancelSchedule = () => {
-    SpeechService.stopListening();
+    SpeechController.releaseMic('voice_order_dialog');
     setIsListening(false);
 
     const cancelMsg = language === 'ta'
@@ -634,13 +830,12 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
       ? 'शेड्यूल रद्द कर दिया गया।'
       : 'Schedule setup cancelled.';
 
-    speakText(cancelMsg);
-    onClose();
+    speakText(cancelMsg, onClose, language);
   };
 
   const toggleListening = () => {
     if (isListening) {
-      SpeechService.stopListening();
+      SpeechController.releaseMic('voice_order_dialog');
       setIsListening(false);
     } else {
       startListeningSession();
@@ -656,7 +851,8 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         {/* Close Button */}
         <button
           onClick={() => {
-            SpeechService.stopListening();
+            SpeechController.releaseMic('voice_order_dialog');
+            SpeechController.cancelSpeech();
             setIsListening(false);
             onClose();
           }}
@@ -683,6 +879,21 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
               {language === 'ta' ? (item.nativeNames?.ta || item.name) : language === 'hi' ? (item.nativeNames?.hi || item.name) : item.name}
             </h2>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {voiceMessage && (
+            <p role="status" className="rounded-xl bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm font-bold text-amber-900 dark:text-amber-100">
+              {voiceMessage}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={toggleListening}
+            className="self-start rounded-xl border border-orange-300 px-4 py-2 text-sm font-bold text-orange-800 dark:text-orange-100 hover:bg-orange-50 dark:hover:bg-slate-800"
+          >
+            {language === 'ta' ? 'மைக்ரோஃபோனை மீண்டும் முயற்சிக்கவும்' : language === 'hi' ? 'माइक फिर से आज़माएँ' : 'Retry mic'}
+          </button>
         </div>
 
         {/* STEP 0: Ask Order Type */}
@@ -738,6 +949,43 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
               >
                 <Clock className="w-6 h-6 text-white" />
                 <span>{language === 'ta' ? 'நேரத்திற்கு அட்டவணைப்படுத்து' : language === 'hi' ? 'बाद के लिए शेड्यूल करें' : 'Schedule for Later'}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(step === 'confirm_instant' || step === 'confirm_schedule') && (
+          <div className="space-y-4 rounded-2xl border border-orange-300 bg-orange-50 p-5 text-center dark:bg-slate-800">
+            <p className="text-lg font-black text-slate-900 dark:text-white">
+              {step === 'confirm_instant'
+                ? (language === 'ta'
+                  ? `${item.nativeNames?.ta || item.name} ஆர்டரை உறுதிசெய்யவா?`
+                  : language === 'hi'
+                  ? `${item.nativeNames?.hi || item.name} का ऑर्डर पक्का करें?`
+                  : `Place the order for ${item.name}?`)
+                : (language === 'ta'
+                  ? `${item.nativeNames?.ta || item.name} அட்டவணையை உருவாக்கவா?`
+                  : language === 'hi'
+                  ? `${item.nativeNames?.hi || item.name} का शेड्यूल बनाएँ?`
+                  : `Create the schedule for ${item.name}?`)}
+            </p>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              {language === 'ta' ? '"ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள் அல்லது தேர்ந்தெடுக்கவும்.' : language === 'hi' ? '"हाँ" या "नहीं" बोलें या चुनें।' : 'Say Yes or No, or choose below.'}
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => step === 'confirm_instant' ? (setStep('ask_type'), stepRef.current = 'ask_type', speakStepPrompt('ask_type')) : handleCancelSchedule()}
+                className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-black text-white"
+              >
+                {language === 'ta' ? 'இல்லை' : language === 'hi' ? 'नहीं' : 'No'}
+              </button>
+              <button
+                type="button"
+                onClick={() => step === 'confirm_instant' ? placeInstantOrderConfirmed() : finalizeAndSaveSchedule()}
+                className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white"
+              >
+                {language === 'ta' ? 'ஆம், உறுதிசெய்' : language === 'hi' ? 'हाँ, पुष्टि करें' : 'Yes, confirm'}
               </button>
             </div>
           </div>
@@ -1284,6 +1532,8 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                 onClick={() => {
                   setStep('verify_pin');
                   stepRef.current = 'verify_pin';
+                  setLiveTranscript('');
+                  setPinDigits(['', '', '', '']);
                   speakStepPrompt('verify_pin');
                 }}
                 className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
@@ -1335,6 +1585,15 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                 {pinError}
               </p>
             )}
+            {pinLockSecondsLeft > 0 && (
+              <p role="status" className="text-sm text-center font-bold text-rose-700 dark:text-rose-300">
+                {language === 'ta'
+                  ? `${pinLockSecondsLeft} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கலாம்.`
+                  : language === 'hi'
+                  ? `${pinLockSecondsLeft} सेकंड बाद फिर कोशिश कर सकते हैं।`
+                  : `Retry becomes available in ${pinLockSecondsLeft} seconds.`}
+              </p>
+            )}
 
             {/* Onscreen Keypad */}
             <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
@@ -1342,6 +1601,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                 <button
                   key={num}
                   type="button"
+                  disabled={isPinVerifying || pinLockSecondsLeft > 0}
                   onClick={() => {
                     setPinError(null);
                     const emptyIdx = pinDigits.findIndex(d => d === '');
@@ -1361,6 +1621,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
               ))}
               <button
                 type="button"
+                disabled={isPinVerifying || pinLockSecondsLeft > 0}
                 onClick={() => {
                   setPinDigits(['', '', '', '']);
                   setPinError(null);
@@ -1371,6 +1632,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
               </button>
               <button
                 type="button"
+                disabled={isPinVerifying || pinLockSecondsLeft > 0}
                 onClick={() => {
                   setPinError(null);
                   const emptyIdx = pinDigits.findIndex(d => d === '');
@@ -1389,6 +1651,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
               </button>
               <button
                 type="button"
+                disabled={isPinVerifying || pinLockSecondsLeft > 0}
                 onClick={() => {
                   const full = pinDigits.join('');
                   if (full.length === 4) verifyPinAndProceed(full);

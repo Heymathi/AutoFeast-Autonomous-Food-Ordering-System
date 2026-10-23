@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { AuthService } from '../services/authService';
 import { SecurityPinEntryView } from './SecurityPinEntryView';
@@ -18,12 +18,44 @@ export const OrderPinConfirmationModal: React.FC = () => {
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [lockSecondsLeft, setLockSecondsLeft] = useState(0);
+  const lockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Countdown tick for the lockout timer
+  useEffect(() => {
+    if (lockSecondsLeft > 0) {
+      lockTimerRef.current = setInterval(() => {
+        setLockSecondsLeft(s => {
+          if (s <= 1) {
+            clearInterval(lockTimerRef.current!);
+            setErrorMessage(null);
+            return 0;
+          }
+          const next = s - 1;
+          const msg = getLockMsg(next);
+          setErrorMessage(msg);
+          return next;
+        });
+      }, 1000);
+    }
+    return () => { if (lockTimerRef.current) clearInterval(lockTimerRef.current); };
+  }, [lockSecondsLeft, language]);
+
+  const getLockMsg = (secs: number) => {
+    return language === 'ta'
+      ? `⛔ நான்கு தவறான PIN முயற்சிகள். ${secs} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கலாம்.`
+      : language === 'hi'
+      ? `⛔ चार गलत पिन प्रयास। ${secs} सेकंड बाद फिर कोशिश कर सकते हैं।`
+      : `⛔ Four incorrect PIN attempts. Retry becomes available in ${secs}s.`;
+  };
 
   if (!isOrderPinModalOpen || !pendingPinVerification) {
     return null;
   }
 
   const triggerVerification = async (pinStr: string) => {
+    if (lockSecondsLeft > 0) return; // blocked during lockout
+
     setIsVerifying(true);
     setErrorMessage(null);
 
@@ -33,17 +65,51 @@ export const OrderPinConfirmationModal: React.FC = () => {
     if (res.success) {
       const success = confirmPendingPinAction(pinStr);
       if (success && pendingPinVerification?.type !== 'save_schedule' && pendingPinVerification?.type !== 'reveal_wallet') {
-        const successMsg = language === 'ta'
-          ? 'பாதுகாப்பு PIN வெற்றிகரமாக சரிபார்க்கப்பட்டது!'
-          : language === 'hi'
-          ? 'सुरक्षा पिन सफलतापूर्वक सत्यापित हो गया!'
-          : 'Security PIN verified successfully!';
+        const successMsg =
+          language === 'ta'
+            ? 'பாதுகாப்பு PIN வெற்றிகரமாக சரிபார்க்கப்பட்டது!'
+            : language === 'hi'
+            ? 'सुरक्षा पिन सफलतापूर्वक सत्यापित हो गया!'
+            : 'Security PIN verified successfully!';
         speakText(successMsg, undefined, language);
       }
+    } else if (res.isLocked) {
+      // Server-enforced lockout — start countdown
+      const secs = res.lockRemainingSeconds ?? 30;
+      setLockSecondsLeft(secs);
+      const msg = getLockMsg(secs);
+      setErrorMessage(msg);
+      speakText(msg, undefined, language);
+    } else if (res.serverError) {
+      // Transient network / server error — don't count against attempts, just retry
+      const msg =
+        language === 'ta'
+          ? '🔄 இப்போது சரிபார்க்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.'
+          : language === 'hi'
+          ? '🔄 अभी सत्यापित नहीं किया जा सकता। पुनः प्रयास करें।'
+          : '🔄 Cannot verify PIN right now. Please try again.';
+      setErrorMessage(msg);
     } else {
-      setErrorMessage(res.error || t('pinConfirm.invalidPin'));
+      // Wrong PIN — localize the attempts-remaining message from the server
+      const baseErr = res.error ?? '';
+      const attemptsLeft = res.attemptsLeft;
+
+      const msg =
+        language === 'ta'
+          ? typeof attemptsLeft === 'number'
+            ? `❌ தவறான PIN. ${attemptsLeft} முயற்சிகள் மீதமுள்ளன.`
+            : '❌ தவறான PIN. மீண்டும் முயற்சிக்கவும்.'
+          : language === 'hi'
+          ? typeof attemptsLeft === 'number'
+            ? `❌ गलत पिन। ${attemptsLeft} प्रयास शेष।`
+            : '❌ गलत पिन। पुनः प्रयास करें।'
+          : baseErr || '❌ Incorrect PIN. Please try again.';
+
+      setErrorMessage(msg);
+      speakText(msg, undefined, language);
     }
   };
+
 
   const getItemDetails = () => {
     if (pendingPinVerification.type === 'bill_order' && pendingPinVerification.bill) {
@@ -167,6 +233,7 @@ export const OrderPinConfirmationModal: React.FC = () => {
           onPinComplete={triggerVerification}
           onCancel={cancelPendingPinAction}
           isVerifying={isVerifying}
+          lockSecondsLeft={lockSecondsLeft}
           errorMessage={errorMessage}
           setErrorMessage={setErrorMessage}
           summaryCard={summaryCard}

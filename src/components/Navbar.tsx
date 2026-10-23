@@ -149,18 +149,36 @@ export const Navbar: React.FC = () => {
               {/* GPS Live Location Button (Fluid min-h 44px touch target fallback) */}
               <button
                 type="button"
-                onClick={() => setIsLocationModalOpen(true)}
+                id="header-location-chip"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('[Navbar]: Location chip clicked -> opening Location Change modal');
+                  setIsLocationModalOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[Navbar]: Location chip keydown -> opening Location Change modal');
+                    setIsLocationModalOpen(true);
+                  }
+                }}
                 className={`mt-0.5 min-h-[32px] sm:min-h-[36px] flex items-center gap-1 px-2.5 py-1 rounded-xl text-[clamp(0.65rem,1.2vw,0.75rem)] font-black leading-snug transition-all border shadow-xs cursor-pointer max-w-[150px] sm:max-w-[260px] ${
-                  userLocation.isManualOverride
+                  userLocation.area === 'Location not set' || userLocation.city === 'Not set'
+                    ? 'bg-amber-100 text-amber-900 border-amber-400 hover:bg-amber-200'
+                    : userLocation.isManualOverride
                     ? 'bg-blue-900/10 text-blue-900 border-blue-400/50 hover:bg-blue-900/20'
                     : userLocation.isApproximate
                     ? 'bg-[#C2185B]/10 text-[#C2185B] border-[#C2185B]/40 hover:bg-[#C2185B]/20 animate-pulse'
                     : 'bg-white text-[#1A1110] border-[#4A5568]/30 hover:bg-slate-50'
                 }`}
-                title="Click to Change Delivery Location"
-                aria-label="Change Delivery Location"
+                title={t('location.changeAddress')}
+                aria-label={t('location.changeAddress')}
               >
-                {userLocation.isManualOverride ? (
+                {userLocation.area === 'Location not set' || userLocation.city === 'Not set' ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                ) : userLocation.isManualOverride ? (
                   <Edit3 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 ) : userLocation.isApproximate ? (
                   <AlertTriangle className="w-3.5 h-3.5 text-[#C2185B] shrink-0" />
@@ -169,7 +187,9 @@ export const Navbar: React.FC = () => {
                 )}
 
                 <span className="line-clamp-1 truncate leading-tight">
-                  {userLocation.isManualOverride
+                  {userLocation.area === 'Location not set' || userLocation.city === 'Not set'
+                    ? `📍 ${t('location.notSet')}`
+                    : userLocation.isManualOverride
                     ? `✏️ ${userLocation.area}`
                     : userLocation.isApproximate
                     ? `⚠️ ${userLocation.city}`
@@ -180,7 +200,13 @@ export const Navbar: React.FC = () => {
           </div>
 
           {/* DESKTOP & TABLET NAVIGATION LINKS (PRIORITY COLLAPSE AT CONTAINER WIDTH OR MD) */}
-          <nav className="hidden md:flex flex-wrap items-center gap-[clamp(0.25rem,0.5vw,0.5rem)] bg-white/90 dark:bg-slate-800/90 p-1.5 rounded-2xl border border-[#B2E2F0] dark:border-slate-700 shadow-xs min-w-0">
+          <nav className={`hidden md:flex flex-wrap items-center gap-[clamp(0.25rem,0.5vw,0.5rem)] p-1.5 rounded-2xl shadow-xs min-w-0 ${
+              currentTheme === 'high-contrast'
+                ? 'bg-black border border-yellow-400'
+                : currentTheme === 'dark'
+                ? 'bg-black border border-slate-700'
+                : 'bg-white border border-[#B2E2F0]'
+            }`}>
             
             {/* Search */}
             <button
@@ -189,7 +215,9 @@ export const Navbar: React.FC = () => {
               className={`min-h-[44px] flex items-center gap-1.5 px-[clamp(0.5rem,1vw,0.75rem)] py-[clamp(0.35rem,0.8vw,0.5rem)] rounded-xl text-[clamp(0.7rem,1.1vw,0.8rem)] font-black leading-tight transition-all cursor-pointer ${
                 activeView === 'search'
                   ? 'bg-[#FF5A1F] text-white shadow-xs'
-                  : 'hover:bg-[#DAF0F7] dark:hover:bg-slate-700 text-[#1A1110] dark:text-white'
+                  : currentTheme === 'dark'
+                  ? 'bg-black hover:bg-slate-800 text-white'
+                  : 'hover:bg-[#DAF0F7] text-[#1A1110]'
               }`}
             >
               <Search className="w-4 h-4 shrink-0" />
@@ -219,7 +247,9 @@ export const Navbar: React.FC = () => {
               className={`min-h-[44px] flex items-center gap-1.5 px-[clamp(0.5rem,1vw,0.75rem)] py-[clamp(0.35rem,0.8vw,0.5rem)] rounded-xl text-[clamp(0.7rem,1.1vw,0.8rem)] font-black leading-tight transition-all cursor-pointer ${
                 activeView === 'scheduler'
                   ? 'bg-[#FF5A1F] text-white shadow-xs'
-                  : 'hover:bg-[#DAF0F7] dark:hover:bg-slate-700 text-[#1A1110] dark:text-white'
+                  : currentTheme === 'dark'
+                  ? 'bg-black hover:bg-slate-800 text-white'
+                  : 'hover:bg-[#DAF0F7] text-[#1A1110]'
               }`}
             >
               <Calendar className="w-4 h-4 shrink-0" />
@@ -239,7 +269,9 @@ export const Navbar: React.FC = () => {
               className={`min-h-[44px] flex items-center gap-1.5 px-[clamp(0.5rem,1vw,0.75rem)] py-[clamp(0.35rem,0.8vw,0.5rem)] rounded-xl text-[clamp(0.7rem,1.1vw,0.8rem)] font-black leading-tight transition-all cursor-pointer ${
                 activeView === 'wallet'
                   ? 'bg-[#FF5A1F] text-white shadow-xs'
-                  : 'hover:bg-[#DAF0F7] dark:hover:bg-slate-700 text-[#1A1110] dark:text-white'
+                  : currentTheme === 'dark'
+                  ? 'bg-black hover:bg-slate-800 text-white'
+                  : 'hover:bg-[#DAF0F7] text-[#1A1110]'
               }`}
             >
               {isWalletRevealed ? (
@@ -262,7 +294,9 @@ export const Navbar: React.FC = () => {
               className={`min-h-[44px] flex items-center gap-1.5 px-[clamp(0.4rem,0.8vw,0.6rem)] py-[clamp(0.35rem,0.8vw,0.5rem)] rounded-xl text-[clamp(0.7rem,1.1vw,0.8rem)] font-black leading-tight transition-all border cursor-pointer ${
                 dailyOrderCount >= 6
                   ? 'bg-[#C2185B] text-white border-[#C2185B] animate-bounce'
-                  : 'bg-white dark:bg-slate-700 hover:bg-[#DAF0F7] text-[#1A1110] dark:text-white border-[#4A5568]/30'
+                  : currentTheme === 'dark'
+                  ? 'bg-black hover:bg-slate-800 text-white border-slate-600'
+                  : 'bg-white hover:bg-[#DAF0F7] text-[#1A1110] border-[#4A5568]/30'
               }`}
             >
               <PackageCheck className={`w-4 h-4 shrink-0 ${dailyOrderCount >= 6 ? 'text-white' : 'text-[#FF5A1F]'}`} />
@@ -273,7 +307,11 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsNomineeModalOpen(true)}
-              className="min-h-[44px] flex items-center gap-1.5 px-[clamp(0.4rem,0.8vw,0.6rem)] py-[clamp(0.35rem,0.8vw,0.5rem)] rounded-xl text-[clamp(0.7rem,1.1vw,0.8rem)] font-black leading-tight transition-all border bg-amber-500/10 border-amber-400 text-amber-900 dark:text-amber-300 hover:bg-amber-500/20 cursor-pointer relative"
+              className={`min-h-[44px] flex items-center gap-1.5 px-[clamp(0.4rem,0.8vw,0.6rem)] py-[clamp(0.35rem,0.8vw,0.5rem)] rounded-xl text-[clamp(0.7rem,1.1vw,0.8rem)] font-black leading-tight transition-all border cursor-pointer relative ${
+                currentTheme === 'dark'
+                  ? 'bg-black hover:bg-slate-800 text-white border-amber-400'
+                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border-amber-400'
+              }`}
             >
               <ShieldCheck className="w-4 h-4 shrink-0 text-amber-600" />
               <span>Nominee</span>
@@ -291,7 +329,9 @@ export const Navbar: React.FC = () => {
               className={`min-h-[44px] flex items-center gap-1.5 px-[clamp(0.5rem,1vw,0.75rem)] py-[clamp(0.35rem,0.8vw,0.5rem)] rounded-xl text-[clamp(0.7rem,1.1vw,0.8rem)] font-black leading-tight transition-all cursor-pointer ${
                 activeView === 'orders'
                   ? 'bg-[#FF5A1F] text-white shadow-xs'
-                  : 'hover:bg-[#DAF0F7] dark:hover:bg-slate-700 text-[#1A1110] dark:text-white'
+                  : currentTheme === 'dark'
+                  ? 'bg-black hover:bg-slate-800 text-white'
+                  : 'hover:bg-[#DAF0F7] text-[#1A1110]'
               }`}
             >
               <History className="w-4 h-4 shrink-0" />
@@ -302,7 +342,11 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsScheduleCartModalOpen(true)}
-              className="min-h-[44px] flex items-center gap-1.5 px-[clamp(0.5rem,1vw,0.75rem)] py-[clamp(0.35rem,0.8vw,0.5rem)] rounded-xl text-[clamp(0.7rem,1.1vw,0.8rem)] font-black leading-tight transition-all cursor-pointer bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-400 relative"
+              className={`min-h-[44px] flex items-center gap-1.5 px-[clamp(0.5rem,1vw,0.75rem)] py-[clamp(0.35rem,0.8vw,0.5rem)] rounded-xl text-[clamp(0.7rem,1.1vw,0.8rem)] font-black leading-tight transition-all cursor-pointer border border-amber-400 relative ${
+                currentTheme === 'dark'
+                  ? 'bg-black hover:bg-slate-800 text-white'
+                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-900'
+              }`}
               title={t('cartTitle')}
             >
               <ShoppingBag className="w-4 h-4 shrink-0 text-[#FF5A1F]" />
