@@ -1,6 +1,9 @@
-import { FoodItem } from '../types';
+/**
+ * @typedef {import('../types').FoodItem} FoodItem
+ */
 
-export const INDIAN_FOOD_CATALOG: FoodItem[] = [
+/** @type {FoodItem[]} */
+export const INDIAN_FOOD_CATALOG = [] = [
   // SOUTH INDIAN - TAMIL CUISINE
   {
     id: 'dosa-masala',

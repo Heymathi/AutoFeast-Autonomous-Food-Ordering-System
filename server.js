@@ -12,7 +12,7 @@ import nodemailer from 'nodemailer';
 import { GoogleGenAI } from '@google/genai';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { INDIAN_FOOD_CATALOG } from './src/data/indianFoodCatalog.ts';
+import { INDIAN_FOOD_CATALOG } from './src/data/indianFoodCatalog.js';
 
 dotenv.config();
 
