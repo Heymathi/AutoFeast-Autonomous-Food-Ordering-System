@@ -13,6 +13,7 @@ import { GoogleGenAI } from '@google/genai';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { INDIAN_FOOD_CATALOG } from './src/data/indianFoodCatalog.js';
+import { registerNomineeApproval } from './nomineeApproval.js';
 
 dotenv.config();
 
@@ -380,6 +381,8 @@ const ApprovalRequestSchema = new mongoose.Schema({
   used: { type: Boolean, default: false },
   usedAt: { type: Date },
   expiresAt: { type: Date },
+  emailTokenHash: { type: String, default: null, index: true },
+  decidedVia: { type: String, enum: ['email', 'website'] },
   nomineeEmail: { type: String },
   nomineeName: { type: String },
   requestedAt: { type: Date, default: Date.now },
@@ -578,7 +581,8 @@ app.post('/api/voice/health-nlu', async (req, res) => {
 // 🚀 USER REGISTRATION ENDPOINT
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { name, email, password, pin, nomineeName, nomineePhone, nomineeEmail, nomineePassword, initialCredential } = req.body;
+    // nomineePassword is intentionally ignored: nominee sets their own credentials via /nominee/setup
+    const { name, email, password, pin, nomineeName, nomineePhone, nomineeEmail, initialCredential } = req.body;
 
     if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
       return res.status(400).json({ error: 'invalid_input', message: 'Email and password are required.' });
@@ -587,21 +591,23 @@ app.post('/api/auth/register', async (req, res) => {
     const cleanEmail = email.toLowerCase().trim();
     const cleanPin = pin ? String(pin).trim() : null;
     const cleanNomineeEmail = typeof nomineeEmail === 'string' ? nomineeEmail.toLowerCase().trim() : '';
-    const hasNomineeCredentials = Boolean(cleanNomineeEmail || nomineePassword);
 
     if (cleanPin && !/^\d{4}$/.test(cleanPin)) {
       return res.status(400).json({ error: 'invalid_input', message: 'PIN must be exactly 4 numeric digits.' });
     }
-    if (hasNomineeCredentials && (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanNomineeEmail) ||
-      typeof nomineePassword !== 'string' ||
-      !nomineePassword
-    )) {
-      return res.status(400).json({ error: 'invalid_input', message: 'A valid nominee email and password are required.' });
+    if (cleanNomineeEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanNomineeEmail)) {
+      return res.status(400).json({ error: 'invalid_input', message: 'A valid nominee email is required.' });
     }
-    const nomineePasswordHash = hasNomineeCredentials
-      ? await bcrypt.hash(nomineePassword, 10)
-      : null;
+
+    // Generate invite token if nomineeEmail is supplied (nominee sets own password)
+    let nomineeInviteTokenHash = null;
+    let nomineeInviteExpiresAt = null;
+    let nomineeInviteRawToken = null;
+    if (cleanNomineeEmail) {
+      nomineeInviteRawToken = crypto.randomBytes(24).toString('hex');
+      nomineeInviteTokenHash = crypto.createHash('sha256').update(nomineeInviteRawToken).digest('hex');
+      nomineeInviteExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    }
 
     if (mongoose.connection.readyState === 1) {
       const existing = await User.findOne({ email: cleanEmail });
@@ -622,16 +628,30 @@ app.post('/api/auth/register', async (req, res) => {
         nomineeName: nomineeName || 'Emergency Nominee',
         nomineePhone: nomineePhone || '+91 98765 00000',
         nomineeEmail: cleanNomineeEmail || 'nominee@autofeast.com',
-        nomineePasswordHash,
+        nomineePasswordHash: null,
+        nomineeInviteTokenHash,
+        nomineeInviteExpiresAt,
+        nomineeInviteUsed: false,
         isFaceIdEnabled: Boolean(initialCredential),
         webAuthnCredentials: initialCredential ? [initialCredential] : []
       });
 
       await newUser.save();
 
+      // Fire-and-forget invite email so nominee can set their own password
+      if (cleanNomineeEmail && nomineeInviteRawToken) {
+        sendNomineeInviteEmail({
+          nomineeEmail: cleanNomineeEmail,
+          inviteToken: nomineeInviteRawToken,
+          nomineeName: nomineeName || 'Nominee',
+          userName: name || 'User'
+        }).catch(e => console.error('[Register invite email]', e instanceof Error ? e.message : e));
+      }
+
       const userResponse = newUser.toObject();
       delete userResponse.passwordHash;
       delete userResponse.nomineePasswordHash;
+      delete userResponse.nomineeInviteTokenHash;
       userResponse.plainPin = cleanPin;
       const token = signJwt({ userId: newUser.id, email: cleanEmail });
 
@@ -658,14 +678,27 @@ app.post('/api/auth/register', async (req, res) => {
         nomineeName: nomineeName || 'Emergency Nominee',
         nomineePhone: nomineePhone || '+91 98765 00000',
         nomineeEmail: cleanNomineeEmail || 'nominee@autofeast.com',
-        nomineePasswordHash,
+        nomineePasswordHash: null,
+        nomineeInviteTokenHash,
+        nomineeInviteExpiresAt,
+        nomineeInviteUsed: false,
         isFaceIdEnabled: Boolean(initialCredential),
         webAuthnCredentials: initialCredential ? [initialCredential] : []
       };
       fallbackUsersDb.push(newUser);
+      // Fire-and-forget invite email in test mode too
+      if (cleanNomineeEmail && nomineeInviteRawToken) {
+        sendNomineeInviteEmail({
+          nomineeEmail: cleanNomineeEmail,
+          inviteToken: nomineeInviteRawToken,
+          nomineeName: nomineeName || 'Nominee',
+          userName: name || 'User'
+        }).catch(e => console.error('[Register invite email]', e instanceof Error ? e.message : e));
+      }
       const userResponse = { ...newUser };
       delete userResponse.passwordHash;
       delete userResponse.nomineePasswordHash;
+      delete userResponse.nomineeInviteTokenHash;
       const token = signJwt({ userId, email: cleanEmail });
 
       res.cookie('autofeast_jwt', token, {
@@ -1039,22 +1072,24 @@ export async function sendNomineeInviteEmail({ nomineeEmail, inviteToken, nomine
     meta: process.env.NODE_ENV === 'test' ? { inviteLink, inviteToken, nomineeEmail } : { nomineeEmail }
   });
 
-  return { success: true, emailSent: true };
+  return { success: res.success, emailSent: res.success };
 }
 
 // Helper for sending restricted item approval request email to nominee
-export async function sendApprovalRequestEmail({ nomineeEmail, nomineeName, userName, foodItemName, orderType, requestedTime, selectedDays, duration }) {
+export async function sendApprovalRequestEmail({ nomineeEmail, nomineeName, userName, foodItemName, orderType, requestedTime, selectedDays, duration, approveLink, denyLink }) {
   const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
-  const loginLink = `${baseUrl}/nominee/login`;
+  const loginLink = `${baseUrl}/nominee`;
   const subject = `[Approval Required] Food Order Request from ${userName}`;
   const daysStr = selectedDays ? (Array.isArray(selectedDays) ? selectedDays.join(', ') : selectedDays) : '';
-  const text = `Hello ${nomineeName}, user ${userName} requested approval for ${foodItemName} (${orderType} order). Time: ${requestedTime || 'Instant'}. ${daysStr ? `Schedule Days: ${daysStr}. ` : ''}${duration ? `Duration: ${duration}. ` : ''}Review and login at: ${loginLink}`;
+  const approvePart = approveLink ? `\nApprove: ${approveLink}` : '';
+  const denyPart = denyLink ? `\nDeny: ${denyLink}` : '';
+  const text = `Hello ${nomineeName}, user ${userName} requested approval for ${foodItemName} (${orderType} order). Time: ${requestedTime || 'Instant'}. ${daysStr ? `Schedule Days: ${daysStr}. ` : ''}${duration ? `Duration: ${duration}. ` : ''}${approvePart}${denyPart}\nPrefer the website? Log in at ${loginLink} and enter your nominee PIN.`;
 
   return await sendEmail({
     to: nomineeEmail,
     subject,
     text,
-    meta: { foodItemName, orderType, requestedTime, selectedDays, duration, nomineeEmail }
+    meta: { foodItemName, orderType, requestedTime, selectedDays, duration, nomineeEmail, approveLink, denyLink }
   });
 }
 
@@ -1115,7 +1150,7 @@ app.post('/api/nominee/invite', async (req, res) => {
       user.nomineeInviteUsed = false;
     }
 
-    const emailRes = sendNomineeInviteEmail({
+    const emailRes = await sendNomineeInviteEmail({
       nomineeEmail: cleanEmail,
       inviteToken: rawToken,
       nomineeName: user.nomineeName || 'Nominee',
@@ -1719,6 +1754,9 @@ app.delete('/api/cart/clear', async (req, res) => {
   }
 });
 
+// Forward declaration: assigned by registerNomineeApproval() at module bottom
+let dispatchApprovalEmail = async () => {};
+
 // 🚀 RESTRICTED ITEM APPROVAL REQUEST ENDPOINTS
 app.post('/api/nominee/approval-requests', async (req, res) => {
   try {
@@ -1755,16 +1793,8 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
     await newReq.save();
 
     const user = await User.findOne({ id: userId });
-    await sendApprovalRequestEmail({
-      nomineeEmail: nomineeEmail || user?.nomineeEmail || 'nominee@autofeast.com',
-      nomineeName: nomineeName || user?.nomineeName || 'Emergency Nominee',
-      userName: user?.name || 'Karthik',
-      foodItemName: foodItem.name,
-      orderType,
-      requestedTime: scheduleDetails?.time || 'Instant',
-      selectedDays: scheduleDetails?.selectedDays,
-      duration: scheduleDetails?.duration
-    });
+    dispatchApprovalEmail(newReq, user).catch(e =>
+      console.error('[Approval email]', e instanceof Error ? e.message : e));
 
     return res.json({ success: true, request: newReq });
   } catch (err) {
@@ -2975,6 +3005,15 @@ app.get('/api/prices/live', (req, res) => {
     return res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// 🚀 WIRE NOMINEE APPROVAL MODULE (email-decision + /api/nominee/approvals/:id/decision)
+({ dispatchApprovalEmail } = registerNomineeApproval({
+  app, express, mongoose,
+  User, ApprovalRequest,
+  fallbackUsersDb, fallbackApprovalRequestsDb,
+  verifyJwt, sendEmail,
+  checkRateLimit, recordFailedLogin
+}));
 
 // Start Server if run directly
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {

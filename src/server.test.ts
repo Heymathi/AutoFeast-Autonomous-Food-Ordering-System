@@ -1336,7 +1336,7 @@ describe('New User Registration & Login Root Cause Fix Test Suite', () => {
     if (fixtureIndex >= 0) fallbackUsersDb.splice(fixtureIndex, 1);
   });
 
-  test('Registration saves nominee email and hashed password for restricted-items PIN setup', async () => {
+  test('Registration saves nominee email and sends invite (nominee must set their own password via setup flow)', async () => {
     const testEmail = `nominee_owner_${Date.now()}@test.com`;
     const nomineeEmail = `nominee_${Date.now()}@test.com`;
     const regRes = await fetch(`${baseUrl}/api/auth/register`, {
@@ -1349,25 +1349,28 @@ describe('New User Registration & Login Root Cause Fix Test Suite', () => {
         pin: '1234',
         nomineeName: 'Nominee User',
         nomineeEmail,
-        nomineePassword: 'NomineePassword123!'
+        nomineePassword: 'NomineePassword123!' // silently ignored; nominee uses invite flow
       })
     });
 
     expect(regRes.status).toBe(201);
     const regData = await regRes.json();
     expect(regData.user.nomineeEmail).toBe(nomineeEmail);
+    // nomineePasswordHash is NOT set during registration (nominee must use /nominee/setup)
     expect(regData.user.nomineePasswordHash).toBeUndefined();
     const storedUser = fallbackUsersDb.find(user => user.email === testEmail);
-    expect(storedUser?.nomineePasswordHash).toBeDefined();
-    expect(await bcrypt.compare('NomineePassword123!', storedUser?.nomineePasswordHash)).toBe(true);
+    // nomineePasswordHash should be null; nominee must set via invite flow
+    expect(storedUser?.nomineePasswordHash).toBeNull();
+    // An invite token hash should have been generated
+    expect(storedUser?.nomineeInviteTokenHash).toBeDefined();
 
+    // Nominee cannot log in yet (no password set via invite/setup)
     const nomineeLogin = await fetch(`${baseUrl}/api/nominee/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nomineeEmail, nomineePassword: 'NomineePassword123!' })
     });
-    expect(nomineeLogin.status).toBe(200);
-    expect((await nomineeLogin.json()).nomineeToken).toBeDefined();
+    expect(nomineeLogin.status).toBe(401); // no credential set yet
 
     const fixtureIndex = storedUser ? fallbackUsersDb.indexOf(storedUser) : -1;
     if (fixtureIndex >= 0) fallbackUsersDb.splice(fixtureIndex, 1);
