@@ -216,69 +216,85 @@ async function passwordMatches(password, passwordHash) {
   }
 }
 
-// 🚀 MONGOOSE CONNECTION — singleton, connects once at startup with retry
-let isConnected = false;
-let _connectingPromise = null;
+// 🚀 MONGOOSE CONNECTION — cached global Mongoose connection for Vercel serverless
+let cached = global._mongoose;
 
-const buildUri = (raw) => {
+if (!cached) {
+  cached = global._mongoose = { conn: null, promise: null, error: null };
+}
+
+function sanitizeMongoError(raw) {
+  if (typeof raw !== 'string') return String(raw ?? '');
+  let sanitized = raw.replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@)/gi, '$1***$3');
+  sanitized = sanitized.replace(/(:\/\/[^:]+:)([^@]+)(@)/gi, '$1***$3');
   try {
-    if (raw.split('@').length > 2) {
-      const lastAt = raw.lastIndexOf('@');
-      const credsAndProtocol = raw.substring(0, lastAt);
-      const hostAndRest = raw.substring(lastAt + 1);
-      const protoIndex = credsAndProtocol.indexOf('://');
-      if (protoIndex !== -1) {
-        const proto = credsAndProtocol.substring(0, protoIndex + 3);
-        const userPass = credsAndProtocol.substring(protoIndex + 3);
-        const colonIndex = userPass.indexOf(':');
-        if (colonIndex !== -1) {
-          const user = userPass.substring(0, colonIndex);
-          const pass = userPass.substring(colonIndex + 1);
-          return `${proto}${encodeURIComponent(decodeURIComponent(user))}:${encodeURIComponent(decodeURIComponent(pass))}@${hostAndRest}`;
-        }
+    const rawUri = process.env.MONGODB_URI;
+    if (rawUri) {
+      const match = rawUri.match(/:\/\/([^:]+):([^@]+)@/);
+      if (match && match[2] && match[2].length > 0) {
+        sanitized = sanitized.split(match[2]).join('***');
       }
     }
   } catch {}
-  return raw;
-};
+  return sanitized;
+}
 
-const connectDB = async () => {
-  if (mongoose.connection.readyState === 1) {
-    isConnected = true;
-    return;
-  }
-  if (process.env.VITEST || process.env.NODE_ENV === 'test') {
-    return;
-  }
-  // If a connection attempt is already in progress, wait for it instead of starting another
-  if (_connectingPromise) {
-    await _connectingPromise;
-    return;
-  }
-  const rawUri = process.env.MONGODB_URI;
-  if (!rawUri) {
-    console.warn('[AutoFeast Server] MONGODB_URI not set.');
-    return;
-  }
-  const uri = buildUri(rawUri);
-  const MAX_RETRIES = 3;
-  _connectingPromise = (async () => {
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
-        isConnected = true;
-        console.log('[AutoFeast Server] Connected to MongoDB Atlas successfully!');
-        return;
-      } catch (err) {
-        console.error(`[AutoFeast Server] MongoDB connect attempt ${attempt}/${MAX_RETRIES} failed:`, err.message);
-        if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, 2000 * attempt));
-      }
+export async function connectDB() {
+  if (cached.conn) {
+    if (mongoose.connection.readyState === 1) {
+      return cached.conn;
     }
-    console.error('[AutoFeast Server] All MongoDB connection attempts failed. Running without DB.');
-  })();
-  await _connectingPromise;
-  _connectingPromise = null;
-};
+    cached.conn = null;
+  }
+
+  if (mongoose.connection.readyState === 1) {
+    cached.conn = mongoose;
+    cached.error = null;
+    return cached.conn;
+  }
+
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    const err = new Error('MONGODB_URI environment variable is not defined');
+    err.name = 'MongoConfigurationError';
+    cached.error = err;
+    if (process.env.NODE_ENV !== 'test') {
+      console.error(`[MongoDB Connection Error] ${err.name}: ${err.message}`);
+    }
+    return null;
+  }
+
+  if (!cached.promise) {
+    const opts = {
+      bufferCommands: false,
+      serverSelectionTimeoutMS: 8000,
+    };
+
+    cached.promise = mongoose.connect(uri, opts)
+      .then((mongooseInstance) => {
+        cached.conn = mongooseInstance;
+        cached.error = null;
+        console.log('[AutoFeast Server] Connected to MongoDB Atlas successfully!');
+        return cached.conn;
+      })
+      .catch((err) => {
+        cached.promise = null;
+        cached.conn = null;
+        cached.error = err;
+
+        const errName = err?.name || 'Error';
+        const errMsg = sanitizeMongoError(err?.message || String(err));
+        console.error(`[MongoDB Connection Error] ${errName}: ${errMsg}`);
+        throw err;
+      });
+  }
+
+  try {
+    return await cached.promise;
+  } catch {
+    return null;
+  }
+}
 
 
 // 🚀 MONGOOSE SCHEMAS
@@ -415,24 +431,26 @@ export const fallbackRestrictedItemsDb = [];
 export const fallbackApprovalRequestsDb = [];
 export const fallbackCartDb = new Map(); // Key: userId, Value: Array of cart items
 
-// Middleware: only reconnect if connection truly dropped (not on every request)
+// Middleware: await cached Mongoose connection before handling every /api/* request
 app.use(async (req, res, next) => {
-  const state = mongoose.connection.readyState;
-  if (!process.env.VITEST && process.env.NODE_ENV !== 'test' && process.env.MONGODB_URI && state !== 1 && state !== 2 /* connecting */) {
-    isConnected = false;
-    await connectDB();
+  const target = req.originalUrl || req.url || req.path || '';
+  if (target.startsWith('/api') || req.path?.startsWith('/api') || req.baseUrl?.startsWith('/api')) {
+    try {
+      await connectDB();
+    } catch {
+      // Handled inside connectDB; next() called to proceed
+    }
   }
   next();
 });
 
 // Health Check
 app.get('/api/health', (req, res) => {
-  const dbState = mongoose.connection.readyState === 1
-    ? 'connected (MongoDB Atlas)'
-    : process.env.NODE_ENV === 'test'
-      ? 'fallback (in-memory)'
-      : 'unavailable (configure MONGODB_URI)';
-  res.json({ status: 'ok', service: 'AutoFeast Express Backend', database: dbState, version: '2.0.0' });
+  const isConnected = mongoose.connection.readyState === 1;
+  const database = isConnected
+    ? 'connected'
+    : (cached.error?.name || 'DisconnectedError');
+  res.json({ database });
 });
 
 app.post('/api/voice/nlu', async (req, res) => {
