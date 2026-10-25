@@ -183,9 +183,8 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
       setIsChecking(false);
       showToast(t('nominee.restrictedLoadError'), 'warning');
     }, 5000);
-
     try {
-      const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
+      const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id) || i.id === 'chaat-pani-puri');
       for (const item of bill.items) {
         if (!item || !item.foodItem) continue;
         const isRestrictedByNominee = checkIsItemRestrictedByNominee(item.foodItem.id, item.foodItem.name);

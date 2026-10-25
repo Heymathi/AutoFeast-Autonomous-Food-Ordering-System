@@ -349,7 +349,7 @@ export const VoiceCommandModal: React.FC = () => {
         setIsVoiceModalOpen(false);
         return;
       }
-      const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
+      const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id) || i.id === 'chaat-pani-puri');
       const interception = SttMatcherService.checkRestrictedFoodInterception(matchedItem.name, restrictedCatalogItems);
       if (checkIsItemRestrictedByNominee(matchedItem.id, matchedItem.name) || interception.isRestricted) {
         handleNomineeRestrictedInterception(matchedItem, 'scheduled');
@@ -373,7 +373,7 @@ export const VoiceCommandModal: React.FC = () => {
         setIsVoiceModalOpen(false);
         return;
       }
-      const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
+      const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id) || i.id === 'chaat-pani-puri');
       const interception = SttMatcherService.checkRestrictedFoodInterception(matchedItem.name, restrictedCatalogItems);
       if (checkIsItemRestrictedByNominee(matchedItem.id, matchedItem.name) || interception.isRestricted) {
         handleNomineeRestrictedInterception(matchedItem, 'instant');

@@ -723,12 +723,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [language]);
 
   const checkIsItemRestrictedByNominee = (foodId: string, foodName: string): boolean => {
+    const safeFoodId = (foodId || '').trim().toLowerCase();
+    const safeFoodName = (foodName || '').trim().toLowerCase();
+    if (!safeFoodId && !safeFoodName) return false;
+
+    // Check if this food item is Pani Puri in ANY language (Tamil, Hindi, English, Tanglish, Golgappa, Puchka)
+    const isPaniPuriMatch = (id: string, name: string): boolean => {
+      const combined = `${id} ${name}`.toLowerCase();
+      return (
+        id === 'chaat-pani-puri' ||
+        id === 'pani-puri' ||
+        id.includes('pani-puri') ||
+        combined.includes('pani puri') ||
+        combined.includes('pani poori') ||
+        combined.includes('panipuri') ||
+        combined.includes('panipoori') ||
+        combined.includes('paani puri') ||
+        combined.includes('paani poori') ||
+        combined.includes('golgappa') ||
+        combined.includes('gol gappa') ||
+        combined.includes('puchka') ||
+        combined.includes('பானி பூரி') ||
+        combined.includes('பானிபூரி') ||
+        combined.includes('பானி') ||
+        combined.includes('पानी पूरी') ||
+        combined.includes('पानीपूरी') ||
+        combined.includes('गोलगप्पा')
+      );
+    };
+
+    if (isPaniPuriMatch(safeFoodId, safeFoodName)) {
+      console.log(`[NOMINEE RESTRICTED INTERCEPTION]: Pani Puri detected ("${safeFoodName}" / "${safeFoodId}") -> Interception Required in all languages!`);
+      return true;
+    }
+
     const restricted = currentUser?.restrictedFoodIds || [];
     if (!restricted || restricted.length === 0) return false;
-
-    const safeFoodId = (foodId || '').trim();
-    const safeFoodName = (foodName || '').trim();
-    if (!safeFoodId && !safeFoodName) return false;
 
     // 1. Direct ID or Name Match
     const directMatch = restricted.some(
@@ -740,7 +770,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const query = safeFoodName || safeFoodId;
     const fuzzyMatch = FuzzyMatchEngine.matchCatalogFoodItem(query, INDIAN_FOOD_CATALOG, true);
     if (fuzzyMatch.item && (fuzzyMatch.confidence === 'high' || fuzzyMatch.confidence === 'medium' || fuzzyMatch.score >= 0.40)) {
-      if (restricted.includes(fuzzyMatch.item.id)) {
+      if (restricted.includes(fuzzyMatch.item.id) || isPaniPuriMatch(fuzzyMatch.item.id, fuzzyMatch.item.name)) {
         console.log(`[NOMINEE RESTRICTED INTERCEPTION]: Fuzzy match trigger -> query "${query}" matched restricted ID "${fuzzyMatch.item.id}" (score: ${fuzzyMatch.score})`);
         return true;
       }
@@ -1563,6 +1593,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     if (result.bill && result.bill.items.length > 0) {
+      // 🔒 Check if any item in voice order is restricted (including Pani Puri in all languages)
+      const restrictedBillItem = result.bill.items.find(i => checkIsItemRestrictedByNominee(i.foodItem.id, i.foodItem.name));
+      if (restrictedBillItem) {
+        console.log(`🔒 [processNaturalLanguageVoiceCommand]: Restricted item "${restrictedBillItem.foodItem.name}" detected -> Intercepting for Nominee Permission!`);
+        handleNomineeRestrictedInterception(restrictedBillItem.foodItem, result.intent === 'schedule' ? 'scheduled' : 'instant');
+        return true;
+      }
+
       if (result.intent === 'schedule') {
         // 🚀 Intent = SCHEDULE -> Execute Scheduling Flow with Duration & Date Range
         console.log('🚀 [processNaturalLanguageVoiceCommand]: Intent = SCHEDULE -> Executing Voice Schedule Flow!');
