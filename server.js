@@ -16,6 +16,9 @@ import { INDIAN_FOOD_CATALOG } from './src/data/indianFoodCatalog.js';
 import { registerNomineeApproval } from './nomineeApproval.js';
 
 dotenv.config();
+if (process.env.VITEST && (!process.env.NODE_ENV || process.env.NODE_ENV === 'test')) {
+  process.env.NODE_ENV = 'test';
+}
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET || 'autofeast_jwt_secret_key_2026_super_secure';
@@ -223,6 +226,10 @@ let cached = global._mongoose;
 if (!cached) {
   cached = global._mongoose = { conn: null, promise: null, error: null };
 }
+
+let isConnected = Boolean(mongoose.connection.readyState === 1);
+mongoose.connection.on('connected', () => { isConnected = true; });
+mongoose.connection.on('disconnected', () => { isConnected = false; });
 
 function sanitizeMongoError(raw) {
   if (typeof raw !== 'string') return String(raw ?? '');
@@ -1076,7 +1083,32 @@ export async function sendNomineeInviteEmail({ nomineeEmail, inviteToken, nomine
 }
 
 // Helper for sending restricted item approval request email to nominee
-export async function sendApprovalRequestEmail({ nomineeEmail, nomineeName, userName, foodItemName, orderType, requestedTime, selectedDays, duration, approveLink, denyLink }) {
+/**
+ * @param {Object} [params]
+ * @param {string} [params.nomineeEmail]
+ * @param {string} [params.nomineeName]
+ * @param {string} [params.userName]
+ * @param {string} [params.foodItemName]
+ * @param {string} [params.orderType]
+ * @param {string} [params.requestedTime]
+ * @param {any} [params.selectedDays]
+ * @param {string} [params.duration]
+ * @param {string} [params.approveLink]
+ * @param {string} [params.denyLink]
+ */
+export async function sendApprovalRequestEmail(params = {}) {
+  const {
+    nomineeEmail = '',
+    nomineeName = '',
+    userName = '',
+    foodItemName = '',
+    orderType = '',
+    requestedTime = '',
+    selectedDays = '',
+    duration = '',
+    approveLink = '',
+    denyLink = ''
+  } = params;
   const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
   const loginLink = `${baseUrl}/nominee`;
   const subject = `[Approval Required] Food Order Request from ${userName}`;
@@ -1770,20 +1802,41 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
 
     const dbConnected = await checkDbConnected();
     if (!dbConnected) {
-      if (process.env.NODE_ENV === 'test') {
-        const reqId = `APPROVAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        const record = { id: reqId, userId, nomineeEmail, foodItemId: foodItem.id, foodItemName: foodItem.name, orderType, scheduleDetails, status: 'pending', createdAt: new Date() };
+      if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
+        const reqId = req.body.id || `APPROVAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const record = {
+          id: reqId,
+          userId,
+          nomineeEmail: nomineeEmail || 'nominee@autofeast.com',
+          nomineeName: nomineeName || 'Emergency Nominee',
+          foodItemId: foodItem.id,
+          foodItem: foodItem,
+          foodItemName: foodItem.name,
+          orderType,
+          scheduleDetails,
+          status: 'pending',
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          createdAt: new Date()
+        };
+        fallbackApprovalRequestsDb.unshift(record);
+        const user = fallbackUsersDb.find(u => u.id === userId);
+        if (user) {
+          dispatchApprovalEmail(record, user).catch(e =>
+            console.error('[Approval email]', e instanceof Error ? e.message : e));
+        }
         return res.json({ success: true, request: record });
       }
       return res.status(503).json({ success: false, error: 'Database disconnected.' });
     }
 
-    const reqId = `APPROVAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const reqId = req.body.id || `APPROVAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const newReq = new ApprovalRequest({
       id: reqId,
       userId,
       nomineeEmail: nomineeEmail || 'nominee@autofeast.com',
+      nomineeName: nomineeName || 'Emergency Nominee',
       foodItemId: foodItem.id,
+      foodItem: foodItem,
       foodItemName: foodItem.name,
       orderType,
       scheduleDetails,

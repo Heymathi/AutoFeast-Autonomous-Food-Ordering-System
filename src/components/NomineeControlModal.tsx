@@ -38,9 +38,54 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
   const [pinPromptKey, setPinPromptKey] = useState(0);
 
   const [selectedFoodToAdd, setSelectedFoodToAdd] = useState('');
+  const [serverApprovals, setServerApprovals] = useState<any[]>([]);
+  const [itemPins, setItemPins] = useState<Record<string, string>>({});
+  const [itemFeedback, setItemFeedback] = useState<Record<string, { type: 'success' | 'error'; message: string }>>({});
+  const [isDeciding, setIsDeciding] = useState<Record<string, boolean>>({});
+
+  const isNomineeRoute =
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/nominee' || window.location.pathname === '/nominee/');
+  const isSetupRoute =
+    typeof window !== 'undefined' && window.location.pathname.startsWith('/nominee/setup');
+  const isModalVisible = isOpen || (isNomineeRoute && !isSetupRoute);
+
+  const getApiUrl = (path: string) => {
+    if (typeof window !== 'undefined' && window.location?.origin && window.location.origin.startsWith('http')) {
+      if (typeof navigator !== 'undefined' && navigator.userAgent?.includes('jsdom')) {
+        return `${window.location.origin}${path}`;
+      }
+      return path;
+    }
+    return `http://localhost:5000${path}`;
+  };
+
+  const fetchApprovals = async (token?: string | null) => {
+    const tkn = token || nomineeToken;
+    if (!tkn) return;
+    try {
+      const res = await fetch(getApiUrl('/api/nominee/approvals'), {
+        headers: { 'Authorization': `Bearer ${tkn}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.approvals)) {
+          setServerApprovals(data.approvals);
+        }
+      }
+    } catch (err) {
+      console.warn('[NomineeControlModal] Failed to fetch approvals:', err);
+    }
+  };
 
   useEffect(() => {
-    if (!isOpen) {
+    if (nomineeToken) {
+      void fetchApprovals(nomineeToken);
+    }
+  }, [nomineeToken]);
+
+  useEffect(() => {
+    if (!isModalVisible) {
       setNomineeToken(null);
       setNomineePassword('');
       setEnteredPin('');
@@ -50,8 +95,11 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
       setLockCountdown(null);
       setPinPromptKey(0);
       setNomineeEmail(currentUser?.nomineeEmail || '');
+      setItemPins({});
+      setItemFeedback({});
+      setServerApprovals([]);
     }
-  }, [isOpen, currentUser]);
+  }, [isModalVisible, currentUser]);
 
   useEffect(() => {
     let timer: any;
@@ -63,7 +111,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
     return () => clearInterval(timer);
   }, [lockCountdown]);
 
-  if (!isOpen) return null;
+  if (!isModalVisible) return null;
 
   const nomineeName = currentUser?.nomineeName || 'Emergency Nominee';
   const nomineePhone = currentUser?.nomineePhone || '+91 98765 00000';
@@ -257,16 +305,120 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
     showToast(msg);
   };
 
+  const handleClose = () => {
+    if (isNomineeRoute) {
+      window.location.href = '/';
+    } else {
+      onClose();
+    }
+  };
+
+  const handleDecision = async (approvalId: string, decision: 'approve' | 'deny') => {
+    const pin = (itemPins[approvalId] || enteredPin || '').trim();
+    if (!pin || pin.length !== 4) {
+      setItemFeedback(prev => ({
+        ...prev,
+        [approvalId]: { type: 'error', message: t('nominee.pinInvalid') || 'Wrong PIN: 4 digits required' }
+      }));
+      return;
+    }
+
+    if (!nomineeToken) {
+      setItemFeedback(prev => ({
+        ...prev,
+        [approvalId]: { type: 'error', message: 'Nominee authorization required' }
+      }));
+      return;
+    }
+
+    setIsDeciding(prev => ({ ...prev, [approvalId]: true }));
+    try {
+      const res = await fetch(getApiUrl(`/api/nominee/approvals/${approvalId}/decision`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${nomineeToken}`
+        },
+        body: JSON.stringify({ decision, pin })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 200 && data.success) {
+        const succMsg = decision === 'approve'
+          ? (language === 'ta' ? 'ஆர்டர் அங்கீகரிக்கப்பட்டது!' : 'Order approved successfully!')
+          : (language === 'ta' ? 'ஆர்டர் நிராகரிக்கப்பட்டது.' : 'Order denied successfully.');
+        setItemFeedback(prev => ({
+          ...prev,
+          [approvalId]: { type: 'success', message: succMsg }
+        }));
+        showToast(succMsg);
+        if (decision === 'approve') approveNomineeRequest(approvalId);
+        else denyNomineeRequest(approvalId);
+        setItemPins(prev => ({ ...prev, [approvalId]: '' }));
+        await fetchApprovals(nomineeToken);
+      } else if (res.status === 409) {
+        setItemFeedback(prev => ({
+          ...prev,
+          [approvalId]: { type: 'error', message: 'Already decided' }
+        }));
+        await fetchApprovals(nomineeToken);
+      } else if (res.status === 400) {
+        const errStr = (data.error || '').toLowerCase();
+        if (errStr.includes('expired')) {
+          setItemFeedback(prev => ({
+            ...prev,
+            [approvalId]: { type: 'error', message: 'Expired' }
+          }));
+        } else {
+          setItemFeedback(prev => ({
+            ...prev,
+            [approvalId]: { type: 'error', message: data.error || 'Wrong PIN' }
+          }));
+        }
+        await fetchApprovals(nomineeToken);
+      } else if (res.status === 403) {
+        setItemFeedback(prev => ({
+          ...prev,
+          [approvalId]: { type: 'error', message: 'Nominee token required (403)' }
+        }));
+      } else if (res.status === 429) {
+        setItemFeedback(prev => ({
+          ...prev,
+          [approvalId]: { type: 'error', message: data.error || 'PIN locked after 3 failed attempts' }
+        }));
+      } else {
+        setItemFeedback(prev => ({
+          ...prev,
+          [approvalId]: { type: 'error', message: data.error || 'Decision failed' }
+        }));
+      }
+    } catch {
+      setItemFeedback(prev => ({
+        ...prev,
+        [approvalId]: { type: 'error', message: 'Network error submitting decision' }
+      }));
+    } finally {
+      setIsDeciding(prev => ({ ...prev, [approvalId]: false }));
+    }
+  };
+
   const handleApprove = (reqId: string) => {
-    if (!isPinVerified) return;
-    approveNomineeRequest(reqId);
-    onClose();
+    if (nomineeToken) {
+      void handleDecision(reqId, 'approve');
+    } else {
+      approveNomineeRequest(reqId);
+      handleClose();
+    }
   };
 
   const handleDeny = (reqId: string) => {
-    if (!isPinVerified) return;
-    denyNomineeRequest(reqId);
-    onClose();
+    if (nomineeToken) {
+      void handleDecision(reqId, 'deny');
+    } else {
+      denyNomineeRequest(reqId);
+      handleClose();
+    }
   };
 
   const [isVoiceApproving, setIsVoiceApproving] = useState(false);
@@ -365,7 +517,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl font-bold cursor-pointer"
           >
             ✕
@@ -558,23 +710,26 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                     </button>
                   )}
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-500 text-white">
-                    {pendingCount} Pending
+                    {(serverApprovals.length > 0 ? serverApprovals : pendingNomineeApprovals).filter(r => r.status === 'pending').length} Pending
                   </span>
                 </div>
               </h4>
 
-              {pendingNomineeApprovals.length === 0 ? (
+              {(serverApprovals.length > 0 ? serverApprovals : pendingNomineeApprovals).length === 0 ? (
                 <div className="p-4 text-center bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-xs">
                   No pending order approval requests.
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {pendingNomineeApprovals.map(req => {
-                    const itemName = req.foodItem.nativeNames?.[language] || req.foodItem.name;
+                  {(serverApprovals.length > 0 ? serverApprovals : pendingNomineeApprovals).map(req => {
+                    const foodObj = req.foodItem || {};
+                    const itemName = foodObj.nativeNames?.[language] || foodObj.name || req.foodItemName || req.foodItemId || 'Food Item';
+                    const orderType = req.orderType || 'instant';
+                    const sched = req.scheduleDetails;
                     return (
                       <div
                         key={req.id}
-                        className={`p-4 rounded-2xl border-2 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                        className={`p-4 rounded-2xl border-2 shadow-sm flex flex-col gap-3 ${
                           req.status === 'pending'
                             ? 'border-amber-400 bg-amber-50/50 dark:bg-amber-950/30'
                             : req.status === 'approved'
@@ -582,50 +737,85 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                             : 'border-red-400 bg-red-50/30 dark:bg-red-950/20'
                         }`}
                       >
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-sm font-black text-slate-900 dark:text-white">{itemName}</span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
-                              {req.orderType}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm font-black text-slate-900 dark:text-white">{itemName}</span>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+                                {orderType}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 font-semibold">
+                              {sched ? `Slot: ${sched.slotName || ''} at ${sched.time || ''}` : 'Instant Order'} • {req.requestedAt ? new Date(req.requestedAt).toLocaleTimeString() : ''}
+                            </p>
+                            
+                            {/* Email Sent Indicator */}
+                            <div className="flex items-center space-x-1 text-[10px] text-blue-600 dark:text-blue-400 font-bold">
+                              <Mail className="w-3 h-3" />
+                              <span>{t('nominee.emailSentNotice')}</span>
+                            </div>
+                          </div>
+
+                          {req.status === 'pending' ? (
+                            <div className="flex items-center space-x-2 w-full sm:w-auto justify-end flex-wrap gap-y-2">
+                              <input
+                                type="password"
+                                inputMode="numeric"
+                                maxLength={4}
+                                placeholder="PIN"
+                                aria-label={`PIN for ${itemName}`}
+                                value={itemPins[req.id] !== undefined ? itemPins[req.id] : ''}
+                                onChange={e => {
+                                  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                  setItemPins(prev => ({ ...prev, [req.id]: val }));
+                                }}
+                                className="w-20 py-2 px-2 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-center text-xs font-black tracking-widest text-slate-900 dark:text-white focus:border-amber-500 focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                disabled={Boolean(isDeciding[req.id])}
+                                onClick={() => void handleDecision(req.id, 'deny')}
+                                className="py-2 px-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-sm flex items-center space-x-1 cursor-pointer"
+                              >
+                                <XCircle className="w-4 h-4" />
+                                <span>{t('nominee.denyBtn') || 'Deny'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={Boolean(isDeciding[req.id])}
+                                onClick={() => void handleDecision(req.id, 'approve')}
+                                className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-sm flex items-center space-x-1 cursor-pointer"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>{t('nominee.approveBtn') || 'Approve'}</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className={`text-xs font-black px-3 py-1 rounded-xl uppercase ${
+                              req.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {req.status}
                             </span>
-                          </div>
-                          <p className="text-xs text-slate-500 font-semibold">
-                            {req.scheduleDetails ? `Slot: ${req.scheduleDetails.slotName} at ${req.scheduleDetails.time}` : 'Instant Order'} • {new Date(req.requestedAt).toLocaleTimeString()}
-                          </p>
-                          
-                          {/* Email Sent Indicator */}
-                          <div className="flex items-center space-x-1 text-[10px] text-blue-600 dark:text-blue-400 font-bold">
-                            <Mail className="w-3 h-3" />
-                            <span>{t('nominee.emailSentNotice')}</span>
-                          </div>
+                          )}
                         </div>
 
-                        {req.status === 'pending' ? (
-                          <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
-                            <button
-                              type="button"
-                              onClick={() => handleDeny(req.id)}
-                              className="py-2 px-3 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl shadow-sm flex items-center space-x-1 cursor-pointer"
-                            >
-                              <XCircle className="w-4 h-4" />
-                              <span>{t('nominee.denyBtn')}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleApprove(req.id)}
-                              className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm flex items-center space-x-1 cursor-pointer"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                              <span>{t('nominee.approveBtn')}</span>
-                            </button>
+                        {itemFeedback[req.id] && (
+                          <div
+                            role="alert"
+                            className={`p-2.5 rounded-xl text-xs font-black flex items-center gap-2 ${
+                              itemFeedback[req.id].type === 'success'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                                : 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300'
+                            }`}
+                          >
+                            {itemFeedback[req.id].type === 'success' ? (
+                              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                            )}
+                            <span>{itemFeedback[req.id].message}</span>
                           </div>
-                        ) : (
-                          <span className={`text-xs font-black px-3 py-1 rounded-xl uppercase ${
-                            req.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {req.status}
-                          </span>
                         )}
                       </div>
                     );

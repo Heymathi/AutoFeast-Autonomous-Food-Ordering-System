@@ -64,8 +64,10 @@ export function registerNomineeApproval(deps) {
     if (user.nomineeLockedUntil && now < user.nomineeLockedUntil) {
       return {
         ok: false, status: 429,
-        body: { success: false, locked: true, attemptsLeft: 0, error: 'Nominee PIN locked. Try again later.',
-                lockExpiresMs: user.nomineeLockedUntil.getTime() }
+        body: {
+          success: false, locked: true, attemptsLeft: 0, error: 'Nominee PIN locked. Try again later.',
+          lockExpiresMs: user.nomineeLockedUntil.getTime()
+        }
       };
     }
     if (user.nomineeLockedUntil && now >= user.nomineeLockedUntil) {
@@ -253,7 +255,7 @@ button{background:#f97316;color:#fff;border:0;border-radius:10px;padding:14px 28
       const now = new Date();
       const list = isMongo()
         ? await ApprovalRequest.find({ userId: decoded.nomineeUserId, status: 'pending', expiresAt: { $gt: now } })
-            .select('-emailTokenHash').sort({ requestedAt: -1 }).lean()
+          .select('-emailTokenHash').sort({ requestedAt: -1 }).lean()
         : fallbackApprovalRequestsDb.filter(a => a.userId === decoded.nomineeUserId && a.status === 'pending' && a.expiresAt > now);
       return res.json({ success: true, approvals: list });
     } catch (err) {
@@ -280,9 +282,24 @@ button{background:#f97316;color:#fff;border:0;border-radius:10px;padding:14px 28
       const check = await verifyNomineePin(user, pin);
       if (!check.ok) return res.status(check.status).json(check.body);
 
+      // Differentiate between expired (400) and already decided (409)
+      const existing = isMongo()
+        ? await ApprovalRequest.findOne({ id: req.params.id, userId: decoded.nomineeUserId })
+        : fallbackApprovalRequestsDb.find(a => a.id === req.params.id && a.userId === decoded.nomineeUserId);
+
+      if (!existing) {
+        return res.status(409).json({ success: false, error: 'Request not found or already decided.' });
+      }
+      if (existing.status !== 'pending') {
+        return res.status(409).json({ success: false, error: 'Request already decided.' });
+      }
+      if (existing.expiresAt && new Date(existing.expiresAt) <= new Date()) {
+        return res.status(400).json({ success: false, error: 'Approval request has expired.' });
+      }
+
       const updated = await decideApproval({ id: req.params.id, userId: decoded.nomineeUserId }, decision, 'website');
       if (!updated) {
-        return res.status(409).json({ success: false, error: 'Request not found, already decided, or expired.' });
+        return res.status(409).json({ success: false, error: 'Request already decided or expired.' });
       }
       return res.json({ success: true, status: updated.status });
     } catch (err) {

@@ -218,4 +218,26 @@ describe('Nominee Approval Flow – email-decision and website-decision', () => 
     const body = await res.json();
     expect(body.success).toBe(false);
   });
+
+  // -----------------------------------------------------------------------
+  // Test 7: Expired approval request on website decision path returns 400
+  // -----------------------------------------------------------------------
+  test('Test 7: Expired approval on website path returns 400', async () => {
+    const { id } = makeApproval({
+      expiresAt: new Date(Date.now() - 1000) // already expired
+    });
+
+    const res = await fetch(`${baseUrl}/api/nominee/approvals/${id}/decision`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${nomineeToken}`
+      },
+      body: JSON.stringify({ decision: 'approve', pin: nomineePin })
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toMatch(/expired/i);
+  });
 });
