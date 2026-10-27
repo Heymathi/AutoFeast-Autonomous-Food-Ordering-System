@@ -138,6 +138,11 @@ export class NomineeNotificationService {
         this.restrictedFetchError = false;
         return data.restrictedFoodIds;
       }
+      if (res.status === 401) {
+        // Unauthenticated session is not a database/network crash
+        this.restrictedFetchError = false;
+        return [];
+      }
       this.restrictedFetchError = true;
     } catch (e) {
       this.restrictedFetchError = true;

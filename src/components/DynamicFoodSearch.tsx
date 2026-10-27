@@ -600,19 +600,34 @@ export const DynamicFoodSearch: React.FC = () => {
         onClose={() => setChooserItem(null)}
         items={chooserItem ? [chooserItem] : []}
         onOrderNow={(items) => {
-          if (items[0]) placeInstantOrder(items[0]);
+          console.log('[DynamicFoodSearch onOrderNow]: Callback triggered with items:', items);
+          if (items && items[0]) {
+            console.log('[DynamicFoodSearch onOrderNow]: Calling placeInstantOrder for item:', items[0].name);
+            placeInstantOrder(items[0]);
+          } else {
+            console.warn('[DynamicFoodSearch onOrderNow]: No items passed to onOrderNow!');
+          }
         }}
         onSchedule={(items) => {
-          if (items[0]) setSchedulingItem(items[0]);
+          console.log('[DynamicFoodSearch onSchedule]: Callback triggered with items:', items);
+          if (items && items[0]) {
+            console.log('[DynamicFoodSearch onSchedule]: Setting schedulingItem for item:', items[0].name);
+            setSchedulingItem(items[0]);
+          } else {
+            console.warn('[DynamicFoodSearch onSchedule]: No items passed to onSchedule!');
+          }
         }}
         onAddToCart={(items) => {
-          if (items[0]) {
-            const itm = items[0];
-            addToCart(itm, 1, 'dynamic_search');
-            const itemName = itm.nativeNames?.[language] || itm.name;
-            const addedMsg = t('addedNext').replace('{item}', itemName);
-            showToast(addedMsg);
-            speakText(addedMsg);
+          console.log('[DynamicFoodSearch onAddToCart]: Callback invoked with items:', items);
+          if (items && items.length > 0) {
+            items.forEach(itm => {
+              console.log('[DynamicFoodSearch onAddToCart]: Calling addToCart for item:', itm.name, 'id:', itm.id);
+              addToCart(itm, 1, 'dynamic_search');
+              const itemName = itm.nativeNames?.[language] || itm.name;
+              const addedMsg = t('addedNext').replace('{item}', itemName);
+              showToast(addedMsg);
+              speakText(addedMsg);
+            });
           }
         }}
       />

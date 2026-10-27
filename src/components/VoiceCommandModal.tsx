@@ -624,11 +624,17 @@ export const VoiceCommandModal: React.FC = () => {
           setIsVoiceModalOpen(false);
         }}
         onAddToCart={(items) => {
-          items.forEach(i => addToCart(i, 1, 'voice_search'));
-          const firstItemName = items[0].nativeNames?.[language] || items[0].name;
-          const addedMsg = t('addedNext').replace('{item}', items.length > 1 ? `${items.length} items` : firstItemName);
-          showToast(addedMsg);
-          speakText(addedMsg, undefined, language);
+          console.log('[VoiceCommandModal onAddToCart]: Callback invoked with items:', items);
+          if (items && items.length > 0) {
+            items.forEach(i => {
+              console.log('[VoiceCommandModal onAddToCart]: Calling addToCart for item:', i.name, 'id:', i.id);
+              addToCart(i, 1, 'voice_search');
+            });
+            const firstItemName = items[0].nativeNames?.[language] || items[0].name;
+            const addedMsg = t('addedNext').replace('{item}', items.length > 1 ? `${items.length} items` : firstItemName);
+            showToast(addedMsg);
+            speakText(addedMsg, undefined, language);
+          }
           setIsVoiceModalOpen(false);
         }}
       />

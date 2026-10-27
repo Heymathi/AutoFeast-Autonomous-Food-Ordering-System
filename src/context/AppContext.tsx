@@ -910,6 +910,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const checkDailyOrderLimitReached = (): boolean => {
     if (dailyOrderCount >= 6) {
+      console.warn(`[AppContext]: Daily order limit reached (${dailyOrderCount}/6). Blocking action.`);
       setIsLimitRenewalModalOpen(true);
       const msg = language === 'ta'
         ? 'தினசரி ஆர்டர் வரம்பு முடிந்தது (6/6). Face ID அல்லது பரிந்துரைப்பாளர் மூலம் புதுப்பிக்கவும்.'
@@ -917,7 +918,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ? 'दैनिक ऑर्डर सीमा समाप्त हो गई है (6/6)। फेस आईडी या नामांकित व्यक्ति द्वारा नवीनीकृत करें।'
         : 'Daily order limit reached (6/6). Please renew limit with Face ID or Nominee verification.';
 
-      showToast(msg);
+      showToast(msg, 'warning');
       speakText(msg);
       return true;
     }
@@ -989,6 +990,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const isRestricted = checkIsItemRestrictedByNominee(foodItem.id, foodItem.name);
     const uid = currentUser?.id || 'user_karthik_001';
 
+    console.log('[AppContext addToCart]: Called for foodItem:', foodItem.name, 'id:', foodItem.id, 'quantity:', quantity, 'isRestricted:', isRestricted);
+
     try {
       const updatedServerCart = await CartService.addToCart(uid, {
         itemId: foodItem.id,
@@ -1006,9 +1009,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const mappedCart = updatedServerCart.map(item => ({
         ...item,
+        qty: item.qty || (item as any).quantity || quantity || 1,
         foodItem: item.itemId === foodItem.id ? foodItem : (INDIAN_FOOD_CATALOG.find(f => f.id === item.itemId) || item.foodItem)
       }));
 
+      console.log('[AppContext addToCart]: Successfully updated server cart, items count:', mappedCart.length);
       setCart(mappedCart);
 
       const totalItemsCount = mappedCart.reduce((sum, i) => sum + i.qty, 0);
@@ -1022,12 +1027,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       showToast(msg, 'success');
       speakText(msg, undefined, language);
     } catch (err) {
-      console.warn('[AppContext addToCart fallback]: Network sync offline, updating local cart state.');
+      console.warn('[AppContext addToCart fallback]: Network sync offline, updating local cart state.', err);
       setCart(prev => {
         const existingIdx = prev.findIndex(i => i.itemId === foodItem.id && i.restaurantName === resName);
         if (existingIdx !== -1) {
           const updated = [...prev];
           updated[existingIdx] = { ...updated[existingIdx], qty: updated[existingIdx].qty + quantity };
+          console.log('[AppContext addToCart fallback]: Incremented quantity for existing item:', updated[existingIdx].name, 'new qty:', updated[existingIdx].qty);
           return updated;
         }
         const newCartItem: CartItem = {
@@ -1046,6 +1052,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           needsNomineeApproval: isRestricted,
           foodItem
         };
+        console.log('[AppContext addToCart fallback]: Added new item to local cart:', newCartItem.name);
         return [...prev, newCartItem];
       });
 
@@ -1900,6 +1907,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // 🚀 TRIGGER PRE-ORDER GST BILL BREAKDOWN FOR SINGLE-ITEM SEARCH (UNIFIED WITH MULTI-ITEM FLOW)
   const placeInstantOrder = (item: FoodItem, strat: OrderStrategy = 'best_value') => {
     if (!item) return;
+    console.log('[AppContext placeInstantOrder]: Initiating instant order for item:', item.name, 'id:', item.id);
 
     if (checkDailyOrderLimitReached()) {
       return;

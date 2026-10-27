@@ -575,13 +575,16 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
           }
         }}
         onAddToCart={(items) => {
-          if (items[0]) {
-            const itm = items[0];
-            addToCart(itm, 1, 'healthy_food');
-            const itemName = itm.nativeNames?.[language] || itm.name;
-            const addedMsg = t('addedNext').replace('{item}', itemName);
-            showToast(addedMsg);
-            speakText(addedMsg);
+          console.log('[HealthDietaryVoiceModal onAddToCart]: Callback invoked with items:', items);
+          if (items && items.length > 0) {
+            items.forEach(itm => {
+              console.log('[HealthDietaryVoiceModal onAddToCart]: Calling addToCart for item:', itm.name, 'id:', itm.id);
+              addToCart(itm, 1, 'healthy_food');
+              const itemName = itm.nativeNames?.[language] || itm.name;
+              const addedMsg = t('addedNext').replace('{item}', itemName);
+              showToast(addedMsg);
+              speakText(addedMsg);
+            });
           }
         }}
       />

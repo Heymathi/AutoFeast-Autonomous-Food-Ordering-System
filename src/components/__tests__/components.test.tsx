@@ -131,6 +131,55 @@ describe('REAL RTL Component Render Tests (React DOM Testing)', () => {
     expect(handleAddToCart).toHaveBeenCalledWith([sampleItem]);
   });
 
+  test('RTL Component Test 1b: ItemActionChooser when mounted with empty items and rerendered with items, Add to Cart passes the updated items', () => {
+    const handleAddToCart = vi.fn();
+
+    // Mount initially with isOpen=false and items=[] like in DynamicFoodSearch
+    const { rerender } = render(
+      <ItemActionChooser
+        isOpen={false}
+        onClose={vi.fn()}
+        items={[]}
+        onOrderNow={vi.fn()}
+        onSchedule={vi.fn()}
+        onAddToCart={handleAddToCart}
+      />
+    );
+
+    // Now user searches and selects an item
+    rerender(
+      <ItemActionChooser
+        isOpen={true}
+        onClose={vi.fn()}
+        items={[sampleItem]}
+        onOrderNow={vi.fn()}
+        onSchedule={vi.fn()}
+        onAddToCart={handleAddToCart}
+      />
+    );
+
+    const addToCartBtn = screen.getByRole('button', { name: /addToCart|add to cart/i });
+    fireEvent.click(addToCartBtn);
+
+    expect(handleAddToCart).toHaveBeenCalledTimes(1);
+    expect(handleAddToCart).toHaveBeenCalledWith([sampleItem]);
+  });
+
+  test('RTL Component Test 1c: ItemActionChooser renders Nominee Permission Required banner when restricted item is selected', () => {
+    render(
+      <ItemActionChooser
+        isOpen={true}
+        onClose={vi.fn()}
+        items={[restrictedItem]}
+        onOrderNow={vi.fn()}
+        onSchedule={vi.fn()}
+        onAddToCart={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(/Nominee Permission Required/i)).toBeDefined();
+  });
+
   test('RTL Component Test 2: ItemActionChooser on restricted item Order Now blocks direct order', () => {
     const handleOrderNow = vi.fn();
 

@@ -317,25 +317,30 @@ export const Navbar: React.FC = () => {
             </button>
 
             {/* Shared Cart */}
-            <button
-              type="button"
-              onClick={() => setIsScheduleCartModalOpen(true)}
-              className={`header-btn flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-sm font-black leading-tight transition-all cursor-pointer border border-amber-400 relative ${
-                currentTheme === 'dark'
-                  ? 'bg-black hover:bg-slate-800 text-white'
-                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-900'
-              }`}
-              title={t('cartTitle')}
-              aria-label={t('cartTitle')}
-            >
-              <ShoppingBag className="w-4 h-4 shrink-0 text-[#FF5A1F]" />
-              <span className="header-label-responsive">{t('cartTitle')}</span>
-              {cart.reduce((sum, i) => sum + i.qty, 0) > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-[#FF5A1F] text-white text-[10px] font-black flex items-center justify-center animate-pulse shrink-0 min-w-[1.25rem] min-h-[1.25rem]">
-                  {cart.reduce((sum, i) => sum + i.qty, 0)}
-                </span>
-              )}
-            </button>
+            {(() => {
+              const totalCartCount = cart.reduce((sum, i) => sum + (i.qty || (i as any).quantity || 1), 0);
+              return (
+                <button
+                  type="button"
+                  onClick={() => setIsScheduleCartModalOpen(true)}
+                  className={`header-btn flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-sm font-black leading-tight transition-all cursor-pointer border border-amber-400 relative ${
+                    currentTheme === 'dark'
+                      ? 'bg-black hover:bg-slate-800 text-white'
+                      : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-900'
+                  }`}
+                  title={t('cartTitle')}
+                  aria-label={t('cartTitle')}
+                >
+                  <ShoppingBag className="w-4 h-4 shrink-0 text-[#FF5A1F]" />
+                  <span className="header-label-responsive">{t('cartTitle')}</span>
+                  {totalCartCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-[#FF5A1F] text-white text-[10px] font-black flex items-center justify-center animate-pulse shrink-0 min-w-[1.25rem] min-h-[1.25rem]">
+                      {totalCartCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })()}
           </nav>
 
           {/* ACTION BUTTONS (VOICE SEARCH, HEALTHY FOOD, USER PROFILE, THEME, LOGOUT) */}

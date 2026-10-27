@@ -172,18 +172,18 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
 
   const handleSelectAction = (action: ChooserAction) => {
     cleanupSpeech();
+    console.log('[ItemActionChooser]: handleSelectAction triggered -> action:', action, 'items count:', items?.length);
 
-    if (action === 'add_to_cart') {
-      // Add to Cart: Allowed even if restricted (item is marked "Needs helper approval" in cart)
-      onAddToCart(items);
+    if (!items || items.length === 0) {
+      console.warn('[ItemActionChooser]: handleSelectAction called with empty items!');
       onClose();
       return;
     }
 
-    // Order Now and Schedule: Blocked if restricted until nominee approval exists
-    if (NomineeNotificationService.hasRestrictedFetchError()) {
-      showToast(t('nominee.restrictedLoadError'), 'warning');
-      SpeechController.speak(t('nominee.restrictedLoadError'), language);
+    if (action === 'add_to_cart') {
+      // Add to Cart: Allowed even if restricted (item is marked "Needs helper approval" in cart)
+      console.log('[ItemActionChooser]: Calling onAddToCart with items:', items);
+      onAddToCart(items);
       onClose();
       return;
     }
@@ -193,6 +193,16 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
       const isRestrictedByNominee = checkIsItemRestrictedByNominee(item.id, item.name);
       const interception = SttMatcherService.checkRestrictedFoodInterception(item.name, restrictedCatalogItems);
       if (isRestrictedByNominee || interception.isRestricted) {
+        // Block restricted order if nominee restricted item list could not be verified
+        if (NomineeNotificationService.hasRestrictedFetchError()) {
+          console.warn('[ItemActionChooser]: Restricted load error for restricted item:', item.name);
+          showToast(t('nominee.restrictedLoadError'), 'warning');
+          SpeechController.speak(t('nominee.restrictedLoadError'), language);
+          onClose();
+          return;
+        }
+
+        console.log('[ItemActionChooser]: Intercepting restricted item for nominee approval:', item.name);
         handleNomineeRestrictedInterception(item, action === 'schedule' ? 'scheduled' : 'instant');
         onClose();
         return;
@@ -200,16 +210,27 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
     }
 
     if (action === 'order_now') {
+      console.log('[ItemActionChooser]: Calling onOrderNow with items:', items);
       onOrderNow(items);
     } else if (action === 'schedule') {
+      console.log('[ItemActionChooser]: Calling onSchedule with items:', items);
       onSchedule(items);
     }
     onClose();
   };
 
-  const debouncedSelectAction = useRef(debounceHandler((act: ChooserAction) => {
-    handleSelectAction(act);
-  }, 1000)).current;
+  // Keep a ref to the latest handleSelectAction so the debounceHandler closure never becomes stale
+  const handleSelectActionRef = useRef(handleSelectAction);
+  handleSelectActionRef.current = handleSelectAction;
+  useEffect(() => {
+    handleSelectActionRef.current = handleSelectAction;
+  }, [handleSelectAction]);
+
+  const debouncedSelectAction = useRef(
+    debounceHandler((act: ChooserAction) => {
+      handleSelectActionRef.current(act);
+    }, 1000)
+  ).current;
 
   const handleClose = () => {
     cleanupSpeech();
@@ -219,6 +240,13 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
   if (!isOpen || !items || items.length === 0) return null;
 
   const primaryItem = items[0];
+
+  const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
+  const isAnyRestricted = items.some(item => {
+    const isRestrictedByNominee = checkIsItemRestrictedByNominee(item.id, item.name);
+    const interception = SttMatcherService.checkRestrictedFoodInterception(item.name, restrictedCatalogItems);
+    return isRestrictedByNominee || interception.isRestricted;
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
@@ -274,12 +302,35 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
 
         {/* Item Preview Card */}
         {items.length === 1 && (
-          <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-2xl border border-slate-200 mb-6">
+          <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-2xl border border-slate-200 mb-4">
             <img src={primaryItem.image} alt={primaryItem.name} className="w-16 h-16 rounded-xl object-cover" />
             <div>
               <h4 className="text-sm font-black text-[#1A1110]">{primaryItem.name}</h4>
               <p className="text-xs text-[#FF5A1F] font-extrabold">{primaryItem.restaurant}</p>
               <span className="text-xs font-black text-[#16A34A]">₹{primaryItem.basePrice}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Nominee Restriction Alert Banner */}
+        {isAnyRestricted && (
+          <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs font-bold mb-4">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex flex-col gap-0.5">
+              <span className="font-black text-amber-800">
+                {language === 'ta'
+                  ? 'பரிந்துரைப்பாளர் அனுமதி தேவை'
+                  : language === 'hi'
+                  ? 'नामांकित व्यक्ति की अनुमति आवश्यक है'
+                  : 'Nominee Permission Required'}
+              </span>
+              <span className="text-[11px] font-semibold text-amber-700/90">
+                {language === 'ta'
+                  ? 'இந்த உணவை நேரடியாக ஆர்டர் செய்ய உங்கள் பரிந்துரைப்பாளரின் ஒப்புதல் தேவை. கார்ட்டில் சேர்க்கலாம்.'
+                  : language === 'hi'
+                  ? 'इस वस्तु को सीधे ऑर्डर करने के लिए आपके नामांकित व्यक्ति की अनुमति चाहिए। आप इसे कार्ट में जोड़ सकते हैं।'
+                  : 'Direct ordering requires approval from your emergency nominee. You can still add to cart.'}
+              </span>
             </div>
           </div>
         )}
@@ -290,7 +341,10 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
           {/* ORDER NOW BUTTON */}
           <button
             type="button"
-            onClick={() => debouncedSelectAction('order_now')}
+            onClick={() => {
+              console.log('[ItemActionChooser]: "Order Now" button clicked for items:', items);
+              debouncedSelectAction('order_now');
+            }}
             className="w-full min-h-[48px] bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
           >
             <Zap className="w-5 h-5 text-white" />
@@ -300,7 +354,10 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
           {/* SCHEDULE BUTTON */}
           <button
             type="button"
-            onClick={() => debouncedSelectAction('schedule')}
+            onClick={() => {
+              console.log('[ItemActionChooser]: "Schedule" button clicked for items:', items);
+              debouncedSelectAction('schedule');
+            }}
             className="w-full min-h-[48px] bg-[#DAF0F7] hover:bg-[#B2E2F0] text-[#1A1110] font-black py-3.5 px-4 rounded-2xl border-2 border-[#B2E2F0] shadow-sm transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
           >
             <Clock className="w-5 h-5 text-[#FF5A1F]" />
@@ -310,7 +367,10 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
           {/* ADD TO CART BUTTON */}
           <button
             type="button"
-            onClick={() => debouncedSelectAction('add_to_cart')}
+            onClick={() => {
+              console.log('[ItemActionChooser]: "Add to Cart" button clicked for items:', items);
+              debouncedSelectAction('add_to_cart');
+            }}
             className="w-full min-h-[48px] bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
           >
             <ShoppingCart className="w-5 h-5 text-white" />

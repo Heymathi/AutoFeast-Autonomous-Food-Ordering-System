@@ -1077,13 +1077,16 @@ export const AutoOrderScheduler: React.FC = () => {
           }
         }}
         onAddToCart={(items) => {
-          if (items[0]) {
-            const itm = items[0];
-            addToCart(itm, 1, 'auto_scheduler');
-            const itemName = itm.nativeNames?.[language] || itm.name;
-            const addedMsg = t('addedNext').replace('{item}', itemName);
-            showToast(addedMsg);
-            speakText(addedMsg);
+          console.log('[AutoOrderScheduler onAddToCart]: Callback invoked with items:', items);
+          if (items && items.length > 0) {
+            items.forEach(itm => {
+              console.log('[AutoOrderScheduler onAddToCart]: Calling addToCart for item:', itm.name, 'id:', itm.id);
+              addToCart(itm, 1, 'auto_scheduler');
+              const itemName = itm.nativeNames?.[language] || itm.name;
+              const addedMsg = t('addedNext').replace('{item}', itemName);
+              showToast(addedMsg);
+              speakText(addedMsg);
+            });
           }
         }}
       />
