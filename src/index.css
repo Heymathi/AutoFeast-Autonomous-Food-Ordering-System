@@ -95,3 +95,91 @@
 .animate-fade-in {
   animation: fadeIn 0.25s ease-out forwards;
 }
+
+/* ==========================================================================
+   Header Bar Layout & Text Size Capping
+   Ensures all header items fit on any screen (320px - 1920px+) across SM/MD/LG/XL
+   ========================================================================== */
+header.app-header {
+  width: 100% !important;
+  max-width: 100vw !important;
+}
+
+header.app-header .header-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+/* Header text scaling: safely scales with accessibility text sizes while capped to prevent layout overflow */
+.text-scale-sm header.app-header button,
+.text-scale-sm header.app-header .header-chip,
+.text-scale-sm header.app-header nav button {
+  font-size: clamp(10.5px, 0.75vw, 12px) !important;
+}
+
+.text-scale-md header.app-header button,
+.text-scale-md header.app-header .header-chip,
+.text-scale-md header.app-header nav button {
+  font-size: clamp(11.5px, 0.85vw, 13.5px) !important;
+}
+
+.text-scale-lg header.app-header button,
+.text-scale-lg header.app-header .header-chip,
+.text-scale-lg header.app-header nav button {
+  font-size: clamp(12.5px, 0.95vw, 15px) !important;
+}
+
+.text-scale-xl header.app-header button,
+.text-scale-xl header.app-header .header-chip,
+.text-scale-xl header.app-header nav button {
+  font-size: clamp(13px, 1.05vw, 16px) !important;
+}
+
+/* Header button and chip sizing */
+header.app-header button.header-btn,
+header.app-header nav button,
+header.app-header .header-chip {
+  padding: clamp(3px, 0.35vw, 6px) clamp(6px, 0.55vw, 10px) !important;
+  min-width: 0 !important;
+  flex-shrink: 0;
+  white-space: nowrap !important;
+}
+
+header.app-header svg {
+  flex-shrink: 0 !important;
+}
+
+/* Responsive location chip width */
+header.app-header .header-location-chip {
+  max-width: clamp(110px, 15vw, 220px) !important;
+  min-width: 0 !important;
+}
+
+header.app-header .header-location-chip span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* On screens <= 1024px (tablets & mobile), hide text labels on buttons to preserve icons */
+@media (max-width: 1024px) {
+  header.app-header .header-label-responsive {
+    display: none !important;
+  }
+  header.app-header button.header-btn,
+  header.app-header nav button,
+  header.app-header .header-chip {
+    padding: 5px 8px !important;
+  }
+}
+
+/* On mobile <= 480px */
+@media (max-width: 480px) {
+  header.app-header .header-location-chip {
+    max-width: 100px !important;
+  }
+  header.app-header h1 {
+    font-size: 13.5px !important;
+  }
+}
