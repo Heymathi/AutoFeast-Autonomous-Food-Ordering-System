@@ -1144,6 +1144,9 @@ app.post('/api/nominee/invite', async (req, res) => {
     if (process.env.NODE_ENV === 'test' && req.headers['x-simulate-db-down'] === 'true') {
       return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
+
+    await connectDB();
+
     if (process.env.NODE_ENV !== 'test' && (mongoose.connection.readyState !== 1 || !mongoose.connection.host)) {
       return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
@@ -1231,6 +1234,9 @@ app.post('/api/nominee/setup-credentials', async (req, res) => {
     if (process.env.NODE_ENV === 'test' && req.headers['x-simulate-db-down'] === 'true') {
       return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
+
+    await connectDB();
+
     if (process.env.NODE_ENV !== 'test' && (mongoose.connection.readyState !== 1 || !mongoose.connection.host)) {
       return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
@@ -1319,11 +1325,14 @@ app.post('/api/nominee/login', async (req, res) => {
       return res.status(429).json({ success: false, locked: true, error: 'Nominee login locked due to 5 failed attempts.' });
     }
 
-    // 2. Fail closed check
+    // 2. Ensure DB is connected (critical on Vercel cold-start)
     if (process.env.NODE_ENV === 'test' && req.headers['x-simulate-db-down'] === 'true') {
+      console.error('[NomineeLogin] 503 - DB-down simulation for:', cleanEmail);
       return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
-    if (process.env.NODE_ENV !== 'test' && (mongoose.connection.readyState !== 1 || !mongoose.connection.host)) {
+    await connectDB();
+    if (mongoose.connection.readyState !== 1) {
+      console.error('[NomineeLogin] 503 - DB not connected, readyState:', mongoose.connection.readyState, 'for:', cleanEmail);
       return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
 
@@ -1331,10 +1340,11 @@ app.post('/api/nominee/login', async (req, res) => {
     if (mongoose.connection.readyState === 1) {
       user = await User.findOne({ nomineeEmail: cleanEmail });
     } else if (process.env.NODE_ENV === 'test') {
-      user = fallbackUsersDb.find(u => u.nomineeEmail === cleanEmail);
+      user = fallbackUsersDb.find(u => (u.nomineeEmail || '').toLowerCase().trim() === cleanEmail);
     }
 
-    const send401 = () => {
+    const send401 = (reason) => {
+      console.error('[NomineeLogin] 401 -', reason, '| email:', cleanEmail);
       recordFailedLogin(lockKey);
       const postCheck = checkRateLimit(lockKey);
       if (!postCheck.allowed) {
@@ -1345,23 +1355,23 @@ app.post('/api/nominee/login', async (req, res) => {
 
     // Unknown email -> 401 (anti-enumeration)
     if (!user) {
-      return send401();
+      return send401('user not found');
     }
 
     // Credential not set -> 401 (anti-enumeration)
     if (!user.nomineePasswordHash) {
-      return send401();
+      return send401('nomineePasswordHash not set - setup not completed');
     }
 
     // Missing password or invalid type -> 401
     if (!nomineePassword || typeof nomineePassword !== 'string') {
-      return send401();
+      return send401('nomineePassword missing or not a string');
     }
 
-    // Compare nominee password hash
+    // Compare nominee password hash (bcrypt)
     const isMatch = await bcrypt.compare(nomineePassword, user.nomineePasswordHash).catch(() => false);
     if (!isMatch) {
-      return send401();
+      return send401('bcrypt mismatch');
     }
 
     // Success -> reset login attempts for rate limit key
@@ -1401,10 +1411,17 @@ app.post('/api/nominee/forgot-password', async (req, res) => {
       return res.json(genericResponse);
     }
 
+    await connectDB();
+    if (mongoose.connection.readyState !== 1) {
+      console.error('[NomineeForgotPassword] 503 - DB not connected for:', cleanEmail);
+      // Return generic response so as not to leak DB status to client
+      return res.json(genericResponse);
+    }
+
     let user = null;
     if (mongoose.connection.readyState === 1) {
       user = await User.findOne({ nomineeEmail: cleanEmail });
-    } else {
+    } else if (process.env.NODE_ENV === 'test') {
       user = fallbackUsersDb.find(u => (u.nomineeEmail || '').toLowerCase().trim() === cleanEmail);
     }
 
@@ -1474,10 +1491,16 @@ app.post('/api/nominee/verify-otp', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Email and OTP are required.' });
     }
 
+    await connectDB();
+    if (mongoose.connection.readyState !== 1) {
+      console.error('[NomineeVerifyOtp] 503 - DB not connected for:', cleanEmail);
+      return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
+    }
+
     let user = null;
     if (mongoose.connection.readyState === 1) {
       user = await User.findOne({ nomineeEmail: cleanEmail });
-    } else {
+    } else if (process.env.NODE_ENV === 'test') {
       user = fallbackUsersDb.find(u => (u.nomineeEmail || '').toLowerCase().trim() === cleanEmail);
     }
 
@@ -1585,10 +1608,16 @@ app.post('/api/nominee/reset-password', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Password must be at least 8 characters long.' });
     }
 
+    await connectDB();
+    if (mongoose.connection.readyState !== 1) {
+      console.error('[NomineeResetPassword] 503 - DB not connected for:', cleanEmail);
+      return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
+    }
+
     let user = null;
     if (mongoose.connection.readyState === 1) {
       user = await User.findOne({ nomineeEmail: cleanEmail });
-    } else {
+    } else if (process.env.NODE_ENV === 'test') {
       user = fallbackUsersDb.find(u => (u.nomineeEmail || '').toLowerCase().trim() === cleanEmail);
     }
 

@@ -42,6 +42,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
   const [itemPins, setItemPins] = useState<Record<string, string>>({});
   const [itemFeedback, setItemFeedback] = useState<Record<string, { type: 'success' | 'error'; message: string }>>({});
   const [isDeciding, setIsDeciding] = useState<Record<string, boolean>>({});
+  const [isVoiceApproving, setIsVoiceApproving] = useState(false);
 
   const isNomineeRoute =
     typeof window !== 'undefined' &&
@@ -421,7 +422,6 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
     }
   };
 
-  const [isVoiceApproving, setIsVoiceApproving] = useState(false);
   const startVoiceApprovalListening = () => {
     if (!SpeechController.isSupported()) return;
     setIsVoiceApproving(true);
