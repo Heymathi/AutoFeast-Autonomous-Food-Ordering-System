@@ -1,12 +1,62 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { SpeechController } from '../services/speechController';
-import { LlmNluService, LocationChoiceNluResult } from '../services/llmNluService';
-import { SttMatcherService } from '../services/sttMatcherService';
+import { LlmNluService } from '../services/llmNluService';
 import { forwardGeocode, GeocodedPlace } from '../services/locationService';
 import { UserLocation } from '../types';
 import { MapPin, Navigation, CheckCircle2, XCircle, Mic, Volume2, Sparkles, Search, Building2, AlertTriangle, ArrowRight } from 'lucide-react';
 
+// ---------------------------------------------------------------------------
+// Local fast keyword classifier for the "initial" turn.
+// Runs synchronously; avoids any network call for simple yes/no/change answers.
+// Priority: CHANGE is checked before ALLOW to prevent "no, change address"
+// being mis-read as an affirmative.
+// ---------------------------------------------------------------------------
+function classifyInitialTranscript(
+  raw: string,
+  language: string
+): 'allow' | 'change' | 'none' {
+  const t = raw.toLowerCase().replace(/[.,!?।।""]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // ── CHANGE / DENY intent ────────────────────────────────────────────────
+  const changeKw = [
+    // English
+    'no', 'nope', 'nah', 'change', 'address', 'different', 'manual', 'enter', 'set address',
+    'change address', 'set location', 'different address', 'another address',
+    // Tamil
+    'இல்லை', 'வேண்டாம்', 'வேணாம்', 'இல்ல', 'இல்லட்டும்', 'illai', 'illam', 'illa',
+    'venaam', 'vendam', 'maathu', 'mukavari', 'address maathu', 'vera idam', 'வேற முகவரி',
+    'முகவரி மாற்று', 'அட்ரஸ் மாத்து',
+    // Hindi
+    'nahi', 'nahin', 'na', 'mat', 'nhin', 'नहीं', 'ना', 'मत', 'नही',
+    'badlo', 'address badlo', 'address change', 'dusra', 'बदलो', 'पता बदलो',
+    'दूसरा', 'दूसरा पता',
+  ];
+
+  // ── ALLOW / YES intent ──────────────────────────────────────────────────
+  const allowKw = [
+    // English
+    'yes', 'yeah', 'yep', 'yup', 'ok', 'okay', 'sure', 'allow', 'fine', 'go ahead',
+    'use my location', 'use live location', 'live location', 'current location',
+    'allow location', 'enable location', 'why not', 'of course',
+    // Tamil
+    'ஆமா', 'ஆமாம்', 'சரி', 'சரிதான்', 'அனுமதி', 'aama', 'aamam', 'sari', 'seri', 'anumathi',
+    'ok pannu', 'eduthuko', 'இப்போதைய இடம்', 'லைவ் லொகேஷன்',
+    // Hindi
+    'haan', 'ha', 'haa', 'han', 'हाँ', 'हां', 'ठीक है', 'theek hai', 'theek',
+    'abhi ki location', 'live location', 'use karo', 'allow karo',
+    'अनुमति', 'location do',
+  ];
+
+  // Check CHANGE first (higher precedence)
+  if (changeKw.some(kw => t.includes(kw))) return 'change';
+  if (allowKw.some(kw => t.includes(kw))) return 'allow';
+  return 'none';
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export const LocationPermissionModal: React.FC = () => {
   const {
     entryStep,
@@ -19,31 +69,25 @@ export const LocationPermissionModal: React.FC = () => {
     showToast
   } = useApp();
 
-
-
-  // Modal Sub-state
-  // 'initial': asking "Can we use your live location, or do you want to change the address?"
-  // 'asking_place': asking "Which location should I set?"
-  // 'confirming_place': "Setting location to <place>. Is that correct?"
-  // 'manual_picker': fallback / tap panel with search box, city list, GPS, and skip
-  const [modalMode, setModalMode] = useState<'initial' | 'asking_place' | 'confirming_place' | 'manual_picker'>('initial');
-
+  // ── Sub-states ────────────────────────────────────────────────────────────
+  const [modalMode, setModalMode] = useState<
+    'initial' | 'asking_place' | 'confirming_place' | 'manual_picker'
+  >('initial');
   const [isSpeakingPrompt, setIsSpeakingPrompt] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-
-  // Address Geocoding & Confirmation State
   const [pendingCandidatePlace, setPendingCandidatePlace] = useState<GeocodedPlace | null>(null);
   const [customSearchQuery, setCustomSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<GeocodedPlace[]>([]);
   const [isSearchingGeocode, setIsSearchingGeocode] = useState(false);
 
-  // Silence retry tracking
+  // ── Refs ─────────────────────────────────────────────────────────────────
+  const isActiveRef = useRef(true);
+  const hasHandledRef = useRef(false);          // double-trigger guard
+  const lastPromptRef = useRef<string>('');
   const hasRetriedSilenceRef = useRef(false);
-  const isComponentActiveRef = useRef(true);
-  const lastSpokenPromptRef = useRef<string>('');
 
   const popularCities = [
     { city: 'Chennai', area: 'Anna Nagar', lat: 13.0827, lng: 80.2707 },
@@ -62,136 +106,293 @@ export const LocationPermissionModal: React.FC = () => {
     return t('location.permissionQuestion');
   }, [t]);
 
-  /**
-   * Finalize location and proceed to dashboard
-   */
+  // ── Finalize (proceed to dashboard) ──────────────────────────────────────
   const finalizeLocation = useCallback((newLoc: UserLocation) => {
-    console.log('[LocationPermissionModal]: Finalizing location:', newLoc);
     SpeechController.releaseMic('location_permission');
     SpeechController.cancelSpeech();
-
     setManualUserLocation(newLoc);
-    if (newLoc.city && newLoc.city !== 'Not set') {
-      setSelectedLocation(newLoc.city);
-    }
-
+    if (newLoc.city && newLoc.city !== 'Not set') setSelectedLocation(newLoc.city);
     const toastMsg = newLoc.city === 'Not set'
       ? t('location.notSet')
       : t('location.locationSet').replace('{area}', newLoc.area).replace('{city}', newLoc.city);
-
     showToast(toastMsg);
     setEntryStep('dashboard');
   }, [setManualUserLocation, setSelectedLocation, t, showToast, setEntryStep]);
 
-  /**
-   * Handler when live GPS is chosen.
-   *
-   * ROOT-CAUSE FIX: detectGPSLocation() returns void and only calls setUserLocation()
-   * internally. Reading `userLocation` after awaiting it hits a stale closure — React
-   * state hasn't re-rendered yet, so the old (empty) location is captured and
-   * finalizeLocation() never calls setEntryStep('dashboard').
-   *
-   * Fix: call fetchLiveGPSLocation() directly here so we get the resolved UserLocation
-   * object back synchronously from the Promise, bypassing the stale-closure entirely.
-   */
-  const handleUseLiveGPS = useCallback(async () => {
+  // ── HANDLE ALLOW (live GPS) ───────────────────────────────────────────────
+  // This is the single shared handler for the button AND voice intent.
+  const handleAllowLocation = useCallback(async () => {
+    if (hasHandledRef.current) return;         // double-trigger guard
+    hasHandledRef.current = true;
+
+    // Stop TTS + mic immediately
+    SpeechController.cancelSpeech();
     SpeechController.releaseMic('location_permission');
+    setIsSpeakingPrompt(false);
+    setIsListening(false);
     setIsAnalyzing(true);
     setStatusMessage(
       language === 'ta'
         ? '📍 GPS கண்டறிகிறது...'
         : language === 'hi'
         ? '📍 GPS खोज रहा है...'
-        : '📍 Detecting device GPS...'
+        : '📍 Detecting GPS location...'
     );
 
+    // Check geolocation permission first (fast path if already granted)
+    let geoPermission: PermissionState | null = null;
     try {
-      // ✅ Import fetchLiveGPSLocation at the top of the file (already imported via locationService)
-      const { fetchLiveGPSLocation } = await import('../services/locationService');
-      const loc = await fetchLiveGPSLocation();   // ← get the real location object directly
+      const perm = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+      geoPermission = perm.state;
+    } catch (_) { /* not supported in all browsers */ }
 
-      const area = loc.area || (language === 'ta' ? 'தற்போதைய பகுதி' : language === 'hi' ? 'वर्तमान क्षेत्र' : 'Current Area');
-      const city = loc.city || (language === 'ta' ? 'தற்போதைய நகரம்' : language === 'hi' ? 'वर्तमान शहर' : 'Current City');
-      const spoken = t('location.locationSet').replace('{area}', area).replace('{city}', city);
-
-      setIsAnalyzing(false);
-      setStatusMessage(null);
-
-      // Speak the confirmed location, then advance to dashboard
-      speakText(spoken, () => {
-        finalizeLocation(loc);
-      }, language);
-
-      // Advance immediately if TTS is unavailable / disabled
-      if (!speakText) {
-        finalizeLocation(loc);
-      }
-    } catch (e: any) {
-      console.warn('[LocationPermissionModal]: GPS failed:', e);
-      setIsAnalyzing(false);
-
-      const deniedMsg =
+    if (geoPermission === 'denied') {
+      const msg =
         language === 'ta'
-          ? '⚠️ GPS அனுமதி மறுக்கப்பட்டது. கைமுறையாக இடத்தை தேர்வு செய்யவும்.'
+          ? "⚠️ GPS அனுமதி மறுக்கப்பட்டது. தயவுசெய்து உங்கள் இடத்தை கைமுறையாக அமைக்கவும்."
           : language === 'hi'
-          ? '⚠️ GPS अनुमति अस्वीकृत। कृपया स्थान मैन्युअल रूप से चुनें।'
-          : '⚠️ GPS access denied or unavailable. Please pick your location manually.';
-
-      setStatusMessage(deniedMsg);
-      speakText(deniedMsg, () => {
-        setModalMode('manual_picker');
-      }, language);
-    }
-  }, [language, t, speakText, finalizeLocation]);
-
-
-  /**
-   * Forward geocode and prompt confirmation for recognized address
-   */
-  const processAddressCandidate = useCallback(async (placeName: string) => {
-    if (!placeName || !placeName.trim()) {
-      setStatusMessage(t('location.noMatchFound'));
+          ? "⚠️ GPS अनुमति अस्वीकृत। कृपया मैन्युअल रूप से पता सेट करें।"
+          : "⚠️ GPS access denied. Please set your address manually.";
+      setIsAnalyzing(false);
+      setStatusMessage(msg);
+      showToast(msg, 'warning');
       setModalMode('manual_picker');
+      hasHandledRef.current = false;   // allow retry via button
       return;
     }
 
+    if (!('geolocation' in navigator)) {
+      const msg =
+        language === 'ta'
+          ? "⚠️ இந்த சாதனம் GPS ஐ ஆதரிக்கவில்லை."
+          : language === 'hi'
+          ? "⚠️ इस डिवाइस में GPS समर्थित नहीं है।"
+          : "⚠️ GPS not supported on this device.";
+      setIsAnalyzing(false);
+      setStatusMessage(msg);
+      setModalMode('manual_picker');
+      hasHandledRef.current = false;
+      return;
+    }
+
+    // Fast GPS request: low accuracy, cached position OK (up to 5 min old)
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        if (!isActiveRef.current) return;
+        const { latitude, longitude, accuracy } = position.coords;
+
+        // Immediately move forward with coordinates — don't block on geocoding
+        const fastLoc: UserLocation = {
+          latitude,
+          longitude,
+          addressName: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+          city: language === 'ta' ? 'தற்போதைய நகரம்' : language === 'hi' ? 'वर्तमान शहर' : 'Current City',
+          area: language === 'ta' ? 'தற்போதைய பகுதி' : language === 'hi' ? 'वर्तमान क्षेत्र' : 'Current Area',
+          isLiveGPS: accuracy <= 1000,
+          isApproximate: accuracy > 1000,
+          accuracyMeters: accuracy,
+          isManualOverride: false,
+        };
+
+        setIsAnalyzing(false);
+        finalizeLocation(fastLoc);
+
+        // Geocode in background and update after navigation
+        try {
+          const { reverseGeocode } = await import('../services/locationService');
+          const geocoded = await reverseGeocode(latitude, longitude);
+          const resolvedLoc: UserLocation = {
+            ...fastLoc,
+            addressName: geocoded.addressName,
+            city: geocoded.city || fastLoc.city,
+            area: geocoded.area || fastLoc.area,
+          };
+          setManualUserLocation(resolvedLoc);
+          if (resolvedLoc.city && resolvedLoc.city !== 'Not set') {
+            setSelectedLocation(resolvedLoc.city);
+          }
+        } catch (_) { /* non-critical: fast location already applied */ }
+      },
+      async (error) => {
+        if (!isActiveRef.current) return;
+        const msg =
+          language === 'ta'
+            ? `⚠️ GPS தோல்வி: ${error.message}. கைமுறையாக இடத்தை அமைக்கவும்.`
+            : language === 'hi'
+            ? `⚠️ GPS विफल: ${error.message}. कृपया स्थान मैन्युअल रूप से सेट करें।`
+            : `⚠️ Couldn't get live location — please set your address. (${error.message})`;
+        setIsAnalyzing(false);
+        setStatusMessage(msg);
+        showToast(msg, 'warning');
+        setModalMode('manual_picker');
+        hasHandledRef.current = false;
+      },
+      {
+        enableHighAccuracy: false,   // fast cached fix
+        timeout: 8000,
+        maximumAge: 300000,          // accept 5-min old cached position
+      }
+    );
+  }, [language, finalizeLocation, showToast, setManualUserLocation, setSelectedLocation]);
+
+  // ── HANDLE CHANGE (open address input) ───────────────────────────────────
+  const handleChangeAddress = useCallback(() => {
+    if (hasHandledRef.current) return;
+    hasHandledRef.current = true;
+
+    SpeechController.cancelSpeech();
+    SpeechController.releaseMic('location_permission');
+    setIsSpeakingPrompt(false);
+    setIsListening(false);
+    setModalMode('manual_picker');
+  }, []);
+
+  // ── Start STT for the initial turn ───────────────────────────────────────
+  const startInitialListening = useCallback(() => {
+    if (!SpeechController.isSupported()) return;
+    if (!isActiveRef.current) return;
+
+    setIsListening(true);
+    setLiveTranscript('');
+    hasHandledRef.current = false;
+
+    SpeechController.requestMic({
+      owner: 'location_permission',
+      language,
+      continuous: false,
+      interimResults: true,
+      maxAlternatives: 5,
+      silenceTimeoutMs: 8000,
+
+      onStart: () => {
+        if (isActiveRef.current) setIsListening(true);
+      },
+
+      onResult: (transcript, isFinal, nBest) => {
+        if (!transcript || !isActiveRef.current) return;
+        setLiveTranscript(transcript);
+
+        // Cancel TTS the moment we hear anything
+        SpeechController.cancelSpeech();
+        setIsSpeakingPrompt(false);
+
+        // Match on INTERIM results too — fire intent as soon as keyword is heard
+        const intent = classifyInitialTranscript(transcript, language);
+        if (intent === 'change') {
+          setIsListening(false);
+          SpeechController.releaseMic('location_permission');
+          handleChangeAddress();
+          return;
+        }
+        if (intent === 'allow') {
+          setIsListening(false);
+          SpeechController.releaseMic('location_permission');
+          handleAllowLocation();
+          return;
+        }
+
+        // On final result, if still unclear — try LLM (async, no block)
+        if (isFinal) {
+          setIsListening(false);
+          SpeechController.releaseMic('location_permission');
+          setIsAnalyzing(true);
+          const candidates = (nBest && nBest.length > 0) ? nBest : [transcript];
+          LlmNluService.interpretLocationChoice(transcript, {
+            language,
+            alternatives: candidates,
+            step: 'location_choice',
+          }).then(nlu => {
+            if (!isActiveRef.current) return;
+            setIsAnalyzing(false);
+            if (nlu.intent === 'use_live_location') {
+              handleAllowLocation();
+            } else if (nlu.intent === 'change_location' || nlu.intent === 'give_address') {
+              if (nlu.intent === 'give_address' && nlu.address) {
+                processAddressCandidate(nlu.address);
+              } else {
+                handleChangeAddress();
+              }
+            } else {
+              // Unclear — restart listening quietly without re-reading the full prompt
+              if (!hasRetriedSilenceRef.current) {
+                hasRetriedSilenceRef.current = true;
+                startInitialListening();
+              }
+            }
+          }).catch(() => {
+            if (isActiveRef.current) setIsAnalyzing(false);
+          });
+        }
+      },
+
+      onSilence: () => {
+        if (!isActiveRef.current) return;
+        setIsListening(false);
+        SpeechController.releaseMic('location_permission');
+        if (!hasRetriedSilenceRef.current) {
+          hasRetriedSilenceRef.current = true;
+          // Speak a shorter retry hint, then re-listen
+          const hint =
+            language === 'ta'
+              ? 'அனுமதியா அல்லது மாற்றவா?'
+              : language === 'hi'
+              ? 'अनुमति दें या पता बदलें?'
+              : 'Allow location or change address?';
+          setIsSpeakingPrompt(true);
+          speakText(hint, () => {
+            setIsSpeakingPrompt(false);
+            if (isActiveRef.current) startInitialListening();
+          }, language);
+        }
+      },
+
+      onError: (errCode) => {
+        if (!isActiveRef.current) return;
+        setIsListening(false);
+        if (errCode === 'not-allowed' || errCode === 'permission-denied') {
+          setStatusMessage(
+            language === 'ta'
+              ? 'மைக் அணுகல் தடுக்கப்பட்டுள்ளது.'
+              : language === 'hi'
+              ? 'माइक्रोफ़ोन अवरुद्ध है।'
+              : 'Microphone access blocked. Use the buttons below.'
+          );
+        }
+      },
+
+      onEnd: () => {
+        if (isActiveRef.current) setIsListening(false);
+      },
+    });
+  }, [language, speakText, handleAllowLocation, handleChangeAddress]);
+
+  // ── Address geocoding helpers (for manual / ask_place modes) ─────────────
+  const processAddressCandidate = useCallback(async (placeName: string) => {
+    if (!placeName.trim()) { setModalMode('manual_picker'); return; }
     setIsAnalyzing(true);
     setStatusMessage(t('location.searchingNominatim'));
-
     const matches = await forwardGeocode(placeName);
     setIsAnalyzing(false);
-
     if (matches && matches.length > 0) {
       const best = matches[0];
       setPendingCandidatePlace(best);
       setModalMode('confirming_place');
-
       const confirmPrompt = t('location.confirmLocation').replace('{place}', best.addressName);
-      lastSpokenPromptRef.current = confirmPrompt;
+      lastPromptRef.current = confirmPrompt;
       setIsSpeakingPrompt(true);
-
       speakText(confirmPrompt, () => {
         setIsSpeakingPrompt(false);
-        if (isComponentActiveRef.current) {
-          startListeningForTurn('confirm_place', confirmPrompt);
-        }
+        if (isActiveRef.current) startListeningForTurn('confirm_place', confirmPrompt);
       }, language);
     } else {
       const noMatchMsg = t('location.noMatchFound');
       setStatusMessage(noMatchMsg);
-      speakText(noMatchMsg, () => {
-        setModalMode('manual_picker');
-      }, language);
+      speakText(noMatchMsg, () => { setModalMode('manual_picker'); }, language);
     }
   }, [t, speakText, language]);
 
-  /**
-   * Unified Turn-Based Speech Listener
-   */
-  const startListeningForTurn = useCallback((turnType: 'initial' | 'ask_place' | 'confirm_place', promptQuestion: string) => {
-    if (!SpeechController.isSupported()) return;
-
-    // Never listen while TTS is speaking! Cancel speech and pause
+  const startListeningForTurn = useCallback((turnType: 'ask_place' | 'confirm_place', promptQuestion: string) => {
+    if (!SpeechController.isSupported() || !isActiveRef.current) return;
     SpeechController.cancelSpeech();
     setIsSpeakingPrompt(false);
     setIsListening(true);
@@ -204,48 +405,25 @@ export const LocationPermissionModal: React.FC = () => {
       interimResults: true,
       maxAlternatives: 5,
       silenceTimeoutMs: 8000,
-      onStart: () => {
-        setIsListening(true);
-      },
-      onSilence: () => {
-        setIsListening(false);
-        SpeechController.releaseMic('location_permission');
-
-        if (!hasRetriedSilenceRef.current && promptQuestion) {
-          hasRetriedSilenceRef.current = true;
-          console.log('[LocationPermissionModal]: Silence timeout (8s) -> repeating prompt once');
-          setIsSpeakingPrompt(true);
-          speakText(promptQuestion, () => {
-            setIsSpeakingPrompt(false);
-            if (isComponentActiveRef.current) {
-              startListeningForTurn(turnType, promptQuestion);
-            }
-          }, language);
-        } else {
-          console.log('[LocationPermissionModal]: Repeated silence -> keeping tap buttons visible');
-          setIsListening(false);
-        }
-      },
-      onResult: async (transcript, isFinal, nBestTranscripts) => {
-        if (!transcript || !transcript.trim()) return;
+      onStart: () => { if (isActiveRef.current) setIsListening(true); },
+      onResult: async (transcript, isFinal, nBest) => {
+        if (!transcript || !isActiveRef.current) return;
         setLiveTranscript(transcript);
+        SpeechController.cancelSpeech();
+        setIsSpeakingPrompt(false);
+        if (!isFinal) return;
 
-        if (!isFinal) return; // Process only completed utterance
-
-        console.log(`[LocationPermissionModal Turn: ${turnType} Spoken]: "${transcript}"`);
         setIsListening(false);
         SpeechController.releaseMic('location_permission');
         setIsAnalyzing(true);
-
-        const candidates = (nBestTranscripts && nBestTranscripts.length > 0) ? nBestTranscripts : [transcript];
+        const candidates = (nBest && nBest.length > 0) ? nBest : [transcript];
 
         if (turnType === 'confirm_place') {
-          // Confirming candidate place
+          const { SttMatcherService } = await import('../services/sttMatcherService');
           const confirmMatch = SttMatcherService.matchConfirmation(candidates, language);
           setIsAnalyzing(false);
-
           if (confirmMatch.isMatched && confirmMatch.matchedValue === 'YES' && pendingCandidatePlace) {
-            const newLoc: UserLocation = {
+            finalizeLocation({
               latitude: pendingCandidatePlace.latitude,
               longitude: pendingCandidatePlace.longitude,
               addressName: pendingCandidatePlace.addressName,
@@ -253,178 +431,79 @@ export const LocationPermissionModal: React.FC = () => {
               area: pendingCandidatePlace.area,
               isLiveGPS: false,
               isApproximate: false,
-              isManualOverride: true
-            };
-            finalizeLocation(newLoc);
+              isManualOverride: true,
+            });
           } else if (confirmMatch.isMatched && confirmMatch.matchedValue === 'NO') {
             setPendingCandidatePlace(null);
             setModalMode('manual_picker');
           } else {
-            // Check via LLM
-            const nlu = await LlmNluService.interpretLocationChoice(transcript, { language, alternatives: candidates, step: 'location_choice' });
-            if (nlu.intent === 'use_live_location') {
-              if (pendingCandidatePlace) {
-                const newLoc: UserLocation = {
-                  latitude: pendingCandidatePlace.latitude,
-                  longitude: pendingCandidatePlace.longitude,
-                  addressName: pendingCandidatePlace.addressName,
-                  city: pendingCandidatePlace.city,
-                  area: pendingCandidatePlace.area,
-                  isLiveGPS: false,
-                  isApproximate: false,
-                  isManualOverride: true
-                };
-                finalizeLocation(newLoc);
-              }
-            } else {
-              setModalMode('manual_picker');
-            }
+            setModalMode('manual_picker');
           }
-          return;
-        }
-
-        if (turnType === 'ask_place') {
+        } else {
+          // ask_place
           setIsAnalyzing(false);
-          const nlu = await LlmNluService.interpretLocationChoice(transcript, { language, alternatives: candidates, step: 'location_choice' });
-          if (nlu.intent === 'give_address' && nlu.address) {
-            await processAddressCandidate(nlu.address);
-          } else if (nlu.intent === 'use_live_location') {
-            await handleUseLiveGPS();
-          } else if (nlu.intent === 'cancel') {
-            setModalMode('manual_picker');
-          } else {
-            // Treat spoken phrase directly as place name candidate
-            await processAddressCandidate(transcript);
-          }
-          return;
-        }
-
-        // turnType === 'initial'
-        const nlu = await LlmNluService.interpretLocationChoice(transcript, { language, alternatives: candidates, step: 'location_choice' });
-        console.log('[LocationPermissionModal Initial NLU Result]:', nlu);
-        setIsAnalyzing(false);
-
-        switch (nlu.intent) {
-          case 'use_live_location':
-            await handleUseLiveGPS();
-            break;
-
-          case 'change_location':
-            setModalMode('asking_place');
-            const askPlacePrompt = t('location.whichLocationQuestion');
-            lastSpokenPromptRef.current = askPlacePrompt;
-            setIsSpeakingPrompt(true);
-            speakText(askPlacePrompt, () => {
-              setIsSpeakingPrompt(false);
-              if (isComponentActiveRef.current) {
-                startListeningForTurn('ask_place', askPlacePrompt);
-              }
-            }, language);
-            break;
-
-          case 'give_address':
-            if (nlu.address) {
-              await processAddressCandidate(nlu.address);
-            } else {
-              await processAddressCandidate(transcript);
-            }
-            break;
-
-          case 'repeat':
-            hasRetriedSilenceRef.current = false;
-            triggerInitialVoicePrompt();
-            break;
-
-          case 'cancel':
-            setModalMode('manual_picker');
-            break;
-
-          case 'unclear':
-          default:
-            const hint = t('location.unclearHint');
-            setStatusMessage(hint);
-            speakText(hint, () => {
-              if (isComponentActiveRef.current) {
-                startListeningForTurn('initial', getQuestionText());
-              }
-            }, language);
-            break;
+          await processAddressCandidate(transcript);
         }
       },
-      onError: (errCode) => {
-        console.warn('[LocationPermissionModal Voice Error]:', errCode);
-        setIsListening(false);
-        setIsAnalyzing(false);
-        if (errCode === 'not-allowed' || errCode === 'permission-denied') {
-          setStatusMessage(language === 'ta' ? 'மைக் அணுகல் தடுக்கப்பட்டுள்ளது.' : language === 'hi' ? 'माइक्रोफ़ोन अवरुद्ध है।' : 'Microphone access blocked.');
-        }
+      onSilence: () => {
+        if (isActiveRef.current) { setIsListening(false); setModalMode('manual_picker'); }
       },
-      onEnd: () => {
-        setIsListening(false);
-      }
+      onError: () => { if (isActiveRef.current) setIsListening(false); },
+      onEnd: () => { if (isActiveRef.current) setIsListening(false); },
     });
-  }, [language, t, getQuestionText, speakText, pendingCandidatePlace, finalizeLocation, handleUseLiveGPS, processAddressCandidate]);
+  }, [language, pendingCandidatePlace, finalizeLocation, processAddressCandidate]);
 
-  /**
-   * Initial voice prompt sequence: TTS speaks first, then STT listens
-   */
-  const triggerInitialVoicePrompt = useCallback(() => {
-    SpeechController.releaseMic('location_permission');
-    SpeechController.cancelSpeech();
+  // ── Bootstrap when modal opens ────────────────────────────────────────────
+  useEffect(() => {
+    if (entryStep !== 'location_permission') return;
 
-    const question = getQuestionText();
-    lastSpokenPromptRef.current = question;
-    setIsSpeakingPrompt(true);
-    setIsListening(false);
+    isActiveRef.current = true;
+    hasHandledRef.current = false;
+    hasRetriedSilenceRef.current = false;
+    setModalMode('initial');
     setStatusMessage(null);
     setLiveTranscript('');
 
-    console.log('[LocationPermissionModal]: Speaking initial question:', question);
+    // Speak a SHORT one-sentence prompt, but start recognition immediately
+    // (don't wait for TTS to finish — recognition is warmed up in parallel)
+    const question = getQuestionText();
+    lastPromptRef.current = question;
+    setIsSpeakingPrompt(true);
 
     speakText(question, () => {
       setIsSpeakingPrompt(false);
-      if (isComponentActiveRef.current && entryStep === 'location_permission') {
-        startListeningForTurn('initial', question);
-      }
     }, language);
-  }, [getQuestionText, speakText, language, entryStep, startListeningForTurn]);
 
-  // Restart voice flow if modal opens or if user switches app language mid-flow
-  useEffect(() => {
-    isComponentActiveRef.current = true;
-    hasRetriedSilenceRef.current = false;
-
-    if (entryStep === 'location_permission') {
-      setModalMode('initial');
-      triggerInitialVoicePrompt();
-    }
+    // Start listening right away without waiting for TTS
+    setTimeout(() => {
+      if (isActiveRef.current && entryStep === 'location_permission') {
+        startInitialListening();
+      }
+    }, 0);
 
     return () => {
-      isComponentActiveRef.current = false;
+      isActiveRef.current = false;
       SpeechController.releaseMic('location_permission');
       SpeechController.cancelSpeech();
     };
+    // Only re-run on step or language change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entryStep, language]);
 
+  // ── Manual search ─────────────────────────────────────────────────────────
   const handleManualSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customSearchQuery.trim()) return;
-
     setIsSearchingGeocode(true);
     setStatusMessage(t('location.searchingNominatim'));
     const matches = await forwardGeocode(customSearchQuery);
     setIsSearchingGeocode(false);
     setSearchResults(matches);
-
-    if (matches.length === 0) {
-      setStatusMessage(t('location.noMatchFound'));
-    } else {
-      setStatusMessage(null);
-    }
+    setStatusMessage(matches.length === 0 ? t('location.noMatchFound') : null);
   };
 
   const handleSelectPreset = (p: typeof popularCities[0]) => {
-    const newLoc: UserLocation = {
+    finalizeLocation({
       latitude: p.lat,
       longitude: p.lng,
       addressName: `${p.area}, ${p.city}`,
@@ -432,13 +511,12 @@ export const LocationPermissionModal: React.FC = () => {
       area: p.area,
       isLiveGPS: false,
       isApproximate: false,
-      isManualOverride: true
-    };
-    finalizeLocation(newLoc);
+      isManualOverride: true,
+    });
   };
 
   const handleExplicitSkip = () => {
-    const unassignedLoc: UserLocation = {
+    finalizeLocation({
       latitude: 13.0827,
       longitude: 80.2707,
       addressName: 'Location not set',
@@ -446,9 +524,8 @@ export const LocationPermissionModal: React.FC = () => {
       area: 'Location not set',
       isLiveGPS: false,
       isApproximate: true,
-      isManualOverride: false
-    };
-    finalizeLocation(unassignedLoc);
+      isManualOverride: false,
+    });
   };
 
   if (entryStep !== 'location_permission') return null;
@@ -456,7 +533,7 @@ export const LocationPermissionModal: React.FC = () => {
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
       <div className="w-full max-w-lg bg-white text-[#1A1110] rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-[#FF5A1F] text-center space-y-5">
-        
+
         {/* Header Icon */}
         <div className="inline-flex p-4 bg-[#DAF0F7] rounded-full border-2 border-[#B2E2F0] text-[#FF5A1F]">
           <MapPin className="w-9 h-9 animate-bounce text-[#FF5A1F]" />
@@ -469,7 +546,7 @@ export const LocationPermissionModal: React.FC = () => {
           </span>
         </div>
 
-        {/* Dynamic Header Question / Mode Title */}
+        {/* Dynamic Header Question */}
         <div className="space-y-1">
           <h2 className="text-xl sm:text-2xl font-black tracking-tight text-[#1A1110]">
             {modalMode === 'confirming_place' && pendingCandidatePlace
@@ -513,32 +590,34 @@ export const LocationPermissionModal: React.FC = () => {
               {isSpeakingPrompt
                 ? (language === 'ta' ? '🗣️ AutoFeast பேசுகிறது...' : language === 'hi' ? '🗣️ बोल रहा है...' : '🗣️ AutoFeast Speaking...')
                 : isAnalyzing
-                ? '🤖 AI Understanding Location...'
+                ? '🤖 Understanding...'
                 : isListening
-                ? (language === 'ta' ? '🎙️ கேட்கிறது: "அனுமதி", "மாற்று" அல்லது ஓர் இடம்...' : language === 'hi' ? '🎙️ सुन रहा है: "हाँ", "बदलो" या स्थान बोलें...' : '🎙️ Listening: Say "Allow", "Change", or a place name...')
-                : (language === 'ta' ? 'குரல் உள்ளீடு தயார்' : 'Voice Assistant Ready')}
+                ? (language === 'ta' ? '🎙️ கேட்கிறது: "அனுமதி" அல்லது "மாற்று"...' : language === 'hi' ? '🎙️ सुन रहा है: "हाँ" या "बदलो"...' : '🎙️ Listening: say "Allow" or "Change"...')
+                : (language === 'ta' ? 'குரல் உள்ளீடு தயார்' : language === 'hi' ? 'आवाज़ सहायक तैयार' : 'Voice Assistant Ready')}
             </span>
           </div>
 
+          {/* Retry Mic — enabled whenever not actively listening */}
           <button
             type="button"
             id="retry-mic-btn"
             onClick={() => {
               hasRetriedSilenceRef.current = false;
+              SpeechController.cancelSpeech();
+              SpeechController.releaseMic('location_permission');
+              setIsSpeakingPrompt(false);
               if (modalMode === 'confirming_place' && pendingCandidatePlace) {
-                startListeningForTurn('confirm_place', lastSpokenPromptRef.current);
+                startListeningForTurn('confirm_place', lastPromptRef.current);
               } else if (modalMode === 'asking_place') {
-                startListeningForTurn('ask_place', lastSpokenPromptRef.current);
+                startListeningForTurn('ask_place', lastPromptRef.current);
               } else {
-                startListeningForTurn('initial', getQuestionText());
+                startInitialListening();
               }
             }}
-            disabled={isSpeakingPrompt}
+            disabled={isListening}
             className={`px-3 py-1.5 rounded-xl font-bold text-[11px] shadow-xs cursor-pointer flex items-center space-x-1 transition-all ${
-              isSpeakingPrompt
-                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                : isListening
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
+              isListening
+                ? 'bg-emerald-600 text-white animate-pulse cursor-not-allowed'
                 : 'bg-[#FF5A1F] hover:bg-[#E04812] text-white'
             }`}
           >
@@ -565,11 +644,7 @@ export const LocationPermissionModal: React.FC = () => {
             <button
               type="button"
               id="deny-change-location-btn"
-              onClick={() => {
-                SpeechController.releaseMic('location_permission');
-                SpeechController.cancelSpeech();
-                setModalMode('manual_picker');
-              }}
+              onClick={handleChangeAddress}
               className="w-full sm:w-1/2 py-3.5 px-4 bg-slate-100 hover:bg-slate-200 text-[#4A5568] font-black rounded-2xl text-xs sm:text-sm transition-all border border-slate-300 flex items-center justify-center space-x-1.5 cursor-pointer"
             >
               <XCircle className="w-4 h-4 text-amber-600" />
@@ -579,7 +654,7 @@ export const LocationPermissionModal: React.FC = () => {
             <button
               type="button"
               id="allow-live-gps-btn"
-              onClick={handleUseLiveGPS}
+              onClick={handleAllowLocation}
               className="w-full sm:w-1/2 py-3.5 px-6 bg-[#16A34A] hover:bg-[#15803D] text-white font-black rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#16A34A]/30 transition-transform active:scale-95 flex items-center justify-center space-x-2 cursor-pointer ring-4 ring-[#16A34A]/20"
             >
               <CheckCircle2 className="w-5 h-5 text-white" />
@@ -588,7 +663,7 @@ export const LocationPermissionModal: React.FC = () => {
           </div>
         )}
 
-        {/* 2. CONFIRMING PLACE MODE: Spoken or geocoded address confirmation */}
+        {/* 2. CONFIRMING PLACE MODE */}
         {modalMode === 'confirming_place' && pendingCandidatePlace && (
           <div className="space-y-4 pt-1">
             <div className="p-4 bg-orange-50 rounded-2xl border-2 border-orange-400 text-left">
@@ -596,23 +671,18 @@ export const LocationPermissionModal: React.FC = () => {
               <p className="text-sm font-black text-slate-900 mt-0.5">{pendingCandidatePlace.addressName}</p>
               <p className="text-xs text-slate-600 font-bold">{pendingCandidatePlace.area}, {pendingCandidatePlace.city}</p>
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setPendingCandidatePlace(null);
-                  setModalMode('manual_picker');
-                }}
+                onClick={() => { setPendingCandidatePlace(null); setModalMode('manual_picker'); }}
                 className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-xl text-xs border border-slate-300 cursor-pointer"
               >
                 {language === 'ta' ? 'இல்லை (வேறு இடம்)' : language === 'hi' ? 'नहीं (दूसरा पता)' : 'No, Pick Another'}
               </button>
-
               <button
                 type="button"
                 onClick={() => {
-                  const newLoc: UserLocation = {
+                  finalizeLocation({
                     latitude: pendingCandidatePlace.latitude,
                     longitude: pendingCandidatePlace.longitude,
                     addressName: pendingCandidatePlace.addressName,
@@ -620,9 +690,8 @@ export const LocationPermissionModal: React.FC = () => {
                     area: pendingCandidatePlace.area,
                     isLiveGPS: false,
                     isApproximate: false,
-                    isManualOverride: true
-                  };
-                  finalizeLocation(newLoc);
+                    isManualOverride: true,
+                  });
                 }}
                 className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs shadow-md cursor-pointer flex items-center justify-center space-x-1"
               >
@@ -633,7 +702,7 @@ export const LocationPermissionModal: React.FC = () => {
           </div>
         )}
 
-        {/* 3. ASKING PLACE MODE: User said change address, listening for place */}
+        {/* 3. ASKING PLACE MODE */}
         {modalMode === 'asking_place' && (
           <div className="space-y-3 pt-1">
             <button
@@ -646,14 +715,14 @@ export const LocationPermissionModal: React.FC = () => {
           </div>
         )}
 
-        {/* 4. MANUAL PICKER MODE: Non-dead-ending comprehensive picker */}
+        {/* 4. MANUAL PICKER MODE */}
         {modalMode === 'manual_picker' && (
           <div className="space-y-4 pt-1 text-left">
-            
+
             {/* Live GPS Re-check Button */}
             <button
               type="button"
-              onClick={handleUseLiveGPS}
+              onClick={handleAllowLocation}
               className="w-full p-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black rounded-xl shadow hover:from-emerald-700 hover:to-teal-700 flex items-center justify-center space-x-2 text-xs cursor-pointer"
             >
               <Navigation className="w-4 h-4 text-yellow-300 animate-spin" style={{ animationDuration: '6s' }} />
@@ -683,7 +752,7 @@ export const LocationPermissionModal: React.FC = () => {
               </div>
             </form>
 
-            {/* Search Results if any */}
+            {/* Search Results */}
             {searchResults.length > 0 && (
               <div className="space-y-1.5 max-h-36 overflow-y-auto">
                 <span className="text-[10px] font-black uppercase text-slate-500">Search Results:</span>
@@ -692,7 +761,7 @@ export const LocationPermissionModal: React.FC = () => {
                     key={idx}
                     type="button"
                     onClick={() => {
-                      const newLoc: UserLocation = {
+                      finalizeLocation({
                         latitude: res.latitude,
                         longitude: res.longitude,
                         addressName: res.addressName,
@@ -700,9 +769,8 @@ export const LocationPermissionModal: React.FC = () => {
                         area: res.area,
                         isLiveGPS: false,
                         isApproximate: false,
-                        isManualOverride: true
-                      };
-                      finalizeLocation(newLoc);
+                        isManualOverride: true,
+                      });
                     }}
                     className="w-full p-2 bg-slate-50 hover:bg-orange-50 border border-slate-200 hover:border-orange-400 rounded-lg text-left text-xs font-bold transition-colors cursor-pointer"
                   >
@@ -736,7 +804,7 @@ export const LocationPermissionModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Explicit Skip with "Location not set" clearly shown */}
+            {/* Skip */}
             <div className="pt-2 border-t border-slate-200 text-center">
               <button
                 type="button"
@@ -747,7 +815,6 @@ export const LocationPermissionModal: React.FC = () => {
                 {t('location.skipWithoutLocation')}
               </button>
             </div>
-
           </div>
         )}
 
