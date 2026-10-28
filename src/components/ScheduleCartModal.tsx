@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ShoppingBag, Trash2, Plus, Minus, X, AlertTriangle, ArrowRight, Utensils, Volume2, Zap, Clock, ShieldAlert } from 'lucide-react';
 import { ScheduleCheckoutModal, ScheduleCheckoutItem } from './ScheduleCheckoutModal';
