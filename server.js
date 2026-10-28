@@ -326,6 +326,11 @@ const UserSchema = new mongoose.Schema({
   nomineeLoginLockedUntil: { type: Date, default: null },
   nomineeFailedAttempts: { type: Number, default: 0 },
   nomineeLockedUntil: { type: Date, default: null },
+  nomineeOtpHash: { type: String, default: null },
+  nomineeOtpExpiresAt: { type: Date, default: null },
+  nomineeOtpAttempts: { type: Number, default: 0 },
+  nomineeResetTokenHash: { type: String, default: null },
+  nomineeResetTokenExpiresAt: { type: Date, default: null },
   restrictedFoodIds: { type: Array, default: [] },
   isFaceIdEnabled: { type: Boolean, default: false },
   webAuthnCredentials: { type: Array, default: [] },
@@ -1374,6 +1379,267 @@ app.post('/api/nominee/login', async (req, res) => {
   }
 });
 
+// 🚀 POST /api/nominee/forgot-password (Generate 6-digit OTP, SHA-256 hash, 10-min expiry, IP rate-limited)
+app.post('/api/nominee/forgot-password', async (req, res) => {
+  try {
+    const ipKey = `nominee_forgot_${req.ip || '127.0.0.1'}`;
+    const rateCheck = checkRateLimit(ipKey);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' });
+    }
+
+    const { nomineeEmail } = req.body || {};
+    const cleanEmail = typeof nomineeEmail === 'string' ? nomineeEmail.toLowerCase().trim() : '';
+
+    // Anti-enumeration: always return generic response whether or not email exists
+    const genericResponse = {
+      success: true,
+      message: 'If that email is registered as a nominee, a 6-digit OTP has been sent.'
+    };
+
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return res.json(genericResponse);
+    }
+
+    let user = null;
+    if (mongoose.connection.readyState === 1) {
+      user = await User.findOne({ nomineeEmail: cleanEmail });
+    } else {
+      user = fallbackUsersDb.find(u => (u.nomineeEmail || '').toLowerCase().trim() === cleanEmail);
+    }
+
+    if (!user) {
+      recordFailedLogin(ipKey);
+      return res.json(genericResponse);
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    const patch = {
+      nomineeOtpHash: otpHash,
+      nomineeOtpExpiresAt: expiresAt,
+      nomineeOtpAttempts: 0,
+      nomineeResetTokenHash: null,
+      nomineeResetTokenExpiresAt: null
+    };
+
+    if (mongoose.connection.readyState === 1) {
+      await User.findOneAndUpdate({ id: user.id }, { $set: patch });
+    } else {
+      Object.assign(user, patch);
+    }
+
+    // Email OTP
+    const subject = `[AutoFeast] Your Password Reset OTP`;
+    const text = `Hello ${user.nomineeName || 'Nominee'},\n\nYour 6-digit OTP to reset your AutoFeast nominee password is: ${otp}\n\nThis OTP is valid for 10 minutes (maximum 5 attempts). If you did not request this, please ignore this email.`;
+    const html = `<p>Hello <strong>${user.nomineeName || 'Nominee'}</strong>,</p><p>Your 6-digit OTP to reset your AutoFeast nominee password is:</p><h2 style="letter-spacing:4px;color:#f97316;">${otp}</h2><p>This code is valid for <strong>10 minutes</strong> (maximum 5 attempts).</p>`;
+
+    await sendEmail({
+      to: cleanEmail,
+      subject,
+      text,
+      html,
+      meta: process.env.NODE_ENV === 'test' ? { otp, nomineeEmail: cleanEmail } : undefined
+    });
+
+    if (user.nomineePhone && user.nomineePhone.trim()) {
+      console.log(`[SMS DISPATCH] Reset OTP ${otp} dispatched to nominee phone: ${user.nomineePhone}`);
+    }
+
+    return res.json(genericResponse);
+  } catch (err) {
+    console.error('[API /api/nominee/forgot-password error]:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// 🚀 POST /api/nominee/verify-otp (Max 5 attempts, returns short-lived reset token)
+app.post('/api/nominee/verify-otp', async (req, res) => {
+  try {
+    const clientIp = (req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : (req.ip || req.socket?.remoteAddress || '127.0.0.1'));
+    const ipKey = `nominee_verify_otp_${clientIp}`;
+    const rateCheck = checkRateLimit(ipKey);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' });
+    }
+
+    const { nomineeEmail, otp } = req.body || {};
+    const cleanEmail = typeof nomineeEmail === 'string' ? nomineeEmail.toLowerCase().trim() : '';
+    const cleanOtp = typeof otp === 'string' || typeof otp === 'number' ? String(otp).trim() : '';
+
+    if (!cleanEmail || !cleanOtp) {
+      return res.status(400).json({ success: false, error: 'Email and OTP are required.' });
+    }
+
+    let user = null;
+    if (mongoose.connection.readyState === 1) {
+      user = await User.findOne({ nomineeEmail: cleanEmail });
+    } else {
+      user = fallbackUsersDb.find(u => (u.nomineeEmail || '').toLowerCase().trim() === cleanEmail);
+    }
+
+    if (!user || !user.nomineeOtpHash) {
+      recordFailedLogin(ipKey);
+      return res.status(400).json({ success: false, error: 'Invalid or expired OTP.' });
+    }
+
+    const now = new Date();
+    if (user.nomineeOtpExpiresAt && now > new Date(user.nomineeOtpExpiresAt)) {
+      if (mongoose.connection.readyState === 1) {
+        await User.findOneAndUpdate({ id: user.id }, { $set: { nomineeOtpHash: null, nomineeOtpExpiresAt: null, nomineeOtpAttempts: 0 } });
+      } else {
+        user.nomineeOtpHash = null;
+        user.nomineeOtpExpiresAt = null;
+        user.nomineeOtpAttempts = 0;
+      }
+      return res.status(400).json({ success: false, error: 'OTP has expired.' });
+    }
+
+    const currentAttempts = user.nomineeOtpAttempts || 0;
+    if (currentAttempts >= 5) {
+      if (mongoose.connection.readyState === 1) {
+        await User.findOneAndUpdate({ id: user.id }, { $set: { nomineeOtpHash: null, nomineeOtpExpiresAt: null, nomineeOtpAttempts: 0 } });
+      } else {
+        user.nomineeOtpHash = null;
+        user.nomineeOtpExpiresAt = null;
+        user.nomineeOtpAttempts = 0;
+      }
+      return res.status(400).json({ success: false, error: 'Maximum attempts exceeded. Please request a new OTP.' });
+    }
+
+    const incomingHash = crypto.createHash('sha256').update(cleanOtp).digest('hex');
+    if (incomingHash !== user.nomineeOtpHash) {
+      const nextAttempts = currentAttempts + 1;
+      const shouldInvalidate = nextAttempts >= 5;
+      const updateData = {
+        nomineeOtpAttempts: nextAttempts,
+        ...(shouldInvalidate ? { nomineeOtpHash: null, nomineeOtpExpiresAt: null, nomineeOtpAttempts: 0 } : {})
+      };
+
+      if (mongoose.connection.readyState === 1) {
+        await User.findOneAndUpdate({ id: user.id }, { $set: updateData });
+      } else {
+        Object.assign(user, updateData);
+      }
+      recordFailedLogin(ipKey);
+
+      if (shouldInvalidate) {
+        return res.status(400).json({ success: false, error: 'Maximum attempts exceeded. Please request a new OTP.' });
+      }
+      const triesLeft = 5 - nextAttempts;
+      return res.status(400).json({ success: false, error: `Invalid OTP. ${triesLeft} attempt(s) remaining.` });
+    }
+
+    // Success! Reset IP rate limit, generate single-use reset token (15 mins) and invalidate OTP
+    resetLoginRateLimit(ipKey);
+    const rawResetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(rawResetToken).digest('hex');
+    const resetExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    const successPatch = {
+      nomineeOtpHash: null,
+      nomineeOtpExpiresAt: null,
+      nomineeOtpAttempts: 0,
+      nomineeResetTokenHash: resetTokenHash,
+      nomineeResetTokenExpiresAt: resetExpiresAt
+    };
+
+    if (mongoose.connection.readyState === 1) {
+      await User.findOneAndUpdate({ id: user.id }, { $set: successPatch });
+    } else {
+      Object.assign(user, successPatch);
+    }
+
+    return res.json({ success: true, resetToken: rawResetToken });
+  } catch (err) {
+    console.error('[API /api/nominee/verify-otp error]:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// 🚀 POST /api/nominee/reset-password (Validate match, strength, reject old password, bcrypt hash)
+app.post('/api/nominee/reset-password', async (req, res) => {
+  try {
+    const clientIp = (req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : (req.ip || req.socket?.remoteAddress || '127.0.0.1'));
+    const ipKey = `nominee_reset_pw_${clientIp}`;
+    const rateCheck = checkRateLimit(ipKey);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' });
+    }
+
+    const { nomineeEmail, resetToken, newPassword, confirmPassword } = req.body || {};
+    const cleanEmail = typeof nomineeEmail === 'string' ? nomineeEmail.toLowerCase().trim() : '';
+
+    if (!cleanEmail || !resetToken || !newPassword || !confirmPassword) {
+      return res.status(400).json({ success: false, error: 'All fields are required.' });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ success: false, error: 'Passwords do not match.' });
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters long.' });
+    }
+
+    let user = null;
+    if (mongoose.connection.readyState === 1) {
+      user = await User.findOne({ nomineeEmail: cleanEmail });
+    } else {
+      user = fallbackUsersDb.find(u => (u.nomineeEmail || '').toLowerCase().trim() === cleanEmail);
+    }
+
+    if (!user || !user.nomineeResetTokenHash) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired reset token.' });
+    }
+
+    const now = new Date();
+    if (user.nomineeResetTokenExpiresAt && now > new Date(user.nomineeResetTokenExpiresAt)) {
+      return res.status(400).json({ success: false, error: 'Reset token has expired.' });
+    }
+
+    const incomingTokenHash = crypto.createHash('sha256').update(String(resetToken).trim()).digest('hex');
+    if (incomingTokenHash !== user.nomineeResetTokenHash) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired reset token.' });
+    }
+
+    // Check old password rejection
+    if (user.nomineePasswordHash) {
+      const isSamePassword = await bcrypt.compare(newPassword, user.nomineePasswordHash).catch(() => false);
+      if (isSamePassword) {
+        return res.status(400).json({ success: false, error: 'New password cannot be the same as your old password.' });
+      }
+    }
+
+    // Hash new password with bcrypt
+    const newHash = await bcrypt.hash(newPassword, 10);
+    const savePatch = {
+      nomineePasswordHash: newHash,
+      nomineeResetTokenHash: null,
+      nomineeResetTokenExpiresAt: null,
+      nomineeOtpHash: null,
+      nomineeOtpExpiresAt: null,
+      nomineeOtpAttempts: 0
+    };
+
+    if (mongoose.connection.readyState === 1) {
+      await User.findOneAndUpdate({ id: user.id }, { $set: savePatch });
+    } else {
+      Object.assign(user, savePatch);
+    }
+
+    // Success! Clear IP rate limit and return
+    resetLoginRateLimit(ipKey);
+    return res.json({ success: true, message: 'Password has been reset successfully.' });
+  } catch (err) {
+    console.error('[API /api/nominee/reset-password error]:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
 app.post('/api/nominee/credentials', async (req, res) => {
   try {
     if (process.env.NODE_ENV === 'test' && req.headers['x-simulate-db-down'] === 'true') {
@@ -2162,13 +2428,42 @@ app.post('/api/auth/reset-pin', async (req, res) => {
 
 
 
-// 🚀 GET RESTRICTED ITEMS FOR USER (Requires Verified Auth Session)
+// Helper to resolve user ID from nominee token or user auth session
+function resolveNomineeOrUserSession(req) {
+  const authHeader = req.headers['authorization'];
+  const nomineeHeader = req.headers['x-nominee-token'];
+  let token = null;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  } else if (nomineeHeader) {
+    token = nomineeHeader.trim();
+  } else if (req.headers['x-session-token']) {
+    token = req.headers['x-session-token'].trim();
+  }
+
+  if (token) {
+    const decoded = verifyJwt(token);
+    if (decoded?.isNominee && decoded.nomineeUserId) {
+      return { userId: decoded.nomineeUserId, isNominee: true };
+    }
+    if (decoded?.userId) {
+      return { userId: decoded.userId, isNominee: false };
+    }
+  }
+
+  const userId = getAuthenticatedUserIdFromSession(req);
+  if (userId) return { userId, isNominee: false };
+  return null;
+}
+
+// 🚀 GET RESTRICTED ITEMS FOR USER (Requires Verified Nominee or Auth Session)
 app.get('/api/nominee/restricted-items', async (req, res) => {
   try {
-    const userId = getAuthenticatedUserIdFromSession(req);
-    if (!userId) {
+    const session = resolveNomineeOrUserSession(req);
+    if (!session || !session.userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized: Verified authentication session token or cookie required' });
     }
+    const userId = session.userId;
 
     if (mongoose.connection.readyState === 1) {
       const items = await RestrictedItem.find({ userId });
@@ -2183,13 +2478,14 @@ app.get('/api/nominee/restricted-items', async (req, res) => {
   }
 });
 
-// 🚀 POST ADD / TOGGLE RESTRICTED ITEM FOR USER (Requires Verified Auth Session)
+// 🚀 POST ADD / TOGGLE RESTRICTED ITEM FOR USER (Requires Verified Nominee or Auth Session)
 app.post('/api/nominee/restricted-items', async (req, res) => {
   try {
-    const userId = getAuthenticatedUserIdFromSession(req);
-    if (!userId) {
+    const session = resolveNomineeOrUserSession(req);
+    if (!session || !session.userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized: Verified authentication session token or cookie required' });
     }
+    const userId = session.userId;
 
     const { foodItemId, foodItemName, category } = req.body;
     if (!foodItemId) {
@@ -2239,6 +2535,36 @@ app.post('/api/nominee/restricted-items', async (req, res) => {
       const u = fallbackUsersDb.find(user => user.id === userId);
       if (u) u.restrictedFoodIds = restrictedFoodIds;
 
+      return res.json({ success: true, restrictedFoodIds, items: userItems });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🚀 DELETE RESTRICTED ITEM FOR USER (Explicit remove)
+app.delete('/api/nominee/restricted-items/:foodItemId', async (req, res) => {
+  try {
+    const session = resolveNomineeOrUserSession(req);
+    if (!session || !session.userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Verified authentication session token or cookie required' });
+    }
+    const userId = session.userId;
+    const { foodItemId } = req.params;
+
+    if (mongoose.connection.readyState === 1) {
+      await RestrictedItem.deleteOne({ userId, foodItemId });
+      const allItems = await RestrictedItem.find({ userId });
+      const restrictedFoodIds = allItems.map(i => i.foodItemId);
+      await User.findOneAndUpdate({ id: userId }, { restrictedFoodIds });
+      return res.json({ success: true, restrictedFoodIds, items: allItems });
+    } else {
+      const idx = fallbackRestrictedItemsDb.findIndex(i => i.userId === userId && i.foodItemId === foodItemId);
+      if (idx >= 0) fallbackRestrictedItemsDb.splice(idx, 1);
+      const userItems = fallbackRestrictedItemsDb.filter(i => i.userId === userId);
+      const restrictedFoodIds = userItems.map(i => i.foodItemId);
+      const u = fallbackUsersDb.find(user => user.id === userId);
+      if (u) u.restrictedFoodIds = restrictedFoodIds;
       return res.json({ success: true, restrictedFoodIds, items: userItems });
     }
   } catch (err) {
@@ -3082,4 +3408,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   });
 }
 
+export { resetLoginRateLimit, loginRateLimitMap };
 export default app;

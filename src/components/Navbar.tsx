@@ -278,9 +278,13 @@ export const Navbar: React.FC = () => {
             </button>
 
             {/* Nominee Control Portal */}
-            <button
-              type="button"
-              onClick={() => setIsNomineeModalOpen(true)}
+            <a
+              href="/nominee"
+              onClick={(e) => {
+                e.preventDefault();
+                window.history.pushState(null, '', '/nominee');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
               className={`header-btn flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-sm font-black leading-tight transition-all border cursor-pointer relative ${
                 currentTheme === 'dark'
                   ? 'bg-black hover:bg-slate-800 text-white border-amber-400'
@@ -296,7 +300,7 @@ export const Navbar: React.FC = () => {
                   {pendingNomineeApprovals.filter(r => r.status === 'pending').length}
                 </span>
               )}
-            </button>
+            </a>
 
             {/* Order History */}
             <button

@@ -3,18 +3,24 @@ import { CartItem } from '../types';
 const API_BASE = '/api/cart';
 
 export class CartService {
-  private static getHeaders(): Record<string, string> {
+  private static getHeaders(userId?: string): Record<string, string> {
     const token = localStorage.getItem('autofeast_jwt_token') || '';
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
     };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (userId) {
+      headers['x-user-id'] = userId;
+    }
+    return headers;
   }
 
   public static async fetchCart(userId: string): Promise<CartItem[]> {
     try {
-      const res = await fetch(`${API_BASE}`, {
-        headers: this.getHeaders()
+      const res = await fetch(`${API_BASE}?userId=${encodeURIComponent(userId)}`, {
+        headers: this.getHeaders(userId)
       });
       if (!res.ok) throw new Error('Failed to fetch server cart');
       const data = await res.json();
@@ -44,8 +50,8 @@ export class CartService {
     try {
       const res = await fetch(`${API_BASE}/add`, {
         method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ ...payload })
+        headers: this.getHeaders(userId),
+        body: JSON.stringify({ userId, ...payload })
       });
       if (!res.ok) throw new Error('Failed to add item to cart');
       const data = await res.json();

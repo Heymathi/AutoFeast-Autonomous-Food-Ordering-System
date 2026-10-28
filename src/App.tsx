@@ -24,6 +24,8 @@ import { ScheduleCheckoutModal } from './components/ScheduleCheckoutModal';
 import { ScheduleCartModal } from './components/ScheduleCartModal';
 import { SpeechDebugPanel } from './components/SpeechDebugPanel';
 import { NomineeSetupScreen } from './components/NomineeSetupScreen';
+import { NomineePortalPage } from './components/NomineePortalPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Volume2, Sparkles, Clock, ShoppingBag } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
@@ -55,8 +57,21 @@ const MainLayout: React.FC = () => {
     language
   } = useApp();
 
-  const isNomineeSetupRoute =
-    typeof window !== 'undefined' && window.location.pathname.startsWith('/nominee/setup');
+  const [currentPath, setCurrentPath] = useState(() =>
+    typeof window !== 'undefined' ? window.location.pathname : '/'
+  );
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  const isNomineeSetupRoute = currentPath.startsWith('/nominee/setup');
+  const isNomineeRoute = currentPath === '/nominee' || currentPath === '/nominee/';
+  const isNomineeFlow = isNomineeRoute || isNomineeSetupRoute;
 
   const currentTheme =
     accessibilitySettings.themeMode ||
@@ -84,7 +99,7 @@ const MainLayout: React.FC = () => {
       <AccessibilityToolbar />
 
       {/* Floating Schedule Cart Action Button */}
-      {scheduleCart.length > 0 && (
+      {scheduleCart.length > 0 && !isNomineeFlow && (
         <div className="fixed bottom-6 right-6 z-40 animate-bounce">
           <button
             onClick={() => setIsScheduleCartModalOpen(true)}
@@ -99,7 +114,13 @@ const MainLayout: React.FC = () => {
       {/* Main View Container (Dashboard visible after all entry steps complete) */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {isNomineeSetupRoute ? (
-          <NomineeSetupScreen />
+          <ErrorBoundary fallbackTitle="Nominee Setup Error">
+            <NomineeSetupScreen />
+          </ErrorBoundary>
+        ) : isNomineeRoute ? (
+          <ErrorBoundary fallbackTitle="Nominee Portal Error">
+            <NomineePortalPage />
+          </ErrorBoundary>
         ) : (
           <>
             {activeView === 'search' && <DynamicFoodSearch />}
@@ -111,18 +132,15 @@ const MainLayout: React.FC = () => {
         )}
       </main>
 
-      {/* EXACT 5-STEP ENTRY SEQUENCE MODALS */}
-      {/* Step 1: Login / Signup Modal */}
-      <AuthModal isOpen={entryStep === 'auth'} />
-
-      {/* Step 2: Language Preference Selection Modal */}
-      <LanguageSelectionModal />
-
-      {/* Step 3: Spoken & Visual Welcome Message Modal */}
-      <WelcomeMessageModal />
-
-      {/* Step 4: Spoken & Visual Location Permission Access Modal */}
-      <LocationPermissionModal />
+      {/* EXACT 5-STEP ENTRY SEQUENCE MODALS (Only for user app flow, suppressed for Nominee portal) */}
+      {!isNomineeFlow && (
+        <>
+          <AuthModal isOpen={entryStep === 'auth'} />
+          <LanguageSelectionModal />
+          <WelcomeMessageModal />
+          <LocationPermissionModal />
+        </>
+      )}
 
       {/* Interactive Voice Order Prompt Modal */}
       <VoiceOrderDialogModal
@@ -164,10 +182,12 @@ const MainLayout: React.FC = () => {
       <OrderPinConfirmationModal />
 
       {/* Nominee Control Portal & Restricted Food List Modal */}
-      <NomineeControlModal
-        isOpen={isNomineeModalOpen}
-        onClose={() => setIsNomineeModalOpen(false)}
-      />
+      <ErrorBoundary fallbackTitle="Nominee Modal Error">
+        <NomineeControlModal
+          isOpen={isNomineeModalOpen}
+          onClose={() => setIsNomineeModalOpen(false)}
+        />
+      </ErrorBoundary>
 
       {/* Persistent Schedule Cart Modal */}
       <ScheduleCartModal

@@ -19,6 +19,7 @@ import { parseSpokenTimeTo24Hr } from '../components/VoiceOrderDialogModal';
 import { FuzzyMatchEngine } from '../services/fuzzyMatchService';
 import { CartService } from '../services/cartService';
 import { CartVoiceService } from '../services/cartVoiceService';
+import { isFoodItemRestricted } from '../services/restrictedFoodMatcher';
 
 interface AppContextType {
   // App Entry Sequence State
@@ -760,6 +761,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const restricted = currentUser?.restrictedFoodIds || [];
     if (!restricted || restricted.length === 0) return false;
 
+    // Multilingual restricted food matcher (English, Tamil, Hindi scripts & transliterations)
+    if (isFoodItemRestricted(safeFoodId, restricted) || isFoodItemRestricted(safeFoodName, restricted)) {
+      console.log(`[NOMINEE RESTRICTED MATCH]: Multilingual match for "${safeFoodName}" / "${safeFoodId}"`);
+      return true;
+    }
+
     // 1. Direct ID or Name Match
     const directMatch = restricted.some(
       id => !id ? false : (id === safeFoodId || (safeFoodId && id.toLowerCase() === safeFoodId.toLowerCase()) || (safeFoodName && id.toLowerCase() === safeFoodName.toLowerCase()))
@@ -796,7 +803,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     orderType: 'instant' | 'scheduled',
     scheduleDetails?: { time: string; slotName: string; duration?: string; frequency?: string }
   ) => {
-    NomineeNotificationService.createApprovalRequest(
+    const newReq = NomineeNotificationService.createApprovalRequest(
       item,
       orderType,
       currentUser?.name || 'User',
@@ -809,11 +816,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setPendingNomineeApprovals(NomineeNotificationService.getPendingApprovals());
     setIsNomineeModalOpen(true);
 
-    const alertMsg = t('nominee.restrictedAlert');
-    showToast(alertMsg);
+    const waitingMsg = language === 'ta'
+      ? 'பரிந்துரைப்பாளர் ஒப்புதலுக்காக காத்திருக்கிறது'
+      : language === 'hi'
+      ? 'नामांकित व्यक्ति की मंजूरी की प्रतीक्षा है'
+      : 'Waiting for nominee approval';
+    showToast(waitingMsg, 'warning');
     setTimeout(() => {
-      speakText(alertMsg, undefined, language);
+      speakText(waitingMsg, undefined, language);
     }, 200);
+
+    // Poll approval status from backend server
+    if (newReq?.id) {
+      const pollTimer = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/nominee/approval-status/${newReq.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.status === 'approved') {
+              clearInterval(pollTimer);
+              approveNomineeRequest(newReq.id);
+            } else if (data.success && data.status === 'denied') {
+              clearInterval(pollTimer);
+              denyNomineeRequest(newReq.id);
+            }
+          }
+        } catch {
+          // ignore transient poll error
+        }
+      }, 2500);
+    }
   };
 
   const approveNomineeRequest = (requestId: string) => {
@@ -827,7 +859,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         : language === 'hi'
         ? `नामांकित व्यक्ति ने अनुमति दी! "${itemName}" ऑर्डर किया जा रहा है।`
         : `Approved by Nominee! Order for "${itemName}" is being placed now.`;
-      showToast(msg);
+      showToast(msg, 'success');
       speakText(msg, undefined, language);
 
       if (req.orderType === 'instant') {
@@ -857,16 +889,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const req = NomineeNotificationService.updateApprovalStatus(requestId, 'denied');
     setPendingNomineeApprovals(NomineeNotificationService.getPendingApprovals());
 
-    if (req) {
-      const itemName = req.foodItem?.nativeNames?.[language] || req.foodItem?.name || 'Food Item';
-      const msg = language === 'ta'
-        ? `குடும்ப உதவியாளர் "${itemName}" உணவை நிராகரித்தார்.`
-        : language === 'hi'
-        ? `नामांकित व्यक्ति ने "${itemName}" को अस्वीकृत कर दिया।`
-        : `Your family helper said no for "${itemName}".`;
-      showToast(msg);
-      speakText(msg, undefined, language);
-    }
+    const itemName = req?.foodItem?.nativeNames?.[language] || req?.foodItem?.name || 'Food Item';
+    const msg = language === 'ta'
+      ? 'உங்கள் பரிந்துரைப்பாளர் இந்த உணவை அனுமதிக்கவில்லை.'
+      : language === 'hi'
+      ? 'आपके नामांकित व्यक्ति ने इस वस्तु की अनुमति नहीं दी है।'
+      : 'Your nominee has not allowed this item.';
+    showToast(msg, 'error');
+    speakText(msg, undefined, language);
   };
 
   const updateUserProfile = (updates: Partial<UserProfile>) => {

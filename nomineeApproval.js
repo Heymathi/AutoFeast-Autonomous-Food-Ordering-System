@@ -39,7 +39,15 @@ export function registerNomineeApproval(deps) {
   async function decideApproval(filter, decision, via) {
     const status = decision === 'approve' ? 'approved' : 'denied';
     const now = new Date();
-    const patch = { status, decidedAt: now, decidedVia: via, emailTokenHash: null };
+    const patch = {
+      status,
+      decidedAt: now,
+      decidedVia: via,
+      emailTokenHash: null
+    };
+    if (filter.emailTokenHash) {
+      patch.previousTokenHash = filter.emailTokenHash;
+    }
     if (isMongo()) {
       // one atomic update: only a still-pending, non-expired request can change
       return ApprovalRequest.findOneAndUpdate(
@@ -229,19 +237,51 @@ button{background:#f97316;color:#fff;border:0;border-radius:10px;padding:14px 28
 
   app.post('/api/nominee/email-decision', express.urlencoded({ extended: false }), async (req, res) => {
     res.set('Cache-Control', 'no-store');
-    if (dbUnavailable()) return res.status(503).send(page('Unavailable', '<p>Please try again later.</p>'));
+    const acceptsJson = req.headers['accept']?.includes('application/json') || req.is('json');
+
+    if (dbUnavailable()) {
+      if (acceptsJson) return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
+      return res.status(503).send(page('Unavailable', '<p>Please try again later.</p>'));
+    }
     const key = `email_decision_${req.ip || '127.0.0.1'}`;
     if (!checkRateLimit(key).allowed) {
+      if (acceptsJson) return res.status(429).json({ success: false, error: 'Too many attempts. Please wait.' });
       return res.status(429).send(page('Too many attempts', '<p>Please wait and try again.</p>'));
     }
     const { token, decision } = req.body || {};
     if (typeof token !== 'string' || !['approve', 'deny'].includes(decision)) {
+      if (acceptsJson) return res.status(400).json({ success: false, error: 'Invalid request: token and valid decision required.' });
       return res.status(400).send(page('Invalid request', '<p>Invalid request.</p>'));
     }
-    const updated = await decideApproval({ emailTokenHash: hashToken(token) }, decision, 'email');
+
+    const tokenHash = hashToken(token);
+    const updated = await decideApproval({ emailTokenHash: tokenHash }, decision, 'email');
+
     if (!updated) {
       recordFailedLogin(key);
-      return res.status(400).send(page('Link expired', '<h2>Link not valid</h2><p>Already decided, or expired.</p>'));
+      const now = new Date();
+      // Check whether this token was already decided or is expired
+      const existing = isMongo()
+        ? await ApprovalRequest.findOne({ $or: [{ emailTokenHash: tokenHash }, { previousTokenHash: tokenHash }] })
+        : fallbackApprovalRequestsDb.find(a => a.emailTokenHash === tokenHash || a.previousTokenHash === tokenHash);
+
+      if (existing) {
+        if (existing.expiresAt && new Date(existing.expiresAt) <= now) {
+          if (acceptsJson) return res.status(400).json({ success: false, error: 'Approval request has expired.' });
+          return res.status(400).send(page('Link expired', '<h2>Link Expired</h2><p>This request has expired.</p>'));
+        }
+        if (existing.status !== 'pending') {
+          if (acceptsJson) return res.status(409).json({ success: false, error: 'Request already decided.' });
+          return res.status(400).send(page('Already decided', '<h2>Already Decided</h2><p>This request has already been decided.</p>'));
+        }
+      }
+
+      if (acceptsJson) return res.status(409).json({ success: false, error: 'Link invalid or already decided.' });
+      return res.status(400).send(page('Link not valid', '<h2>Link not valid</h2><p>Already decided, or expired.</p>'));
+    }
+
+    if (acceptsJson) {
+      return res.json({ success: true, status: updated.status });
     }
     res.send(page('Done', `<h2>${decision === 'approve' ? '✅ Approved' : '❌ Denied'}</h2><p>Thank you. You can close this page.</p>`));
   });
@@ -264,7 +304,8 @@ button{background:#f97316;color:#fff;border:0;border-radius:10px;padding:14px 28
     }
   });
 
-  app.post('/api/nominee/approvals/:id/decision', async (req, res) => {
+  // Website decision handler helper
+  async function handleWebsiteDecision(req, res, approvalId) {
     try {
       if (dbUnavailable()) return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
       const decoded = nomineeFromRequest(req);
@@ -284,26 +325,91 @@ button{background:#f97316;color:#fff;border:0;border-radius:10px;padding:14px 28
 
       // Differentiate between expired (400) and already decided (409)
       const existing = isMongo()
-        ? await ApprovalRequest.findOne({ id: req.params.id, userId: decoded.nomineeUserId })
-        : fallbackApprovalRequestsDb.find(a => a.id === req.params.id && a.userId === decoded.nomineeUserId);
+        ? await ApprovalRequest.findOne({ id: approvalId, userId: decoded.nomineeUserId })
+        : fallbackApprovalRequestsDb.find(a => a.id === approvalId && a.userId === decoded.nomineeUserId);
 
       if (!existing) {
         return res.status(409).json({ success: false, error: 'Request not found or already decided.' });
       }
-      if (existing.status !== 'pending') {
-        return res.status(409).json({ success: false, error: 'Request already decided.' });
-      }
       if (existing.expiresAt && new Date(existing.expiresAt) <= new Date()) {
         return res.status(400).json({ success: false, error: 'Approval request has expired.' });
       }
+      if (existing.status !== 'pending') {
+        return res.status(409).json({ success: false, error: 'Request already decided.' });
+      }
 
-      const updated = await decideApproval({ id: req.params.id, userId: decoded.nomineeUserId }, decision, 'website');
+      const updated = await decideApproval({ id: approvalId, userId: decoded.nomineeUserId }, decision, 'website');
       if (!updated) {
         return res.status(409).json({ success: false, error: 'Request already decided or expired.' });
       }
       return res.json({ success: true, status: updated.status });
     } catch (err) {
       console.error('[nominee decision]', err);
+      return res.status(500).json({ success: false, error: 'Server error.' });
+    }
+  }
+
+  app.post('/api/nominee/approvals/:id/decision', async (req, res) => {
+    return handleWebsiteDecision(req, res, req.params.id);
+  });
+
+  app.post('/api/nominee/decide', async (req, res) => {
+    const approvalId = req.body?.approvalId || req.body?.id || req.body?.requestId;
+    if (!approvalId) {
+      return res.status(400).json({ success: false, error: 'approvalId is required.' });
+    }
+    return handleWebsiteDecision(req, res, approvalId);
+  });
+
+  // User polling endpoint for approval status
+  app.get('/api/nominee/approval-status/:id', async (req, res) => {
+    try {
+      const id = req.params.id;
+      let record = null;
+      if (isMongo()) {
+        record = await ApprovalRequest.findOne({ id }).select('-emailTokenHash -previousTokenHash').lean();
+      } else {
+        record = fallbackApprovalRequestsDb.find(a => a.id === id);
+      }
+      if (!record) {
+        return res.status(404).json({ success: false, error: 'Approval request not found.' });
+      }
+      return res.json({
+        success: true,
+        id: record.id,
+        status: record.status,
+        orderType: record.orderType,
+        foodItemName: record.foodItem?.name || record.foodItemId,
+        decidedAt: record.decidedAt,
+        expiresAt: record.expiresAt
+      });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: 'Server error.' });
+    }
+  });
+
+  app.get('/api/approval-status/:id', async (req, res) => {
+    try {
+      const id = req.params.id;
+      let record = null;
+      if (isMongo()) {
+        record = await ApprovalRequest.findOne({ id }).select('-emailTokenHash -previousTokenHash').lean();
+      } else {
+        record = fallbackApprovalRequestsDb.find(a => a.id === id);
+      }
+      if (!record) {
+        return res.status(404).json({ success: false, error: 'Approval request not found.' });
+      }
+      return res.json({
+        success: true,
+        id: record.id,
+        status: record.status,
+        orderType: record.orderType,
+        foodItemName: record.foodItem?.name || record.foodItemId,
+        decidedAt: record.decidedAt,
+        expiresAt: record.expiresAt
+      });
+    } catch (err) {
       return res.status(500).json({ success: false, error: 'Server error.' });
     }
   });
@@ -317,3 +423,4 @@ button{background:#f97316;color:#fff;border:0;border-radius:10px;padding:14px 28
 
   return { dispatchApprovalEmail, decideApproval, verifyNomineePin };
 }
+
