@@ -64,7 +64,7 @@ describe('Vercel Serverless MongoDB & Mongoose Integration Tests', () => {
     }
   });
 
-  test('4. Connects with exact URI, serverSelectionTimeoutMS: 8000, bufferCommands: false', async () => {
+  test('4. Connects with exact URI, serverSelectionTimeoutMS: 5000, bufferCommands: false', async () => {
     const testUri = 'mongodb+srv://testUser:secretPassword123@cluster0.abc.mongodb.net/autofeast?retryWrites=true&w=majority';
     process.env.MONGODB_URI = testUri;
 
@@ -82,7 +82,7 @@ describe('Vercel Serverless MongoDB & Mongoose Integration Tests', () => {
         testUri,
         expect.objectContaining({
           bufferCommands: false,
-          serverSelectionTimeoutMS: 8000,
+          serverSelectionTimeoutMS: 5000,
         })
       );
     } finally {

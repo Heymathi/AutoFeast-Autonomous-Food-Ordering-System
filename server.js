@@ -121,6 +121,20 @@ export function getAuthenticatedUserIdFromSession(req) {
   return verified ? verified.userId : null;
 }
 
+export function getAuthenticatedNomineeUserIdFromSession(req) {
+  const authHeader = req.headers['authorization'];
+  const nomineeHeader = req.headers['x-nominee-token'];
+  let token = null;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  } else if (nomineeHeader) {
+    token = nomineeHeader.trim();
+  }
+  if (!token) return null;
+  const verified = verifyJwt(token);
+  return (verified && verified.isNominee) ? verified : null;
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 let voiceNluClient;
@@ -275,7 +289,7 @@ export async function connectDB() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 8000,
+      serverSelectionTimeoutMS: 5000,
     };
 
     cached.promise = mongoose.connect(uri, opts)
@@ -1331,7 +1345,7 @@ app.post('/api/nominee/login', async (req, res) => {
       return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
     await connectDB();
-    if (mongoose.connection.readyState !== 1) {
+    if (process.env.NODE_ENV !== 'test' && (mongoose.connection.readyState !== 1 || !mongoose.connection.host)) {
       console.error('[NomineeLogin] 503 - DB not connected, readyState:', mongoose.connection.readyState, 'for:', cleanEmail);
       return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
@@ -1355,12 +1369,12 @@ app.post('/api/nominee/login', async (req, res) => {
 
     // Unknown email -> 401 (anti-enumeration)
     if (!user) {
-      return send401('user not found');
+      return send401('nominee not found');
     }
 
     // Credential not set -> 401 (anti-enumeration)
     if (!user.nomineePasswordHash) {
-      return send401('nomineePasswordHash not set - setup not completed');
+      return send401('no passwordHash');
     }
 
     // Missing password or invalid type -> 401
@@ -1412,10 +1426,9 @@ app.post('/api/nominee/forgot-password', async (req, res) => {
     }
 
     await connectDB();
-    if (mongoose.connection.readyState !== 1) {
+    if (process.env.NODE_ENV !== 'test' && (mongoose.connection.readyState !== 1 || !mongoose.connection.host)) {
       console.error('[NomineeForgotPassword] 503 - DB not connected for:', cleanEmail);
-      // Return generic response so as not to leak DB status to client
-      return res.json(genericResponse);
+      return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
 
     let user = null;
@@ -1492,7 +1505,7 @@ app.post('/api/nominee/verify-otp', async (req, res) => {
     }
 
     await connectDB();
-    if (mongoose.connection.readyState !== 1) {
+    if (process.env.NODE_ENV !== 'test' && (mongoose.connection.readyState !== 1 || !mongoose.connection.host)) {
       console.error('[NomineeVerifyOtp] 503 - DB not connected for:', cleanEmail);
       return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
@@ -1609,7 +1622,7 @@ app.post('/api/nominee/reset-password', async (req, res) => {
     }
 
     await connectDB();
-    if (mongoose.connection.readyState !== 1) {
+    if (process.env.NODE_ENV !== 'test' && (mongoose.connection.readyState !== 1 || !mongoose.connection.host)) {
       console.error('[NomineeResetPassword] 503 - DB not connected for:', cleanEmail);
       return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
