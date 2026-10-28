@@ -420,17 +420,23 @@ export const NomineePortalPage: React.FC = () => {
         showToast(succMsg, 'success');
         setItemPins(prev => ({ ...prev, [approvalId]: '' }));
         await fetchApprovals(nomineeToken);
+      } else if (res.status === 404) {
+        setItemFeedback(prev => ({
+          ...prev,
+          [approvalId]: { type: 'error', message: 'Request not found' }
+        }));
+        await fetchApprovals(nomineeToken);
       } else if (res.status === 409) {
         setItemFeedback(prev => ({
           ...prev,
-          [approvalId]: { type: 'error', message: 'Request already decided' }
+          [approvalId]: { type: 'error', message: 'Already decided' }
         }));
         await fetchApprovals(nomineeToken);
       } else if (res.status === 400) {
         const isExpired = (data.error || '').toLowerCase().includes('expired');
         setItemFeedback(prev => ({
           ...prev,
-          [approvalId]: { type: 'error', message: isExpired ? 'Approval request has expired' : data.error || 'Wrong PIN' }
+          [approvalId]: { type: 'error', message: isExpired ? 'Request expired' : data.error || 'Wrong PIN' }
         }));
         await fetchApprovals(nomineeToken);
       } else if (res.status === 429) {
@@ -929,17 +935,17 @@ export const NomineePortalPage: React.FC = () => {
                                   inputMode="numeric"
                                   maxLength={4}
                                   placeholder="PIN"
-                                  value={itemPins[req.id] !== undefined ? itemPins[req.id] : ''}
+                                  value={itemPins[reqKey] !== undefined ? itemPins[reqKey] : ''}
                                   onChange={e => {
                                     const val = e.target.value.replace(/\D/g, '').slice(0, 4);
-                                    setItemPins(prev => ({ ...prev, [req.id]: val }));
+                                    setItemPins(prev => ({ ...prev, [reqKey]: val }));
                                   }}
                                   className="w-20 py-2 px-2 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-center text-xs font-black tracking-widest text-slate-900 dark:text-white focus:border-amber-500 focus:outline-none"
                                 />
                                 <button
                                   type="button"
-                                  disabled={Boolean(isDeciding[req.id])}
-                                  onClick={() => void handleDecision(req.id, 'deny')}
+                                  disabled={Boolean(isDeciding[reqKey])}
+                                  onClick={() => void handleDecision(reqKey, 'deny')}
                                   className="py-2 px-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-sm flex items-center gap-1 cursor-pointer"
                                 >
                                   <XCircle className="w-4 h-4" />
@@ -947,8 +953,8 @@ export const NomineePortalPage: React.FC = () => {
                                 </button>
                                 <button
                                   type="button"
-                                  disabled={Boolean(isDeciding[req.id])}
-                                  onClick={() => void handleDecision(req.id, 'approve')}
+                                  disabled={Boolean(isDeciding[reqKey])}
+                                  onClick={() => void handleDecision(reqKey, 'approve')}
                                   className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-sm flex items-center gap-1 cursor-pointer"
                                 >
                                   <CheckCircle2 className="w-4 h-4" />
@@ -968,21 +974,21 @@ export const NomineePortalPage: React.FC = () => {
                             )}
                           </div>
 
-                          {itemFeedback[req.id] && (
+                          {itemFeedback[reqKey] && (
                             <div
                               role="alert"
                               className={`p-2.5 rounded-xl text-xs font-black flex items-center gap-2 ${
-                                itemFeedback[req.id].type === 'success'
+                                itemFeedback[reqKey].type === 'success'
                                   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
                                   : 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300'
                               }`}
                             >
-                              {itemFeedback[req.id].type === 'success' ? (
+                              {itemFeedback[reqKey].type === 'success' ? (
                                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                               ) : (
                                 <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
                               )}
-                              <span>{itemFeedback[req.id].message}</span>
+                              <span>{itemFeedback[reqKey].message}</span>
                             </div>
                           )}
                         </div>

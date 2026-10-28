@@ -839,7 +839,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             } else if (data.success && data.status === 'denied') {
               clearInterval(pollTimer);
               denyNomineeRequest(newReq.id);
+            } else if (data.status === 'expired') {
+              clearInterval(pollTimer);
             }
+          } else if (res.status === 404 || res.status === 409 || res.status === 400 || res.status === 410) {
+            clearInterval(pollTimer);
           }
         } catch {
           // ignore transient poll error

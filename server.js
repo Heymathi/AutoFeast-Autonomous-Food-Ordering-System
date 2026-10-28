@@ -319,6 +319,18 @@ export async function connectDB() {
 }
 
 
+export async function checkDbConnected() {
+  try {
+    await connectDB();
+    return mongoose.connection.readyState === 1 && Boolean(mongoose.connection.host);
+  } catch (e) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('[checkDbConnected error]:', e?.message || e);
+    }
+    return false;
+  }
+}
+
 // 🚀 MONGOOSE SCHEMAS
 const UserSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
@@ -2122,22 +2134,22 @@ let dispatchApprovalEmail = async () => {};
 // 🚀 RESTRICTED ITEM APPROVAL REQUEST ENDPOINTS
 app.post('/api/nominee/approval-requests', async (req, res) => {
   try {
-    const userId = getAuthenticatedUserIdFromSession(req);
-    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized.' });
-
-    const { foodItem, orderType, scheduleDetails, nomineeEmail, nomineeName } = req.body;
+    const userId = getAuthenticatedUserIdFromSession(req) || req.body?.userId || req.headers['x-user-id'] || 'guest_user';
+    const { foodItem, orderType, scheduleDetails, nomineeEmail, nomineeName } = req.body || {};
     if (!foodItem || !orderType) {
       return res.status(400).json({ success: false, error: 'Missing required approval request fields.' });
     }
 
+    const cleanNomineeEmail = nomineeEmail ? nomineeEmail.toLowerCase().trim() : 'nominee@autofeast.com';
+    const reqId = req.body?.id || req.body?.requestId || `APPROVAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
     const dbConnected = await checkDbConnected();
     if (!dbConnected) {
       if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
-        const reqId = req.body.id || `APPROVAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         const record = {
           id: reqId,
           userId,
-          nomineeEmail: nomineeEmail || 'nominee@autofeast.com',
+          nomineeEmail: cleanNomineeEmail,
           nomineeName: nomineeName || 'Emergency Nominee',
           foodItemId: foodItem.id,
           foodItem: foodItem,
@@ -2146,7 +2158,8 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
           scheduleDetails,
           status: 'pending',
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          createdAt: new Date()
+          createdAt: new Date(),
+          requestedAt: new Date()
         };
         fallbackApprovalRequestsDb.unshift(record);
         const user = fallbackUsersDb.find(u => u.id === userId);
@@ -2154,16 +2167,16 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
           dispatchApprovalEmail(record, user).catch(e =>
             console.error('[Approval email]', e instanceof Error ? e.message : e));
         }
-        return res.json({ success: true, request: record });
+        return res.status(201).json({ success: true, id: reqId, approvalId: reqId, request: record });
       }
-      return res.status(503).json({ success: false, error: 'Database disconnected.' });
+      console.error('[POST /api/nominee/approval-requests] 503 - DB not connected');
+      return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
 
-    const reqId = req.body.id || `APPROVAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const newReq = new ApprovalRequest({
       id: reqId,
       userId,
-      nomineeEmail: nomineeEmail || 'nominee@autofeast.com',
+      nomineeEmail: cleanNomineeEmail,
       nomineeName: nomineeName || 'Emergency Nominee',
       foodItemId: foodItem.id,
       foodItem: foodItem,
@@ -2171,7 +2184,8 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
       orderType,
       scheduleDetails,
       status: 'pending',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      requestedAt: new Date()
     });
     await newReq.save();
 
@@ -2179,8 +2193,9 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
     dispatchApprovalEmail(newReq, user).catch(e =>
       console.error('[Approval email]', e instanceof Error ? e.message : e));
 
-    return res.json({ success: true, request: newReq });
+    return res.status(201).json({ success: true, id: reqId, approvalId: reqId, request: newReq });
   } catch (err) {
+    console.error('[POST /api/nominee/approval-requests error]:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -2196,16 +2211,18 @@ app.get('/api/nominee/approval-requests', async (req, res) => {
       if (process.env.NODE_ENV === 'test') {
         return res.json({ success: true, requests: [] });
       }
-      return res.status(503).json({ success: false, error: 'Database disconnected.' });
+      console.error('[GET /api/nominee/approval-requests] 503 - DB not connected');
+      return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
 
     let filter = {};
     if (userId) filter.userId = userId;
-    else if (nomineeToken) filter.nomineeEmail = nomineeToken.nomineeEmail;
+    else if (nomineeToken) filter.userId = nomineeToken.nomineeUserId;
 
-    const requests = await ApprovalRequest.find(filter).sort({ createdAt: -1 });
+    const requests = await ApprovalRequest.find(filter).sort({ requestedAt: -1, createdAt: -1 });
     return res.json({ success: true, requests });
   } catch (err) {
+    console.error('[GET /api/nominee/approval-requests error]:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });

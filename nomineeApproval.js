@@ -13,7 +13,8 @@ export function registerNomineeApproval(deps) {
     User, ApprovalRequest,
     fallbackUsersDb, fallbackApprovalRequestsDb,
     verifyJwt, sendEmail,
-    checkRateLimit, recordFailedLogin
+    checkRateLimit, recordFailedLogin,
+    connectDB
   } = deps;
 
   const isMongo = () => mongoose.connection.readyState === 1;
@@ -49,15 +50,17 @@ export function registerNomineeApproval(deps) {
       patch.previousTokenHash = filter.emailTokenHash;
     }
     if (isMongo()) {
-      // one atomic update: only a still-pending, non-expired request can change
       return ApprovalRequest.findOneAndUpdate(
         { ...filter, status: 'pending', expiresAt: { $gt: now } },
         { $set: patch },
         { new: true }
       );
     }
-    const rec = fallbackApprovalRequestsDb.find(a =>
-      Object.entries(filter).every(([k, v]) => a[k] === v) && a.status === 'pending' && a.expiresAt > now);
+    const rec = fallbackApprovalRequestsDb.find(a => {
+      if (filter.emailTokenHash && a.emailTokenHash !== filter.emailTokenHash) return false;
+      if (filter.id && a.id !== filter.id && a._id !== filter.id) return false;
+      return a.status === 'pending' && (!a.expiresAt || a.expiresAt > now);
+    });
     if (!rec) return null;
     Object.assign(rec, patch);
     return rec;
@@ -289,13 +292,17 @@ button{background:#f97316;color:#fff;border:0;border-radius:10px;padding:14px 28
   // ---------- (B) WEBSITE path: nominee JWT + nominee PIN in the same request ----------
   app.get('/api/nominee/approvals', async (req, res) => {
     try {
-      if (dbUnavailable()) return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
+      if (connectDB && !isMongo()) await connectDB();
+      if (dbUnavailable()) {
+        console.error('[GET /api/nominee/approvals] 503 - DB not connected');
+        return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
+      }
       const decoded = nomineeFromRequest(req);
       if (!decoded) return res.status(403).json({ success: false, error: 'Nominee authorization required.' });
       const now = new Date();
       const list = isMongo()
         ? await ApprovalRequest.find({ userId: decoded.nomineeUserId, status: 'pending', expiresAt: { $gt: now } })
-          .select('-emailTokenHash').sort({ requestedAt: -1 }).lean()
+          .select('-emailTokenHash').sort({ requestedAt: -1, createdAt: -1 }).lean()
         : fallbackApprovalRequestsDb.filter(a => a.userId === decoded.nomineeUserId && a.status === 'pending' && a.expiresAt > now);
       return res.json({ success: true, approvals: list });
     } catch (err) {
@@ -307,7 +314,11 @@ button{background:#f97316;color:#fff;border:0;border-radius:10px;padding:14px 28
   // Website decision handler helper
   async function handleWebsiteDecision(req, res, approvalId) {
     try {
-      if (dbUnavailable()) return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
+      if (connectDB && !isMongo()) await connectDB();
+      if (dbUnavailable()) {
+        console.error('[POST /api/nominee/approvals/:id/decision] 503 - DB not connected');
+        return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
+      }
       const decoded = nomineeFromRequest(req);
       if (!decoded) return res.status(403).json({ success: false, error: 'Nominee authorization required.' });
 
@@ -323,13 +334,17 @@ button{background:#f97316;color:#fff;border:0;border-radius:10px;padding:14px 28
       const check = await verifyNomineePin(user, pin);
       if (!check.ok) return res.status(check.status).json(check.body);
 
-      // Differentiate between expired (400) and already decided (409)
+      // Differentiate between 404 (not found), 400 (expired), and 409 (already decided)
+      const query = mongoose.Types.ObjectId.isValid(approvalId)
+        ? { $or: [{ id: approvalId }, { _id: approvalId }] }
+        : { id: approvalId };
+
       const existing = isMongo()
-        ? await ApprovalRequest.findOne({ id: approvalId, userId: decoded.nomineeUserId })
-        : fallbackApprovalRequestsDb.find(a => a.id === approvalId && a.userId === decoded.nomineeUserId);
+        ? await ApprovalRequest.findOne(query)
+        : fallbackApprovalRequestsDb.find(a => (a.id === approvalId || a._id === approvalId));
 
       if (!existing) {
-        return res.status(409).json({ success: false, error: 'Request not found or already decided.' });
+        return res.status(404).json({ success: false, error: 'Request not found.' });
       }
       if (existing.expiresAt && new Date(existing.expiresAt) <= new Date()) {
         return res.status(400).json({ success: false, error: 'Approval request has expired.' });
@@ -338,7 +353,7 @@ button{background:#f97316;color:#fff;border:0;border-radius:10px;padding:14px 28
         return res.status(409).json({ success: false, error: 'Request already decided.' });
       }
 
-      const updated = await decideApproval({ id: approvalId, userId: decoded.nomineeUserId }, decision, 'website');
+      const updated = await decideApproval(query, decision, 'website');
       if (!updated) {
         return res.status(409).json({ success: false, error: 'Request already decided or expired.' });
       }
@@ -364,52 +379,72 @@ button{background:#f97316;color:#fff;border:0;border-radius:10px;padding:14px 28
   // User polling endpoint for approval status
   app.get('/api/nominee/approval-status/:id', async (req, res) => {
     try {
+      if (connectDB && !isMongo()) await connectDB();
+      if (dbUnavailable()) {
+        console.error('[GET /api/nominee/approval-status/:id] 503 - DB not connected');
+        return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
+      }
       const id = req.params.id;
+      const query = mongoose.Types.ObjectId.isValid(id) ? { $or: [{ id }, { _id: id }] } : { id };
       let record = null;
       if (isMongo()) {
-        record = await ApprovalRequest.findOne({ id }).select('-emailTokenHash -previousTokenHash').lean();
+        record = await ApprovalRequest.findOne(query).select('-emailTokenHash -previousTokenHash').lean();
       } else {
-        record = fallbackApprovalRequestsDb.find(a => a.id === id);
+        record = fallbackApprovalRequestsDb.find(a => a.id === id || a._id === id);
       }
       if (!record) {
         return res.status(404).json({ success: false, error: 'Approval request not found.' });
       }
+      const isExpired = record.expiresAt && new Date(record.expiresAt) <= new Date();
+      const status = (record.status === 'pending' && isExpired) ? 'expired' : record.status;
+
       return res.json({
         success: true,
-        id: record.id,
-        status: record.status,
+        id: record.id || record._id,
+        status,
         orderType: record.orderType,
         foodItemName: record.foodItem?.name || record.foodItemId,
         decidedAt: record.decidedAt,
         expiresAt: record.expiresAt
       });
     } catch (err) {
+      console.error('[approval-status error]:', err);
       return res.status(500).json({ success: false, error: 'Server error.' });
     }
   });
 
   app.get('/api/approval-status/:id', async (req, res) => {
     try {
+      if (connectDB && !isMongo()) await connectDB();
+      if (dbUnavailable()) {
+        console.error('[GET /api/approval-status/:id] 503 - DB not connected');
+        return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
+      }
       const id = req.params.id;
+      const query = mongoose.Types.ObjectId.isValid(id) ? { $or: [{ id }, { _id: id }] } : { id };
       let record = null;
       if (isMongo()) {
-        record = await ApprovalRequest.findOne({ id }).select('-emailTokenHash -previousTokenHash').lean();
+        record = await ApprovalRequest.findOne(query).select('-emailTokenHash -previousTokenHash').lean();
       } else {
-        record = fallbackApprovalRequestsDb.find(a => a.id === id);
+        record = fallbackApprovalRequestsDb.find(a => a.id === id || a._id === id);
       }
       if (!record) {
         return res.status(404).json({ success: false, error: 'Approval request not found.' });
       }
+      const isExpired = record.expiresAt && new Date(record.expiresAt) <= new Date();
+      const status = (record.status === 'pending' && isExpired) ? 'expired' : record.status;
+
       return res.json({
         success: true,
-        id: record.id,
-        status: record.status,
+        id: record.id || record._id,
+        status,
         orderType: record.orderType,
         foodItemName: record.foodItem?.name || record.foodItemId,
         decidedAt: record.decidedAt,
         expiresAt: record.expiresAt
       });
     } catch (err) {
+      console.error('[approval-status error]:', err);
       return res.status(500).json({ success: false, error: 'Server error.' });
     }
   });
