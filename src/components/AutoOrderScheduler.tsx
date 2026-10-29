@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { AutoOrderSchedule, FoodItem, OrderStrategy, ScheduleDuration, ScheduleOverride } from '../types';

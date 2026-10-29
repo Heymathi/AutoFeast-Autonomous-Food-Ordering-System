@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import React, { useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { Sparkles, Heart, CheckCircle2, ArrowRight } from 'lucide-react';
