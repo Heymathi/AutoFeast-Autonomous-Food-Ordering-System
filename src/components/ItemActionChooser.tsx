@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
@@ -192,8 +191,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
     const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
     for (const item of items) {
       const isRestrictedByNominee = checkIsItemRestrictedByNominee(item.id, item.name);
-      const interception = SttMatcherService.checkRestrictedFoodInterception(item.name, restrictedCatalogItems);
-      if (isRestrictedByNominee || interception.isRestricted) {
+      if (isRestrictedByNominee) {
         // Block restricted order if nominee restricted item list could not be verified
         if (NomineeNotificationService.hasRestrictedFetchError()) {
           console.warn('[ItemActionChooser]: Restricted load error for restricted item:', item.name);
@@ -243,11 +241,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
   const primaryItem = items[0];
 
   const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
-  const isAnyRestricted = items.some(item => {
-    const isRestrictedByNominee = checkIsItemRestrictedByNominee(item.id, item.name);
-    const interception = SttMatcherService.checkRestrictedFoodInterception(item.name, restrictedCatalogItems);
-    return isRestrictedByNominee || interception.isRestricted;
-  });
+  const isAnyRestricted = items.some(item => checkIsItemRestrictedByNominee(item.id, item.name));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">

@@ -2139,6 +2139,10 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
     if (!foodItem || !orderType) {
       return res.status(400).json({ success: false, error: 'Missing required approval request fields.' });
     }
+    const rawFoodId = foodItem?.id || foodItem?.foodItemId;
+    if (!rawFoodId || typeof rawFoodId !== 'string' || !rawFoodId.trim() || rawFoodId === 'undefined' || rawFoodId === 'null') {
+      return res.status(400).json({ success: false, error: 'Invalid or missing foodItem ID.' });
+    }
 
     const cleanNomineeEmail = nomineeEmail ? nomineeEmail.toLowerCase().trim() : 'nominee@autofeast.com';
     const reqId = req.body?.id || req.body?.requestId || `APPROVAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -2823,10 +2827,18 @@ export async function processRestrictedOrderOrSchedule({ userId, rawItemsPayload
     return { status: 200, isRestricted: false, claimedApprovalIds: [] };
   }
 
+  const cleanRestrictedIds = userRestrictedIds
+    .filter(id => id && typeof id === 'string' && id.trim() !== '' && id !== 'undefined' && id !== 'null')
+    .map(id => id.trim().toLowerCase());
+
   // Identify restricted items in payload by exact itemId match
   const restrictedItemsInCart = rawItems.filter(item => {
-    const itemId = (item.foodItemId || item.id || item.itemId).trim().toLowerCase();
-    return userRestrictedIds.some(rId => rId.trim().toLowerCase() === itemId);
+    const rawId = item.foodItemId || item.id || item.itemId;
+    if (!rawId || typeof rawId !== 'string' || !rawId.trim() || rawId === 'undefined' || rawId === 'null') {
+      return false;
+    }
+    const itemId = rawId.trim().toLowerCase();
+    return cleanRestrictedIds.includes(itemId);
   });
 
   if (restrictedItemsInCart.length === 0) {

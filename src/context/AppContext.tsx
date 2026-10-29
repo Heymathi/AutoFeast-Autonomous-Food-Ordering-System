@@ -727,78 +727,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [language]);
 
   const checkIsItemRestrictedByNominee = (foodId: string, foodName: string): boolean => {
-    const safeFoodId = (foodId || '').trim().toLowerCase();
-    const safeFoodName = (foodName || '').trim().toLowerCase();
-    if (!safeFoodId && !safeFoodName) return false;
-
-    // Check if this food item is Pani Puri in ANY language (Tamil, Hindi, English, Tanglish, Golgappa, Puchka)
-    const isPaniPuriMatch = (id: string, name: string): boolean => {
-      const combined = `${id} ${name}`.toLowerCase();
-      return (
-        id === 'chaat-pani-puri' ||
-        id === 'pani-puri' ||
-        id.includes('pani-puri') ||
-        combined.includes('pani puri') ||
-        combined.includes('pani poori') ||
-        combined.includes('panipuri') ||
-        combined.includes('panipoori') ||
-        combined.includes('paani puri') ||
-        combined.includes('paani poori') ||
-        combined.includes('golgappa') ||
-        combined.includes('gol gappa') ||
-        combined.includes('puchka') ||
-        combined.includes('பானி பூரி') ||
-        combined.includes('பானிபூரி') ||
-        combined.includes('பானி') ||
-        combined.includes('पानी पूरी') ||
-        combined.includes('पानीपूरी') ||
-        combined.includes('गोलगप्पा')
-      );
-    };
-
-    if (isPaniPuriMatch(safeFoodId, safeFoodName)) {
-      console.log(`[NOMINEE RESTRICTED INTERCEPTION]: Pani Puri detected ("${safeFoodName}" / "${safeFoodId}") -> Interception Required in all languages!`);
-      return true;
-    }
+    // 5. Make sure an undefined/empty foodItemId can never match anything in the restricted list
+    if (!foodId && !foodName) return false;
 
     const restricted = currentUser?.restrictedFoodIds || [];
     if (!restricted || restricted.length === 0) return false;
 
-    // Multilingual restricted food matcher (English, Tamil, Hindi scripts & transliterations)
-    if (isFoodItemRestricted(safeFoodId, restricted) || isFoodItemRestricted(safeFoodName, restricted)) {
-      console.log(`[NOMINEE RESTRICTED MATCH]: Multilingual match for "${safeFoodName}" / "${safeFoodId}"`);
-      return true;
-    }
-
-    // 1. Direct ID or Name Match
-    const directMatch = restricted.some(
-      id => !id ? false : (id === safeFoodId || (safeFoodId && id.toLowerCase() === safeFoodId.toLowerCase()) || (safeFoodName && id.toLowerCase() === safeFoodName.toLowerCase()))
-    );
-    if (directMatch) return true;
-
-    // 2. Unified Fuzzy Match Engine Check (Strict Threshold >= 0.40 to catch misspellings like 'panipuri')
-    const query = safeFoodName || safeFoodId;
-    const fuzzyMatch = FuzzyMatchEngine.matchCatalogFoodItem(query, INDIAN_FOOD_CATALOG, true);
-    if (fuzzyMatch.item && (fuzzyMatch.confidence === 'high' || fuzzyMatch.confidence === 'medium' || fuzzyMatch.score >= 0.40)) {
-      if (restricted.includes(fuzzyMatch.item.id) || isPaniPuriMatch(fuzzyMatch.item.id, fuzzyMatch.item.name)) {
-        console.log(`[NOMINEE RESTRICTED INTERCEPTION]: Fuzzy match trigger -> query "${query}" matched restricted ID "${fuzzyMatch.item.id}" (score: ${fuzzyMatch.score})`);
-        return true;
-      }
-    }
-
-    // 3. Direct Fuzzy Match across each restricted item (Threshold >= 0.40)
-    for (const rId of restricted) {
-      const restrictedCatalogItem = INDIAN_FOOD_CATALOG.find(f => f.id === rId);
-      if (restrictedCatalogItem) {
-        const itemFuzzy = FuzzyMatchEngine.matchCatalogFoodItem(query, [restrictedCatalogItem], true);
-        if (itemFuzzy.score >= 0.40) {
-          console.log(`[NOMINEE RESTRICTED INTERCEPTION]: Direct fuzzy match trigger -> query "${query}" matched restricted item "${restrictedCatalogItem.name}" (score: ${itemFuzzy.score})`);
-          return true;
-        }
-      }
-    }
-
-    return false;
+    return isFoodItemRestricted(foodId || foodName, restricted, foodName);
   };
 
   const handleNomineeRestrictedInterception = (

@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { ParsedOrderBill } from '../services/nlpParserService';
@@ -7,7 +6,6 @@ import { debounceHandler } from '../utils/debounce';
 import { ChooserVoiceService } from '../services/chooserVoiceService';
 import { SttMatcherService } from '../services/sttMatcherService';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
-import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { FileText, CheckCircle, XCircle, Mic, MapPin, Clock, X, Loader2 } from 'lucide-react';
 
 interface PreOrderBillModalProps {
@@ -169,7 +167,6 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
     // FAIL-CLOSED: if the restricted list could not be fetched, surface a
     // localized toast and do NOT proceed to PIN — let the user retry.
     if (NomineeNotificationService.hasRestrictedFetchError()) {
-      console.log('[DEBUG Test 7]: NomineeNotificationService.hasRestrictedFetchError returned TRUE!');
       showToast(t('nominee.restrictedLoadError'), 'warning');
       // Modal stays open so the user can press the button again after network recovery.
       return;
@@ -185,13 +182,11 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
       showToast(t('nominee.restrictedLoadError'), 'warning');
     }, 5000);
     try {
-      const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id) || i.id === 'chaat-pani-puri');
       for (const item of bill.items) {
         if (!item || !item.foodItem) continue;
         const isRestrictedByNominee = checkIsItemRestrictedByNominee(item.foodItem.id, item.foodItem.name);
-        const interception = SttMatcherService.checkRestrictedFoodInterception(item.foodItem.name, restrictedCatalogItems);
-        if (isRestrictedByNominee || interception.isRestricted) {
-          console.log('[DEBUG Test 7]: Restricted item blocked:', item.foodItem.name, 'isRestrictedByNominee:', isRestrictedByNominee, 'interception:', interception);
+        if (isRestrictedByNominee) {
+          console.log('[PreOrderBillModal]: Nominee-restricted item intercepted:', item.foodItem.name, '(id:', item.foodItem.id + ')');
           clearTimeout(checkTimer);
           setIsChecking(false);
           handleNomineeRestrictedInterception(item.foodItem, 'instant');
@@ -202,7 +197,6 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
 
       clearTimeout(checkTimer);
       setIsChecking(false);
-      console.log('[DEBUG Test 7]: Calling onConfirmProceedToPin with bill!');
       onConfirmProceedToPin(bill);
     } catch (err) {
       clearTimeout(checkTimer);

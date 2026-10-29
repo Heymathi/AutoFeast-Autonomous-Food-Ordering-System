@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem, AutoOrderSchedule, ScheduleDuration, OrderStrategy } from '../types';
@@ -390,7 +389,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
         const foodId = item.foodItem.id || '';
         const foodName = item.foodItem.name || '';
         const interception = SttMatcherService.checkRestrictedFoodInterception(foodName, restrictedCatalogItems);
-        if (checkIsItemRestrictedByNominee(foodId, foodName) || interception.isRestricted) {
+        if (checkIsItemRestrictedByNominee(foodId, foodName)) {
           handleNomineeRestrictedInterception(item.foodItem, 'scheduled', {
             time: timeInput,
             slotName: slotTitle,

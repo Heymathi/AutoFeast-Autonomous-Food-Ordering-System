@@ -1,6 +1,7 @@
 import { Language, FoodItem } from '../types';
 import { CrossScriptPhoneticMatcher } from './crossScriptPhoneticMatcher';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
+import { resolveRestrictedFoodInterception } from './restrictedFoodMatcher';
 import { FuzzyMatchEngine } from './fuzzyMatchService';
 import { FUZZY_CONFIG, CANONICAL_FOOD_ALIASES } from '../config/fuzzyConfig';
 import { UserAliasService } from './userAliasService';
@@ -517,75 +518,18 @@ export class SttMatcherService {
     query: string,
     restrictedCatalogItems: FoodItem[]
   ): { isRestricted: boolean; matchedItem: FoodItem | null; score: number } {
-    if (!query) return { isRestricted: false, matchedItem: null, score: 0 };
-    const { cleanPhrase } = this.extractQuantityAndCleanPhrase(query);
-
-    const qLower = cleanPhrase.toLowerCase().trim();
-    const isPaniPuri =
-      qLower === 'pani puri' ||
-      qLower === 'pani poori' ||
-      qLower === 'panipuri' ||
-      qLower === 'panipoori' ||
-      qLower === 'paani puri' ||
-      qLower === 'paani poori' ||
-      qLower === 'golgappa' ||
-      qLower === 'gol gappa' ||
-      qLower === 'puchka' ||
-      qLower === 'பானி பூரி' ||
-      qLower === 'பானிபூரி' ||
-      qLower === 'பானி' ||
-      qLower === 'पानी पूरी' ||
-      qLower === 'पानीपूरी' ||
-      qLower === 'गोलगप्पा' ||
-      qLower.includes('pani puri') ||
-      qLower.includes('pani poori') ||
-      qLower.includes('panipuri') ||
-      qLower.includes('panipoori') ||
-      qLower.includes('paani puri') ||
-      qLower.includes('paani poori') ||
-      qLower.includes('golgappa') ||
-      qLower.includes('puchka') ||
-      qLower.includes('பானி பூரி') ||
-      qLower.includes('पानी पूरी');
-
-    const paniPuriItem = INDIAN_FOOD_CATALOG.find(i => i.id === 'chaat-pani-puri') || INDIAN_FOOD_CATALOG[17];
-    if (isPaniPuri && paniPuriItem) {
-      return { isRestricted: true, matchedItem: paniPuriItem, score: 1.0 };
-    }
-
-    if (!restrictedCatalogItems || restrictedCatalogItems.length === 0) {
+    if (!query || !restrictedCatalogItems || restrictedCatalogItems.length === 0) {
       return { isRestricted: false, matchedItem: null, score: 0 };
     }
 
-    let maxScore = 0;
-    let matchedItem: FoodItem | null = null;
-
-    for (const item of restrictedCatalogItems) {
-      const namesToCompare = [
-        item.name,
-        item.id,
-        item.nativeNames?.en || '',
-        item.nativeNames?.ta || '',
-        item.nativeNames?.hi || ''
-      ].filter(Boolean);
-
-      const aliasEntry = CANONICAL_FOOD_ALIASES.find(a => a.id === item.id || item.name.toLowerCase().includes(a.canonicalName.toLowerCase()));
-      if (aliasEntry) namesToCompare.push(...aliasEntry.aliases);
-
-      for (const targetName of namesToCompare) {
-        const score = FuzzyMatchEngine.calculateMatchScore(cleanPhrase, targetName);
-        if (score > maxScore) {
-          maxScore = score;
-          matchedItem = item;
-        }
-      }
-    }
-
-    if (maxScore >= FUZZY_CONFIG.restrictedThreshold && matchedItem) {
-      return { isRestricted: true, matchedItem, score: maxScore };
-    }
-
-    return { isRestricted: false, matchedItem: null, score: maxScore };
+    const { cleanPhrase } = this.extractQuantityAndCleanPhrase(query);
+    const restrictedIds = restrictedCatalogItems.map(i => i.id);
+    const res = resolveRestrictedFoodInterception(cleanPhrase || query, restrictedIds);
+    return {
+      isRestricted: res.isRestricted,
+      matchedItem: res.matchedItem as FoodItem | null,
+      score: res.score
+    };
   }
 
   public static matchCatalogItem(
