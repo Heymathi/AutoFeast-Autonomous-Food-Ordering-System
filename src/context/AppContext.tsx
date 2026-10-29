@@ -1,4 +1,3 @@
-import { useContext, useEffect, useRef, useState } from 'react';
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Language, AccessibilitySettings, AppView, AutoOrderSchedule, ScheduleOverride, ExecutedOrder, WalletTransaction, UserLocation, LiveOrderTracking, FoodItem, OrderStrategy, LinkedBank, PendingPinVerification, EntryStep, PendingNomineeApproval, ToastItem, ScheduleCartItem, CartItem } from '../types';
 import { TRANSLATIONS } from '../data/translations';
@@ -6,7 +5,7 @@ import { DynamicFoodSearchEngine, SearchResult } from '../services/dynamicFoodSe
 import { WalletService } from '../services/walletService';
 import { AutoOrderBackgroundService, calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
 import { PriceComparisonService } from '../services/priceComparisonService';
-import { fetchLiveGPSLocation, calculateHaversineDistance } from '../services/locationService';
+import { fetchLiveGPSLocation, calculateHaversineDistance, formatLocationPlace } from '../services/locationService';
 import { SpeechService } from '../services/speechService';
 import { SpeechController } from '../services/speechController';
 import { AuthService, UserProfile } from '../services/authService';
@@ -527,13 +526,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setUserLocation(loc);
 
       if (!isSilent) {
-        const areaStr = loc.area || (language === 'ta' ? 'தற்போதைய பகுதி' : language === 'hi' ? 'वर्तमान क्षेत्र' : 'Current Area');
-        const cityStr = loc.city || (language === 'ta' ? 'தற்போதைய நகரம்' : language === 'hi' ? 'वर्तमान शहर' : 'Current City');
+        const placeStr = formatLocationPlace(loc, language);
+        const areaStr = loc.area?.trim() || '';
+        const cityStr = (loc.city || '').replace(/\b(district|taluk)\b/gi, '').trim();
         const i18nKey = loc.isApproximate ? 'toast.gpsApproximate' : 'toast.gpsHighAccuracy';
-        const i18nParams = { area: areaStr, city: cityStr };
         const rawT = t(i18nKey);
-        const placeMsg = rawT.replace(/\{area\}/g, areaStr).replace(/\{city\}/g, cityStr);
+        const placeMsg = (areaStr && cityStr && areaStr.toLowerCase() !== cityStr.toLowerCase())
+          ? rawT.replace(/\{area\}/g, areaStr).replace(/\{city\}/g, cityStr)
+          : rawT.replace(/\{area\}[,\s]*\{city\}/g, placeStr).replace(/\{area\}/g, placeStr).replace(/\{city\}/g, placeStr);
 
+        const i18nParams = { area: areaStr || placeStr, city: cityStr || placeStr };
         showToast(placeMsg, 'info', 5000, 'gps_location_toast', i18nKey, i18nParams);
         speakText(placeMsg, undefined, language);
       }
@@ -1317,11 +1319,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               }
             } catch (e) {}
           }
-          const fallbackArea = language === 'ta' ? 'தற்போதைய பகுதி' : language === 'hi' ? 'वर्तमान क्षेत्र' : 'Current Area';
-          const fallbackCity = language === 'ta' ? 'தற்போதைய நகரம்' : language === 'hi' ? 'वर्तमान शहर' : 'Current City';
-          updatedMsg = updatedMsg
-            .replace(/\{area\}/g, resolvedArea || fallbackArea)
-            .replace(/\{city\}/g, resolvedCity || fallbackCity);
+          const place = formatLocationPlace({ area: resolvedArea, city: resolvedCity }, language);
+          if (resolvedArea && resolvedCity && resolvedArea.toLowerCase() !== resolvedCity.toLowerCase()) {
+            updatedMsg = updatedMsg
+              .replace(/\{area\}/g, resolvedArea)
+              .replace(/\{city\}/g, resolvedCity);
+          } else {
+            updatedMsg = updatedMsg
+              .replace(/\{area\}[,\s]*\{city\}/g, place)
+              .replace(/\{area\}/g, place)
+              .replace(/\{city\}/g, place);
+          }
         }
 
         return { ...toast, message: updatedMsg };
@@ -1376,17 +1384,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch (e) {}
     }
-    const fallbackArea = activeLang === 'ta' ? 'தற்போதைய பகுதி' : activeLang === 'hi' ? 'वर्तमान क्षेत्र' : 'Current Area';
-    const fallbackCity = activeLang === 'ta' ? 'தற்போதைய நகரம்' : activeLang === 'hi' ? 'वर्तमान शहर' : 'Current City';
-
     if (displayMsg.includes('{area}') || displayMsg.includes('{city}')) {
-      displayMsg = displayMsg
-        .replace(/\{area\}/g, resolvedArea || fallbackArea)
-        .replace(/\{city\}/g, resolvedCity || fallbackCity);
+      const place = formatLocationPlace({ area: resolvedArea, city: resolvedCity }, activeLang);
+      if (resolvedArea && resolvedCity && resolvedArea.toLowerCase() !== resolvedCity.toLowerCase()) {
+        displayMsg = displayMsg
+          .replace(/\{area\}/g, resolvedArea)
+          .replace(/\{city\}/g, resolvedCity);
+      } else {
+        displayMsg = displayMsg
+          .replace(/\{area\}[,\s]*\{city\}/g, place)
+          .replace(/\{area\}/g, place)
+          .replace(/\{city\}/g, place);
+      }
     }
 
     const finalI18nParams = (displayMsg.includes(resolvedArea) || displayMsg.includes(resolvedCity) || i18nKey?.includes('gps'))
-      ? { ...i18nParams, area: resolvedArea || fallbackArea, city: resolvedCity || fallbackCity }
+      ? { ...i18nParams, area: resolvedArea, city: resolvedCity }
       : i18nParams;
 
     setToastMessage(displayMsg);

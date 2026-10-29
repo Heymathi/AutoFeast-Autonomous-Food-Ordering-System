@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { SpeechController } from '../services/speechController';
 import { LlmNluService } from '../services/llmNluService';
-import { forwardGeocode, GeocodedPlace } from '../services/locationService';
+import { forwardGeocode, GeocodedPlace, formatLocationSetToast, reverseGeocode } from '../services/locationService';
 import { UserLocation } from '../types';
 import { MapPin, Navigation, CheckCircle2, XCircle, Mic, Volume2, Sparkles, Search, Building2, AlertTriangle, ArrowRight } from 'lucide-react';
 
@@ -115,10 +114,10 @@ export const LocationPermissionModal: React.FC = () => {
     if (newLoc.city && newLoc.city !== 'Not set') setSelectedLocation(newLoc.city);
     const toastMsg = newLoc.city === 'Not set'
       ? t('location.notSet')
-      : t('location.locationSet').replace('{area}', newLoc.area).replace('{city}', newLoc.city);
+      : formatLocationSetToast(newLoc, t, language);
     showToast(toastMsg);
     setEntryStep('dashboard');
-  }, [setManualUserLocation, setSelectedLocation, t, showToast, setEntryStep]);
+  }, [setManualUserLocation, setSelectedLocation, t, showToast, setEntryStep, language]);
 
   // ── HANDLE ALLOW (live GPS) ───────────────────────────────────────────────
   // This is the single shared handler for the button AND voice intent.
@@ -176,43 +175,34 @@ export const LocationPermissionModal: React.FC = () => {
       return;
     }
 
-    // Fast GPS request: low accuracy, cached position OK (up to 5 min old)
+    // Request GPS position and resolve geocoding before displaying location toast
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         if (!isActiveRef.current) return;
         const { latitude, longitude, accuracy } = position.coords;
 
-        // Immediately move forward with coordinates — don't block on geocoding
-        const fastLoc: UserLocation = {
+        let geocoded: { addressName: string; city: string; area: string } | null = null;
+        try {
+          geocoded = await reverseGeocode(latitude, longitude);
+        } catch (err) {
+          console.warn('[LocationPermissionModal] reverseGeocode error:', err);
+        }
+
+        const isLowAccuracy = accuracy > 1000;
+        const resolvedLoc: UserLocation = {
           latitude,
           longitude,
-          addressName: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-          city: language === 'ta' ? 'தற்போதைய நகரம்' : language === 'hi' ? 'वर्तमान शहर' : 'Current City',
-          area: language === 'ta' ? 'தற்போதைய பகுதி' : language === 'hi' ? 'वर्तमान क्षेत्र' : 'Current Area',
-          isLiveGPS: accuracy <= 1000,
-          isApproximate: accuracy > 1000,
+          addressName: geocoded?.addressName || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+          city: geocoded?.city || '',
+          area: geocoded?.area || '',
+          isLiveGPS: !isLowAccuracy,
+          isApproximate: isLowAccuracy,
           accuracyMeters: accuracy,
           isManualOverride: false,
         };
 
         setIsAnalyzing(false);
-        finalizeLocation(fastLoc);
-
-        // Geocode in background and update after navigation
-        try {
-          const { reverseGeocode } = await import('../services/locationService');
-          const geocoded = await reverseGeocode(latitude, longitude);
-          const resolvedLoc: UserLocation = {
-            ...fastLoc,
-            addressName: geocoded.addressName,
-            city: geocoded.city || fastLoc.city,
-            area: geocoded.area || fastLoc.area,
-          };
-          setManualUserLocation(resolvedLoc);
-          if (resolvedLoc.city && resolvedLoc.city !== 'Not set') {
-            setSelectedLocation(resolvedLoc.city);
-          }
-        } catch (_) { /* non-critical: fast location already applied */ }
+        finalizeLocation(resolvedLoc);
       },
       async (error) => {
         if (!isActiveRef.current) return;

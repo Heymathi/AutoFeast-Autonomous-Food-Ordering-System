@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { formatLocationPlace } from '../services/locationService';
 import { ToastItem } from '../types';
 import { CheckCircle2, AlertCircle, AlertTriangle, Volume2, Sparkles, X } from 'lucide-react';
 
@@ -71,12 +71,17 @@ const ToastCard: React.FC<ToastCardProps> = ({ toast, onRemove }) => {
       } catch (e) {}
     }
 
-    const fallbackArea = language === 'ta' ? 'தற்போதைய பகுதி' : language === 'hi' ? 'वर्तमान क्षेत्र' : 'Current Area';
-    const fallbackCity = language === 'ta' ? 'தற்போதைய நகரம்' : language === 'hi' ? 'वर्तमान शहर' : 'Current City';
-
-    displayMessage = displayMessage
-      .replace(/\{area\}/g, resolvedArea || fallbackArea)
-      .replace(/\{city\}/g, resolvedCity || fallbackCity);
+    const place = formatLocationPlace({ area: resolvedArea, city: resolvedCity }, language);
+    if (resolvedArea && resolvedCity && resolvedArea.toLowerCase() !== resolvedCity.toLowerCase()) {
+      displayMessage = displayMessage
+        .replace(/\{area\}/g, resolvedArea)
+        .replace(/\{city\}/g, resolvedCity);
+    } else {
+      displayMessage = displayMessage
+        .replace(/\{area\}[,\s]*\{city\}/g, place)
+        .replace(/\{area\}/g, place)
+        .replace(/\{city\}/g, place);
+    }
   }
 
   const currentTheme =

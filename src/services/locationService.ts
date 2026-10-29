@@ -34,6 +34,121 @@ export function calculateHaversineDistance(
  * Performs high-precision reverse geocoding using OpenStreetMap Nominatim API.
  * Logs exact request parameters and raw JSON response for diagnostic auditing.
  */
+/**
+ * Extracts area and city from Nominatim address object following priority rules:
+ * - area: suburb || neighbourhood || village || town || city_district || hamlet
+ * - city: city || town || municipality || state_district || county
+ *   (strip words like "district" / "taluk" from the city)
+ */
+export function extractAreaCityFromAddress(addr: any): { area: string; city: string } {
+  if (!addr) {
+    return { area: '', city: '' };
+  }
+
+  // 1. City: city || town || municipality || state_district || county
+  const rawCity =
+    addr.city ||
+    addr.town ||
+    addr.municipality ||
+    addr.state_district ||
+    addr.county ||
+    '';
+
+  const cleanCity = String(rawCity)
+    .replace(/\b(district|taluk)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // 2. Area: suburb || neighbourhood || village || town || city_district || hamlet
+  const rawArea =
+    addr.suburb ||
+    addr.neighbourhood ||
+    addr.village ||
+    addr.town ||
+    addr.city_district ||
+    addr.hamlet ||
+    '';
+
+  let cleanArea = String(rawArea).trim();
+
+  // If area resolved to the exact same name as city, avoid duplicate
+  if (cleanArea && cleanCity && cleanArea.toLowerCase() === cleanCity.toLowerCase()) {
+    cleanArea = '';
+  }
+
+  return { area: cleanArea, city: cleanCity };
+}
+
+/**
+ * Fallbacks, in order: area + city -> city only -> area only -> "your location".
+ * Never show the literal text "Current Area" or "Current City".
+ */
+export function formatLocationPlace(
+  loc: { area?: string; city?: string } | null | undefined,
+  language: string = 'en'
+): string {
+  const yourLocationText =
+    language === 'ta' ? 'உங்கள் இருப்பிடம்' :
+    language === 'hi' ? 'आपका स्थान' :
+    'your location';
+
+  const cleanCity = (loc?.city || '')
+    .replace(/\b(district|taluk)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const isBannedArea = !loc?.area || /^(current area|தற்போதைய பகுதி|वर्तमान क्षेत्र|location not set)$/i.test(loc.area.trim());
+  const isBannedCity = !cleanCity || /^(current city|தற்போதைய நகரம்|वर्तमान शहर|not set)$/i.test(cleanCity);
+
+  const finalArea = isBannedArea ? '' : loc.area.trim();
+  const finalCity = isBannedCity ? '' : cleanCity;
+
+  if (finalArea && finalCity && finalArea.toLowerCase() !== finalCity.toLowerCase()) {
+    return `${finalArea}, ${finalCity}`;
+  }
+  if (finalCity) {
+    return finalCity;
+  }
+  if (finalArea) {
+    return finalArea;
+  }
+  return yourLocationText;
+}
+
+/**
+ * Formats the "Location set to ..." toast message with translated fallback support.
+ */
+export function formatLocationSetToast(
+  loc: { area?: string; city?: string } | null | undefined,
+  t: (key: string) => string,
+  language: string = 'en'
+): string {
+  const place = formatLocationPlace(loc, language);
+  const cleanCity = (loc?.city || '')
+    .replace(/\b(district|taluk)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const isBannedArea = !loc?.area || /^(current area|தற்போதைய பகுதி|वर्तमान क्षेत्र|location not set)$/i.test(loc.area.trim());
+  const isBannedCity = !cleanCity || /^(current city|தற்போதைய நகரம்|वर्तमान शहर|not set)$/i.test(cleanCity);
+  const finalArea = isBannedArea ? '' : loc.area.trim();
+  const finalCity = isBannedCity ? '' : cleanCity;
+
+  const rawTemplate = t('location.locationSet') || 'Location set to {area}, {city}';
+
+  if (rawTemplate.includes('{place}')) {
+    return rawTemplate.replace('{place}', place);
+  }
+
+  if (finalArea && finalCity && finalArea.toLowerCase() !== finalCity.toLowerCase()) {
+    return rawTemplate.replace('{area}', finalArea).replace('{city}', finalCity);
+  }
+
+  return rawTemplate
+    .replace(/\{area\}[,\s]*\{city\}/, place)
+    .replace('{area}', place)
+    .replace('{city}', place);
+}
+
 export async function reverseGeocode(lat: number, lon: number): Promise<{
   addressName: string;
   city: string;
@@ -57,33 +172,17 @@ export async function reverseGeocode(lat: number, lon: number): Promise<{
     console.log('[LocationService]: Nominatim Reverse Geocode Full Raw Response:', data);
 
     const addr = data.address || {};
+    const { area, city } = extractAreaCityFromAddress(addr);
 
-    // 1. Precise City Extraction
-    const city =
-      addr.city ||
-      addr.town ||
-      addr.municipality ||
-      addr.village ||
-      addr.county ||
-      addr.state_district ||
-      'Chennai';
-
-    // 2. Precise Neighborhood / Suburb Extraction (No conflicting administrative cross-region mixing)
-    const area =
-      addr.suburb ||
-      addr.neighbourhood ||
-      addr.quarter ||
-      addr.residential ||
-      addr.subdistrict ||
-      addr.road ||
-      addr.amenity ||
-      addr.village ||
-      addr.town ||
-      city;
+    let displayPlace = '';
+    if (area && city) displayPlace = `${area}, ${city}`;
+    else if (city) displayPlace = city;
+    else if (area) displayPlace = area;
+    else displayPlace = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 
     const addressName = data.display_name
       ? data.display_name.split(',').slice(0, 3).join(', ')
-      : `${area}, ${city}`;
+      : displayPlace;
 
     console.log(`[LocationService]: Reverse Geocode Resolved -> Area: "${area}", City: "${city}", Full: "${addressName}"`);
     return { addressName, city, area, rawAddress: addr };
@@ -91,8 +190,8 @@ export async function reverseGeocode(lat: number, lon: number): Promise<{
     console.warn('[LocationService]: Reverse geocoding network/offline note:', error);
     return {
       addressName: `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`,
-      city: 'Chennai',
-      area: 'Central'
+      city: '',
+      area: ''
     };
   }
 }
@@ -290,22 +389,7 @@ export async function forwardGeocode(query: string): Promise<GeocodedPlace[]> {
 
     return data.map((item: any) => {
       const addr = item.address || {};
-      const city =
-        addr.city ||
-        addr.town ||
-        addr.municipality ||
-        addr.village ||
-        addr.county ||
-        addr.state_district ||
-        'India';
-      const area =
-        addr.suburb ||
-        addr.neighbourhood ||
-        addr.quarter ||
-        addr.residential ||
-        addr.road ||
-        addr.village ||
-        city;
+      const { area, city } = extractAreaCityFromAddress(addr);
       const addressName = item.display_name
         ? item.display_name.split(',').slice(0, 3).join(', ')
         : `${area}, ${city}`;
