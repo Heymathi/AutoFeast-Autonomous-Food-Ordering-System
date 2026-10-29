@@ -30,16 +30,36 @@ export interface MultiItemMatchResult {
   top3Candidates?: FoodItem[];
 }
 
+
+export const RESTAURANT_TRANSLITERATIONS: Record<string, string[]> = {
+  'Murugan Idli Shop': ['murugan', 'murugan idli', 'murugan idli shop', 'முருகன்', 'முருகன் இட்லி', 'முருகன் இட்லி ஷாப்', 'मुरुगन', 'मुरुगन इडली', 'मुरुगन इडली शॉप'],
+  'Saravana Bhavan': ['saravana bhavan', 'saravana', 'சரவண பவன்', 'சரவணா', 'சரவண', 'सरवण भवन', 'सरवना भवन', 'सरवना', 'होटल सरवण भवन'],
+  'A2B Adyar Ananda Bhavan': ['a2b', 'adyar ananda bhavan', 'ananda bhavan', 'அடையார் ஆனந்த பவன்', 'ஆனந்த பவன்', 'ஏ2பி', 'ஏ 2 பி', 'அடையார்', 'अड्यार आनंद भवन', 'आनंद भवन', 'ए2बी'],
+  'Sangeetha Veg Restaurant': ['sangeetha', 'sangeetha veg', 'sangeetha restaurant', 'சங்கீதா', 'சங்கீதா உணவகம்', 'संगीता', 'संगीता वेज'],
+  'Madurai Mess': ['madurai mess', 'madurai', 'மதுரை மெஸ்', 'மதுரை', 'मदुरै मेस', 'मदुरै'],
+  'Bawarchi Biryani': ['bawarchi', 'bawarchi biryani', 'பவார்ச்சி', 'बावर्ची', 'बावर्ची बिरयानी'],
+  'Star Ambur Biryani': ['star ambur', 'ambur biryani', 'star biryani', 'ambur', 'ஆம்பூர் பிரியாணி', 'ஸ்டார் ஆம்பூர்', 'ஆம்பூர்', 'अंबुर बिरयानी', 'स्टार अंबुर', 'अंबुर'],
+  'Coconut Lagoon Kerala Restaurant': ['coconut lagoon', 'lagoon', 'kerala restaurant', 'கோகனட் லகூன்', 'कोकोनट लगून'],
+  'Pind Balluchi': ['pind balluchi', 'balluchi', 'पिंड बल्लूची'],
+  'Haldirams': ['haldirams', 'haldiram', 'ஹல்திராம்ஸ்', 'ஹல்திராம்', 'हल्दीराम', 'हल्दीराम्स'],
+  'Kake Da Hotel': ['kake da hotel', 'kake da', 'काके दा होटल', 'काके दा'],
+  'Rajdhani Thali Restaurant': ['rajdhani', 'rajdhani thali', 'ராஜ்தானி', 'राजधानी'],
+  'Sardar Pav Bhaji': ['sardar', 'sardar pav bhaji', 'சர்தார் பாவ் பாஜி', 'सरदार पाव भाजी'],
+  'Dominos Pizza': ['dominos', 'domino\'s', 'dominos pizza', 'டோமினோஸ்', 'डोमिनोज़'],
+  'Mainland China': ['mainland china', 'mainland', 'மெயின்லேண்ட் சீனா', 'சீனா', 'मेनलैंड चाइना'],
+  'Kumbakonam Degree Coffee': ['kumbakonam', 'degree coffee', 'கும்பகோணம்', 'कुंभकोणम']
+};
+
 export const CONFIRMATION_VOCABULARY: any = {
   YES: {
-    en: ['yes', 'yeah', 'yep', 'sure', 'ok', 'okay', 'confirm', 'proceed', 'do it', 'correct', 'right', 'absolutely', 'go ahead'],
-    ta: ['ஆம்', 'ஆமாம்', 'சரி', 'ஆமா', 'செய்', 'உறுதி', 'ஓகே', 'aama', 'aamam', 'sari', 'seri', 'okay', 'ok'],
-    hi: ['हाँ', 'जी हाँ', 'हाँजी', 'ठीक', 'ठीक है', 'करो', 'हाँ करो', 'haan', 'sahi', 'ji haan', 'thik hai', 'theek hai']
+    en: ['yes', 'yeah', 'yep', 'ok', 'okay', 'sure', 'proceed', 'confirm', 'correct', 'do it', 'right', 'absolutely', 'go ahead'],
+    ta: ['ஆமா', 'ஆம்', 'சரி', 'ஓகே', 'ஆமாம்', 'உறுதி', 'செய்', 'aama', 'aamam', 'sari', 'seri', 'okay', 'ok', 'uruthi', 'sey'],
+    hi: ['haan', 'ha', 'haanji', 'theek hai', 'sahi', 'kar do', 'proceed', 'हाँ', 'जी हाँ', 'हाँजी', 'ठीक', 'ठीक है', 'करो', 'हाँ करो', 'ji haan', 'thik hai']
   },
   NO: {
-    en: ['no', 'nope', 'cancel', 'stop', 'deny', 'dont', "don't", 'reject', 'decline', 'never', 'nah', 'not at all'],
-    ta: ['இல்லை', 'இல்ல', 'வேண்டாம்', 'வேணாம்', 'ரத்து', 'மறு', 'வேண்டாதீங்க', 'மனா', 'illa', 'illai', 'vendam', 'venam', 'vaendaam', 'vendaam'],
-    hi: ['नहीं', 'ना', 'मना', 'कैंसल', 'नहीं चाहिए', 'रद्द', 'मना करें', 'nahi', 'naa', 'nahin']
+    en: ['no', 'nope', 'cancel', 'stop', 'wrong', 'deny', 'dont', "don't", 'reject', 'decline', 'never', 'nah', 'not at all'],
+    ta: ['இல்லை', 'வேண்டாம்', 'ரத்து', 'நிறுத்து', 'இல்ல', 'வேணாம்', 'மறு', 'வேண்டாதீங்க', 'மனா', 'illa', 'illai', 'vendam', 'venam', 'vaendaam', 'vendaam', 'rathu', 'niruthu', 'நிறுத்துங்கள்'],
+    hi: ['nahi', 'nahin', 'mat', 'cancel', 'band karo', 'galat', 'नहीं', 'ना', 'मना', 'कैंसल', 'नहीं चाहिए', 'रद्द', 'मना करें', 'रुक', 'ruko', 'रोकें', 'गलत', 'बंद करो', 'naa']
   },
   NEXT: {
     en: ['next', 'forward', 'continue', 'skip'],
@@ -207,37 +227,51 @@ export class SttMatcherService {
     ];
 
     const votes: Record<'YES' | 'NO', number> = { YES: 0, NO: 0 };
-    const normalize = (value: string) => value.toLowerCase().replace(/[.,!?;:]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const normalize = (value: string) => value.toLowerCase().replace(/[,.!?;:()"'~`-]+/g, ' ').replace(/\s+/g, ' ').trim();
     const matchesPhrase = (text: string, phrase: string) =>
       ` ${normalize(text)} `.includes(` ${normalize(phrase)} `);
 
     for (const text of candidates) {
-      const yesExact = yesWords.some(word => matchesPhrase(text, word));
+      const clean = normalize(text);
+      if (!clean) continue;
+
+      // Check NO intent BEFORE YES intent so "no, cancel" or "no proceed" is never read as yes
       const noExact = noWords.some(word => matchesPhrase(text, word));
-      const negatedAffirmative = /\b(?:not sure|not certain|not ready|not okay|unsure)\b/i.test(text);
-      if (yesExact && negatedAffirmative && !noExact) continue;
-      if (yesExact !== noExact) {
-        votes[yesExact ? 'YES' : 'NO']++;
+      const yesExact = yesWords.some(word => matchesPhrase(text, word));
+
+      if (noExact) {
+        votes.NO++;
         maxScore = 1;
         matchedTranscript = text;
         continue;
       }
-      if (yesExact && noExact) continue;
 
+      const negatedAffirmative = /\b(?:not sure|not certain|not ready|not okay|unsure|not now)\b/i.test(text);
+      if (yesExact && !negatedAffirmative) {
+        votes.YES++;
+        maxScore = 1;
+        matchedTranscript = text;
+        continue;
+      } else if (yesExact && negatedAffirmative) {
+        votes.NO++;
+        maxScore = 1;
+        matchedTranscript = text;
+        continue;
+      }
+
+      // Fuzzy matching: Check NO before YES
       let candidateIntent: 'YES' | 'NO' | null = null;
       let candidateScore = 0;
-      for (const [intent, words] of [['YES', yesWords], ['NO', noWords]] as const) {
+      for (const [intent, words] of [['NO', noWords], ['YES', yesWords]] as const) {
         for (const word of words) {
           const score = FuzzyMatchEngine.calculateMatchScore(text, word);
           if (score > candidateScore) {
             candidateScore = score;
             candidateIntent = intent;
-          } else if (score === candidateScore && score > 0 && candidateIntent !== intent) {
-            candidateIntent = null;
           }
         }
       }
-      if (candidateIntent && candidateScore >= FUZZY_CONFIG.highConfidence && normalize(text).split(' ').length === 1) {
+      if (candidateIntent && candidateScore >= FUZZY_CONFIG.highConfidence && clean.split(' ').length === 1) {
         votes[candidateIntent]++;
         maxScore = Math.max(maxScore, candidateScore);
         matchedTranscript = text;
@@ -834,4 +868,76 @@ export class SttMatcherService {
 
     return { isMatched: false, area: '', city: '', confidence: 0 };
   }
+
+  public static matchRestaurantSelection(
+    transcripts: string | string[],
+    availableRestaurants: string[]
+  ): { isMatched: boolean; restaurant: string | null; matchedBy: 'ordinal' | 'name' | null } {
+    if (!availableRestaurants || availableRestaurants.length === 0) {
+      return { isMatched: false, restaurant: null, matchedBy: null };
+    }
+    const candidates = this.toCandidateList(transcripts);
+    if (candidates.length === 0) {
+      return { isMatched: false, restaurant: null, matchedBy: null };
+    }
+
+    const normalize = (value: string) =>
+      value.toLowerCase().replace(/[,.!?;:()"'~`\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const ordinals: Array<{ idx: number; words: string[] }> = [
+      { idx: 0, words: ['first', '1st', 'one', '1', 'முதல்', 'முதலாவது', 'ஒன்று', 'ஒன்னு', 'ஒண்ணு', 'முதலில்', 'पहला', 'पहिला', 'एक', 'pehla', 'pahila', 'ek', 'first one', 'option 1', 'option one'] },
+      { idx: 1, words: ['second', '2nd', 'two', '2', 'இரண்டாவது', 'இரண்டு', 'ரெண்டாவது', 'ரெண்டு', 'இரண்டில்', 'दूसरा', 'दो', 'doosra', 'dusra', 'do', 'second one', 'option 2', 'option two'] },
+      { idx: 2, words: ['third', '3rd', 'three', '3', 'மூன்றாவது', 'மூன்று', 'மூணாவது', 'மூணு', 'மூன்றில்', 'तीसरा', 'तीन', 'teesra', 'tisra', 'teen', 'third one', 'option 3', 'option three'] },
+      { idx: 3, words: ['fourth', '4th', 'four', '4', 'நான்காவது', 'நான்கு', 'நாலாவது', 'நாலு', 'चौथा', 'चार', 'chautha', 'char'] }
+    ];
+
+    for (const raw of candidates) {
+      const text = normalize(raw);
+      if (!text) continue;
+
+      // 1. Check Ordinals
+      for (const ord of ordinals) {
+        const matches = ord.words.some(w => {
+          const nw = normalize(w);
+          return text === nw || ` ${text} `.includes(` ${nw} `);
+        });
+        if (matches && ord.idx < availableRestaurants.length) {
+          return { isMatched: true, restaurant: availableRestaurants[ord.idx], matchedBy: 'ordinal' };
+        }
+      }
+
+      // 2. Check Restaurant Names & Transliterations
+      for (const restaurant of availableRestaurants) {
+        const normR = normalize(restaurant);
+        if (text === normR || ` ${text} `.includes(` ${normR} `) || normR.includes(text)) {
+          return { isMatched: true, restaurant, matchedBy: 'name' };
+        }
+        const aliases = RESTAURANT_TRANSLITERATIONS[restaurant] || [];
+        for (const alias of aliases) {
+          const normA = normalize(alias);
+          if (text === normA || ` ${text} `.includes(` ${normA} `) || normA.includes(text)) {
+            return { isMatched: true, restaurant, matchedBy: 'name' };
+          }
+        }
+      }
+
+      // 3. Fuzzy check for restaurant names
+      for (const restaurant of availableRestaurants) {
+        const score = FuzzyMatchEngine.calculateMatchScore(text, normalize(restaurant));
+        if (score >= FUZZY_CONFIG.highConfidence) {
+          return { isMatched: true, restaurant, matchedBy: 'name' };
+        }
+        const aliases = RESTAURANT_TRANSLITERATIONS[restaurant] || [];
+        for (const alias of aliases) {
+          const aliasScore = FuzzyMatchEngine.calculateMatchScore(text, normalize(alias));
+          if (aliasScore >= FUZZY_CONFIG.highConfidence) {
+            return { isMatched: true, restaurant, matchedBy: 'name' };
+          }
+        }
+      }
+    }
+
+    return { isMatched: false, restaurant: null, matchedBy: null };
+  }
+
 }

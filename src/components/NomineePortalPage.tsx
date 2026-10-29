@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
@@ -904,6 +903,7 @@ export const NomineePortalPage: React.FC = () => {
                       const foodObj = req.foodItem || {};
                       const itemName = foodObj.nativeNames?.[language] || foodObj.name || req.foodItemName || req.foodItemId || 'Food Item';
                       const isPending = req.status === 'pending';
+                      const reqKey = req.id || req._id || '';
 
                       return (
                         <div

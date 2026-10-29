@@ -245,6 +245,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'voice.examples': 'Try saying: "Schedule dosa at 8 AM", "சென்னையில் பிரியாணி", "Recharge wallet 500"',
     'voice.stopListening': 'Stop Listening',
     'voice.startListening': 'Speak Now',
+    'voice.whichRestaurant': 'Which restaurant would you like to order from?',
+    'voice.cancelledOkay': 'Okay, cancelled.',
+    'voice.pleaseSayYesOrNo': 'Please say yes or no.',
+    'voice.orderFromSingleRestaurant': 'Order from {restaurant}? Say Yes or No.',
+    'voice.restaurantsAvailable': 'Restaurants serving this item:',
+    'voice.restaurantPromptSpoken': 'Which restaurant would you like to order from? {names}',
+    'voice.micUnavailableHint': 'Microphone unavailable. Please use the buttons below.',
 
     // Order PIN Confirmation Modal
     'pinConfirm.title': 'Security PIN Verification',
@@ -671,6 +678,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'voice.examples': 'பேசலாம்: "காலை 8 மணிக்கு தோசை", "சென்னையில் பிரியாணி"',
     'voice.stopListening': 'நிறுத்துக',
     'voice.startListening': 'இப்போது பேசுங்கள்',
+    'voice.whichRestaurant': 'எந்த உணவகத்திலிருந்து ஆர்டர் செய்ய விரும்புகிறீர்கள்?',
+    'voice.cancelledOkay': 'சரி, ரத்து செய்யப்பட்டது.',
+    'voice.pleaseSayYesOrNo': 'தயவுசெய்து ஆம் அல்லது இல்லை என்று சொல்லுங்கள்.',
+    'voice.orderFromSingleRestaurant': '{restaurant}-லிருந்து ஆர்டர் செய்யவா? ஆம் அல்லது இல்லை என்று சொல்லுங்கள்.',
+    'voice.restaurantsAvailable': 'இந்த உணவை வழங்கும் உணவகங்கள்:',
+    'voice.restaurantPromptSpoken': 'எந்த உணவகத்திலிருந்து ஆர்டர் செய்ய விரும்புகிறீர்கள்? {names}',
+    'voice.micUnavailableHint': 'மைக் வசதி கிடைக்கவில்லை. கீழே உள்ள பொத்தான்களைப் பயன்படுத்தவும்.',
 
     // Order PIN Confirmation Modal
     'pinConfirm.title': 'பாதுகாப்பு PIN சரிபார்ப்பு',
@@ -1082,6 +1096,13 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'voice.examples': 'बोलें: "सुबह 8 बजे डोसा शेड्यूल करें", "चेन्नई में बिरयानी"',
     'voice.stopListening': 'रोकें',
     'voice.startListening': 'अब बोलें',
+    'voice.whichRestaurant': 'आप किस रेस्तरां से ऑर्डर करना चाहेंगे?',
+    'voice.cancelledOkay': 'ठीक है, रद्द कर दिया गया।',
+    'voice.pleaseSayYesOrNo': 'कृपया हाँ या नहीं बोलें।',
+    'voice.orderFromSingleRestaurant': 'क्या {restaurant} से ऑर्डर करें? हाँ या नहीं बोलें।',
+    'voice.restaurantsAvailable': 'यह भोजन परोसने वाले रेस्तरां:',
+    'voice.restaurantPromptSpoken': 'आप किस रेस्तरां से ऑर्डर करना चाहेंगे? {names}',
+    'voice.micUnavailableHint': 'माइक्रोफ़ोन अनुपलब्ध है। कृपया नीचे दिए गए बटन का उपयोग करें।',
 
     // Order PIN Confirmation Modal
     'pinConfirm.title': 'सुरक्षा पिन सत्यापन',

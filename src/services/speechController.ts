@@ -13,6 +13,7 @@ export interface SpeechControllerOptions {
   interimResults?: boolean;
   maxAlternatives?: number;
   isPinScreen?: boolean;
+  allowDuringTts?: boolean;
   silenceTimeoutMs?: number;
   onSilence?: () => void;
   onStart?: () => void;
@@ -570,8 +571,9 @@ class SpeechControllerManager {
     const opt = this.activeOptions;
     const targetLang = this.micMode !== 'auto' ? this.micMode : opt.language;
 
-    if (this.isTtsActive || (typeof window !== 'undefined' && 'speechSynthesis' in window &&
-        (window.speechSynthesis.speaking || window.speechSynthesis.pending))) {
+    const isSpeaking = typeof window !== 'undefined' && 'speechSynthesis' in window &&
+      (window.speechSynthesis.speaking || window.speechSynthesis.pending);
+    if (!opt.allowDuringTts && (this.isTtsActive || isSpeaking)) {
       this.addDebugLog('STT_DEFERRED', 'Recognition deferred until TTS has finished.');
       if (this.restartTimer) clearTimeout(this.restartTimer);
       this.restartTimer = setTimeout(() => {
@@ -614,7 +616,7 @@ class SpeechControllerManager {
         this.notifyStateChange();
       },
       onResult: (transcript, isFinal, nBest) => {
-        if (this.currentState === 'speaking') return;
+        if (!opt.allowDuringTts && this.currentState === 'speaking') return;
         if (transcript.trim()) {
           clearSilenceTimer();
           armSilenceTimer();
@@ -896,6 +898,7 @@ class SpeechControllerManager {
   }
 
   private pauseMicForTts(): void {
+    if (this.activeOptions?.allowDuringTts) return;
     if (this.currentState === 'listening' || SpeechService.getIsListening()) {
       this.addDebugLog('MIC_PAUSE_TTS', 'Pausing microphone capture while TTS output is active.');
       this.isAppPausedSttForTts = true;

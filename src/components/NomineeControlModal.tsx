@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ShieldCheck, Lock, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, Mail, ShieldAlert, KeyRound, Clock, Mic } from 'lucide-react';
@@ -733,6 +732,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                     const itemName = foodObj.nativeNames?.[language] || foodObj.name || req.foodItemName || req.foodItemId || 'Food Item';
                     const orderType = req.orderType || 'instant';
                     const sched = req.scheduleDetails;
+                    const reqKey = req.id || req._id || '';
                     return (
                       <div
                         key={req.id}
