@@ -161,6 +161,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
       const token = await AuthService.loginNominee(nomineeEmail, nomineePassword);
       setNomineeToken(token);
       setNomineePassword('');
+      updateUserProfile({ nomineeEmail: nomineeEmail.trim() });
     } catch (err) {
       const status = err instanceof Error && 'status' in err && typeof err.status === 'number'
         ? err.status

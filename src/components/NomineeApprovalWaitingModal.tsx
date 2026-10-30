@@ -82,31 +82,40 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
   const startListeningForCancel = useCallback(() => {
     if (!isMountedRef.current || handledRef.current) return;
 
-    SpeechController.acquireMic(
-      MIC_OWNER,
-      (transcript, isFinal) => {
-        if (!isMountedRef.current || handledRef.current) return;
-        setLiveTranscript(transcript);
-        if (isCancelCommand(transcript)) {
-          console.log('[NomineeApprovalWaiting]: Cancel voice command detected:', transcript);
-          handleCancel();
-        }
-      },
-      (err) => {
-        setIsListening(false);
-      },
-      () => {
-        if (isMountedRef.current && !handledRef.current) {
-          // Restart mic listening if still waiting
-          setTimeout(() => {
-            if (isMountedRef.current && !handledRef.current) {
-              startListeningForCancel();
-            }
-          }, 300);
-        }
-      },
-      language
-    );
+    const onMicResult = (transcript: string) => {
+      if (!isMountedRef.current || handledRef.current) return;
+      setLiveTranscript(transcript);
+      if (isCancelCommand(transcript)) {
+        console.log('[NomineeApprovalWaiting]: Cancel voice command detected:', transcript);
+        handleCancel();
+      }
+    };
+    const onMicError = () => {
+      setIsListening(false);
+    };
+    const onMicEnd = () => {
+      if (isMountedRef.current && !handledRef.current) {
+        setTimeout(() => {
+          if (isMountedRef.current && !handledRef.current) {
+            startListeningForCancel();
+          }
+        }, 300);
+      }
+    };
+
+    if (typeof (SpeechController as any).acquireMic === 'function') {
+      (SpeechController as any).acquireMic(MIC_OWNER, onMicResult, onMicError, onMicEnd, language);
+    } else if (typeof SpeechController.requestMic === 'function') {
+      SpeechController.requestMic({
+        owner: MIC_OWNER,
+        language,
+        continuous: true,
+        interimResults: true,
+        onResult: (transcript) => onMicResult(transcript),
+        onError: () => onMicError(),
+        onEnd: () => onMicEnd()
+      });
+    }
     setIsListening(true);
   }, [handleCancel, isCancelCommand, language]);
 
@@ -187,6 +196,17 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
     }
   };
 
+  const checkStatusRef = useRef(checkStatus);
+  checkStatusRef.current = checkStatus;
+  const startListeningRef = useRef(startListeningForCancel);
+  startListeningRef.current = startListeningForCancel;
+  const stopPollingRef = useRef(stopPolling);
+  stopPollingRef.current = stopPolling;
+  const tRef = useRef(t);
+  tRef.current = t;
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+
   useEffect(() => {
     isMountedRef.current = true;
     handledRef.current = false;
@@ -195,32 +215,32 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
     setLiveTranscript('');
 
     if (isOpen && approvalId) {
-      const waitingPrompt = t('nominee.waitingApproval');
-      showToast(waitingPrompt, 'warning');
+      const waitingPrompt = tRef.current('nominee.waitingApproval');
+      showToastRef.current(waitingPrompt, 'warning');
 
       SpeechController.speak(
         waitingPrompt,
         language,
         () => {
           if (isMountedRef.current && !handledRef.current) {
-            startListeningForCancel();
+            startListeningRef.current();
           }
         }
       );
 
       // Poll server every 5 seconds (5000 ms) as specified in requirement
-      checkStatus();
-      pollTimerRef.current = setInterval(checkStatus, 5000);
+      checkStatusRef.current();
+      pollTimerRef.current = setInterval(() => checkStatusRef.current(), 5000);
       setIsPolling(true);
     }
 
     return () => {
       isMountedRef.current = false;
-      stopPolling();
+      stopPollingRef.current();
       SpeechController.cancelSpeech();
       SpeechController.releaseMic(MIC_OWNER);
     };
-  }, [isOpen, approvalId, checkStatus, language, startListeningForCancel, stopPolling, t, showToast]);
+  }, [isOpen, approvalId, language]);
 
   if (!isOpen) return null;
 
@@ -317,3 +337,4 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
     </div>
   );
 };
+

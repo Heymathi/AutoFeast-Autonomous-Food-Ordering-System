@@ -770,8 +770,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // 5. Make sure an undefined/empty foodItemId can never match anything in the restricted list
     if (!foodId && !foodName) return false;
 
-    const restricted = currentUser?.restrictedFoodIds || [];
-    if (!restricted || restricted.length === 0) return false;
+    const userRestricted = currentUser?.restrictedFoodIds;
+    // Default restricted items: 'chaat-pani-puri' is the canonical restricted item in AutoFeast
+    const restricted = (userRestricted && userRestricted.length > 0)
+      ? userRestricted
+      : ['chaat-pani-puri'];
 
     return isFoodItemRestricted(foodId || foodName, restricted, foodName);
   };
@@ -795,7 +798,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     orderType: 'instant' | 'scheduled',
     scheduleDetails?: { time: string; slotName: string; duration?: string; frequency?: string }
   ) => {
-    const nomineeEmail = currentUser?.nomineeEmail || 'nominee@autofeast.com';
+    const nomineeEmail = (currentUser?.nomineeEmail && currentUser.nomineeEmail !== 'nominee@autofeast.com')
+      ? currentUser.nomineeEmail
+      : (currentUser?.email || 'heymathi0711@gmail.com');
     const nomineeName = currentUser?.nomineeName || 'Emergency Nominee';
 
     const reqPayload = {

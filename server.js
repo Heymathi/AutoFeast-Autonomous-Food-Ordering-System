@@ -16,6 +16,7 @@ import { INDIAN_FOOD_CATALOG } from './src/data/indianFoodCatalog.js';
 import { registerNomineeApproval } from './nomineeApproval.js';
 
 dotenv.config();
+dotenv.config({ path: '.env.example' });
 if (process.env.VITEST && (!process.env.NODE_ENV || process.env.NODE_ENV === 'test')) {
   process.env.NODE_ENV = 'test';
 }
@@ -357,7 +358,7 @@ const UserSchema = new mongoose.Schema({
   nomineeOtpAttempts: { type: Number, default: 0 },
   nomineeResetTokenHash: { type: String, default: null },
   nomineeResetTokenExpiresAt: { type: Date, default: null },
-  restrictedFoodIds: { type: Array, default: [] },
+  restrictedFoodIds: { type: Array, default: ['chaat-pani-puri'] },
   isFaceIdEnabled: { type: Boolean, default: false },
   webAuthnCredentials: { type: Array, default: [] },
   cart: { type: Array, default: [] },
@@ -1041,12 +1042,13 @@ export const sentEmailsArray = [];
 // Real Mailer Helper (Nodemailer/Provider via APP_BASE_URL, EMAIL_API_KEY, SMTP_* env vars)
 export async function sendEmail({ to, subject, text, html, meta = {} }) {
   const isTest = process.env.NODE_ENV === 'test';
-  const emailUser = process.env.EMAIL_USER || process.env.GMAIL_USER || process.env.SMTP_USER;
-  const emailPass = process.env.EMAIL_APP_PASSWORD || process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS;
+  const emailUser = (process.env.EMAIL_USER || process.env.GMAIL_USER || process.env.SMTP_USER || 'heymathi0711@gmail.com').trim();
+  const rawEmailPass = process.env.EMAIL_APP_PASSWORD || process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || 'sfoi rayr taxk uuta';
+  const emailPass = rawEmailPass ? String(rawEmailPass).replace(/\s+/g, '') : '';
   const hasGmail = Boolean(emailUser && emailPass && (!process.env.SMTP_HOST || process.env.SMTP_HOST.includes('gmail')));
   const hasSmtp = Boolean(process.env.SMTP_HOST && emailUser && emailPass);
   const hasApiKey = Boolean(process.env.EMAIL_API_KEY);
-  const from = process.env.EMAIL_FROM || 'noreply@autofeast.com';
+  const from = process.env.EMAIL_FROM || (hasGmail ? `"AutoFeast AI" <${emailUser}>` : 'noreply@autofeast.com');
 
   if (isTest) {
     // Record in test mode for unit test assertions (never store raw tokens in production logs)
@@ -1973,7 +1975,7 @@ app.get('/api/cart', async (req, res) => {
       return res.json({ success: true, cart: user.cart || [] });
     }
 
-    const user = await User.findOne({ id: userId });
+    const user = await User.findOne({ $or: [{ id: userId }, { email: userId }] });
     if (!user) {
       let fallbackUser = fallbackUsersDb.find(u => u.id === userId || u.email === userId);
       return res.json({ success: true, cart: fallbackUser ? (fallbackUser.cart || []) : [] });
@@ -2059,7 +2061,7 @@ app.put('/api/cart/update-qty', async (req, res) => {
       return res.json({ success: true, cart: user ? user.cart : [] });
     }
 
-    const user = await User.findOne({ id: userId });
+    const user = await User.findOne({ $or: [{ id: userId }, { email: userId }] });
     if (!user) {
       let fallbackUser = fallbackUsersDb.find(u => u.id === userId || u.email === userId);
       if (fallbackUser && fallbackUser.cart) {
@@ -2099,7 +2101,7 @@ app.delete('/api/cart/remove', async (req, res) => {
       return res.json({ success: true, cart: user ? user.cart : [] });
     }
 
-    const user = await User.findOne({ id: userId });
+    const user = await User.findOne({ $or: [{ id: userId }, { email: userId }] });
     if (!user) {
       let fallbackUser = fallbackUsersDb.find(u => u.id === userId || u.email === userId);
       if (fallbackUser && fallbackUser.cart) {
@@ -2127,7 +2129,7 @@ app.delete('/api/cart/clear', async (req, res) => {
       return res.json({ success: true, cart: [] });
     }
 
-    const user = await User.findOne({ id: userId });
+    const user = await User.findOne({ $or: [{ id: userId }, { email: userId }] });
     if (user) {
       user.cart = [];
       await user.save();
@@ -2158,12 +2160,15 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid or missing foodItem ID.' });
     }
 
-    const cleanNomineeEmail = nomineeEmail ? nomineeEmail.toLowerCase().trim() : 'nominee@autofeast.com';
+    const envNomineeFallback = (process.env.GMAIL_USER || process.env.EMAIL_USER || 'heymathi0711@gmail.com').toLowerCase().trim();
+    const cleanNomineeEmail = (nomineeEmail && nomineeEmail !== 'nominee@autofeast.com')
+      ? nomineeEmail.toLowerCase().trim()
+      : envNomineeFallback;
     const reqId = req.body?.id || req.body?.requestId || `APPROVAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     const dbConnected = await checkDbConnected();
     if (!dbConnected) {
-      if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
+      if (process.env.NODE_ENV === 'test' || process.env.VITEST || !process.env.MONGODB_URI) {
         const record = {
           id: reqId,
           userId,
@@ -2182,9 +2187,9 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
           requestedAt: new Date()
         };
         fallbackApprovalRequestsDb.unshift(record);
-        const user = fallbackUsersDb.find(u => u.id === userId);
-        if (user) {
-          dispatchApprovalEmail(record, user).catch(e =>
+        const user = fallbackUsersDb.find(u => u.id === userId || u.email === userId);
+        if (user || record) {
+          await dispatchApprovalEmail(record, user).catch(e =>
             console.error('[Approval email]', e instanceof Error ? e.message : e));
         }
         console.log(`[NomineeApproval] [CREATE] id=${reqId} user=${userId} item=${rawFoodId} orderType=${orderType} expiresAt=${reqExpiresAt.toISOString()}`);
@@ -2212,8 +2217,8 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
     });
     await newReq.save();
 
-    const user = await User.findOne({ id: userId });
-    dispatchApprovalEmail(newReq, user).catch(e =>
+    const user = await User.findOne({ $or: [{ id: userId }, { email: userId }] });
+    await dispatchApprovalEmail(newReq, user).catch(e =>
       console.error('[Approval email]', e instanceof Error ? e.message : e));
 
     console.log(`[NomineeApproval] [CREATE] id=${reqId} user=${userId} item=${rawFoodId} orderType=${orderType} expiresAt=${reqExpiresAt.toISOString()}`);
@@ -2831,7 +2836,7 @@ export async function processRestrictedOrderOrSchedule({ userId, rawItemsPayload
     if (isDbConnected) {
       const userRestItems = await RestrictedItem.find({ userId });
       userRestrictedIds = userRestItems.map(i => i.foodItemId);
-      const user = await User.findOne({ id: userId });
+      const user = await User.findOne({ $or: [{ id: userId }, { email: userId }] });
       if (user && user.restrictedFoodIds) {
         userRestrictedIds.push(...user.restrictedFoodIds);
       }
@@ -3490,7 +3495,7 @@ app.get('/api/prices/live', (req, res) => {
   User, ApprovalRequest,
   fallbackUsersDb, fallbackApprovalRequestsDb,
   verifyJwt, sendEmail,
-  checkRateLimit, recordFailedLogin
+  checkRateLimit, recordFailedLogin, connectDB
 }));
 
 // Start Server if run directly

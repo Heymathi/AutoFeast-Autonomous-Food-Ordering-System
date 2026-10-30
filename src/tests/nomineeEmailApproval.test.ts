@@ -327,5 +327,29 @@ describe('Nominee Email Approval System (Instant + Scheduled Orders, EN/TA/HI)',
       expect(schedResult.status).toBe(403);
       expect(schedResult.body.requiresNomineeApproval).toBe(true);
     });
+
+    it('correctly intercepts pani poori orders and dispatches approval email to fallback recipient when nomineeEmail is placeholder', async () => {
+      const { dispatchApprovalEmail } = nomineeModule;
+      const paniApproval = {
+        id: 'REQ-PANI-01',
+        userId: testUserId,
+        foodItemId: 'chaat-pani-puri',
+        foodItem: { id: 'chaat-pani-puri', name: 'Crispy Pani Puri', nativeNames: { en: 'Crispy Pani Puri', ta: 'பானி பூரி', hi: 'पानी पूरी' } },
+        orderType: 'instant',
+        nomineeEmail: 'nominee@autofeast.com', // placeholder from default
+        language: 'ta'
+      };
+
+      const result = await dispatchApprovalEmail(paniApproval, {
+        nomineeEmail: 'nominee@autofeast.com',
+        nomineeName: 'Priya Nominee'
+      });
+
+      expect(result.success).toBe(true);
+      expect(sentEmailsArray.length).toBeGreaterThan(0);
+      const sent = sentEmailsArray[sentEmailsArray.length - 1];
+      expect(sent.to).toBe('heymathi0711@gmail.com');
+      expect(sent.subject).toContain('பரிந்துரையாளர் ஒப்புதல் தேவை');
+    });
   });
 });

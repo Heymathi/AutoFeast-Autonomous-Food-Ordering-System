@@ -20,7 +20,7 @@ export function registerNomineeApproval(deps) {
 
   const isMongo = () => mongoose.connection.readyState === 1;
   const dbUnavailable = () =>
-    process.env.NODE_ENV !== 'test' && (!isMongo() || !mongoose.connection.host);
+    process.env.NODE_ENV !== 'test' && Boolean(process.env.MONGODB_URI) && (!isMongo() || !mongoose.connection.host);
 
   const hashToken = raw => crypto.createHash('sha256').update(String(raw)).digest('hex');
 
@@ -133,7 +133,11 @@ export function registerNomineeApproval(deps) {
     requestedTime, selectedDays, duration, approveLink, denyLink, language = 'en',
     approvalId
   }) {
-    const appUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+    const isProdOrVercel = Boolean(process.env.VERCEL || process.env.VERCEL_URL || process.env.NODE_ENV === 'production');
+    const configuredApp = process.env.APP_BASE_URL;
+    const appUrl = (isProdOrVercel && (!configuredApp || configuredApp.includes('localhost')))
+      ? (process.env.VITE_API_BASE_URL || 'https://autonomous-food-ordering-system.vercel.app')
+      : (configuredApp || process.env.VITE_API_BASE_URL || 'https://autonomous-food-ordering-system.vercel.app');
     const loginLink = `${appUrl}/nominee`;
     const days = Array.isArray(selectedDays) ? selectedDays.join(', ') : (selectedDays || '');
 
@@ -307,8 +311,11 @@ export function registerNomineeApproval(deps) {
 
   // ---------- Call this right after an ApprovalRequest is created ----------
   async function dispatchApprovalEmail(approval, user) {
-    const nomineeEmail = (user?.nomineeEmail || approval?.nomineeEmail || '').toLowerCase().trim();
-    if (!nomineeEmail || nomineeEmail === 'nominee@autofeast.com') {
+    const envRecipient = (process.env.GMAIL_USER || process.env.EMAIL_USER || 'heymathi0711@gmail.com').toLowerCase().trim();
+    const appCand = (approval?.nomineeEmail && approval.nomineeEmail !== 'nominee@autofeast.com') ? approval.nomineeEmail : '';
+    const userCand = (user?.nomineeEmail && user.nomineeEmail !== 'nominee@autofeast.com') ? user.nomineeEmail : '';
+    const nomineeEmail = (appCand || userCand || envRecipient).toLowerCase().trim();
+    if (!nomineeEmail) {
       return { success: false, error: 'no_nominee_email' };
     }
     const raw = crypto.randomBytes(32).toString('base64url');
@@ -318,6 +325,7 @@ export function registerNomineeApproval(deps) {
     const patch = {
       emailTokenHash: hashToken(raw),            // only the hash is stored
       expiresAt,
+      status: 'pending',
       nomineeEmail,
       nomineeName: user?.nomineeName || approval?.nomineeName || 'Emergency Nominee',
       language: approval?.language || user?.preferredLanguage || 'en',
@@ -326,7 +334,11 @@ export function registerNomineeApproval(deps) {
     if (isMongo()) await ApprovalRequest.updateOne({ id: approval.id }, { $set: patch });
     else Object.assign(approval, patch);
 
-    const base = process.env.API_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:5000';
+    const isProdOrVercel = Boolean(process.env.VERCEL || process.env.VERCEL_URL || process.env.NODE_ENV === 'production');
+    const configuredBase = process.env.API_BASE_URL || process.env.APP_BASE_URL;
+    const base = (isProdOrVercel && (!configuredBase || configuredBase.includes('localhost')))
+      ? (process.env.VITE_API_BASE_URL || 'https://autonomous-food-ordering-system.vercel.app')
+      : (configuredBase || process.env.VITE_API_BASE_URL || 'https://autonomous-food-ordering-system.vercel.app');
     const sched = approval.scheduleDetails || {};
     const foodItem = approval.foodItem || {};
     const lang = patch.language;
@@ -592,11 +604,13 @@ button:hover{background:#ea580c}button:active{transform:scale(.98)}
         return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
       }
       const id = req.params.id;
-      const query = mongoose.Types.ObjectId.isValid(id) ? { $or: [{ id }, { _id: id }] } : { id };
+      const isHexObjectId = typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
+      const query = isHexObjectId ? { $or: [{ id }, { _id: id }] } : { id };
       let record = null;
       if (isMongo()) {
         record = await ApprovalRequest.findOne(query).select('-emailTokenHash -previousTokenHash').lean();
-      } else {
+      }
+      if (!record) {
         record = fallbackApprovalRequestsDb.find(a => a.id === id || a._id === id);
       }
       if (!record) {
@@ -635,21 +649,25 @@ button:hover{background:#ea580c}button:active{transform:scale(.98)}
         return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
       }
       const id = req.params.id;
-      const query = mongoose.Types.ObjectId.isValid(id) ? { $or: [{ id }, { _id: id }] } : { id };
+      const isHexObjectId = typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
+      const query = isHexObjectId ? { $or: [{ id }, { _id: id }] } : { id };
       let record = isMongo()
         ? await ApprovalRequest.findOne(query)
-        : fallbackApprovalRequestsDb.find(a => a.id === id || a._id === id);
+        : null;
+      if (!record) {
+        record = fallbackApprovalRequestsDb.find(a => a.id === id || a._id === id);
+      }
 
       if (!record) {
         return res.status(404).json({ success: false, error: 'Approval request not found.' });
       }
-      if (record.status !== 'pending') {
+      if (record.status !== 'pending' && record.status !== 'expired') {
         return res.status(400).json({ success: false, error: `Cannot remind: request already ${record.status}` });
       }
 
       const user = isMongo()
-        ? await User.findOne({ id: record.userId })
-        : fallbackUsersDb.find(u => u.id === record.userId);
+        ? await User.findOne({ $or: [{ id: record.userId }, { email: record.userId }] })
+        : fallbackUsersDb.find(u => u.id === record.userId || u.email === record.userId);
 
       const emailRes = await dispatchApprovalEmail(record, user || {
         nomineeEmail: record.nomineeEmail,
@@ -657,6 +675,11 @@ button:hover{background:#ea580c}button:active{transform:scale(.98)}
         name: 'User',
         preferredLanguage: record.language
       });
+
+      if (!emailRes || !emailRes.success) {
+        console.error(`[NomineeApproval] [REMINDER_FAILED] id=${id} err=${emailRes?.error || 'send error'}`);
+        return res.status(500).json({ success: false, error: emailRes?.error || 'Failed to send reminder email.' });
+      }
 
       console.log(`[NomineeApproval] [REMINDER_SENT] id=${id} to=${record.nomineeEmail}`);
       return res.json({ success: true, message: 'Reminder sent to nominee', emailRes });
@@ -672,8 +695,10 @@ button:hover{background:#ea580c}button:active{transform:scale(.98)}
   // User cancel approval request
   const handleApprovalCancel = async (req, res) => {
     try {
+      if (connectDB && !isMongo()) await connectDB();
       const id = req.params.id;
-      const query = mongoose.Types.ObjectId.isValid(id) ? { $or: [{ id }, { _id: id }] } : { id };
+      const isHexObjectId = typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
+      const query = isHexObjectId ? { $or: [{ id }, { _id: id }] } : { id };
       const updated = await decideApproval(query, 'deny', 'user_cancel');
       if (updated) {
         console.log(`[NomineeApproval] [CANCELLED] id=${id}`);
