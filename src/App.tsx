@@ -20,6 +20,7 @@ import { WelcomeMessageModal } from './components/WelcomeMessageModal';
 import { LocationPermissionModal } from './components/LocationPermissionModal';
 import { HealthDietaryVoiceModal } from './components/HealthDietaryVoiceModal';
 import { NomineeControlModal } from './components/NomineeControlModal';
+import { NomineeApprovalWaitingModal } from './components/NomineeApprovalWaitingModal';
 import { CenteredToastContainer } from './components/CenteredToastContainer';
 import { ScheduleCheckoutModal } from './components/ScheduleCheckoutModal';
 import { ScheduleCartModal } from './components/ScheduleCartModal';
@@ -55,6 +56,10 @@ const MainLayout: React.FC = () => {
     setIsHealthModalOpen,
     isNomineeModalOpen,
     setIsNomineeModalOpen,
+    waitingNomineeApproval,
+    setWaitingNomineeApproval,
+    handleNomineeApprovalApproved,
+    handleNomineeApprovalDenied,
     scheduleCart,
     clearScheduleCart,
     isScheduleCartModalOpen,
@@ -201,6 +206,20 @@ const MainLayout: React.FC = () => {
           onClose={() => setIsNomineeModalOpen(false)}
         />
       </ErrorBoundary>
+
+      {/* Nominee Email Approval Waiting Modal */}
+      {waitingNomineeApproval && (
+        <NomineeApprovalWaitingModal
+          isOpen={Boolean(waitingNomineeApproval)}
+          onClose={() => setWaitingNomineeApproval(null)}
+          approvalId={waitingNomineeApproval.requestId}
+          foodItem={waitingNomineeApproval.foodItem}
+          orderType={waitingNomineeApproval.orderType}
+          scheduleDetails={waitingNomineeApproval.scheduleDetails}
+          onApproved={handleNomineeApprovalApproved}
+          onDenied={handleNomineeApprovalDenied}
+        />
+      )}
 
       {/* Persistent Schedule Cart Modal */}
       <ScheduleCartModal

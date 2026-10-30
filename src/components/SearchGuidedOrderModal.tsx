@@ -190,6 +190,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     placeInstantOrder,
     saveSchedule,
     checkIsItemRestrictedByNominee,
+    isItemApprovedByNominee,
     handleNomineeRestrictedInterception,
     showToast
   } = useApp();
@@ -813,17 +814,34 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       }
 
     } else if (currentStep === 'when') {
-      const intent = classifyOrderNowOrSchedule(raw);
-      if (intent === 'NOW') {
-        if (selectedItem) handleOrderNow(selectedItem);
-      } else if (intent === 'SCHEDULE') {
-        handleStartSchedule();
-      } else {
-        const parsed = parseTime(raw);
-        if (parsed) {
-          handleScheduleTimeSet(parsed);
+      const isRestricted = selectedItem ? checkIsItemRestrictedByNominee(selectedItem.id, selectedItem.name) : false;
+      const isApproved = selectedItem ? isItemApprovedByNominee(selectedItem.id) : false;
+      if (isRestricted && !isApproved) {
+        const conf = SttMatcherService.matchConfirmation(candidates, language);
+        const lower = raw.toLowerCase();
+        const wantsApproval = conf.matchedValue === 'YES' ||
+          lower.includes('approval') || lower.includes('request') || lower.includes('yes') ||
+          lower.includes('அனுமதி') || lower.includes('ஒப்புதல்') || lower.includes('स्वीकृति');
+
+        if (wantsApproval && selectedItem) {
+          onClose();
+          handleNomineeRestrictedInterception(selectedItem, 'instant');
         } else {
           startListening();
+        }
+      } else {
+        const intent = classifyOrderNowOrSchedule(raw);
+        if (intent === 'NOW') {
+          if (selectedItem) handleOrderNow(selectedItem);
+        } else if (intent === 'SCHEDULE') {
+          handleStartSchedule();
+        } else {
+          const parsed = parseTime(raw);
+          if (parsed) {
+            handleScheduleTimeSet(parsed);
+          } else {
+            startListening();
+          }
         }
       }
 
@@ -987,12 +1005,19 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       }
 
     } else if (step === 'when') {
-      const rName = selectedRestaurant || selectedItem?.restaurant || '';
-      const confirmPrefix = rName
-        ? (t('guided.selectedConfirm') || '{item} selected.').replace('{item}', rName) + ' '
-        : '';
-      const prompt = `${confirmPrefix}${t('guided.step3Spoken')}`;
-      speakAndListen(prompt);
+      const isRestricted = selectedItem ? checkIsItemRestrictedByNominee(selectedItem.id, selectedItem.name) : false;
+      const isApproved = selectedItem ? isItemApprovedByNominee(selectedItem.id) : false;
+      if (isRestricted && !isApproved) {
+        const prompt = `${t('nominee.approvalRequiredBadge')}. ${t('nominee.requestApprovalBtn')}?`;
+        speakAndListen(prompt);
+      } else {
+        const rName = selectedRestaurant || selectedItem?.restaurant || '';
+        const confirmPrefix = rName
+          ? (t('guided.selectedConfirm') || '{item} selected.').replace('{item}', rName) + ' '
+          : '';
+        const prompt = `${confirmPrefix}${t('guided.step3Spoken')}`;
+        speakAndListen(prompt);
+      }
 
     } else if (step === 'schedule_time') {
       speakAndListen(t('guided.schedTimeQuestion'));
@@ -1182,34 +1207,62 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
         )}
 
         {/* ── STEP 3: WHEN (Order Now or Schedule) ── */}
-        {step === 'when' && (
-          <div className="p-5 space-y-3">
-            {selectedItem && (
-              <p className="text-xs font-bold text-slate-500">
-                {selectedItem.nativeNames?.[language] || selectedItem.name}
-                &nbsp;·&nbsp;{selectedRestaurant || selectedItem.restaurant}
-              </p>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => selectedItem && handleOrderNow(selectedItem)}
-                className="flex flex-col items-center gap-2 px-4 py-5 bg-[#FF5A1F] hover:bg-[#E04810] text-white rounded-2xl shadow-md transition-all cursor-pointer"
-              >
-                <Zap className="w-6 h-6" />
-                <span className="text-sm font-black">{t('guided.nowBtn')}</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleStartSchedule}
-                className="flex flex-col items-center gap-2 px-4 py-5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl transition-all cursor-pointer"
-              >
-                <Clock className="w-6 h-6" />
-                <span className="text-sm font-black">{t('guided.laterBtn')}</span>
-              </button>
+        {step === 'when' && (() => {
+          const isRestricted = selectedItem ? checkIsItemRestrictedByNominee(selectedItem.id, selectedItem.name) : false;
+          const isApproved = selectedItem ? isItemApprovedByNominee(selectedItem.id) : false;
+          const showOrderButtons = !isRestricted || isApproved;
+
+          return (
+            <div className="p-5 space-y-3">
+              {selectedItem && (
+                <p className="text-xs font-bold text-slate-500">
+                  {selectedItem.nativeNames?.[language] || selectedItem.name}
+                  &nbsp;·&nbsp;{selectedRestaurant || selectedItem.restaurant}
+                </p>
+              )}
+              {showOrderButtons ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => selectedItem && handleOrderNow(selectedItem)}
+                    className="flex flex-col items-center gap-2 px-4 py-5 bg-[#FF5A1F] hover:bg-[#E04810] text-white rounded-2xl shadow-md transition-all cursor-pointer"
+                  >
+                    <Zap className="w-6 h-6" />
+                    <span className="text-sm font-black">{t('guided.nowBtn')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartSchedule}
+                    className="flex flex-col items-center gap-2 px-4 py-5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl transition-all cursor-pointer"
+                  >
+                    <Clock className="w-6 h-6" />
+                    <span className="text-sm font-black">{t('guided.laterBtn')}</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-2xl text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
+                    <span>{t('nominee.approvalRequiredBadge')}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedItem) {
+                        onClose();
+                        handleNomineeRestrictedInterception(selectedItem, 'instant');
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
+                  >
+                    <ShieldCheck className="w-5 h-5" />
+                    <span className="text-sm font-black">{t('nominee.requestApprovalBtn')}</span>
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── STEP 4: TIME ── */}
         {step === 'schedule_time' && (

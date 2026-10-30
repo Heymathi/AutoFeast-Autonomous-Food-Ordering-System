@@ -204,3 +204,4 @@ describe('formatLocationSetToast (Toast Message Building)', () => {
     expect(toast).toBe('Location set to your location');
   });
 });
+

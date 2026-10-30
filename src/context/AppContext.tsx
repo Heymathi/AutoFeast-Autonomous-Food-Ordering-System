@@ -167,6 +167,16 @@ interface AppContextType {
   checkIsItemRestrictedByNominee: (foodId: string, foodName: string) => boolean;
   handleNomineeRestrictedInterception: (item: FoodItem, orderType: 'instant' | 'scheduled', scheduleDetails?: { time: string; slotName: string; duration?: string; frequency?: string }) => void;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
+  waitingNomineeApproval: {
+    requestId: string;
+    foodItem: FoodItem;
+    orderType: 'instant' | 'scheduled';
+    scheduleDetails?: any;
+  } | null;
+  setWaitingNomineeApproval: (val: { requestId: string; foodItem: FoodItem; orderType: 'instant' | 'scheduled'; scheduleDetails?: any } | null) => void;
+  isItemApprovedByNominee: (itemId: string, orderType?: 'instant' | 'scheduled') => boolean;
+  handleNomineeApprovalApproved: (foodItem: FoodItem, orderType: 'instant' | 'scheduled', scheduleDetails?: any) => void;
+  handleNomineeApprovalDenied: () => void;
 
   // Speech & Toast
   speakText: (text: string, onEnd?: () => void, targetLang?: Language) => void;
@@ -659,6 +669,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Nominee Control & Restricted Items State
   const [isNomineeModalOpen, setIsNomineeModalOpen] = useState<boolean>(false);
+  const [waitingNomineeApproval, setWaitingNomineeApproval] = useState<{
+    requestId: string;
+    foodItem: FoodItem;
+    orderType: 'instant' | 'scheduled';
+    scheduleDetails?: any;
+  } | null>(null);
+  const [approvedNomineeItemIds, setApprovedNomineeItemIds] = useState<string[]>([]);
   const [pendingNomineeApprovals, setPendingNomineeApprovals] = useState<PendingNomineeApproval[]>(() => NomineeNotificationService.getPendingApprovals());
 
   // Sync Nominee Approvals and Restricted Items from MongoDB Backend
@@ -759,58 +776,130 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return isFoodItemRestricted(foodId || foodName, restricted, foodName);
   };
 
-  const handleNomineeRestrictedInterception = (
+  const isItemApprovedByNominee = (foodId: string, orderType?: 'instant' | 'scheduled'): boolean => {
+    if (!foodId) return false;
+    const cleanId = foodId.trim().toLowerCase();
+    if (approvedNomineeItemIds.includes(cleanId)) return true;
+    const match = pendingNomineeApprovals.find(a => {
+      const aId = (a.foodItem?.id || (a as any).foodItemId || '').trim().toLowerCase();
+      if (aId !== cleanId) return false;
+      if (a.status !== 'approved') return false;
+      if (orderType && a.orderType !== orderType) return false;
+      return true;
+    });
+    return Boolean(match);
+  };
+
+  const handleNomineeRestrictedInterception = async (
     item: FoodItem,
     orderType: 'instant' | 'scheduled',
     scheduleDetails?: { time: string; slotName: string; duration?: string; frequency?: string }
   ) => {
-    const newReq = NomineeNotificationService.createApprovalRequest(
-      item,
+    const nomineeEmail = currentUser?.nomineeEmail || 'nominee@autofeast.com';
+    const nomineeName = currentUser?.nomineeName || 'Emergency Nominee';
+
+    const reqPayload = {
+      foodItem: item,
       orderType,
-      currentUser?.name || 'User',
-      currentUser?.nomineeName || 'Emergency Nominee',
-      currentUser?.nomineeEmail || `${(currentUser?.nomineeName || 'nominee').toLowerCase().replace(/\s+/g, '')}@autofeast.app`,
       scheduleDetails,
-      currentUser?.id
-    );
+      nomineeEmail,
+      nomineeName,
+      userId: currentUser?.id || 'guest_user',
+      language
+    };
 
-    setPendingNomineeApprovals(NomineeNotificationService.getPendingApprovals());
-    setIsNomineeModalOpen(true);
+    try {
+      const token = localStorage.getItem('autofeast_jwt_token') || '';
+      const res = await fetch('/api/nominee/approval-requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(reqPayload)
+      });
 
-    const waitingMsg = language === 'ta'
-      ? 'பரிந்துரைப்பாளர் ஒப்புதலுக்காக காத்திருக்கிறது'
-      : language === 'hi'
-      ? 'नामांकित व्यक्ति की मंजूरी की प्रतीक्षा है'
-      : 'Waiting for nominee approval';
-    showToast(waitingMsg, 'warning');
-    setTimeout(() => {
-      speakText(waitingMsg, undefined, language);
-    }, 200);
+      if (!res.ok && res.status !== 201) {
+        throw new Error('Failed to create approval request on server');
+      }
 
-    // Poll approval status from backend server
-    if (newReq?.id) {
-      const pollTimer = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/nominee/approval-status/${newReq.id}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.success && data.status === 'approved') {
-              clearInterval(pollTimer);
-              approveNomineeRequest(newReq.id);
-            } else if (data.success && data.status === 'denied') {
-              clearInterval(pollTimer);
-              denyNomineeRequest(newReq.id);
-            } else if (data.status === 'expired') {
-              clearInterval(pollTimer);
-            }
-          } else if (res.status === 404 || res.status === 409 || res.status === 400 || res.status === 410) {
-            clearInterval(pollTimer);
-          }
-        } catch {
-          // ignore transient poll error
-        }
-      }, 2500);
+      const data = await res.json();
+      const requestId = data.id || data.approvalId || `NOM-REQ-${Date.now()}`;
+
+      const newRequest: PendingNomineeApproval = {
+        id: requestId,
+        foodItem: item,
+        orderType,
+        scheduleDetails,
+        requestedAt: new Date().toISOString(),
+        status: 'pending',
+        nomineeEmail,
+        nomineeName
+      };
+
+      const updatedList = [newRequest, ...pendingNomineeApprovals.filter(p => p.id !== requestId)];
+      setPendingNomineeApprovals(updatedList);
+      NomineeNotificationService.savePendingApprovals(updatedList);
+
+      // Open user-facing waiting dialog (which polls server every 5s and handles speech & cancel)
+      setWaitingNomineeApproval({
+        requestId,
+        foodItem: item,
+        orderType,
+        scheduleDetails
+      });
+
+    } catch (err) {
+      console.error('[AppContext handleNomineeRestrictedInterception error]:', err);
+      const errMsg = t('nominee.emailSendError');
+      showToast(errMsg, 'error');
+      speakText(errMsg, undefined, language);
     }
+  };
+
+  const handleNomineeApprovalApproved = (
+    foodItem: FoodItem,
+    orderType: 'instant' | 'scheduled',
+    scheduleDetails?: any
+  ) => {
+    const cleanId = foodItem.id.trim().toLowerCase();
+    setApprovedNomineeItemIds(prev => [...prev, cleanId]);
+
+    const reqId = waitingNomineeApproval?.requestId;
+    if (reqId) {
+      approveNomineeRequest(reqId);
+    }
+    setWaitingNomineeApproval(null);
+
+    // Proceed to normal flow!
+    if (orderType === 'instant') {
+      placeInstantOrder(foodItem);
+    } else if (orderType === 'scheduled') {
+      const newSchedule: AutoOrderSchedule = {
+        id: `SCHED-${Date.now()}`,
+        slotName: scheduleDetails?.slotName || 'Meal Slot',
+        slotIndex: 2,
+        time: scheduleDetails?.time || '01:00 PM',
+        frequency: scheduleDetails?.frequency || 'daily',
+        foodItemId: foodItem.id,
+        foodItemName: foodItem.name,
+        restaurant: foodItem.restaurant || 'Saravana Bhavan',
+        quantity: 1,
+        strategy: 'best_value',
+        isEnabled: true,
+        walletAutoDebit: true,
+        duration: scheduleDetails?.duration || '1_week'
+      };
+      saveSchedule(newSchedule);
+    }
+  };
+
+  const handleNomineeApprovalDenied = () => {
+    const reqId = waitingNomineeApproval?.requestId;
+    if (reqId) {
+      denyNomineeRequest(reqId);
+    }
+    setWaitingNomineeApproval(null);
   };
 
   const approveNomineeRequest = (requestId: string) => {
@@ -1920,7 +2009,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return;
     }
 
-    if (checkIsItemRestrictedByNominee(item.id, item.name)) {
+    if (checkIsItemRestrictedByNominee(item.id, item.name) && !isItemApprovedByNominee(item.id, 'instant')) {
       console.log(`🔒 [Nominee Interception]: Item "${item.name}" is restricted by nominee. Intercepting order creation...`);
       handleNomineeRestrictedInterception(item, 'instant');
       return;
@@ -2075,7 +2164,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return;
     }
 
-    if (checkIsItemRestrictedByNominee(s.foodItemId, s.foodItemName)) {
+    if (checkIsItemRestrictedByNominee(s.foodItemId, s.foodItemName) && !isItemApprovedByNominee(s.foodItemId, 'scheduled')) {
       console.log(`🔒 [Nominee Interception]: Scheduled item "${s.foodItemName}" is restricted by nominee. Intercepting schedule creation...`);
       const itemObj = INDIAN_FOOD_CATALOG.find(f => f.id === s.foodItemId) || {
         id: s.foodItemId,
@@ -2528,7 +2617,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       denyNomineeRequest,
       checkIsItemRestrictedByNominee,
       handleNomineeRestrictedInterception,
-      updateUserProfile
+      updateUserProfile,
+      waitingNomineeApproval,
+      setWaitingNomineeApproval,
+      isItemApprovedByNominee,
+      handleNomineeApprovalApproved,
+      handleNomineeApprovalDenied
     }}>
       {children}
     </AppContext.Provider>

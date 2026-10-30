@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { X, MapPin, Clock, ShieldCheck, PhoneCall, Bike, CheckCircle2, Volume2, Sparkles, Navigation } from 'lucide-react';

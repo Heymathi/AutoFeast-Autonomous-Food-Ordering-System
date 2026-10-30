@@ -36,7 +36,10 @@ export const DynamicFoodSearch: React.FC = () => {
     accessibilitySettings,
     language,
     speakText,
-    showToast
+    showToast,
+    checkIsItemRestrictedByNominee,
+    isItemApprovedByNominee,
+    handleNomineeRestrictedInterception
   } = useApp();
 
   const [isMicListening, setIsMicListening] = useState(false);
@@ -540,44 +543,75 @@ export const DynamicFoodSearch: React.FC = () => {
 
             {/* Card Action Footer with Vibrant Tomato Orange CTA (#FF5A1F) */}
             <div className="p-4 bg-[#DAF0F7]/30 border-t border-[#DAF0F7] space-y-2">
-              
-              <button
-                type="button"
-                onClick={() => setChooserItem(item)}
-                className="w-full bg-[#1A1110] hover:bg-black text-white font-black py-2.5 rounded-xl shadow-md transition-transform active:scale-95 flex items-center justify-center space-x-2 text-xs sm:text-sm cursor-pointer"
-              >
-                <Mic className="w-4 h-4 text-[#FF5A1F]" />
-                <span>Choose Action (Voice / Tap)</span>
-              </button>
+              {(() => {
+                const isRestricted = checkIsItemRestrictedByNominee(item.id, item.name);
+                const isApproved = isItemApprovedByNominee(item.id);
+                const canDirectOrder = !isRestricted || isApproved;
 
-              <div className="grid grid-cols-3 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setChooserItem(item)}
-                  className="bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black py-2.5 rounded-xl shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
-                >
-                  <Zap className="w-3.5 h-3.5 text-white" />
-                  <span>Instant</span>
-                </button>
+                return (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setChooserItem(item)}
+                      className="w-full bg-[#1A1110] hover:bg-black text-white font-black py-2.5 rounded-xl shadow-md transition-transform active:scale-95 flex items-center justify-center space-x-2 text-xs sm:text-sm cursor-pointer"
+                    >
+                      <Mic className="w-4 h-4 text-[#FF5A1F]" />
+                      <span>{canDirectOrder ? 'Choose Action (Voice / Tap)' : `🔒 ${t('nominee.approvalRequiredBadge')}`}</span>
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={() => setChooserItem(item)}
-                  className="bg-[#DAF0F7] hover:bg-[#B2E2F0] text-[#1A1110] font-black py-2.5 rounded-xl border border-[#B2E2F0] shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
-                >
-                  <Clock className="w-3.5 h-3.5 text-[#FF5A1F]" />
-                  <span>Schedule</span>
-                </button>
+                    {canDirectOrder ? (
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setChooserItem(item)}
+                          className="bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black py-2.5 rounded-xl shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                        >
+                          <Zap className="w-3.5 h-3.5 text-white" />
+                          <span>Instant</span>
+                        </button>
 
-                <button
-                  type="button"
-                  onClick={() => setChooserItem(item)}
-                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black py-2.5 rounded-xl border border-emerald-300 shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
-                  title={t('addToCart')}
-                >
-                  <span>+ Cart</span>
-                </button>
-              </div>
+                        <button
+                          type="button"
+                          onClick={() => setChooserItem(item)}
+                          className="bg-[#DAF0F7] hover:bg-[#B2E2F0] text-[#1A1110] font-black py-2.5 rounded-xl border border-[#B2E2F0] shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                        >
+                          <Clock className="w-3.5 h-3.5 text-[#FF5A1F]" />
+                          <span>Schedule</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setChooserItem(item)}
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black py-2.5 rounded-xl border border-emerald-300 shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                          title={t('addToCart')}
+                        >
+                          <span>+ Cart</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleNomineeRestrictedInterception(item, 'instant')}
+                          className="bg-amber-500 hover:bg-amber-600 text-white font-black py-2.5 rounded-xl shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                          <span>{t('nominee.requestApprovalBtn')}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setChooserItem(item)}
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black py-2.5 rounded-xl border border-emerald-300 shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                          title={t('addToCart')}
+                        >
+                          <span>+ Cart</span>
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* Live Price Comparison Button */}
               <button

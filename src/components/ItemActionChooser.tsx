@@ -6,7 +6,7 @@ import { ChooserVoiceService, ChooserAction } from '../services/chooserVoiceServ
 import { SttMatcherService } from '../services/sttMatcherService';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
-import { Zap, Clock, ShoppingCart, X, Volume2, Mic, MicOff, Sparkles, AlertCircle } from 'lucide-react';
+import { Zap, Clock, ShoppingCart, X, Volume2, Mic, MicOff, Sparkles, AlertCircle, ShieldAlert } from 'lucide-react';
 
 import { SpeechController } from '../services/speechController';
 import { debounceHandler } from '../utils/debounce';
@@ -36,6 +36,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
     accessibilitySettings,
     currentUser,
     checkIsItemRestrictedByNominee,
+    isItemApprovedByNominee,
     handleNomineeRestrictedInterception
   } = useApp();
 
@@ -242,6 +243,8 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
 
   const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
   const isAnyRestricted = items.some(item => checkIsItemRestrictedByNominee(item.id, item.name));
+  const isApproved = items.every(item => !checkIsItemRestrictedByNominee(item.id, item.name) || isItemApprovedByNominee(item.id));
+  const showOrderAndSchedule = !isAnyRestricted || isApproved;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
@@ -330,34 +333,51 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
           </div>
         )}
 
-        {/* 3 BIG ACTION BUTTONS (Min 44px height, high touch area) */}
+        {/* ACTION BUTTONS (Order Now & Schedule appear only after approval for restricted items) */}
         <div className="grid grid-cols-1 gap-3">
-          
-          {/* ORDER NOW BUTTON */}
-          <button
-            type="button"
-            onClick={() => {
-              console.log('[ItemActionChooser]: "Order Now" button clicked for items:', items);
-              debouncedSelectAction('order_now');
-            }}
-            className="w-full min-h-[48px] bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
-          >
-            <Zap className="w-5 h-5 text-white" />
-            <span>{t('orderNow')}</span>
-          </button>
+          {showOrderAndSchedule ? (
+            <>
+              {/* ORDER NOW BUTTON */}
+              <button
+                type="button"
+                onClick={() => {
+                  console.log('[ItemActionChooser]: "Order Now" button clicked for items:', items);
+                  debouncedSelectAction('order_now');
+                }}
+                className="w-full min-h-[48px] bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
+              >
+                <Zap className="w-5 h-5 text-white" />
+                <span>{t('orderNow')}</span>
+              </button>
 
-          {/* SCHEDULE BUTTON */}
-          <button
-            type="button"
-            onClick={() => {
-              console.log('[ItemActionChooser]: "Schedule" button clicked for items:', items);
-              debouncedSelectAction('schedule');
-            }}
-            className="w-full min-h-[48px] bg-[#DAF0F7] hover:bg-[#B2E2F0] text-[#1A1110] font-black py-3.5 px-4 rounded-2xl border-2 border-[#B2E2F0] shadow-sm transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
-          >
-            <Clock className="w-5 h-5 text-[#FF5A1F]" />
-            <span>{t('scheduleCart')}</span>
-          </button>
+              {/* SCHEDULE BUTTON */}
+              <button
+                type="button"
+                onClick={() => {
+                  console.log('[ItemActionChooser]: "Schedule" button clicked for items:', items);
+                  debouncedSelectAction('schedule');
+                }}
+                className="w-full min-h-[48px] bg-[#DAF0F7] hover:bg-[#B2E2F0] text-[#1A1110] font-black py-3.5 px-4 rounded-2xl border-2 border-[#B2E2F0] shadow-sm transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
+              >
+                <Clock className="w-5 h-5 text-[#FF5A1F]" />
+                <span>{t('scheduleCart')}</span>
+              </button>
+            </>
+          ) : (
+            /* REQUEST NOMINEE APPROVAL BUTTON - SHOWN WHEN RESTRICTED & NOT APPROVED */
+            <button
+              type="button"
+              onClick={() => {
+                console.log('[ItemActionChooser]: "Request Nominee Approval" clicked for item:', primaryItem.name);
+                handleNomineeRestrictedInterception(primaryItem, 'instant');
+                onClose();
+              }}
+              className="w-full min-h-[50px] bg-amber-500 hover:bg-amber-600 text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
+            >
+              <ShieldAlert className="w-5 h-5 text-white" />
+              <span>{t('nominee.requestApprovalBtn')}</span>
+            </button>
+          )}
 
           {/* ADD TO CART BUTTON */}
           <button

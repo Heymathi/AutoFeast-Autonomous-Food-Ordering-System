@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import React, { useState, useEffect } from 'react';
 import { SpeechController, SpeechState, MicLanguageMode } from '../services/speechController';
 import { Volume2, Mic, Activity, ChevronUp, ChevronDown, Radio, ShieldCheck } from 'lucide-react';

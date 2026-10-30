@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 /**
  * PriceComparisonModal
  * Live real-time price comparison across Swiggy, Zomato, EatSure & Magicpin.

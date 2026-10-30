@@ -1,57 +1,288 @@
-import { useEffect, useRef } from 'react';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
-import { Sparkles, Heart, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Sparkles, Heart, ArrowRight, Mic, AlertCircle } from 'lucide-react';
+import { Language } from '../types';
+import { SpeechController } from '../services/speechController';
+
+/**
+ * Waits for speechSynthesis voices to load (with a 1.5s timeout).
+ */
+export function waitForVoices(timeoutMs = 1500): Promise<SpeechSynthesisVoice[]> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      resolve([]);
+      return;
+    }
+    const current = window.speechSynthesis.getVoices();
+    if (current && current.length > 0) {
+      console.log('[Welcome] voices loaded:', current.length, 'available immediately');
+      resolve(current);
+      return;
+    }
+
+    let isResolved = false;
+    const timer = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        console.warn('[Welcome] voices loaded: timed out after 1.5s waiting for voiceschanged');
+        resolve(window.speechSynthesis.getVoices() || []);
+      }
+    }, timeoutMs);
+
+    const onVoicesChanged = () => {
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timer);
+        const v = window.speechSynthesis.getVoices();
+        console.log('[Welcome] voices loaded: voiceschanged fired with', v.length, 'voices');
+        resolve(v);
+      }
+    };
+
+    if (typeof window.speechSynthesis.addEventListener === 'function') {
+      window.speechSynthesis.addEventListener('voiceschanged', onVoicesChanged, { once: true });
+    } else {
+      window.speechSynthesis.onvoiceschanged = onVoicesChanged;
+    }
+  });
+}
+
+/**
+ * Voice Picker Per Language:
+ * 1) Microsoft Online/Natural or Google high quality voice
+ * 2) Exact locale match (ta-IN, hi-IN, en-IN)
+ * 3) Same language-family voice by name
+ * 4) Fall back to any voice with the same 2-letter prefix
+ */
+export function pickBestVoice(voices: SpeechSynthesisVoice[], lang: Language): SpeechSynthesisVoice | null {
+  if (!voices || voices.length === 0) return null;
+
+  const targetLocale = lang === 'ta' ? 'ta-in' : lang === 'hi' ? 'hi-in' : 'en-in';
+  const langShort = lang.toLowerCase();
+  const normalize = (s: string) => (s || '').toLowerCase().replace(/_/g, '-');
+
+  // Tier 1: Microsoft Online / Natural or Google voice matching lang code or name
+  const natural = voices.find(v => {
+    const vl = normalize(v.lang);
+    const vn = normalize(v.name);
+    const match = vl.startsWith(langShort) ||
+      (lang === 'ta' && (vn.includes('tamil') || vn.includes('தமிழ்'))) ||
+      (lang === 'hi' && (vn.includes('hindi') || vn.includes('हिन्दी')));
+    return match && (vn.includes('online') || vn.includes('natural') || vn.includes('google'));
+  });
+  if (natural) return natural;
+
+  // Tier 2: Exact locale match (ta-IN, hi-IN, en-IN)
+  const exact = voices.find(v => normalize(v.lang) === targetLocale);
+  if (exact) return exact;
+
+  // Tier 3: Same language-family voice by name
+  const family = voices.find(v => {
+    const vn = normalize(v.name);
+    return (lang === 'ta' && (vn.includes('tamil') || vn.includes('தமிழ்'))) ||
+      (lang === 'hi' && (vn.includes('hindi') || vn.includes('हिन्दी') || vn.includes('hindustani'))) ||
+      (lang === 'en' && (vn.includes('english') || vn.includes('india')));
+  });
+  if (family) return family;
+
+  // Tier 4: Fall back to any voice with the same 2-letter prefix (ta, hi, en)
+  const prefixMatch = voices.find(v => normalize(v.lang).startsWith(langShort));
+  if (prefixMatch) return prefixMatch;
+
+  return null;
+}
 
 export const WelcomeMessageModal: React.FC = () => {
   const {
     entryStep,
     language,
     currentUser,
-    speakText,
-    handleWelcomeComplete
+    handleWelcomeComplete,
+    t
   } = useApp();
 
-  const isSpokenRef = useRef(false);
+  const [sttHint, setSttHint] = useState<string | null>(null);
 
+  // Single-execution guard: prevents auto-continue and manual button click from firing twice
+  const handledRef = useRef(false);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const watchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Derive the active language synchronously from localStorage if available to prevent stale "en"
+  const rawStoredLang = typeof window !== 'undefined' ? localStorage.getItem('autofeast_language_preference') : null;
+  const activeLang: Language = (rawStoredLang as Language) || language || 'en';
+
+  const clearAllTimers = () => {
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
+    if (watchdogTimerRef.current) {
+      clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = null;
+    }
+  };
+
+  // Shared proceed handler (called either on TTS onend, 4s fallback, user button click, or voice proceed)
+  const proceed = useCallback(() => {
+    if (handledRef.current) return;
+    handledRef.current = true;
+
+    console.log('[Welcome] auto-continue fired: navigating to location step');
+
+    clearAllTimers();
+
+    // Call speechSynthesis.cancel() when leaving the step
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (_) {}
+    }
+
+    // Release STT mic lock
+    SpeechController.releaseMic('welcome_modal');
+
+    // Go straight into website / location step
+    handleWelcomeComplete();
+  }, [handleWelcomeComplete]);
+
+  // STT Listener: list for "proceed", "continue", "சரி", "ஆம்", "आगे बढ़ें", "हाँ"
   useEffect(() => {
-    if (entryStep === 'welcome' && !isSpokenRef.current) {
-      isSpokenRef.current = true;
-      const userName = currentUser?.name || 'Friend';
+    if (entryStep !== 'welcome') return;
+    if (!SpeechController.isSupported()) return;
 
-      let welcomeMsg = '';
-      if (language === 'ta') {
-        welcomeMsg = `AutoFeast-க்கு வரவேற்கிறோம், ${userName}! உங்கள் சுவையான உணவை ஆர்டர் செய்ய அல்லது அட்டவணைப்படுத்தத் தயார்.`;
-      } else if (language === 'hi') {
-        welcomeMsg = `AutoFeast में आपका स्वागत है, ${userName}! अपना पसंदीदा भोजन ऑर्डर या शेड्यूल करें।`;
-      } else {
-        welcomeMsg = `Welcome to AutoFeast, ${userName}! Ready to order or schedule your favorite meal.`;
+    const targetLocale = activeLang === 'ta' ? 'ta-IN' : activeLang === 'hi' ? 'hi-IN' : 'en-IN';
+
+    SpeechController.requestMic({
+      owner: 'welcome_modal',
+      language: activeLang,
+      overrideLocale: targetLocale,
+      continuous: false,
+      interimResults: true,
+      maxAlternatives: 5,
+      allowDuringTts: true,
+      onResult: (transcript) => {
+        if (!transcript) return;
+        const clean = transcript.toLowerCase().trim();
+        const isProceed =
+          clean.includes('proceed') || clean.includes('continue') || clean.includes('yes') || clean.includes('ok') || clean.includes('next') ||
+          clean.includes('தொடர') || clean.includes('சரி') || clean.includes('ஆமா') || clean.includes('ஆம்') ||
+          clean.includes('आगे') || clean.includes('हाँ') || clean.includes('ठीक');
+
+        if (isProceed) {
+          console.log('[Welcome STT]: User confirmed proceed via voice:', clean);
+          proceed();
+        }
+      },
+      onError: (errCode) => {
+        console.warn('[Welcome STT onError]:', errCode);
+        if (errCode === 'not-allowed' || errCode === 'permission-denied') {
+          setSttHint(t('welcome.micDenied') || (activeLang === 'ta' ? 'மைக் அணுகல் மறுக்கப்பட்டது' : activeLang === 'hi' ? 'माइक्रोफ़ोन अनुमति अस्वीकृत' : 'Microphone permission denied'));
+        } else if (errCode === 'language-not-supported') {
+          setSttHint(t('welcome.langUnsupported') || (activeLang === 'ta' ? 'இந்த மொழிக்கு குரல் அறிதல் ஆதரிக்கப்படவில்லை' : activeLang === 'hi' ? 'इस भाषा के लिए आवाज पहचान समर्थित नहीं है' : 'Speech recognition not supported for this language'));
+        }
+      }
+    });
+
+    return () => {
+      SpeechController.releaseMic('welcome_modal');
+    };
+  }, [entryStep, activeLang, proceed, t]);
+
+  // TTS playback & 4s Auto-continue Effect
+  useEffect(() => {
+    if (entryStep !== 'welcome') {
+      handledRef.current = false;
+      clearAllTimers();
+      return;
+    }
+
+    handledRef.current = false;
+    clearAllTimers();
+
+    const userName = currentUser?.name || 'Friend';
+    const greetingTemplate = t('welcome.greeting') || (
+      activeLang === 'ta'
+        ? 'AutoFeast-க்கு வரவேற்கிறோம், {name}! உங்கள் சுவையான உணவை ஆர்டர் செய்ய அல்லது அட்டவணைப்படுத்தத் தயார்.'
+        : activeLang === 'hi'
+        ? 'AutoFeast में आपका स्वागत है, {name}! अपना पसंदीदा भोजन ऑर्डर या शेड्यूल करें।'
+        : 'Welcome to AutoFeast, {name}! Ready to order or schedule your favorite meal.'
+    );
+    const welcomeMsg = greetingTemplate.replace('{name}', userName);
+
+    console.log(`[Welcome]: Active step=welcome | lang=${activeLang} | text="${welcomeMsg}"`);
+
+    // 4-second safety fallback: if TTS is unavailable, blocked by autoplay, or errors out
+    fallbackTimerRef.current = setTimeout(() => {
+      console.warn('[Welcome]: Fallback timer (~4s) reached. Auto-continuing to location.');
+      proceed();
+    }, 4000);
+
+    // Cancel any previous residual speech before starting
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (_) {}
+    }
+
+    // Wait for speechSynthesis voices to load (1.5s max)
+    waitForVoices(1500).then((voices) => {
+      if (handledRef.current) return;
+
+      if (typeof window === 'undefined' || !('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+        console.warn('[Welcome TTS]: SpeechSynthesis not supported in browser environment. Relying on auto-continue timer.');
+        return;
       }
 
-      console.log('[WelcomeMessageModal]: Auto-speaking FULL welcome message in language:', language, 'Msg:', welcomeMsg);
+      const voice = pickBestVoice(voices, activeLang);
+      const targetLocale = activeLang === 'ta' ? 'ta-IN' : activeLang === 'hi' ? 'hi-IN' : 'en-IN';
+      console.log(`[Welcome] voice chosen: lang=${activeLang} | voice="${voice?.name || 'native-browser-default'}" | locale=${targetLocale}`);
 
-      let timer: NodeJS.Timeout | null = null;
-      speakText(welcomeMsg, () => {
-        if (timer) clearTimeout(timer);
-        console.log('[WelcomeMessageModal]: Welcome TTS playback finished completely. Auto-advancing to location step...');
-        setTimeout(() => {
-          handleWelcomeComplete();
-        }, 600);
-      }, language);
+      const utterance = new SpeechSynthesisUtterance(welcomeMsg);
+      utterance.lang = targetLocale;
+      utterance.rate = 0.95;
+      if (voice) {
+        utterance.voice = voice;
+      }
 
-      // Generous 20s safety fallback so long speech is NEVER cut off prematurely by timeout
-      timer = setTimeout(() => {
-        console.warn('[WelcomeMessageModal]: Safety fallback 20s timeout reached. Advancing step.');
-        handleWelcomeComplete();
-      }, 20000);
+      // Utterance Watchdog: in case browser drops onend event
+      const watchdogMs = Math.max(3500, welcomeMsg.length * 75 + 1500);
+      watchdogTimerRef.current = setTimeout(() => {
+        console.warn(`[Welcome TTS]: Watchdog fired after ${watchdogMs}ms without onend.`);
+        proceed();
+      }, watchdogMs);
 
-      return () => {
-        if (timer) clearTimeout(timer);
+      utterance.onstart = () => {
+        console.log('[Welcome] speech started:', welcomeMsg.substring(0, 40));
       };
-    } else if (entryStep !== 'welcome') {
-      isSpokenRef.current = false;
-    }
-  }, [entryStep, language, currentUser]);
+
+      utterance.onend = () => {
+        console.log('[Welcome] onend: Welcome TTS completed successfully. Auto-continuing...');
+        // Auto-continue when welcome TTS finishes
+        proceed();
+      };
+
+      utterance.onerror = (evt: any) => {
+        const error = evt?.error || 'unknown';
+        console.warn(`[Welcome TTS]: Utterance onerror (${error}). Continuing flow.`);
+        if (error !== 'canceled' && error !== 'interrupted') {
+          proceed();
+        }
+      };
+
+      try {
+        window.speechSynthesis.speak(utterance);
+      } catch (err: any) {
+        console.warn('[Welcome TTS]: Exception on window.speechSynthesis.speak:', err);
+        proceed();
+      }
+    });
+
+    return () => {
+      clearAllTimers();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch (_) {}
+      }
+    };
+  }, [entryStep, activeLang, currentUser, proceed, t]);
 
   if (entryStep !== 'welcome') return null;
 
@@ -68,49 +299,53 @@ export const WelcomeMessageModal: React.FC = () => {
 
         <div className="space-y-2">
           <span className="text-xs font-black uppercase tracking-widest text-[#FF5A1F] bg-[#FF5A1F]/10 px-3 py-1 rounded-full border border-[#FF5A1F]/30">
-            {language === 'ta' ? 'வரவேற்புச் செய்தி' : language === 'hi' ? 'स्वागत संदेश' : 'Welcome to AutoFeast'}
+            {t('welcome.badge') || (activeLang === 'ta' ? 'வரவேற்புச் செய்தி' : activeLang === 'hi' ? 'स्वागत संदेश' : 'Welcome to AutoFeast')}
           </span>
 
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-[#1A1110]">
-            {language === 'ta'
-              ? `AutoFeast-க்கு வரவேற்கிறோம், ${userName}! 🎉`
-              : language === 'hi'
-              ? `AutoFeast में आपका स्वागत है, ${userName}! 🎉`
-              : `Welcome to AutoFeast, ${userName}! 🎉`}
+            {(t('welcome.title') || 'Welcome to AutoFeast, {name}! 🎉').replace('{name}', userName)}
           </h2>
 
           <p className="text-sm font-extrabold text-[#4A5568] leading-relaxed max-w-md mx-auto">
-            {language === 'ta'
+            {t('welcome.subtitle') || (activeLang === 'ta'
               ? 'உங்கள் குரல் வழி உணவு ஆர்டர் மற்றும் அட்டவணை அமைப்பு தயாராக உள்ளது!'
-              : language === 'hi'
+              : activeLang === 'hi'
               ? 'आपकी आवाज से भोजन ऑर्डर और शेड्यूल प्रणाली तैयार है!'
-              : 'Your accessibility-first smart food ordering & auto-scheduling system is ready!'}
+              : 'Your accessibility-first smart food ordering & auto-scheduling system is ready!')}
           </p>
         </div>
 
         <div className="p-4 bg-[#DAF0F7]/40 rounded-2xl border border-[#B2E2F0] flex items-center justify-center space-x-2 text-xs font-black text-[#1A1110]">
           <Heart className="w-4 h-4 text-[#FF5A1F] fill-[#FF5A1F] animate-pulse" />
           <span>
-            {language === 'ta'
+            {t('welcome.langSet') || (activeLang === 'ta'
               ? 'மொழி வெற்றிகரமாகப் பயன்படுத்தப்பட்டது!'
-              : language === 'hi'
+              : activeLang === 'hi'
               ? 'भाषा सफलतापूर्वक लागू की गई!'
-              : 'Language preference successfully set!'}
+              : 'Language preference successfully set!')}
           </span>
         </div>
+
+        {/* Small STT Hint if mic permission denied or unsupported */}
+        {sttHint && (
+          <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 font-bold text-xs flex items-center justify-center space-x-1.5">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>{sttHint}</span>
+          </div>
+        )}
 
         {/* Manual Proceed Button */}
         <button
           type="button"
-          onClick={handleWelcomeComplete}
+          onClick={proceed}
           className="w-full py-4 px-6 bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black rounded-2xl text-base shadow-lg shadow-[#FF5A1F]/30 transition-transform active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
         >
           <span>
-            {language === 'ta'
+            {t('welcome.proceedBtn') || (activeLang === 'ta'
               ? 'தொடரவும் (Proceed to Location)'
-              : language === 'hi'
+              : activeLang === 'hi'
               ? 'आगे बढ़ें (Proceed to Location)'
-              : 'Continue to Location Access'}
+              : 'Continue to Location Access')}
           </span>
           <ArrowRight className="w-5 h-5 text-white" />
         </button>

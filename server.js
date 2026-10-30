@@ -423,6 +423,7 @@ const ApprovalRequestSchema = new mongoose.Schema({
   decidedVia: { type: String, enum: ['email', 'website'] },
   nomineeEmail: { type: String },
   nomineeName: { type: String },
+  language: { type: String, default: 'en' },
   requestedAt: { type: Date, default: Date.now },
   decidedAt: { type: Date }
 });
@@ -1040,7 +1041,10 @@ export const sentEmailsArray = [];
 // Real Mailer Helper (Nodemailer/Provider via APP_BASE_URL, EMAIL_API_KEY, SMTP_* env vars)
 export async function sendEmail({ to, subject, text, html, meta = {} }) {
   const isTest = process.env.NODE_ENV === 'test';
-  const hasSmtp = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  const emailUser = process.env.EMAIL_USER || process.env.GMAIL_USER || process.env.SMTP_USER;
+  const emailPass = process.env.EMAIL_APP_PASSWORD || process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS;
+  const hasGmail = Boolean(emailUser && emailPass && (!process.env.SMTP_HOST || process.env.SMTP_HOST.includes('gmail')));
+  const hasSmtp = Boolean(process.env.SMTP_HOST && emailUser && emailPass);
   const hasApiKey = Boolean(process.env.EMAIL_API_KEY);
   const from = process.env.EMAIL_FROM || 'noreply@autofeast.com';
 
@@ -1052,14 +1056,22 @@ export async function sendEmail({ to, subject, text, html, meta = {} }) {
     return { success: true, mailRecord };
   }
 
-  if (!hasSmtp && !hasApiKey) {
+  if (!hasGmail && !hasSmtp && !hasApiKey) {
     console.error('[EMAIL ERROR] Email transport not configured (missing SMTP_HOST/USER/PASS or EMAIL_API_KEY env vars).');
     return { success: false, error: 'Email transport not configured in production environment (missing SMTP_HOST/USER/PASS or EMAIL_API_KEY env vars).' };
   }
 
   try {
     let transporter;
-    if (hasSmtp) {
+    if (hasGmail) {
+      transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: emailUser,
+          pass: emailPass
+        }
+      });
+    } else if (hasSmtp) {
       transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
         port: Number(process.env.SMTP_PORT) || 587,
@@ -2135,7 +2147,9 @@ let dispatchApprovalEmail = async () => {};
 app.post('/api/nominee/approval-requests', async (req, res) => {
   try {
     const userId = getAuthenticatedUserIdFromSession(req) || req.body?.userId || req.headers['x-user-id'] || 'guest_user';
-    const { foodItem, orderType, scheduleDetails, nomineeEmail, nomineeName } = req.body || {};
+    const { foodItem, orderType, scheduleDetails, nomineeEmail, nomineeName, language = 'en' } = req.body || {};
+    const ttl = orderType === 'instant' ? 30 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const reqExpiresAt = new Date(Date.now() + ttl);
     if (!foodItem || !orderType) {
       return res.status(400).json({ success: false, error: 'Missing required approval request fields.' });
     }
@@ -2161,7 +2175,9 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
           orderType,
           scheduleDetails,
           status: 'pending',
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          expiresAt: reqExpiresAt,
+          language,
+          used: false,
           createdAt: new Date(),
           requestedAt: new Date()
         };
@@ -2171,6 +2187,7 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
           dispatchApprovalEmail(record, user).catch(e =>
             console.error('[Approval email]', e instanceof Error ? e.message : e));
         }
+        console.log(`[NomineeApproval] [CREATE] id=${reqId} user=${userId} item=${rawFoodId} orderType=${orderType} expiresAt=${reqExpiresAt.toISOString()}`);
         return res.status(201).json({ success: true, id: reqId, approvalId: reqId, request: record });
       }
       console.error('[POST /api/nominee/approval-requests] 503 - DB not connected');
@@ -2188,7 +2205,9 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
       orderType,
       scheduleDetails,
       status: 'pending',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      expiresAt: reqExpiresAt,
+      language,
+      used: false,
       requestedAt: new Date()
     });
     await newReq.save();
@@ -2197,6 +2216,7 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
     dispatchApprovalEmail(newReq, user).catch(e =>
       console.error('[Approval email]', e instanceof Error ? e.message : e));
 
+    console.log(`[NomineeApproval] [CREATE] id=${reqId} user=${userId} item=${rawFoodId} orderType=${orderType} expiresAt=${reqExpiresAt.toISOString()}`);
     return res.status(201).json({ success: true, id: reqId, approvalId: reqId, request: newReq });
   } catch (err) {
     console.error('[POST /api/nominee/approval-requests error]:', err);
@@ -2901,6 +2921,7 @@ export async function processRestrictedOrderOrSchedule({ userId, rawItemsPayload
         };
       }
 
+      console.log(`[NomineeApproval] [CONSUMED] id=${claimedRecord.id || claimedRecord._id} orderType=${orderType} usedAt=${now.toISOString()}`);
       claimedApprovalIds.push(claimedRecord.id);
     } catch (err) {
       if (claimedApprovalIds.length > 0) {
