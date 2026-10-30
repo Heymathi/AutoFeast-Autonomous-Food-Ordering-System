@@ -244,7 +244,11 @@ if (!cached) {
 
 let isConnected = Boolean(mongoose.connection.readyState === 1);
 mongoose.connection.on('connected', () => { isConnected = true; });
-mongoose.connection.on('disconnected', () => { isConnected = false; });
+mongoose.connection.on('disconnected', () => {
+  isConnected = false;
+  cached.conn = null;
+  cached.promise = null;
+});
 
 function sanitizeMongoError(raw) {
   if (typeof raw !== 'string') return String(raw ?? '');
@@ -268,6 +272,7 @@ export async function connectDB() {
       return cached.conn;
     }
     cached.conn = null;
+    cached.promise = null;
   }
 
   if (mongoose.connection.readyState === 1) {
@@ -474,17 +479,50 @@ export const fallbackRestrictedItemsDb = [];
 export const fallbackApprovalRequestsDb = [];
 export const fallbackCartDb = new Map(); // Key: userId, Value: Array of cart items
 
-// Middleware: await cached Mongoose connection before handling every /api/* request
-app.use(async (req, res, next) => {
-  const target = req.originalUrl || req.url || req.path || '';
-  if (target.startsWith('/api') || req.path?.startsWith('/api') || req.baseUrl?.startsWith('/api')) {
+// Middleware: ensure every /api/* request waits for the cached Mongoose connection
+// (connect once, reuse the promise; retry up to 2 attempts, 3s apart, before returning 503)
+const DB_CONNECT_MAX_ATTEMPTS = 2;
+const DB_CONNECT_RETRY_DELAY_MS = 3000;
+
+app.use('/api', async (req, res, next) => {
+  const isHealthCheck = req.path === '/health' || (req.originalUrl || '').startsWith('/api/health');
+
+  for (let attempt = 1; attempt <= DB_CONNECT_MAX_ATTEMPTS; attempt++) {
     try {
       await connectDB();
     } catch {
-      // Handled inside connectDB; next() called to proceed
+      // Handled inside connectDB (logs sanitized error and updates cached.error)
+    }
+
+    if (mongoose.connection.readyState === 1) {
+      return next();
+    }
+
+    if (isHealthCheck || process.env.NODE_ENV === 'test') {
+      break;
+    }
+
+    if (attempt < DB_CONNECT_MAX_ATTEMPTS) {
+      cached.promise = null;
+      cached.conn = null;
+      console.warn(`[MongoDB] Connection attempt ${attempt}/${DB_CONNECT_MAX_ATTEMPTS} failed for ${req.originalUrl || req.url}; retrying in ${DB_CONNECT_RETRY_DELAY_MS}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, DB_CONNECT_RETRY_DELAY_MS));
     }
   }
-  next();
+
+  if (isHealthCheck || process.env.NODE_ENV === 'test') {
+    return next();
+  }
+
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      success: false,
+      error: 'database_unavailable',
+      message: 'Database service unavailable. Failed closed.'
+    });
+  }
+
+  return next();
 });
 
 // Health Check
