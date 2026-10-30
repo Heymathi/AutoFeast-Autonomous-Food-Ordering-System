@@ -24,6 +24,11 @@ import { SpeechController } from '../services/speechController';
 import { SttMatcherService } from '../services/sttMatcherService';
 import { parseSpokenTimeTo24Hr, deriveMealSlot } from '../services/timeVoiceParser';
 import { calculateHaversineDistance } from '../services/locationService';
+import {
+  matchOptionByTokens,
+  classifyOrderNowOrSchedule,
+  normalizeInputText
+} from '../services/guidedMatchingService';
 import { Mic, MicOff, X, Zap, Clock, ChevronRight } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -49,30 +54,6 @@ const CANCEL_WORDS = [
 const isCancelIntent = (text: string): boolean => {
   const t = text.toLowerCase().replace(/[,.!?;:()'"~`-]+/g, ' ').trim();
   return CANCEL_WORDS.some(w => ` ${t} `.includes(` ${w} `));
-};
-
-// ─── Now-intent detector ────────────────────────────────────────────────────
-
-const NOW_WORDS = [
-  'now', 'order now', 'instant', 'immediately', 'right now', 'abhi', 'abhi order',
-  'இப்போதே', 'இப்போது', 'உடனடி', 'ippothe', 'ippodhe', 'ippo order',
-  'अभी', 'अभी ऑर्डर', 'तुरंत', 'turant', 'abhi'
-];
-const isNowIntent = (text: string): boolean => {
-  const t = text.toLowerCase().replace(/[,.!?;:()'"~`-]+/g, ' ').trim();
-  return NOW_WORDS.some(w => ` ${t} `.includes(` ${w} `));
-};
-
-// ─── Later-intent detector ───────────────────────────────────────────────────
-
-const LATER_WORDS = [
-  'later', 'schedule', 'later order', 'schedule for later', 'set time', 'at a time',
-  'பிறகு', 'அட்டவணை', 'பின்னர்', 'piraghu', 'pinnaar', 'attavanai',
-  'baad mein', 'baad', 'schedule karo', 'time set', 'बाद में', 'बाद', 'शेड्यूल', 'समय'
-];
-const isLaterIntent = (text: string): boolean => {
-  const t = text.toLowerCase().replace(/[,.!?;:()'"~`-]+/g, ' ').trim();
-  return LATER_WORDS.some(w => ` ${t} `.includes(` ${w} `));
 };
 
 // ─── Deduplicate restaurants from matched items ──────────────────────────────
@@ -256,13 +237,22 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       window.speechSynthesis.cancel();
     }
     SpeechController.releaseMic(MIC_OWNER);
-    console.log(`[GuidedDialog] [variety→restaurant] t=${Date.now()} item="${item.name}"`);
     setSelectedItem(item);
     handledRef.current = false;
     setSilenceCount(0);
     setLiveText('');
+
+    // Speak brief confirmation
+    const itemName = item.nativeNames?.[language] || item.name;
+    const confirmMsg = language === 'ta'
+      ? `${itemName} தேர்ந்தெடுக்கப்பட்டது.`
+      : language === 'hi'
+      ? `${itemName} चुना गया.`
+      : `${itemName} selected.`;
+    speakText(confirmMsg, undefined, language);
+
     setStep('restaurant');
-  }, []);
+  }, [language, speakText]);
 
   /** Called when restaurant is chosen (tap or voice) */
   const handleRestaurantChosen = useCallback((restaurant: string) => {
@@ -272,13 +262,21 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       window.speechSynthesis.cancel();
     }
     SpeechController.releaseMic(MIC_OWNER);
-    console.log(`[GuidedDialog] [restaurant→when] t=${Date.now()} restaurant="${restaurant}"`);
     setSelectedRestaurant(restaurant);
     handledRef.current = false;
     setSilenceCount(0);
     setLiveText('');
+
+    // Speak brief confirmation
+    const confirmMsg = language === 'ta'
+      ? `${restaurant} தேர்ந்தெடுக்கப்பட்டது.`
+      : language === 'hi'
+      ? `${restaurant} चुना गया.`
+      : `${restaurant} selected.`;
+    speakText(confirmMsg, undefined, language);
+
     setStep('when');
-  }, []);
+  }, [language, speakText]);
 
   /** Called when "Order Now" chosen */
   const handleOrderNow = useCallback((item: FoodItem) => {
@@ -288,7 +286,6 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       window.speechSynthesis.cancel();
     }
     SpeechController.releaseMic(MIC_OWNER);
-    console.log(`[GuidedDialog] [order-now] t=${Date.now()} item="${item.name}"`);
     onClose();
     const isRestricted = checkIsItemRestrictedByNominee(item.id, item.name);
     if (isRestricted) {
@@ -306,7 +303,6 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       window.speechSynthesis.cancel();
     }
     SpeechController.releaseMic(MIC_OWNER);
-    console.log(`[GuidedDialog] [schedule] t=${Date.now()} item="${item.name}" time="${time24}" slot="${slotName}"`);
     onClose();
     const isRestricted = checkIsItemRestrictedByNominee(item.id, item.name);
     if (isRestricted) {
@@ -319,7 +315,6 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
   // ── Voice result router ───────────────────────────────────────────────────
   const handleVoiceResult = useCallback((candidates: string[]) => {
     const raw = candidates[0] || '';
-    console.log(`[GuidedDialog] [voice-result] step="${stepRef.current}" text="${raw}" t=${Date.now()}`);
 
     if (isCancelIntent(raw)) {
       handleCancel();
@@ -329,47 +324,116 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     const currentStep = stepRef.current;
 
     if (currentStep === 'variety') {
-      // Try ordinal / name match
-      const matched = SttMatcherService.matchFoodItem(candidates, varieties, language);
-      if (matched) {
-        handleVarietyChosen(matched);
+      // Use guidedMatchingService: strips family words, scores by distinctive tokens
+      const decision = matchOptionByTokens(raw, varieties, language);
+      console.log('[GuidedDialog]', {
+        step: currentStep,
+        heard: raw,
+        normalized: normalizeInputText(raw),
+        candidates: decision.scored.map(s => ({ label: s.label, score: parseFloat(s.score.toFixed(2)) })),
+        chosen: decision.chosen ? (decision.chosen as FoodItem).name : null,
+        reason: decision.reason
+      });
+
+      if (decision.chosen) {
+        handleVarietyChosen(decision.chosen as FoodItem);
+      } else if (decision.isTie && decision.tieCandidates) {
+        const [a, b] = decision.tieCandidates as [FoodItem, FoodItem];
+        const nameA = a.nativeNames?.[language] || a.name;
+        const nameB = b.nativeNames?.[language] || b.name;
+        const tieMsg = language === 'ta'
+          ? `${nameA} அல்லது ${nameB} - எது வேண்டும்?`
+          : language === 'hi'
+          ? `${nameA} या ${nameB} - कौन सा चाहिए?`
+          : `Did you mean ${nameA}, or ${nameB}?`;
+        speakText(tieMsg, () => { if (isOpenRef.current) startListening(); }, language);
+      } else if (decision.isOnlyFamilyWord) {
+        // Only family word heard (e.g. just "biryani") — re-prompt
+        const top3Names = namesToSpeak(varieties.map(v => v.nativeNames?.[language] || v.name));
+        const prompt = t('guided.step1Spoken')
+          .replace('{dish}', query || 'dish')
+          .replace('{names}', top3Names);
+        speakText(prompt, () => { if (isOpenRef.current) startListening(); }, language);
       } else {
-        // re-listen
+        // No match — re-listen silently
         startListening();
       }
 
     } else if (currentStep === 'restaurant') {
-      const currentRestaurants = selectedItem
+      // All restaurants across all matched varieties (not just same id)
+      const currentRestaurants = getUniqueRestaurants(
+        matchedItems,
+        userLocation.latitude,
+        userLocation.longitude
+      );
+      // Further filter to only those that serve the selected item's family
+      const filteredRestaurants = selectedItem
         ? getUniqueRestaurants(
-            matchedItems.filter(i => i.id === selectedItem.id),
+            matchedItems.filter(i => i.id === selectedItem.id || i.restaurant === selectedItem.restaurant),
             userLocation.latitude,
             userLocation.longitude
           )
-        : [];
+        : currentRestaurants;
+      const restaurantList = filteredRestaurants.length > 0 ? filteredRestaurants : currentRestaurants;
 
-      if (currentRestaurants.length === 1) {
+      if (restaurantList.length === 1) {
         // Single restaurant: treat as yes/no confirmation
         const conf = SttMatcherService.matchConfirmation(candidates, language);
+        console.log('[GuidedDialog]', {
+          step: currentStep,
+          heard: raw,
+          normalized: normalizeInputText(raw),
+          candidates: [{ label: restaurantList[0], score: 'yes/no' }],
+          chosen: conf.matchedValue === 'YES' ? restaurantList[0] : null,
+          reason: `Single restaurant confirm: ${conf.matchedValue}`
+        });
         if (conf.matchedValue === 'YES') {
-          handleRestaurantChosen(currentRestaurants[0]);
+          handleRestaurantChosen(restaurantList[0]);
         } else if (conf.matchedValue === 'NO') {
           handleCancel();
         } else {
           startListening();
         }
       } else {
-        const res = SttMatcherService.matchRestaurantSelection(candidates, currentRestaurants);
-        if (res.isMatched && res.restaurant) {
-          handleRestaurantChosen(res.restaurant);
+        const decision = matchOptionByTokens(raw, restaurantList, language);
+        console.log('[GuidedDialog]', {
+          step: currentStep,
+          heard: raw,
+          normalized: normalizeInputText(raw),
+          candidates: decision.scored.map(s => ({ label: s.label, score: parseFloat(s.score.toFixed(2)) })),
+          chosen: decision.chosen as string | null,
+          reason: decision.reason
+        });
+
+        if (decision.chosen) {
+          handleRestaurantChosen(decision.chosen as string);
+        } else if (decision.isTie && decision.tieCandidates) {
+          const [a, b] = decision.tieCandidates as [string, string];
+          const tieMsg = language === 'ta'
+            ? `${a} அல்லது ${b} - எது வேண்டும்?`
+            : language === 'hi'
+            ? `${a} या ${b} - कौन सा?`
+            : `Did you mean ${a} or ${b}?`;
+          speakText(tieMsg, () => { if (isOpenRef.current) startListening(); }, language);
         } else {
           startListening();
         }
       }
 
     } else if (currentStep === 'when') {
-      if (isNowIntent(raw)) {
+      const intent = classifyOrderNowOrSchedule(raw);
+      console.log('[GuidedDialog]', {
+        step: currentStep,
+        heard: raw,
+        normalized: normalizeInputText(raw),
+        candidates: [{ label: 'NOW', score: intent === 'NOW' ? 1 : 0 }, { label: 'SCHEDULE', score: intent === 'SCHEDULE' ? 1 : 0 }],
+        chosen: intent === 'UNKNOWN' ? null : intent,
+        reason: `classifyOrderNowOrSchedule → ${intent}`
+      });
+
+      if (intent === 'NOW') {
         if (selectedItem) handleOrderNow(selectedItem);
-      } else if (isLaterIntent(raw)) {
+      } else if (intent === 'SCHEDULE') {
         setSilenceCount(0);
         setLiveText('');
         setStep('time');
@@ -387,6 +451,15 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
     } else if (currentStep === 'time') {
       const parsed = parseSpokenTimeTo24Hr(raw);
+      console.log('[GuidedDialog]', {
+        step: currentStep,
+        heard: raw,
+        normalized: normalizeInputText(raw),
+        candidates: [],
+        chosen: parsed ? parsed.time24 : null,
+        reason: parsed ? `parsed time: ${parsed.time24}` : 'time parse failed'
+      });
+
       if (parsed && selectedItem) {
         const slot = deriveMealSlot(parsed.hours);
         handleSchedule(selectedItem, parsed.time24, `${slot} Schedule`);
@@ -401,7 +474,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     }
   }, [
     handleCancel, handleOrderNow, handleRestaurantChosen, handleSchedule, handleVarietyChosen,
-    language, matchedItems, selectedItem, speakText, startListening, t, timeReaskDone,
+    language, matchedItems, query, selectedItem, speakText, startListening, t, timeReaskDone,
     userLocation.latitude, userLocation.longitude, varieties
   ]);
 
@@ -448,10 +521,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       const prompt = t('guided.step1Spoken')
         .replace('{dish}', dishLabel)
         .replace('{names}', top3Names);
-      console.time('[DIALOG] variety question spoken');
       speakAndListen(prompt, () => {
-        console.timeEnd('[DIALOG] variety question spoken');
-        console.log('[DIALOG] recognition started for step: variety');
       });
 
     } else if (step === 'restaurant') {
@@ -467,10 +537,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
         const fallback = selectedItem.restaurant || '';
         if (fallback) {
           const prompt = t('guided.step2SingleConfirm').replace('{restaurant}', fallback);
-          console.time('[DIALOG] restaurant question spoken');
           speakAndListen(prompt, () => {
-            console.timeEnd('[DIALOG] restaurant question spoken');
-            console.log('[DIALOG] recognition started for step: restaurant');
           });
         } else {
           // Skip straight to when
@@ -481,35 +548,23 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
       if (currentRestaurants.length === 1) {
         const prompt = t('guided.step2SingleConfirm').replace('{restaurant}', currentRestaurants[0]);
-        console.time('[DIALOG] restaurant question spoken');
         speakAndListen(prompt, () => {
-          console.timeEnd('[DIALOG] restaurant question spoken');
-          console.log('[DIALOG] recognition started for step: restaurant');
         });
       } else {
         const top3Names = namesToSpeak(currentRestaurants);
         const prompt = t('guided.step2Spoken').replace('{names}', top3Names);
-        console.time('[DIALOG] restaurant question spoken');
         speakAndListen(prompt, () => {
-          console.timeEnd('[DIALOG] restaurant question spoken');
-          console.log('[DIALOG] recognition started for step: restaurant');
         });
       }
 
     } else if (step === 'when') {
       const prompt = t('guided.step3Spoken');
-      console.time('[DIALOG] when question spoken');
       speakAndListen(prompt, () => {
-        console.timeEnd('[DIALOG] when question spoken');
-        console.log('[DIALOG] recognition started for step: when');
       });
 
     } else if (step === 'time') {
       const prompt = t('guided.step3TimeSpoken');
-      console.time('[DIALOG] time question spoken');
       speakAndListen(prompt, () => {
-        console.timeEnd('[DIALOG] time question spoken');
-        console.log('[DIALOG] recognition started for step: time');
       });
     }
   }, [step, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
