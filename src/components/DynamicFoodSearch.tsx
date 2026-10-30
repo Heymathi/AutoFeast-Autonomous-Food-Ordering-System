@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
@@ -12,6 +11,7 @@ import { detectFoodFamilyIntent } from '../services/foodFamilyTable';
 import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
 import { ItemActionChooser } from './ItemActionChooser';
 import { PriceComparisonModal } from './PriceComparisonModal';
+import { SearchGuidedOrderModal } from './SearchGuidedOrderModal';
 import { Search, MapPin, Utensils, Leaf, Star, Clock, Sparkles, AlertCircle, ShieldCheck, Zap, Navigation, Mic, MicOff, Volume2, BarChart2 } from 'lucide-react';
 
 export const DynamicFoodSearch: React.FC = () => {
@@ -36,7 +36,11 @@ export const DynamicFoodSearch: React.FC = () => {
     accessibilitySettings,
     language,
     speakText,
-    showToast
+    showToast,
+    isGuidedSearchOpen,
+    guidedSearchQuery,
+    guidedSearchItems,
+    closeGuidedSearch
   } = useApp();
 
   const [isMicListening, setIsMicListening] = useState(false);
@@ -652,6 +656,14 @@ export const DynamicFoodSearch: React.FC = () => {
             setPriceCompareItem(null);
           }
         }}
+      />
+
+      {/* GUIDED 3-STEP SEARCH ORDER DIALOG */}
+      <SearchGuidedOrderModal
+        isOpen={isGuidedSearchOpen}
+        onClose={closeGuidedSearch}
+        query={guidedSearchQuery}
+        matchedItems={guidedSearchItems}
       />
 
     </div>

@@ -432,7 +432,33 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'langModal.didYouMean': 'Did you mean {language}?',
     'langModal.confirmedEn': 'Language set to English',
     'langModal.confirmedTa': 'Language set to Tamil',
-    'langModal.confirmedHi': 'Language set to Hindi'
+    'langModal.confirmedHi': 'Language set to Hindi',
+
+    // Search Guided Order Dialog (3-step: variety -> restaurant -> when)
+    'guided.step1Title': 'Which type of {dish} would you like?',
+    'guided.step1Spoken': 'Which type of {dish} would you like? {names}',
+    'guided.step2Title': 'Which restaurant?',
+    'guided.step2Spoken': 'Which restaurant would you like to order from? {names}',
+    'guided.step2SingleConfirm': 'Order from {restaurant}? Say Yes or No.',
+    'guided.step3Title': 'Order now or schedule for later?',
+    'guided.step3Spoken': 'Do you want to order now, or schedule for later?',
+    'guided.step3TimeTitle': 'At what time?',
+    'guided.step3TimeSpoken': 'At what time would you like to schedule this?',
+    'guided.step3TimeReask': 'Sorry, I did not catch the time. Please say a time like 8 AM or 7:30 PM.',
+    'guided.nowBtn': 'Order Now',
+    'guided.laterBtn': 'Schedule for Later',
+    'guided.silenceRePrompt': 'Still listening. Please say your choice or tap a button.',
+    'guided.cancelledOkay': 'Okay, cancelled.',
+    'guided.notFound': 'No results found. Please try a different name.',
+    'guided.tapHint': 'Tap a card to select, or speak your choice.',
+    'welcome.greeting': 'Welcome to AutoFeast, {name}! Ready to order or schedule your favorite meal.',
+    'welcome.badge': 'Welcome to AutoFeast',
+    'welcome.title': 'Welcome to AutoFeast, {name}! 🎉',
+    'welcome.subtitle': 'Your accessibility-first smart food ordering & auto-scheduling system is ready!',
+    'welcome.langSet': 'Language preference successfully set!',
+    'welcome.proceedBtn': 'Continue to Location Access',
+    'welcome.micDenied': 'Microphone permission denied',
+    'welcome.langUnsupported': 'Speech recognition not supported for this language'
   },
   ta: {
     // Navigation & Header
@@ -850,7 +876,33 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'langModal.didYouMean': '{language} என்று கூறினீர்களா?',
     'langModal.confirmedEn': 'மொழி ஆங்கிலமாக அமைக்கப்பட்டது',
     'langModal.confirmedTa': 'மொழி தமிழ் தேர்ந்தெடுக்கப்பட்டது',
-    'langModal.confirmedHi': 'மொழி இந்தி தேர்ந்தெடுக்கப்பட்டது'
+    'langModal.confirmedHi': 'மொழி இந்தி தேர்ந்தெடுக்கப்பட்டது',
+
+    // Search Guided Order Dialog
+    'guided.step1Title': '{dish} வகை எது வேண்டும்?',
+    'guided.step1Spoken': 'எந்த வகை {dish} வேண்டும்? {names}',
+    'guided.step2Title': 'எந்த உணவகம்?',
+    'guided.step2Spoken': 'எந்த உணவகத்திலிருந்து ஆர்டர் செய்ய விரும்புகிறீர்கள்? {names}',
+    'guided.step2SingleConfirm': '{restaurant}-லிருந்து ஆர்டர் செய்யவா? ஆம் அல்லது இல்லை என்று சொல்லுங்கள்.',
+    'guided.step3Title': 'இப்போதா அல்லது பிறகா?',
+    'guided.step3Spoken': 'இப்போது ஆர்டர் செய்யவா, அல்லது பிறகு அட்டவணைப்படுத்தவா?',
+    'guided.step3TimeTitle': 'எந்த நேரத்தில்?',
+    'guided.step3TimeSpoken': 'எந்த நேரத்தில் அட்டவணைப்படுத்த வேண்டும்?',
+    'guided.step3TimeReask': 'மன்னிக்கவும், நேரம் புரியவில்லை. காலை 8 மணி அல்லது மாலை 7:30 என்று சொல்லுங்கள்.',
+    'guided.nowBtn': 'இப்போதே ஆர்டர்',
+    'guided.laterBtn': 'பிறகு அட்டவணைப்படுத்து',
+    'guided.silenceRePrompt': 'இன்னும் கேட்கிறேன். உங்கள் தேர்வை சொல்லுங்கள் அல்லது ஒரு பொத்தானை அழுத்துங்கள்.',
+    'guided.cancelledOkay': 'சரி, ரத்து செய்யப்பட்டது.',
+    'guided.notFound': 'முடிவுகள் இல்லை. வேறு பெயர் முயற்சிக்கவும்.',
+    'guided.tapHint': 'ஒரு அட்டையை தட்டவும் அல்லது பேசி தேர்வு செய்யவும்.',
+    'welcome.greeting': 'AutoFeast-க்கு வரவேற்கிறோம், {name}! உங்கள் சுவையான உணவை ஆர்டர் செய்ய அல்லது அட்டவணைப்படுத்தத் தயார்.',
+    'welcome.badge': 'வரவேற்புச் செய்தி',
+    'welcome.title': 'AutoFeast-க்கு வரவேற்கிறோம், {name}! 🎉',
+    'welcome.subtitle': 'உங்கள் குரல் வழி உணவு ஆர்டர் மற்றும் அட்டவணை அமைப்பு தயாராக உள்ளது!',
+    'welcome.langSet': 'மொழி வெற்றிகரமாகப் பயன்படுத்தப்பட்டது!',
+    'welcome.proceedBtn': 'தொடரவும் (Proceed to Location)',
+    'welcome.micDenied': 'மைக் அணுகல் மறுக்கப்பட்டது',
+    'welcome.langUnsupported': 'இந்த மொழிக்கு குரல் அறிதல் ஆதரிக்கப்படவில்லை'
   },
   hi: {
     // Navigation & Header
@@ -1268,6 +1320,32 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'langModal.didYouMean': 'क्या आपका मतलब {language} था?',
     'langModal.confirmedEn': 'भाषा अंग्रेजी में सेट की गई',
     'langModal.confirmedTa': 'भाषा तमिल में सेट की गई',
-    'langModal.confirmedHi': 'भाषा हिंदी चुनी गई'
+    'langModal.confirmedHi': 'भाषा हिंदी चुनी गई',
+
+    // Search Guided Order Dialog
+    'guided.step1Title': 'आप किस प्रकार का {dish} चाहेंगे?',
+    'guided.step1Spoken': 'आप किस प्रकार का {dish} चाहेंगे? {names}',
+    'guided.step2Title': 'कौन सा रेस्तराँ?',
+    'guided.step2Spoken': 'आप किस रेस्तराँ से ऑर्डर करना चाहेंगे? {names}',
+    'guided.step2SingleConfirm': 'क्या {restaurant} से ऑर्डर करें? हाँ या नहीं बोलें।',
+    'guided.step3Title': 'अभी या बाद में?',
+    'guided.step3Spoken': 'क्या आप अभी ऑर्डर करना चाहते हैं, या बाद में शेड्यूल करना चाहते हैं?',
+    'guided.step3TimeTitle': 'किस समय?',
+    'guided.step3TimeSpoken': 'आप किस समय शेड्यूल करना चाहते हैं?',
+    'guided.step3TimeReask': 'माफ़ करें, समय समझ नहीं आया। कृपया सुबह 8 बजे या शाम 7:30 जैसा बोलें।',
+    'guided.nowBtn': 'अभी ऑर्डर करें',
+    'guided.laterBtn': 'बाद में शेड्यूल करें',
+    'guided.silenceRePrompt': 'अभी भी सुन रहा हूँ। कृपया अपना विकल्प बोलें या बटन दबाएं।',
+    'guided.cancelledOkay': 'ठीक है, रद्द कर दिया गया।',
+    'guided.notFound': 'कोई परिणाम नहीं मिला। कोई अन्य नाम आज़माएं।',
+    'guided.tapHint': 'कार्ड पर टैप करें या बोलकर चुनें।',
+    'welcome.greeting': 'AutoFeast में आपका स्वागत है, {name}! अपना पसंदीदा भोजन ऑर्डर या शेड्यूल करें।',
+    'welcome.badge': 'स्वागत संदेश',
+    'welcome.title': 'AutoFeast में आपका स्वागत है, {name}! 🎉',
+    'welcome.subtitle': 'आपकी आवाज से भोजन ऑर्डर और शेड्यूल प्रणाली तैयार है!',
+    'welcome.langSet': 'भाषा सफलतापूर्वक लागू की गई!',
+    'welcome.proceedBtn': 'आगे बढ़ें (Proceed to Location)',
+    'welcome.micDenied': 'माइक्रोफ़ोन अनुमति अस्वीकृत',
+    'welcome.langUnsupported': 'इस भाषा के लिए आवाज पहचान समर्थित नहीं है'
   }
 };

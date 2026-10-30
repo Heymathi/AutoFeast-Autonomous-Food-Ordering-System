@@ -123,6 +123,13 @@ interface AppContextType {
   voiceDialogItem: FoodItem | null;
   setVoiceDialogItem: (item: FoodItem | null) => void;
 
+  // Search Guided Order Dialog (3-step: variety → restaurant → when)
+  guidedSearchItems: FoodItem[];
+  guidedSearchQuery: string;
+  isGuidedSearchOpen: boolean;
+  openGuidedSearch: (query: string, items: FoodItem[]) => void;
+  closeGuidedSearch: () => void;
+
   // Schedules & Orders
   schedules: AutoOrderSchedule[];
   overrides: ScheduleOverride[];
@@ -573,6 +580,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Voice Interactive Dialog Item State
   const [voiceDialogItem, setVoiceDialogItem] = useState<FoodItem | null>(null);
+
+  // Search Guided Order Dialog State (3-step: variety -> restaurant -> when)
+  const [guidedSearchItems, setGuidedSearchItems] = useState<FoodItem[]>([]);
+  const [guidedSearchQuery, setGuidedSearchQuery] = useState<string>('');
+  const [isGuidedSearchOpen, setIsGuidedSearchOpen] = useState<boolean>(false);
+
+  const openGuidedSearch = (queryText: string, items: FoodItem[]) => {
+    console.log(`[openGuidedSearch] Opening dialog for query="${queryText}" with ${items.length} items.`);
+    setGuidedSearchQuery(queryText);
+    setGuidedSearchItems(items);
+    setIsGuidedSearchOpen(true);
+  };
+
+  const closeGuidedSearch = () => {
+    setIsGuidedSearchOpen(false);
+  };
 
   const [searchResult, setSearchResult] = useState<SearchResult>(() => 
     DynamicFoodSearchEngine.search({ query: '', selectedLocation: 'All', selectedCuisine: 'All', vegOnly: false })
@@ -1408,20 +1431,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const finalMatched = enrichDistance(result.matchedItems);
     const finalSuggested = enrichDistance(result.suggestedItems);
 
+    console.log("[DIALOG] search handled:", q, finalMatched.length);
+
     setSearchResult({
       ...result,
       matchedItems: finalMatched,
       suggestedItems: finalSuggested
     });
 
-    if (q.trim() && isVoiceTrigger && finalMatched.length > 0) {
-      const topItem = finalMatched[0];
-      console.log(`[executeSearch]: Setting active voiceDialogItem for voice trigger -> ID: "${topItem.id}", Name: "${topItem.name}"`);
-      setLastAutoSpokenFoodId(topItem.id);
+    if (q.trim() && finalMatched.length > 0) {
       if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-      setVoiceDialogItem(topItem);
+      setVoiceDialogItem(null); // Ensure old dialog item doesn't interfere
+      openGuidedSearch(q.trim(), finalMatched);
     } else if (!q.trim()) {
       setVoiceDialogItem(null);
+      closeGuidedSearch();
     }
   };
 
@@ -2448,6 +2472,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setActiveLiveOrder,
       voiceDialogItem,
       setVoiceDialogItem,
+      guidedSearchItems,
+      guidedSearchQuery,
+      isGuidedSearchOpen,
+      openGuidedSearch,
+      closeGuidedSearch,
       schedules,
       overrides,
       saveSchedule,

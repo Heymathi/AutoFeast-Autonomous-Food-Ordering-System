@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
 import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { AccessibilityToolbar } from './components/AccessibilityToolbar';
 import { VoiceCommandModal } from './components/VoiceCommandModal';
 import { VoiceOrderDialogModal } from './components/VoiceOrderDialogModal';
+import { SearchGuidedOrderModal } from './components/SearchGuidedOrderModal';
 import { LiveOrderTrackingView } from './components/LiveOrderTrackingView';
 import { DynamicFoodSearch } from './components/DynamicFoodSearch';
 import { AutoOrderScheduler } from './components/AutoOrderScheduler';
@@ -36,6 +36,10 @@ const MainLayout: React.FC = () => {
     accessibilitySettings,
     voiceDialogItem,
     setVoiceDialogItem,
+    isGuidedSearchOpen,
+    closeGuidedSearch,
+    guidedSearchQuery,
+    guidedSearchItems,
     isLocationModalOpen,
     setIsLocationModalOpen,
     isAuthenticated,
@@ -148,6 +152,14 @@ const MainLayout: React.FC = () => {
         item={voiceDialogItem}
         isOpen={Boolean(voiceDialogItem)}
         onClose={() => setVoiceDialogItem(null)}
+      />
+
+      {/* Guided 3-Step Search Order Dialog (Variety -> Restaurant -> When) */}
+      <SearchGuidedOrderModal
+        isOpen={isGuidedSearchOpen}
+        onClose={closeGuidedSearch}
+        query={guidedSearchQuery}
+        matchedItems={guidedSearchItems}
       />
 
       {/* Voice Assistant Modal */}
