@@ -111,18 +111,25 @@ class SpeechControllerManager {
         if (!this.userGestureActivated) {
           this.userGestureActivated = true;
           console.log('[SpeechController]: First user gesture detected — replaying pending TTS queue', this.pendingGestureQueue.length, 'item(s)');
-          // Replay all pending speak() calls that were blocked by autoplay policy
           const pending = [...this.pendingGestureQueue];
           this.pendingGestureQueue = [];
-          for (const item of pending) {
-            this.speak(item.text, item.targetLang, item.onEnd, item.onToastFallback, item.source);
+          if (pending.length > 0) {
+            // Resolve earlier items so no callbacks are dropped
+            for (let i = 0; i < pending.length - 1; i++) {
+              pending[i].onEnd?.();
+            }
+            const latest = pending[pending.length - 1];
+            this.speak(latest.text, latest.targetLang, latest.onEnd, latest.onToastFallback, latest.source);
           }
         }
       };
-      window.addEventListener('click', markGesture, { capture: true, passive: true });
-      window.addEventListener('keydown', markGesture, { capture: true, passive: true });
-      window.addEventListener('touchstart', markGesture, { capture: true, passive: true });
-      window.addEventListener('pointerdown', markGesture, { capture: true, passive: true });
+      const events = ['click', 'keydown', 'touchstart', 'touchend', 'pointerdown', 'mousedown'];
+      events.forEach(evt => {
+        window.addEventListener(evt, markGesture, { capture: true, passive: true });
+        if (typeof document !== 'undefined') {
+          document.addEventListener(evt, markGesture, { capture: true, passive: true });
+        }
+      });
 
       if ('speechSynthesis' in window) {
         this.initVoices();
@@ -141,17 +148,22 @@ class SpeechControllerManager {
       console.log('[SpeechController]: notifyUserGesture() called — replaying pending TTS queue', this.pendingGestureQueue.length, 'item(s)');
       const pending = [...this.pendingGestureQueue];
       this.pendingGestureQueue = [];
-      for (const item of pending) {
-        this.speak(item.text, item.targetLang, item.onEnd, item.onToastFallback, item.source);
+      if (pending.length > 0) {
+        for (let i = 0; i < pending.length - 1; i++) {
+          pending[i].onEnd?.();
+        }
+        const latest = pending[pending.length - 1];
+        this.speak(latest.text, latest.targetLang, latest.onEnd, latest.onToastFallback, latest.source);
       }
     } else {
-      // Already gestured; just drain any leftover pending items (safety)
       if (this.pendingGestureQueue.length > 0) {
         const pending = [...this.pendingGestureQueue];
         this.pendingGestureQueue = [];
-        for (const item of pending) {
-          this.speak(item.text, item.targetLang, item.onEnd, item.onToastFallback, item.source);
+        for (let i = 0; i < pending.length - 1; i++) {
+          pending[i].onEnd?.();
         }
+        const latest = pending[pending.length - 1];
+        this.speak(latest.text, latest.targetLang, latest.onEnd, latest.onToastFallback, latest.source);
       }
     }
   }
@@ -224,11 +236,63 @@ class SpeechControllerManager {
 
   private lastSpokenSource: string = '';
 
+  private voiceCache: Map<string, { voice: any | null; langCode: string; isExactMatch: boolean }> = new Map();
+
+  public waitForVoices(timeoutMs: number = 3000): Promise<SpeechSynthesisVoice[]> {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      return Promise.resolve([]);
+    }
+    const current = window.speechSynthesis.getVoices();
+    if (current && current.length > 0) {
+      this.availableVoices = current as any;
+      return Promise.resolve(current);
+    }
+
+    return new Promise((resolve) => {
+      let isResolved = false;
+      const finish = (v: SpeechSynthesisVoice[]) => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timer);
+          clearInterval(interval);
+          this.availableVoices = v as any;
+          this.initVoices();
+          resolve(v);
+        }
+      };
+
+      const timer = setTimeout(() => {
+        finish(window.speechSynthesis.getVoices() || []);
+      }, timeoutMs);
+
+      const interval = setInterval(() => {
+        const v = window.speechSynthesis.getVoices();
+        if (v && v.length > 0) {
+          finish(v);
+        }
+      }, 100);
+
+      const onVoicesChanged = () => {
+        const v = window.speechSynthesis.getVoices();
+        if (v && v.length > 0) {
+          finish(v);
+        }
+      };
+
+      if (typeof window.speechSynthesis.addEventListener === 'function') {
+        window.speechSynthesis.addEventListener('voiceschanged', onVoicesChanged, { once: true });
+      } else {
+        window.speechSynthesis.onvoiceschanged = onVoicesChanged;
+      }
+    });
+  }
+
   private initVoices(): void {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     const rawVoices = window.speechSynthesis.getVoices();
     if (rawVoices && rawVoices.length > 0) {
       this.availableVoices = rawVoices as any;
+      this.voiceCache.clear();
       this.voiceListInfo = rawVoices.map(v => ({
         name: v.name,
         lang: v.lang,
@@ -236,13 +300,9 @@ class SpeechControllerManager {
         default: v.default
       }));
 
+
       if (!this.voicesLogged) {
         this.voicesLogged = true;
-        if ((import.meta as any).env?.DEV) {
-          console.log(`================ [SYSTEM GETVOICES INVENTORY (${rawVoices.length} VOICES)] ================`);
-          console.table(this.voiceListInfo);
-          console.log('================================================================================');
-        }
         this.addDebugLog('VOICES_LOADED', `voiceschanged event: Loaded ${rawVoices.length} synthesis voices.`);
       } else {
         this.notifyStateChange();
@@ -252,53 +312,64 @@ class SpeechControllerManager {
 
   /**
    * Voice Picker Strategy Per Language:
-   * 1) Microsoft Online (Natural) voice of exact language
-   * 2) Any local voice of exact language code (e.g. ta-IN, hi-IN, en-IN)
-   * 3) Same-language-family voice (name contains Tamil / Hindi)
-   * 4) No match -> Return null (Never speak Tamil/Hindi text with English voice)
+   * 1) Microsoft Online/Natural or Google voice matching lang code or name
+   * 2) Exact locale match (ta-IN, hi-IN, en-IN)
+   * 3) Same language-family voice by name (Tamil / Hindi / English)
+   * 4) Prefix fallback: any voice where lang starts with ta, hi, en
+   * Cache the choice in voiceCache.
    */
-  public selectBestVoice(targetLang: Language): { voice: any | null; isExactMatch: boolean } {
-    if (this.availableVoices.length === 0) {
-      this.initVoices();
+  public selectBestVoice(targetLang: Language): { voice: any | null; langCode: string; isExactMatch: boolean } {
+    if (this.voiceCache.has(targetLang)) {
+      return this.voiceCache.get(targetLang)!;
+    }
+
+    if (this.availableVoices.length === 0 && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      this.availableVoices = window.speechSynthesis.getVoices() as any || [];
     }
     const voices = this.availableVoices;
-    const langCode = targetLang === 'ta' ? 'ta-in' : targetLang === 'hi' ? 'hi-in' : 'en-in';
-    const langShort = targetLang;
+    const targetLocale = targetLang === 'ta' ? 'ta-in' : targetLang === 'hi' ? 'hi-in' : 'en-in';
+    const langShort = targetLang.toLowerCase();
+    const normalize = (s: string) => (s || '').toLowerCase().replace(/_/g, '-');
 
-    // Tier 1: Microsoft Online (Natural) or Google high quality voice
-    const naturalVoice = voices.find(v => {
-      const vLang = (v.lang || '').toLowerCase().replace('_', '-');
-      const vName = (v.name || '').toLowerCase();
-      const langMatch = vLang.startsWith(langShort) ||
-        (targetLang === 'ta' && (vName.includes('tamil') || vName.includes('தமிழ்'))) ||
-        (targetLang === 'hi' && (vName.includes('hindi') || vName.includes('हिन्दी')));
-      return langMatch && (vName.includes('online') || vName.includes('natural') || vName.includes('google'));
+    // 1) Online/Natural or Google high quality
+    let matched = voices.find(v => {
+      const vl = normalize(v.lang);
+      const vn = normalize(v.name);
+      const match = vl.startsWith(langShort) ||
+        (targetLang === 'ta' && (vn.includes('tamil') || vn.includes('தமிழ்'))) ||
+        (targetLang === 'hi' && (vn.includes('hindi') || vn.includes('हिन्दी')));
+      return match && (vn.includes('online') || vn.includes('natural') || vn.includes('google'));
     });
-    if (naturalVoice) return { voice: naturalVoice, isExactMatch: true };
 
-    // Tier 2: Any voice matching exact language code
-    const exactLangVoice = voices.find(v => {
-      const vLang = (v.lang || '').toLowerCase().replace('_', '-');
-      return vLang === langCode || vLang.startsWith(langShort);
-    });
-    if (exactLangVoice) return { voice: exactLangVoice, isExactMatch: true };
-
-    // Tier 3: Same-language-family voice by name
-    const familyVoice = voices.find(v => {
-      const vName = (v.name || '').toLowerCase();
-      return (targetLang === 'ta' && (vName.includes('tamil') || vName.includes('தமிழ்'))) ||
-        (targetLang === 'hi' && (vName.includes('hindi') || vName.includes('हिन्दी') || vName.includes('hindustani'))) ||
-        (targetLang === 'en' && (vName.includes('english') || vName.includes('india')));
-    });
-    if (familyVoice) return { voice: familyVoice, isExactMatch: true };
-
-    // Tier 4: Fallback -> Return null for non-English languages to avoid speaking Tamil/Hindi with English accent
-    if (targetLang === 'en') {
-      const enFallback = voices.find(v => (v.lang || '').toLowerCase().startsWith('en'));
-      return { voice: enFallback || null, isExactMatch: !!enFallback };
+    // 2) Exact locale match (ta-IN, hi-IN, en-IN)
+    if (!matched) {
+      matched = voices.find(v => normalize(v.lang) === targetLocale);
     }
 
-    return { voice: null, isExactMatch: false };
+    // 3) Same language-family voice by name
+    if (!matched) {
+      matched = voices.find(v => {
+        const vn = normalize(v.name);
+        return (targetLang === 'ta' && (vn.includes('tamil') || vn.includes('தமிழ்'))) ||
+          (targetLang === 'hi' && (vn.includes('hindi') || vn.includes('हिन्दी') || vn.includes('hindustani'))) ||
+          (targetLang === 'en' && (vn.includes('english') || vn.includes('india')));
+      });
+    }
+
+    // 4) Prefix fallback: any voice with 2-letter prefix (ta, hi, en)
+    if (!matched) {
+      matched = voices.find(v => normalize(v.lang).startsWith(langShort));
+    }
+
+    const result = {
+      voice: matched || null,
+      langCode: targetLang === 'ta' ? 'ta-IN' : targetLang === 'hi' ? 'hi-IN' : 'en-IN',
+      isExactMatch: !!matched
+    };
+
+
+    this.voiceCache.set(targetLang, result);
+    return result;
   }
 
   /**
@@ -344,22 +415,56 @@ class SpeechControllerManager {
 
     this.lastSpokenSource = source;
 
-    // DIAGNOSTIC: log voice chosen
+    // Pick best voice
     const voiceResult = this.selectBestVoice(targetLang);
-    console.log(`[SpeechController VOICE CHOSEN]: lang=${targetLang} | voice="${voiceResult.voice?.name || 'browser-default'}" | exactMatch=${voiceResult.isExactMatch}`);
 
-    // Pause mic gracefully before TTS output starts
-    this.pauseMicForTts();
-
+    // If no voice exists for target language: show on screen, try pre-recorded audio, continue without blocking
     if (!voiceResult.voice && targetLang !== 'en') {
-      // In browsers without offline voice objects, SpeechSynthesis still synthesizes
-      // online with utterance.lang = 'ta-IN' or 'hi-IN'. Show toast as parallel accessibility aid,
-      // and proceed with synthesis so user actually hears the spoken audio.
-      this.addDebugLog('TTS_VOICE_INFO', `No offline ${targetLang} voice package detected; using browser native ${targetLang === 'ta' ? 'ta-IN' : 'hi-IN'} engine.`);
       if (onToastFallback) {
         onToastFallback(cleanText);
       }
+      if (typeof Audio !== 'undefined') {
+        try {
+          const audioKey = cleanText.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20);
+          const audio = new Audio(`/audio/${targetLang}/${audioKey}.mp3`);
+          let resolved = false;
+          const finishAudio = () => {
+            if (!resolved) {
+              resolved = true;
+              if (onEnd) onEnd();
+              this.resumeMicAfterTts();
+            }
+          };
+          audio.onended = finishAudio;
+          audio.onerror = () => {
+            if (!resolved) {
+              resolved = true;
+              console.warn(`[SpeechController TTS WARNING]: No voice found for ${targetLang}. Text shown on screen, continuing listening.`);
+              if (onEnd) onEnd();
+              this.resumeMicAfterTts();
+            }
+          };
+          audio.play().catch(() => {
+            if (!resolved) {
+              resolved = true;
+              console.warn(`[SpeechController TTS WARNING]: No voice found for ${targetLang}. Text shown on screen, continuing listening.`);
+              if (onEnd) onEnd();
+              this.resumeMicAfterTts();
+            }
+          });
+          setTimeout(finishAudio, 1500);
+          return;
+        } catch (_) {}
+      }
+
+      console.warn(`[SpeechController TTS WARNING]: No voice found for ${targetLang}. Text shown on screen, continuing flow without blocking.`);
+      if (onEnd) onEnd();
+      this.resumeMicAfterTts();
+      return;
     }
+
+    // Pause mic gracefully before TTS output starts
+    this.pauseMicForTts();
 
     // Queue TTS request
     const promptId = `tts_${Date.now()}`;
@@ -427,6 +532,25 @@ class SpeechControllerManager {
     return result.length > 0 ? result : [text];
   }
 
+  private chromeHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+  private startChromeHeartbeat(): void {
+    if (this.chromeHeartbeatTimer) return;
+    this.chromeHeartbeatTimer = setInterval(() => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }
+    }, 10000);
+  }
+
+  private stopChromeHeartbeat(): void {
+    if (this.chromeHeartbeatTimer) {
+      clearInterval(this.chromeHeartbeatTimer);
+      this.chromeHeartbeatTimer = null;
+    }
+  }
+
   private speakChunksSequentially(
     chunks: string[],
     targetLang: Language,
@@ -434,8 +558,12 @@ class SpeechControllerManager {
     generation: number,
     onComplete: () => void
   ): void {
-    if (generation !== this.ttsGeneration) return;
+    if (generation !== this.ttsGeneration) {
+      this.stopChromeHeartbeat();
+      return;
+    }
     if (index >= chunks.length) {
+      this.stopChromeHeartbeat();
       onComplete();
       return;
     }
@@ -443,19 +571,14 @@ class SpeechControllerManager {
     const chunkText = chunks[index];
     const voiceResult = this.selectBestVoice(targetLang);
 
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      onComplete();
-      return;
-    }
-
-    if (typeof window === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined' || !window.speechSynthesis) {
-      this.addDebugLog('TTS_ERROR', 'SpeechSynthesis API unavailable in current environment');
+    if (typeof window === 'undefined' || !('speechSynthesis' in window) || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') {
+      this.stopChromeHeartbeat();
       onComplete();
       return;
     }
 
     const utterance = new SpeechSynthesisUtterance(chunkText);
-    utterance.lang = targetLang === 'ta' ? 'ta-IN' : targetLang === 'hi' ? 'hi-IN' : 'en-IN';
+    utterance.lang = voiceResult.langCode;
     utterance.rate = 0.95;
     if (voiceResult.voice) {
       utterance.voice = voiceResult.voice;
@@ -464,20 +587,24 @@ class SpeechControllerManager {
     this.currentUtteranceChunk = utterance;
     this.addDebugLog('TTS_START', `[${targetLang}] Spoken chunk ${index + 1}/${chunks.length}: "${chunkText.substring(0, 30)}..."`);
 
+    this.startChromeHeartbeat();
+
     let isHandled = false;
     const finishChunk = () => {
       if (!isHandled) {
         isHandled = true;
-        clearTimeout(safetyTimer);
+        clearTimeout(watchdogTimer);
         this.speakChunksSequentially(chunks, targetLang, index + 1, generation, onComplete);
       }
     };
 
-    const safetyMax = Math.max(3000, chunkText.length * 110 + 2000);
-    const safetyTimer = setTimeout(() => {
-      this.addDebugLog('TTS_TIMEOUT', `TTS chunk timeout safety triggered for chunk ${index + 1}`);
+    // 5. 3s watchdog so a missing onend never blocks the next step
+    const estSpeechDurationMs = Math.max(1000, chunkText.length * 80);
+    const watchdogMax = estSpeechDurationMs + 3000;
+    const watchdogTimer = setTimeout(() => {
+      console.warn(`[SpeechController TTS WATCHDOG]: Chunk ${index + 1}/${chunks.length} timed out after ${watchdogMax}ms without onend. Auto-advancing.`);
       finishChunk();
-    }, safetyMax);
+    }, watchdogMax);
 
     utterance.onend = () => {
       this.addDebugLog('TTS_END', `Completed chunk ${index + 1}/${chunks.length}`);
@@ -485,18 +612,16 @@ class SpeechControllerManager {
     };
 
     utterance.onerror = (evt: any) => {
-      const code = evt.error || 'unknown';
+      const code = evt?.error || 'unknown';
       this.addDebugLog('TTS_ERROR', `Code: "${code}" | Lang: ${utterance.lang}`);
-      // Handle non-critical cancellation gracefully
-      if (code === 'interrupted' || code === 'canceled') {
-        // Ignored when caused by app operations
-      }
       finishChunk();
     };
 
-    // Small 60ms gap before calling speak() to prevent Chromium audio engine lockup
     setTimeout(() => {
-      if (generation !== this.ttsGeneration) return;
+      if (generation !== this.ttsGeneration) {
+        clearTimeout(watchdogTimer);
+        return;
+      }
       try {
         window.speechSynthesis.speak(utterance);
       } catch (err: any) {
@@ -508,6 +633,7 @@ class SpeechControllerManager {
 
   public cancelSpeech(): void {
     this.ttsGeneration++;
+    this.stopChromeHeartbeat();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
@@ -616,7 +742,10 @@ class SpeechControllerManager {
         this.notifyStateChange();
       },
       onResult: (transcript, isFinal, nBest) => {
-        if (!opt.allowDuringTts && this.currentState === 'speaking') return;
+        if (!opt.allowDuringTts && (this.currentState === 'speaking' || this.isAppPausedSttForTts)) {
+          console.log('[SpeechController RECOGNITION IGNORED]: Result received while TTS is speaking.');
+          return;
+        }
         if (transcript.trim()) {
           clearSilenceTimer();
           armSilenceTimer();
@@ -900,8 +1029,8 @@ class SpeechControllerManager {
   private pauseMicForTts(): void {
     if (this.activeOptions?.allowDuringTts) return;
     if (this.currentState === 'listening' || SpeechService.getIsListening()) {
-      this.addDebugLog('MIC_PAUSE_TTS', 'Pausing microphone capture while TTS output is active.');
       this.isAppPausedSttForTts = true;
+      this.addDebugLog('MIC_PAUSE_TTS', 'Pausing microphone capture while TTS output is active.');
       SpeechService.stopListening();
     }
   }

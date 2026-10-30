@@ -29,7 +29,7 @@ import {
   classifyOrderNowOrSchedule,
   normalizeInputText
 } from '../services/guidedMatchingService';
-import { Mic, MicOff, X, Zap, Clock, ChevronRight } from 'lucide-react';
+import { Mic, MicOff, X, Zap, Clock, ChevronRight, AlertCircle } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -118,6 +118,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
   const [timeReaskDone, setTimeReaskDone] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [timePickerVal, setTimePickerVal] = useState('08:00');
+  const [speechError, setSpeechError] = useState<string | null>(null);
 
   // ── Refs (guard double-fire) ──────────────────────────────────────────────
   const handledRef = useRef(false);
@@ -164,7 +165,10 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       continuous: false,
       interimResults: true,
       maxAlternatives: 5,
-      onStart: () => setIsListening(true),
+      onStart: () => {
+        setIsListening(true);
+        setSpeechError(null);
+      },
       onResult: (transcript, isFinal, nBest) => {
         if (!transcript || !isOpenRef.current) return;
         setLiveText(transcript);
@@ -175,8 +179,15 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       },
       onError: (errCode) => {
         setIsListening(false);
-        if (errCode === 'no-speech' && isOpenRef.current) {
+        const err = String(errCode || '').toLowerCase();
+        if (err === 'no-speech' && isOpenRef.current) {
           handleSilence();
+        } else if (err === 'not-allowed' || err === 'audio-capture') {
+          setSpeechError(language === 'ta' ? 'மைக் அனுமதி தேவை. திரையில் தட்டவும்.' : language === 'hi' ? 'माइक्रोफ़ोन अनुमति आवश्यक है। स्क्रीन पर टैप करें।' : 'Microphone permission required. Please tap on screen.');
+        } else if (err === 'network') {
+          setSpeechError(language === 'ta' ? 'குரல் சேவைக்கு இணைய இணைப்பு தேவை.' : language === 'hi' ? 'आवाज़ सेवा के लिए इंटरनेट आवश्यक है।' : 'Voice service requires internet connection.');
+        } else if (err === 'language-not-supported') {
+          setSpeechError(language === 'ta' ? 'இந்த மொழிக்கான குரல் சேவை உலாவியில் இல்லை.' : language === 'hi' ? 'यह भाषा इस ब्राउज़र में समर्थित नहीं है।' : 'Language not supported by browser voice.');
         }
       },
       onEnd: () => {
@@ -241,18 +252,9 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     handledRef.current = false;
     setSilenceCount(0);
     setLiveText('');
-
-    // Speak brief confirmation
-    const itemName = item.nativeNames?.[language] || item.name;
-    const confirmMsg = language === 'ta'
-      ? `${itemName} தேர்ந்தெடுக்கப்பட்டது.`
-      : language === 'hi'
-      ? `${itemName} चुना गया.`
-      : `${itemName} selected.`;
-    speakText(confirmMsg, undefined, language);
-
+    setSpeechError(null);
     setStep('restaurant');
-  }, [language, speakText]);
+  }, []);
 
   /** Called when restaurant is chosen (tap or voice) */
   const handleRestaurantChosen = useCallback((restaurant: string) => {
@@ -266,17 +268,9 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     handledRef.current = false;
     setSilenceCount(0);
     setLiveText('');
-
-    // Speak brief confirmation
-    const confirmMsg = language === 'ta'
-      ? `${restaurant} தேர்ந்தெடுக்கப்பட்டது.`
-      : language === 'hi'
-      ? `${restaurant} चुना गया.`
-      : `${restaurant} selected.`;
-    speakText(confirmMsg, undefined, language);
-
+    setSpeechError(null);
     setStep('when');
-  }, [language, speakText]);
+  }, []);
 
   /** Called when "Order Now" chosen */
   const handleOrderNow = useCallback((item: FoodItem) => {
@@ -341,11 +335,9 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
         const [a, b] = decision.tieCandidates as [FoodItem, FoodItem];
         const nameA = a.nativeNames?.[language] || a.name;
         const nameB = b.nativeNames?.[language] || b.name;
-        const tieMsg = language === 'ta'
-          ? `${nameA} அல்லது ${nameB} - எது வேண்டும்?`
-          : language === 'hi'
-          ? `${nameA} या ${nameB} - कौन सा चाहिए?`
-          : `Did you mean ${nameA}, or ${nameB}?`;
+        const tieMsg = (t('guided.tiePrompt') || 'Did you mean {nameA}, or {nameB}?')
+          .replace('{nameA}', nameA)
+          .replace('{nameB}', nameB);
         speakText(tieMsg, () => { if (isOpenRef.current) startListening(); }, language);
       } else if (decision.isOnlyFamilyWord) {
         // Only family word heard (e.g. just "biryani") — re-prompt
@@ -409,11 +401,9 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
           handleRestaurantChosen(decision.chosen as string);
         } else if (decision.isTie && decision.tieCandidates) {
           const [a, b] = decision.tieCandidates as [string, string];
-          const tieMsg = language === 'ta'
-            ? `${a} அல்லது ${b} - எது வேண்டும்?`
-            : language === 'hi'
-            ? `${a} या ${b} - कौन सा?`
-            : `Did you mean ${a} or ${b}?`;
+          const tieMsg = (t('guided.tiePrompt') || 'Did you mean {nameA}, or {nameB}?')
+            .replace('{nameA}', a)
+            .replace('{nameB}', b);
           speakText(tieMsg, () => { if (isOpenRef.current) startListening(); }, language);
         } else {
           startListening();
@@ -531,36 +521,36 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
         userLocation.latitude,
         userLocation.longitude
       );
+      const itemName = selectedItem.nativeNames?.[language] || selectedItem.name;
+      const confirmPrefix = (t('guided.selectedConfirm') || '{item} selected.').replace('{item}', itemName);
 
       if (currentRestaurants.length === 0) {
-        // No specific restaurant in catalog for this item - use item's own restaurant
         const fallback = selectedItem.restaurant || '';
         if (fallback) {
-          const prompt = t('guided.step2SingleConfirm').replace('{restaurant}', fallback);
-          speakAndListen(prompt, () => {
-          });
+          const prompt = `${confirmPrefix} ${t('guided.step2SingleConfirm').replace('{restaurant}', fallback)}`;
+          speakAndListen(prompt);
         } else {
-          // Skip straight to when
           setStep('when');
         }
         return;
       }
 
       if (currentRestaurants.length === 1) {
-        const prompt = t('guided.step2SingleConfirm').replace('{restaurant}', currentRestaurants[0]);
-        speakAndListen(prompt, () => {
-        });
+        const prompt = `${confirmPrefix} ${t('guided.step2SingleConfirm').replace('{restaurant}', currentRestaurants[0])}`;
+        speakAndListen(prompt);
       } else {
         const top3Names = namesToSpeak(currentRestaurants);
-        const prompt = t('guided.step2Spoken').replace('{names}', top3Names);
-        speakAndListen(prompt, () => {
-        });
+        const prompt = `${confirmPrefix} ${t('guided.step2Spoken').replace('{names}', top3Names)}`;
+        speakAndListen(prompt);
       }
 
     } else if (step === 'when') {
-      const prompt = t('guided.step3Spoken');
-      speakAndListen(prompt, () => {
-      });
+      const rName = selectedRestaurant || selectedItem?.restaurant || '';
+      const confirmPrefix = rName
+        ? (t('guided.selectedConfirm') || '{item} selected.').replace('{item}', rName) + ' '
+        : '';
+      const prompt = `${confirmPrefix}${t('guided.step3Spoken')}`;
+      speakAndListen(prompt);
 
     } else if (step === 'time') {
       const prompt = t('guided.step3TimeSpoken');
@@ -631,6 +621,14 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
         {liveText && (
           <div className="mx-5 mt-3 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-800 truncate">
             🎙 &ldquo;{liveText}&rdquo;
+          </div>
+        )}
+
+        {/* On-screen error hint */}
+        {speechError && (
+          <div className="mx-5 mt-2 px-3 py-1.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-xl text-xs font-bold text-rose-700 dark:text-rose-300 flex items-center gap-1.5 animate-fade-in">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{speechError}</span>
           </div>
         )}
 

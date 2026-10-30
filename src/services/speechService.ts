@@ -158,6 +158,11 @@ export class SpeechService {
       recog.onresult = (event: any) => {
         if (this.activeRecognition !== recog) return;
 
+        // Ignore recognition results while TTS speech is actively playing
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending)) {
+          return;
+        }
+
         let interimText = '';
         let finalText = '';
         const nBestSet = new Set<string>();
