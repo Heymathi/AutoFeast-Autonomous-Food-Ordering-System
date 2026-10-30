@@ -448,7 +448,11 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       const prompt = t('guided.step1Spoken')
         .replace('{dish}', dishLabel)
         .replace('{names}', top3Names);
-      speakAndListen(prompt);
+      console.time('[DIALOG] variety question spoken');
+      speakAndListen(prompt, () => {
+        console.timeEnd('[DIALOG] variety question spoken');
+        console.log('[DIALOG] recognition started for step: variety');
+      });
 
     } else if (step === 'restaurant') {
       if (!selectedItem) return;
@@ -463,7 +467,11 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
         const fallback = selectedItem.restaurant || '';
         if (fallback) {
           const prompt = t('guided.step2SingleConfirm').replace('{restaurant}', fallback);
-          speakAndListen(prompt);
+          console.time('[DIALOG] restaurant question spoken');
+          speakAndListen(prompt, () => {
+            console.timeEnd('[DIALOG] restaurant question spoken');
+            console.log('[DIALOG] recognition started for step: restaurant');
+          });
         } else {
           // Skip straight to when
           setStep('when');
@@ -473,20 +481,36 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
       if (currentRestaurants.length === 1) {
         const prompt = t('guided.step2SingleConfirm').replace('{restaurant}', currentRestaurants[0]);
-        speakAndListen(prompt);
+        console.time('[DIALOG] restaurant question spoken');
+        speakAndListen(prompt, () => {
+          console.timeEnd('[DIALOG] restaurant question spoken');
+          console.log('[DIALOG] recognition started for step: restaurant');
+        });
       } else {
         const top3Names = namesToSpeak(currentRestaurants);
         const prompt = t('guided.step2Spoken').replace('{names}', top3Names);
-        speakAndListen(prompt);
+        console.time('[DIALOG] restaurant question spoken');
+        speakAndListen(prompt, () => {
+          console.timeEnd('[DIALOG] restaurant question spoken');
+          console.log('[DIALOG] recognition started for step: restaurant');
+        });
       }
 
     } else if (step === 'when') {
       const prompt = t('guided.step3Spoken');
-      speakAndListen(prompt);
+      console.time('[DIALOG] when question spoken');
+      speakAndListen(prompt, () => {
+        console.timeEnd('[DIALOG] when question spoken');
+        console.log('[DIALOG] recognition started for step: when');
+      });
 
     } else if (step === 'time') {
       const prompt = t('guided.step3TimeSpoken');
-      speakAndListen(prompt);
+      console.time('[DIALOG] time question spoken');
+      speakAndListen(prompt, () => {
+        console.timeEnd('[DIALOG] time question spoken');
+        console.log('[DIALOG] recognition started for step: time');
+      });
     }
   }, [step, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
