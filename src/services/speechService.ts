@@ -1,264 +1,272 @@
 import { Language } from '../types';
-import { parsePinSpeech, ParsePinSpeechResult } from './pinVoiceParserService';
-
 
 export interface SpeechRecognitionOptions {
   language: Language | string;
   overrideLocale?: string;
-  isSensitive?: boolean;
   continuous?: boolean;
   interimResults?: boolean;
   maxAlternatives?: number;
-  autoRestart?: boolean;
+  redactTranscriptLogs?: boolean;
+  isSensitive?: boolean;
+  onResult: (transcript: string, isFinal: boolean, alternatives?: string[]) => void;
+  onError?: (errorCode: string, userMessage: string) => void;
   onStart?: () => void;
-  onResult: (transcript: string, isFinal: boolean, nBestTranscripts?: string[]) => void;
-  onError?: (error: any) => void;
   onEnd?: () => void;
 }
 
+const LOCALE_MAP: Record<string, string> = {
+  ta: 'ta-IN',
+  hi: 'hi-IN',
+  en: 'en-IN',
+  'ta-IN': 'ta-IN',
+  'hi-IN': 'hi-IN',
+  'en-IN': 'en-IN'
+};
+
 export class SpeechService {
   private static activeRecognition: any = null;
-  private static isListening: boolean = false;
-  private static sessionCounter: number = 0;
+  private static isCurrentlyListening: boolean = false;
+  private static isIntentionallyStopped: boolean = false;
   private static currentLanguage: Language = 'en';
-
-  private static lastSpokenText: string = '';
-
-  public static setLastSpokenText(text: string): void {
-    this.lastSpokenText = (text || '').toLowerCase().trim();
-  }
-
-  public static getLastSpokenText(): string {
-    return this.lastSpokenText;
-  }
-
-  public static isEchoText(transcript: string): boolean {
-    if (!transcript) return false;
-    const cleanRaw = transcript.toLowerCase().trim();
-    if (!cleanRaw) return false;
-
-    // Never consider short user responses as echo (e.g. "allow", "deny", "yes", food items, numbers, etc.)
-    if (cleanRaw.length < 25) {
-      return false;
-    }
-
-    // Only filter if transcript is long (>25 chars) AND matches the majority of the last spoken TTS prompt
-    if (this.lastSpokenText && this.lastSpokenText.length > 20) {
-      if (cleanRaw === this.lastSpokenText) return true;
-      if (cleanRaw.includes(this.lastSpokenText)) return true;
-      if (this.lastSpokenText.includes(cleanRaw)) return true;
-    }
-
-    return false;
-  }
-
-  public static setLanguage(lang: Language): void {
-    console.log(`[SpeechService] Updating active STT recognition language to: "${lang}" (${this.getLocale(lang)})`);
-    this.currentLanguage = lang;
-  }
-
-  public static getCurrentLanguage(): Language {
-    return this.currentLanguage;
-  }
+  private static activeSessionId: number = 0;
 
   public static isSupported(): boolean {
     if (typeof window === 'undefined') return false;
-    return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+    return Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
   }
 
   public static getLocale(lang: Language | string): string {
-    const normalized = String(lang || 'en').toLowerCase().replace('_', '-');
-    if (normalized.startsWith('ta')) return 'ta-IN';
-    if (normalized.startsWith('hi')) return 'hi-IN';
-    if (normalized.startsWith('en-')) return normalized;
-    return 'en-IN';
+    return LOCALE_MAP[lang] || 'en-IN';
   }
 
-  public static getLowConfidenceCue(lang: Language): string {
-    switch (lang) {
-      case 'ta':
-        return 'மன்னிக்கவும், தெளிவாகக் கேட்கவில்லை. மீண்டும் சொல்லுங்கள்.';
-      case 'hi':
-        return 'क्षमा करें, स्पष्ट रूप से नहीं सुना। कृपया फिर से बोलें।';
-      case 'en':
-      default:
-        return "Sorry, I didn't catch that clearly. Please repeat.";
-    }
+  public static setLanguage(lang: Language | string): void {
+    const base: Language = String(lang).startsWith('ta') ? 'ta' : String(lang).startsWith('hi') ? 'hi' : 'en';
+    this.currentLanguage = base;
   }
 
-  /**
-   * Completely stop and destroy any running SpeechRecognition instance,
-   * detaching all event listeners first so asynchronous native events don't leak.
-   */
+  public static getLanguage(): Language {
+    return this.currentLanguage;
+  }
+
+  public static getIsListening(): boolean {
+    return this.isCurrentlyListening;
+  }
+
   public static stopListening(): void {
+    this.isIntentionallyStopped = true;
+    this.isCurrentlyListening = false;
     if (this.activeRecognition) {
-      console.log('[SpeechService] Cleaning up & aborting active recognition instance...');
-      const instance = this.activeRecognition;
+      const recogToStop = this.activeRecognition;
       this.activeRecognition = null;
-      this.isListening = false;
-
       try {
-        instance.onstart = null;
-        instance.onresult = null;
-        instance.onerror = null;
-        instance.onend = null;
-
-        if (typeof instance.abort === 'function') {
-          instance.abort();
-        }
-        if (typeof instance.stop === 'function') {
-          instance.stop();
-        }
-      } catch (err) {
-        console.warn('[SpeechService] Non-critical error while stopping recognition:', err);
+        recogToStop.onresult = null;
+        recogToStop.onerror = null;
+        recogToStop.onend = null;
+        recogToStop.onstart = null;
+        recogToStop.abort();
+      } catch {
+        // Ignore abort errors during cleanup
       }
-    } else {
-      this.isListening = false;
     }
   }
 
-  /**
-   * Start a brand-new SpeechRecognition session, properly re-armed and reset.
-   */
   public static startListening(options: SpeechRecognitionOptions): boolean {
     if (!this.isSupported()) {
-      console.warn('[SpeechService] Speech Recognition API is not supported in this browser.');
-      if (options.onError) options.onError('Speech recognition not supported in this browser.');
+      if (options.onError) {
+        options.onError('not-supported', this.getErrorMessage('not-supported', options.language));
+      }
       return false;
     }
 
-    // 1. Force full cleanup of previous session
-    this.stopListening();
-
-    // 2. Allow active TTS speech synthesis to complete naturally without interrupting spoken prompts
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking) {
-      console.log('[SpeechService] TTS active while starting listening session; allowing TTS prompt to speak...');
+    // Stop any active TTS before starting STT
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+          window.speechSynthesis.cancel();
+        }
+      } catch {
+        // Ignore synthesis cancel errors
+      }
     }
 
-    const currentSessionId = ++this.sessionCounter;
-    console.log(`[SpeechService Session #${currentSessionId}] Creating fresh SpeechRecognition instance...`);
+    // Cleanly stop any existing recognition instance without firing its onEnd/onError
+    if (this.activeRecognition) {
+      this.stopListening();
+    }
+
+    this.isIntentionallyStopped = false;
+    const baseLang: Language = String(options.language).startsWith('ta') ? 'ta' : String(options.language).startsWith('hi') ? 'hi' : 'en';
+    this.currentLanguage = baseLang;
+    this.activeSessionId += 1;
+
+    const SpeechRecognitionConstructor =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recog = new SpeechRecognition();
+      const recog = new SpeechRecognitionConstructor();
+      const targetLocale = options.overrideLocale || this.getLocale(options.language);
 
-      recog.continuous = options.continuous ?? true;
+      recog.lang = targetLocale;
+      recog.continuous = options.continuous ?? false;
       recog.interimResults = options.interimResults ?? true;
       recog.maxAlternatives = options.maxAlternatives ?? 5;
-      const targetLang = options.language || this.currentLanguage || 'en';
-      recog.lang = options.overrideLocale || this.getLocale(targetLang);
+
+      let lastInterimTranscript = '';
+      let lastInterimAlternatives: string[] = [];
+      let hasDeliveredFinalResult = false;
 
       recog.onstart = () => {
-        if (this.activeRecognition !== recog) return;
-        this.isListening = true;
-        console.log(`[SpeechService Session #${currentSessionId} SUCCESS] Mic Listening Active. Locale: ${recog.lang}`);
+        if (this.activeRecognition !== recog || this.isIntentionallyStopped) return;
+        this.isCurrentlyListening = true;
         if (options.onStart) options.onStart();
       };
 
       recog.onresult = (event: any) => {
-        if (this.activeRecognition !== recog) return;
+        if (this.activeRecognition !== recog || this.isIntentionallyStopped) return;
 
-        // Ignore recognition results while TTS speech is actively playing
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending)) {
-          return;
-        }
+        let interimTranscript = '';
+        let finalTranscript = '';
+        const alternativesList: string[] = [];
 
-        let interimText = '';
-        let finalText = '';
-        const nBestSet = new Set<string>();
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const resultItem = event.results[i];
+          const primaryText = resultItem[0]?.transcript || '';
 
-        // Loop from index 0 across all result buffers so pauses between phrases don't drop earlier words
-        for (let i = 0; i < event.results.length; i++) {
-          const result = event.results[i];
-          const primary = result[0]?.transcript || '';
-          if (result.isFinal) {
-            finalText += (finalText ? ' ' : '') + primary;
+          for (let j = 0; j < resultItem.length; j++) {
+            const altText = resultItem[j]?.transcript?.trim();
+            if (altText) alternativesList.push(altText);
+          }
+
+          if (resultItem.isFinal) {
+            finalTranscript += primaryText;
           } else {
-            interimText += (interimText ? ' ' : '') + primary;
-          }
-
-          // Collect n-best alternative hypotheses for this speech segment
-          for (let j = 0; j < result.length; j++) {
-            if (result[j]?.transcript) {
-              nBestSet.add(result[j].transcript.trim());
-            }
+            interimTranscript += primaryText;
           }
         }
 
-        const recognizedText = (finalText.trim() + ' ' + interimText.trim()).trim();
-        const isFinal = !!finalText.trim();
-        const nBestTranscripts = Array.from(nBestSet);
+        const isFinal = finalTranscript.trim().length > 0;
+        const primaryTranscript = (isFinal ? finalTranscript : interimTranscript).trim();
 
-        if (SpeechService.isEchoText(recognizedText)) {
-          if (!options.isSensitive) {
-            console.log(`[SpeechService ECHO FILTER]: Suppressed app's own spoken prompt echo -> "${recognizedText}"`);
+        if (primaryTranscript) {
+          const uniqueAlternatives = Array.from(new Set([primaryTranscript, ...alternativesList]));
+          if (isFinal) {
+            hasDeliveredFinalResult = true;
+            lastInterimTranscript = '';
+            lastInterimAlternatives = [];
+            options.onResult(primaryTranscript, true, uniqueAlternatives);
+          } else {
+            lastInterimTranscript = primaryTranscript;
+            lastInterimAlternatives = uniqueAlternatives;
+            options.onResult(primaryTranscript, false, uniqueAlternatives);
           }
-          return;
         }
-
-        if (options.isSensitive) {
-          console.log(`[SpeechService Session #${currentSessionId}]: Sensitive speech input received; transcript redacted.`);
-        } else {
-          console.log(`[SpeechService RAW TRANSCRIPT LOG]: "${recognizedText}" | isFinal: ${isFinal} | n-best: ${nBestTranscripts.join(' | ')}`);
-        }
-        options.onResult(recognizedText, isFinal, nBestTranscripts);
       };
 
       recog.onerror = (event: any) => {
         if (this.activeRecognition !== recog) return;
-        const errorReason = event.error || 'Unknown speech error';
-        console.warn(`[SpeechService Session #${currentSessionId} END LOG - ERROR]: Reason: "${errorReason}"`);
-        this.isListening = false;
-        if (options.onError) options.onError(errorReason);
+        const errorCode = event?.error || 'unknown';
+
+        // Intentional abort must never trigger error or restart
+        if (errorCode === 'aborted' && this.isIntentionallyStopped) {
+          this.isCurrentlyListening = false;
+          return;
+        }
+
+        this.isCurrentlyListening = false;
+        const userMessage = this.getErrorMessage(errorCode, this.currentLanguage);
+        if (options.onError) {
+          options.onError(errorCode, userMessage);
+        }
       };
 
       recog.onend = () => {
         if (this.activeRecognition !== recog) return;
-        this.isListening = false;
-        console.log(`[SpeechService Session #${currentSessionId} END LOG - NATURAL END]: Reason: Speech input session ended by browser or silence.`);
-        if (options.onEnd) options.onEnd();
+        const wasIntentional = this.isIntentionallyStopped;
+        this.isCurrentlyListening = false;
+        this.activeRecognition = null;
+
+        if (wasIntentional) {
+          return;
+        }
+
+        // Flush buffered interim transcript as final if browser ended session before marking isFinal=true
+        if (!hasDeliveredFinalResult && lastInterimTranscript.trim().length > 0) {
+          hasDeliveredFinalResult = true;
+          const flushed = lastInterimTranscript.trim();
+          const flushedAlts = lastInterimAlternatives.length > 0 ? lastInterimAlternatives : [flushed];
+          lastInterimTranscript = '';
+          lastInterimAlternatives = [];
+          try {
+            options.onResult(flushed, true, flushedAlts);
+          } catch {
+            // Ignore handler error during flush
+          }
+        }
+
+        if (options.onEnd) {
+          options.onEnd();
+        }
       };
 
       this.activeRecognition = recog;
-
-      // Small 80ms buffer before starting recognition to ensure audio hardware clean state
-      setTimeout(() => {
-        if (this.activeRecognition === recog) {
-          try {
-            recog.start();
-          } catch (err: any) {
-            console.warn(`[SpeechService Session #${currentSessionId}] Start error:`, err);
-            this.isListening = false;
-            if (options.onError) options.onError(err);
-          }
-        }
-      }, 80);
-
+      recog.start();
       return true;
-    } catch (err) {
-      console.error(`[SpeechService Session #${currentSessionId}] Exception during creation:`, err);
-      this.isListening = false;
-      if (options.onError) options.onError(err);
+    } catch {
+      this.isCurrentlyListening = false;
+      this.activeRecognition = null;
+      if (options.onError) {
+        options.onError('start-failed', this.getErrorMessage('start-failed', options.language));
+      }
       return false;
     }
   }
 
-  public static getIsListening(): boolean {
-    return this.isListening;
+  public static getErrorMessage(errorCode: string, lang: Language | string): string {
+    const baseLang: Language = String(lang).startsWith('ta') ? 'ta' : String(lang).startsWith('hi') ? 'hi' : 'en';
+    const messages: Record<string, Record<Language, string>> = {
+      'no-speech': {
+        ta: 'குரல் கேட்கவில்லை. மீண்டும் பேசவும் அல்லது பட்டனைத் தொடவும்.',
+        hi: 'कोई आवाज़ नहीं सुनाई दी। कृपया फिर से बोलें या बटन दबाएं।',
+        en: 'No speech detected. Please speak again or tap a button.'
+      },
+      'audio-capture': {
+        ta: 'மைக்ரோஃபோன் கிடைக்கவில்லை. உங்கள் மைக்கை சரிபார்க்கவும்.',
+        hi: 'माइक्रोफ़ोन नहीं मिला। कृपया अपना माइक जांचें।',
+        en: 'No microphone found. Please check your microphone.'
+      },
+      'not-allowed': {
+        ta: 'மைக்ரோஃபோன் அனுமதி மறுக்கப்பட்டது. உலாவியில் மைக் அனுமதியை வழங்கவும்.',
+        hi: 'माइक्रोफ़ोन की अनुमति नहीं है। कृपया ब्राउज़र में अनुमति दें।',
+        en: 'Microphone permission denied. Please allow microphone access.'
+      },
+      'network': {
+        ta: 'நெட்வொர்க் பிழை. தயவுசெய்து பட்டனைத் தொடவும்.',
+        hi: 'नेटवर्क त्रुटि। कृपया बटन दबाएं।',
+        en: 'Network error during speech recognition. Please tap a button.'
+      },
+      'not-supported': {
+        ta: 'உங்கள் உலாவியில் குரல் அறிதல் ஆதரிக்கப்படவில்லை.',
+        hi: 'आपके ब्राउज़र में वॉइस रिकग्निशन समर्थित नहीं है।',
+        en: 'Speech recognition is not supported in this browser.'
+      }
+    };
+
+    const entry = messages[errorCode];
+    if (entry) return entry[baseLang] || entry.en;
+
+    return baseLang === 'ta'
+      ? 'குரல் அறிதலில் பிழை. தயவுசெய்து பட்டனைத் தொடவும்.'
+      : baseLang === 'hi'
+      ? 'वॉइस रिकग्निशन में त्रुटि। कृपया बटन दबाएं।'
+      : 'Speech recognition paused. Please tap a button or press the mic.';
   }
 
-  /**
-   * Helper function to extract 4 PIN digits from raw speech transcript using language-agnostic parser
-   */
-  public static extractFourDigits(rawTranscript: string, lang?: string): string[] | null {
-    const res = parsePinSpeech(rawTranscript, lang);
-    if (res.status === 'success' && res.digits.length === 4) {
-      return res.digits;
-    }
-    return null;
-  }
-
-  public static parsePinSpeech(rawTranscript: string, lang?: string): ParsePinSpeechResult {
-    return parsePinSpeech(rawTranscript, lang);
+  public static getLowConfidenceCue(lang: Language | string): string {
+    const baseLang: Language = String(lang).startsWith('ta') ? 'ta' : String(lang).startsWith('hi') ? 'hi' : 'en';
+    return baseLang === 'ta'
+      ? 'தெளிவாகக் கேட்கவில்லை. மீண்டும் சொல்லுங்கள் அல்லது பட்டனைத் தொடவும்.'
+      : baseLang === 'hi'
+      ? 'साफ़ सुनाई नहीं दिया। कृपया फिर से बोलें या बटन दबाएं।'
+      : 'Could not hear clearly. Please say it again or tap a button.';
   }
 }

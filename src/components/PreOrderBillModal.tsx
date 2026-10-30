@@ -5,6 +5,7 @@ import { SpeechController } from '../services/speechController';
 import { debounceHandler } from '../utils/debounce';
 import { ChooserVoiceService } from '../services/chooserVoiceService';
 import { SttMatcherService } from '../services/sttMatcherService';
+import { VoiceIntentRouter } from '../services/voiceIntentRouter';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
 import { FileText, CheckCircle, XCircle, Mic, MapPin, Clock, X, Loader2 } from 'lucide-react';
 
@@ -66,9 +67,10 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
           }
         },
         (fallbackText) => {
-          showToast(fallbackText, 'info');
+          showToast(fallbackText, 'info', 5000, 'cart_checkout_prompt', undefined, undefined, true);
         },
-        'cart_checkout'
+        'cart_checkout',
+        'cart_checkout_prompt'
       );
     } else {
       SpeechController.releaseMic('cart_checkout');
@@ -125,6 +127,21 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
           onClose();
           return;
         } else if (actionChoice === 'cancel') {
+          SpeechController.cancelSpeech();
+          SpeechController.releaseMic('cart_checkout');
+          setIsListening(false);
+          onClose();
+          return;
+        }
+
+        const confirmMatch = VoiceIntentRouter.matchConfirmationIntent(candidates, language);
+        if (confirmMatch.action === 'confirm') {
+          SpeechController.markHandling('cart_checkout');
+          handleConfirmProceed();
+          return;
+        }
+        if (confirmMatch.action === 'cancel') {
+          SpeechController.markHandling('cart_checkout');
           SpeechController.cancelSpeech();
           SpeechController.releaseMic('cart_checkout');
           setIsListening(false);

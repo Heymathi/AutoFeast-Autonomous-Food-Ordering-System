@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
 import { HealthDietaryNluService, HealthDietaryAnalysisResult, HealthFoodSuggestion } from '../services/healthDietaryNluService';
 import { PriceComparisonService, PriceComparisonSummary } from '../services/priceComparisonService';
 import { SttMatcherService, CONFIRMATION_VOCABULARY } from '../services/sttMatcherService';
+import { VoiceIntentRouter } from '../services/voiceIntentRouter';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
@@ -44,6 +45,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
   const [priceComparison, setPriceComparison] = useState<PriceComparisonSummary | null>(null);
   const [isSchedulingModalOpen, setIsSchedulingModalOpen] = useState(false);
   const [chooserItem, setChooserItem] = useState<FoodItem | null>(null);
+  const chooserItems = useMemo(() => (chooserItem ? [chooserItem] : []), [chooserItem]);
 
   const stepRef = useRef<HealthModalStep>('speak_condition');
   const isComponentMounted = useRef(true);
@@ -166,9 +168,28 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         if (!isFinal) return;
 
         const candidates = nBest && nBest.length > 0 ? nBest : [text];
-        const matchedFood = SttMatcherService.matchFoodItem(candidates, availableCatalog, language);
+        const confirmMatch = VoiceIntentRouter.matchConfirmationIntent(candidates, language);
+        if (confirmMatch.action === 'cancel') {
+          SpeechController.stopListening('healthy_food');
+          setIsListening(false);
+          onClose();
+          return;
+        }
+
+        const norm = VoiceIntentRouter.normalize(text);
+        let matchedFood = SttMatcherService.matchFoodItem(candidates, availableCatalog, language);
+        if (!matchedFood) {
+          if (/^(1|one|first|ஒன்று|ஒன்னு|एक|पहला)$/.test(norm) && availableCatalog[0]) {
+            matchedFood = availableCatalog[0];
+          } else if (/^(2|two|second|இரண்டு|ரெண்டு|दो|दूसरा)$/.test(norm) && availableCatalog[1]) {
+            matchedFood = availableCatalog[1];
+          } else if (/^(3|three|third|மூன்று|மூணு|तीन|तीसरा)$/.test(norm) && availableCatalog[2]) {
+            matchedFood = availableCatalog[2];
+          } else {
+            matchedFood = SttMatcherService.matchFoodItem(candidates, INDIAN_FOOD_CATALOG, language);
+          }
+        }
         if (matchedFood) {
-          console.log(`🚀 [Health STT Choice Match Success]: Matched "${matchedFood.name}" from spoken input!`);
           SpeechController.stopListening('healthy_food');
           setIsListening(false);
           handleSelectItem(matchedFood);
@@ -561,7 +582,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
       <ItemActionChooser
         isOpen={Boolean(chooserItem)}
         onClose={() => setChooserItem(null)}
-        items={chooserItem ? [chooserItem] : []}
+        items={chooserItems}
         onOrderNow={(items) => {
           if (items[0]) {
             placeInstantOrder(items[0]);

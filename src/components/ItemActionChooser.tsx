@@ -47,22 +47,39 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
 
   const activePromptRef = useRef<string>('');
   const isComponentMounted = useRef<boolean>(false);
+  const spokenTurnKeyRef = useRef<string>('');
+  const handledActionRef = useRef<boolean>(false);
+  const failedCountRef = useRef<number>(0);
+
+  const itemIdsKey = items && items.length > 0 ? items.map(i => i.id).join(',') : '';
 
   useEffect(() => {
     isComponentMounted.current = true;
-    if (isOpen && items && items.length > 0) {
-      setHasRetried(false);
-      setLiveTranscript('');
-      triggerChooserTTSAndListening();
+    if (isOpen && itemIdsKey) {
+      const turnKey = `${itemIdsKey}:${language}`;
+      if (spokenTurnKeyRef.current !== turnKey) {
+        spokenTurnKeyRef.current = turnKey;
+        handledActionRef.current = false;
+        failedCountRef.current = 0;
+        setHasRetried(false);
+        setLiveTranscript('');
+        triggerChooserTTSAndListening();
+      }
     } else {
+      spokenTurnKeyRef.current = '';
+      handledActionRef.current = false;
+      failedCountRef.current = 0;
       cleanupSpeech();
     }
 
     return () => {
-      isComponentMounted.current = false;
-      cleanupSpeech();
+      if (!isOpen) {
+        isComponentMounted.current = false;
+        spokenTurnKeyRef.current = '';
+        cleanupSpeech();
+      }
     };
-  }, [isOpen, items]);
+  }, [isOpen, itemIdsKey, language]);
 
   const cleanupSpeech = () => {
     SpeechController.cancelSpeech();
@@ -94,19 +111,20 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
       promptText,
       language,
       () => {
-        if (isComponentMounted.current && isOpen) {
+        if (isComponentMounted.current && isOpen && !handledActionRef.current) {
           startListeningForChoice();
         }
       },
       (fallbackText) => {
-        showToast(fallbackText, 'info');
+        showToast(fallbackText, 'info', 5000, 'item_chooser_prompt', undefined, undefined, true);
       },
-      'item_chooser'
+      'item_chooser',
+      `item_chooser_${itemIdsKey}`
     );
   };
 
   const startListeningForChoice = () => {
-    if (!SpeechController.isSupported()) {
+    if (!SpeechController.isSupported() || handledActionRef.current) {
       setIsListening(false);
       return;
     }
@@ -123,46 +141,73 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
         if (isComponentMounted.current) setIsListening(true);
       },
       onResult: (text, isFinal, nBest) => {
-        if (!text) return;
+        if (!text || handledActionRef.current) return;
         setLiveTranscript(text);
-        if (!isFinal) return;
 
         const candidates = nBest && nBest.length > 0 ? nBest : [text];
+        const action = ChooserVoiceService.parseChooserAction(candidates, activePromptRef.current, language);
 
-        // Check for cancel / close
+        if (action === 'cancel') {
+          handledActionRef.current = true;
+          SpeechController.markHandling('item_chooser');
+          cleanupSpeech();
+          onClose();
+          return;
+        }
+        if (action === 'order_now' || action === 'schedule' || action === 'add_to_cart') {
+          handledActionRef.current = true;
+          SpeechController.markHandling('item_chooser');
+          handleSelectActionRef.current(action);
+          return;
+        }
+
+        // Only evaluate retry/stop on final transcripts
+        if (!isFinal) return;
+
         const controlMatch = SttMatcherService.matchControlCommand(candidates);
         if (controlMatch.isMatched && (controlMatch.matchedValue === 'CANCEL' || controlMatch.matchedValue === 'STOP')) {
+          handledActionRef.current = true;
+          SpeechController.markHandling('item_chooser');
           cleanupSpeech();
           onClose();
           return;
         }
 
-        const action = ChooserVoiceService.parseChooserAction(candidates, activePromptRef.current);
-
-        if (action === 'cancel') {
-          cleanupSpeech();
-          onClose();
-        } else if (action === 'order_now') {
-          handleSelectAction('order_now');
-        } else if (action === 'schedule') {
-          handleSelectAction('schedule');
-        } else if (action === 'add_to_cart') {
-          handleSelectAction('add_to_cart');
-        } else if (action === 'retry' && !hasRetried) {
+        failedCountRef.current += 1;
+        if (failedCountRef.current === 1 && !hasRetried) {
           setHasRetried(true);
           const retryMsg = language === 'ta'
-            ? 'மன்னிக்கவும், புரியவில்லை. ஆர்டர் செய்ய, அட்டவணைப்படுத்த அல்லது கார்ட்டில் சேர்க்க என்று சொல்லவும்.'
+            ? 'மன்னிக்கவும், புரியவில்லை. இப்போதே ஆர்டர், திட்டமிடு அல்லது கார்ட்டில் சேர் என்று சொல்லவும்.'
             : language === 'hi'
-            ? 'क्षमा करें, समझ नहीं आया। ऑर्डर करें, शेड्यूल करें या कार्ट में जोड़ें बोलें।'
+            ? 'क्षमा करें, समझ नहीं आया। अभी ऑर्डर, शेड्यूल या कार्ट में डालो बोलें।'
             : 'Sorry, I did not catch that. Please say Order Now, Schedule, or Add to Cart.';
           setStatusMessage(retryMsg);
-          SpeechController.speak(retryMsg, language, () => {
-            if (isComponentMounted.current && isOpen) startListeningForChoice();
-          });
+          SpeechController.speak(
+            retryMsg,
+            language,
+            () => {
+              if (isComponentMounted.current && isOpen && !handledActionRef.current) {
+                startListeningForChoice();
+              }
+            },
+            (fallbackText) => {
+              showToast(fallbackText, 'info', 5000, 'item_chooser_retry', undefined, undefined, true);
+            },
+            'item_chooser',
+            `item_chooser_retry_${itemIdsKey}`
+          );
+        } else {
+          // After 2 failed attempts, stop voice and leave buttons usable
+          cleanupSpeech();
+          const stopMsg = language === 'ta'
+            ? 'தெளிவாகக் கேட்கவில்லை. தயவுசெய்து கீழே உள்ள பட்டனைத் தொடவும்.'
+            : language === 'hi'
+            ? 'साफ़ सुनाई नहीं दिया। कृपया नीचे दिए गए बटन को दबाएं।'
+            : 'Could not hear clearly. Please tap one of the buttons below.';
+          setStatusMessage(stopMsg);
         }
       },
-      onError: (err) => {
-        console.warn('[ItemActionChooser Mic Error]:', err);
+      onError: () => {
         setIsListening(false);
       },
       onEnd: () => {

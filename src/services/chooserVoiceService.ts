@@ -1,104 +1,52 @@
 import { Language } from '../types';
-import { FuzzyMatchEngine } from './fuzzyMatchService';
+import { VoiceIntentRouter } from './voiceIntentRouter';
 
-export type ChooserAction = 'order_now' | 'schedule' | 'add_to_cart' | 'cancel';
+export type ChooserAction = 'order_now' | 'schedule' | 'add_to_cart' | 'cancel' | 'retry' | 'instant' | 'cart' | null;
 
 export class ChooserVoiceService {
   /**
-   * Parse user spoken response for ItemActionChooser in English, Tamil, Hindi, Tanglish, and Hinglish.
-   * Supports both a single transcript string and an array of nBest alternatives.
+   * Primary parser used by ItemActionChooser and voice tests:
+   * Maps English, Tamil, Hindi, Tanglish, and Hinglish transcripts to:
+   * 'order_now' | 'schedule' | 'add_to_cart' | 'cancel' | 'retry'
    */
-  static parseChooserAction(spokenText: string | string[], lastSpokenPrompt?: string): ChooserAction | 'retry' | null {
-    const list = Array.isArray(spokenText) ? spokenText : [spokenText];
-    let foundRetry = false;
+  public static parseChooserAction(
+    candidates: string | string[],
+    promptText: string = '',
+    lang: Language = 'en'
+  ): 'order_now' | 'schedule' | 'add_to_cart' | 'cancel' | 'retry' {
+    const list = Array.isArray(candidates) ? candidates : [candidates];
+    const cleanPrompt = VoiceIntentRouter.normalize(promptText);
 
-    for (const item of list) {
-      if (!item || !item.trim()) continue;
-      const res = this.parseSingleChooserAction(item, lastSpokenPrompt);
-      if (res && res !== 'retry') return res;
-      if (res === 'retry') foundRetry = true;
-    }
+    // Filter out echo of the TTS prompt itself if present
+    const filtered = list.filter(c => {
+      const norm = VoiceIntentRouter.normalize(c);
+      if (!norm) return false;
+      if (cleanPrompt && cleanPrompt.length > 15 && cleanPrompt.includes(norm) && norm.split(' ').length > 5) {
+        return false;
+      }
+      return true;
+    });
 
-    return foundRetry ? 'retry' : null;
+    if (filtered.length === 0) return 'retry';
+
+    const match = VoiceIntentRouter.matchItemChooserIntent(filtered, lang);
+    if (match.action === 'order_now') return 'order_now';
+    if (match.action === 'schedule') return 'schedule';
+    if (match.action === 'add_to_cart') return 'add_to_cart';
+    if (match.action === 'cancel') return 'cancel';
+    return 'retry';
   }
 
-  private static parseSingleChooserAction(spokenText: string, lastSpokenPrompt?: string): ChooserAction | 'retry' | null {
-    if (!spokenText || !spokenText.trim()) return null;
-
-    const text = spokenText.toLowerCase().trim();
-
-    // 1. ECHO CANCELLATION: Ignore transcript if it matches the app's full prompt
-    if (lastSpokenPrompt) {
-      const promptLower = lastSpokenPrompt.toLowerCase().trim();
-      const isFullEcho = text === promptLower || (text.length > 20 && (text.includes(promptLower) || promptLower.includes(text)));
-      if (isFullEcho) {
-        console.log('[ChooserVoiceService]: Ignored echo of app prompt:', text);
-        return null;
-      }
-    }
-
-    // Keywords dictionary
-    const orderKeywords = [
-      'order now', 'instant', 'now', 'order', 'buy now', 'place order',
-      'ippove order pannu', 'ippove order', 'ippove', 'udane', 'ஆர்டர்', 'இப்போதே', 'உடனே', 'இப்போதே ஆர்டர்', 'ஆர்டர் செய்', 'ஆர்டர் பண்ணு',
-      'अभी', 'तुरंत ऑर्डर', 'अभी ऑर्डर करें', 'ऑर्डर करो', 'तुरंत', 'abhi', 'turant', 'abhi order', 'order karo'
-    ];
-
-    const scheduleKeywords = [
-      'schedule', 'later', 'daily', 'weekly', 'schedule order', 'book later',
-      'schedule pannu', 'thittamidu', 'appram', 'திட்டமிடு', 'அப்புறம்', 'நாளைக்கு',
-      'शेड्यूल', 'बाद में', 'कल', 'schedule karo', 'bad me', 'baad me'
-    ];
-
-    const cartKeywords = [
-      'cart', 'add to cart', 'cart la podu', 'add cart', 'put in cart', 'cart-il ser',
-      'கார்ட்', 'கார்ட்டில் சேர்', 'கார்ட்டில் போடு', 'கார்ட்டில்',
-      'कार्ट', 'कार्ट में डालो', 'कार्ट में जोड़ें', 'cart me dalo', 'cart me jod'
-    ];
-
-    const cancelKeywords = [
-      'cancel', 'close', 'exit', 'never mind', 'stop',
-      'ரத்து', 'வேண்டாம்', 'வேணாம்', 'மூடு', 'வெளியேறு',
-      'रद्द', 'रद्द करें', 'कैंसल', 'नहीं चाहिए', 'बंद', 'वापस'
-    ];
-
-    // Check exact or phrase inclusion first
-    for (const kw of cancelKeywords) {
-      if (text.includes(kw.toLowerCase())) return 'cancel';
-    }
-    for (const kw of orderKeywords) {
-      if (text.includes(kw.toLowerCase())) return 'order_now';
-    }
-    for (const kw of scheduleKeywords) {
-      if (text.includes(kw.toLowerCase())) return 'schedule';
-    }
-    for (const kw of cartKeywords) {
-      if (text.includes(kw.toLowerCase())) return 'add_to_cart';
-    }
-
-    // Fuzzy matching fallback
-    const bestCancel = FuzzyMatchEngine.findBestMatch(text, cancelKeywords);
-    const bestOrder = FuzzyMatchEngine.findBestMatch(text, orderKeywords);
-    const bestSchedule = FuzzyMatchEngine.findBestMatch(text, scheduleKeywords);
-    const bestCart = FuzzyMatchEngine.findBestMatch(text, cartKeywords);
-
-    const scores = [
-      { action: 'cancel' as ChooserAction, score: bestCancel ? bestCancel.score : 0 },
-      { action: 'order_now' as ChooserAction, score: bestOrder ? bestOrder.score : 0 },
-      { action: 'schedule' as ChooserAction, score: bestSchedule ? bestSchedule.score : 0 },
-      { action: 'add_to_cart' as ChooserAction, score: bestCart ? bestCart.score : 0 }
-    ].sort((a, b) => b.score - a.score);
-
-    if (scores[0].score >= 0.65) {
-      console.log(`[ChooserVoiceService]: Fuzzy matched action: ${scores[0].action} (score: ${scores[0].score})`);
-      return scores[0].action;
-    }
-
-    if (scores[0].score >= 0.4) {
-      console.log(`[ChooserVoiceService]: Low confidence match (${scores[0].score}) -> trigger retry prompt.`);
-      return 'retry';
-    }
-
+  /**
+   * Backward-compatible alias returning 'instant' | 'schedule' | 'cart' | 'cancel' | null
+   */
+  public static matchChooserAction(transcript: string, lang: Language = 'en'): 'instant' | 'schedule' | 'cart' | 'cancel' | null {
+    if (!transcript) return null;
+    const match = VoiceIntentRouter.matchItemChooserIntent(transcript, lang);
+    if (match.action === 'order_now') return 'instant';
+    if (match.action === 'schedule') return 'schedule';
+    if (match.action === 'add_to_cart') return 'cart';
+    if (match.action === 'cancel') return 'cancel';
     return null;
   }
 }

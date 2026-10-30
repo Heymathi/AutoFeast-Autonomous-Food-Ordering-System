@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
 import { SpeechController } from '../services/speechController';
@@ -39,7 +39,8 @@ export const DynamicFoodSearch: React.FC = () => {
     showToast,
     checkIsItemRestrictedByNominee,
     isItemApprovedByNominee,
-    handleNomineeRestrictedInterception
+    handleNomineeRestrictedInterception,
+    processNaturalLanguageVoiceCommand
   } = useApp();
 
   const [isMicListening, setIsMicListening] = useState(false);
@@ -49,6 +50,7 @@ export const DynamicFoodSearch: React.FC = () => {
   const [schedulingItem, setSchedulingItem] = useState<FoodItem | null>(null);
   const [chooserItem, setChooserItem] = useState<FoodItem | null>(null);
   const [priceCompareItem, setPriceCompareItem] = useState<FoodItem | null>(null);
+  const chooserItems = useMemo(() => (chooserItem ? [chooserItem] : []), [chooserItem]);
 
   useEffect(() => {
     return () => {
@@ -104,21 +106,20 @@ export const DynamicFoodSearch: React.FC = () => {
   };
 
   const toggleSearchMic = () => {
+    SpeechController.markUserGesture();
     if (isMicListening || SpeechController.getOwner() === 'dynamic_search') {
-      console.log('[Search Voice Mic] Manual stop toggled by user.');
       SpeechController.stopMic();
       setIsMicListening(false);
       return;
     }
 
     if (!SpeechController.isSupported()) {
-      console.warn('[Search Voice Mic] Web Speech API not supported in this browser.');
       const noSupportMsg = language === 'ta'
         ? 'குரல் தேடல் இந்த உலாவியில் ஆதரிக்கப்படவில்லை.'
         : language === 'hi'
         ? 'वॉइस खोज इस ब्राउज़र में समर्थित नहीं है।'
         : 'Voice search is not supported in this browser. Please type in search bar.';
-      showToast(noSupportMsg);
+      showToast(noSupportMsg, 'info', 5000, undefined, undefined, undefined, true);
       speakText(noSupportMsg);
       return;
     }
@@ -128,7 +129,6 @@ export const DynamicFoodSearch: React.FC = () => {
     setCategoryStatusText('');
     setTopSuggestions(null);
     setIsMicListening(true);
-    console.log('[Search Voice Mic]: Requesting mic via SpeechController...');
 
     SpeechController.requestMic({
       owner: 'dynamic_search',
@@ -137,14 +137,18 @@ export const DynamicFoodSearch: React.FC = () => {
       interimResults: true,
       maxAlternatives: 5,
       onStart: () => setIsMicListening(true),
-      onResult: (transcribedText, isFinal, nBestTranscripts) => {
+      onResult: async (transcribedText, isFinal, nBestTranscripts) => {
         if (!transcribedText) return;
         setLiveTranscript(transcribedText);
+        setSearchQuery(transcribedText);
 
         if (!isFinal) return;
 
-        console.log(`[Search Voice Mic]: Speech Finalized -> "${transcribedText}"`);
         const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [transcribedText];
+        if (transcribedText.trim().split(/\s+/).length >= 3) {
+          const handledByNlp = await processNaturalLanguageVoiceCommand(transcribedText, candidates);
+          if (handledByNlp) return;
+        }
         const familyIntent = detectFoodFamilyIntent(candidates);
         if (familyIntent) {
           console.log(`[Search Voice Family Match]: alternatives=${JSON.stringify(candidates)} transcript="${familyIntent.transcript}" normalized="${familyIntent.normalizedQuery}" score=${familyIntent.score} rule=${familyIntent.kind === 'family' ? 'generic-family-alias' : 'specific-variant-alias'} family="${familyIntent.family.key}" variant="${familyIntent.variantToken || ''}"`);
@@ -172,20 +176,22 @@ export const DynamicFoodSearch: React.FC = () => {
             });
           }
         } else if (matchRes.needsClarification && matchRes.top3Candidates && matchRes.top3Candidates.length > 0) {
-          // Medium Confidence Rule: Prompt "Did you mean X?" + Top 3 Buttons
+          executeSearch(transcribedText, true);
           setTopSuggestions({ items: matchRes.top3Candidates, prompt: matchRes.clarificationPrompt });
           if (matchRes.clarificationPrompt) {
             speakText(matchRes.clarificationPrompt);
           }
-        } else if (matchRes.top3Candidates && matchRes.top3Candidates.length > 0) {
-          // Low Confidence Rule: Show top 3 candidates / popular dishes as suggestions
-          const notFoundPrompt = language === 'ta'
-            ? 'தெளிவாகப் புரியவில்லை. இந்த பிரபலமான உணவுகளில் ஒன்றா?'
-            : language === 'hi'
-            ? 'स्पष्ट नहीं हुआ। क्या आप इनमें से कुछ चाहते हैं?'
-            : "Didn't catch that clearly. Did you mean one of these popular dishes?";
-          setTopSuggestions({ items: matchRes.top3Candidates, prompt: notFoundPrompt });
-          speakText(notFoundPrompt);
+        } else {
+          executeSearch(transcribedText, true);
+          if (matchRes.top3Candidates && matchRes.top3Candidates.length > 0) {
+            const notFoundPrompt = language === 'ta'
+              ? 'தெளிவாகப் புரியவில்லை. இந்த பிரபலமான உணவுகளில் ஒன்றா?'
+              : language === 'hi'
+              ? 'स्पष्ट नहीं हुआ। क्या आप इनमें से कुछ चाहते हैं?'
+              : "Didn't catch that clearly. Did you mean one of these popular dishes?";
+            setTopSuggestions({ items: matchRes.top3Candidates, prompt: notFoundPrompt });
+            speakText(notFoundPrompt);
+          }
         }
       },
       onError: (errCode, errMsg) => {
@@ -633,7 +639,7 @@ export const DynamicFoodSearch: React.FC = () => {
       <ItemActionChooser
         isOpen={Boolean(chooserItem)}
         onClose={() => setChooserItem(null)}
-        items={chooserItem ? [chooserItem] : []}
+        items={chooserItems}
         onOrderNow={(items) => {
           console.log('[DynamicFoodSearch onOrderNow]: Callback triggered with items:', items);
           if (items && items[0]) {

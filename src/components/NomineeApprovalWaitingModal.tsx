@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
 import { Mail, Clock, RefreshCw, X, ShieldAlert, CheckCircle2, AlertCircle, Mic } from 'lucide-react';
 import { SpeechController } from '../services/speechController';
+import { VoiceIntentRouter } from '../services/voiceIntentRouter';
 
 export interface NomineeApprovalWaitingModalProps {
   isOpen: boolean;
@@ -79,14 +80,21 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
     return cancelKeywords.some(kw => lower.includes(kw));
   }, []);
 
+  const handleSendReminderRef = useRef<() => void>(() => {});
+
   const startListeningForCancel = useCallback(() => {
     if (!isMountedRef.current || handledRef.current) return;
 
-    const onMicResult = (transcript: string) => {
-      if (!isMountedRef.current || handledRef.current) return;
+    const onMicResult = (transcript: string, _isFinal?: boolean, alternatives?: string[]) => {
+      if (!isMountedRef.current || handledRef.current || !transcript) return;
       setLiveTranscript(transcript);
-      if (isCancelCommand(transcript)) {
-        console.log('[NomineeApprovalWaiting]: Cancel voice command detected:', transcript);
+      const candidates = alternatives && alternatives.length > 0 ? alternatives : [transcript];
+      const match = VoiceIntentRouter.matchNomineeWaitingIntent(candidates);
+      if (match.action === 'send_reminder') {
+        handleSendReminderRef.current();
+        return;
+      }
+      if (match.action === 'cancel' || isCancelCommand(transcript)) {
         handleCancel();
       }
     };
@@ -94,13 +102,7 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
       setIsListening(false);
     };
     const onMicEnd = () => {
-      if (isMountedRef.current && !handledRef.current) {
-        setTimeout(() => {
-          if (isMountedRef.current && !handledRef.current) {
-            startListeningForCancel();
-          }
-        }, 300);
-      }
+      setIsListening(false);
     };
 
     if (typeof (SpeechController as any).acquireMic === 'function') {
@@ -109,9 +111,9 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
       SpeechController.requestMic({
         owner: MIC_OWNER,
         language,
-        continuous: true,
+        continuous: false,
         interimResults: true,
-        onResult: (transcript) => onMicResult(transcript),
+        onResult: (transcript, isFinal, alternatives) => onMicResult(transcript, isFinal, alternatives),
         onError: () => onMicError(),
         onEnd: () => onMicEnd()
       });
@@ -196,6 +198,7 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
     }
   };
 
+  handleSendReminderRef.current = handleSendReminder;
   const checkStatusRef = useRef(checkStatus);
   checkStatusRef.current = checkStatus;
   const startListeningRef = useRef(startListeningForCancel);
@@ -216,7 +219,7 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
 
     if (isOpen && approvalId) {
       const waitingPrompt = tRef.current('nominee.waitingApproval');
-      showToastRef.current(waitingPrompt, 'warning');
+      showToastRef.current(waitingPrompt, 'warning', 5000, 'nominee_waiting', undefined, undefined, true);
 
       SpeechController.speak(
         waitingPrompt,
@@ -225,7 +228,10 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
           if (isMountedRef.current && !handledRef.current) {
             startListeningRef.current();
           }
-        }
+        },
+        undefined,
+        MIC_OWNER,
+        `nominee_waiting_${approvalId}`
       );
 
       // Poll server every 5 seconds (5000 ms) as specified in requirement

@@ -224,6 +224,8 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
     setPinDigits(['', '', '', '']);
   };
 
+  const voicePinRepeatCountRef = useRef<number>(0);
+
   const startVoicePinListening = (retryIdx: number = 0) => {
     if (isInputBlocked || !SpeechController.isSupported() || !isComponentMounted.current) return;
     if (retryIdx >= localeChain.length) {
@@ -239,7 +241,8 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
 
     SpeechController.requestMic({
       owner: 'voice_pin',
-      language: targetLocale,
+      language: language || 'en',
+      overrideLocale: targetLocale,
       continuous: false,
       interimResults: true,
       maxAlternatives: 5,
@@ -248,8 +251,7 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
         if (isComponentMounted.current) setMicState('listening');
       },
       onResult: (rawTranscript, isFinal, nBestTranscripts) => {
-        if (!isComponentMounted.current || !isFinal || !rawTranscript) return;
-        setMicState('processing');
+        if (!isComponentMounted.current || !rawTranscript || isVoiceSubmittingRef.current) return;
 
         const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [rawTranscript];
 
@@ -258,8 +260,6 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
           activePromptsRef.current.some(prompt => cand.toLowerCase().includes(prompt.toLowerCase().substring(0, 10)))
         );
         if (isEcho) {
-          console.log('[SecurityPinEntryView]: Ignored app prompt echo.');
-          setMicState('listening');
           return;
         }
 
@@ -270,6 +270,9 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
           if (res.status === 'success' || res.status === 'command') {
             parseResult = res;
             break;
+          }
+          if (res.digits.length > parseResult.digits.length) {
+            parseResult = res;
           }
         }
 
@@ -283,41 +286,19 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
           return;
         }
 
-        if (parseResult.status === 'requires_each_digit' || parseResult.status === 'too_many') {
-          const invalidCountMsg = language === 'ta'
-            ? 'தயவுசெய்து 4 தனித்தனி இலக்கங்களை கூறவும். அழிக்க "அழி" எனக் கூறவும்.'
-            : language === 'hi'
-            ? 'कृपया 4 अलग-अलग अंक कहें। रीसेट के लिए "मिटाओ" कहें।'
-            : 'Please say 4 single digits. Say "clear" to reset.';
-
-          setStatusMessage(invalidCountMsg);
-          setPinDigits(['', '', '', '']);
-          SpeechController.speak(invalidCountMsg, language || 'en', () => {
-            if (isComponentMounted.current) startVoicePinListening(retryIdx);
-          }, undefined, 'voice_pin');
-          return;
-        }
-
-        if (parseResult.status === 'need_more' && parseResult.digits.length > 0) {
-          const newDigits = ['', '', '', ''];
+        // Fill the 4 boxes in real time as digits are recognized
+        if (parseResult.digits.length > 0 && parseResult.digits.length <= 4) {
+          const previewDigits = ['', '', '', ''];
           parseResult.digits.forEach((d, i) => {
-            if (i < 4) newDigits[i] = d;
+            if (i < 4) previewDigits[i] = d;
           });
-          setPinDigits(newDigits);
-          const remainMsg = language === 'ta'
-            ? 'மீதமுள்ள இலக்கங்களை கூறுங்கள்'
-            : language === 'hi'
-            ? 'शेष अंक कहें'
-            : 'Say the remaining digits';
-          setStatusMessage(remainMsg);
-          SpeechController.speak(remainMsg, language || 'en', () => {
-            if (isComponentMounted.current) startVoicePinListening(retryIdx);
-          }, undefined, 'voice_pin');
-          return;
+          setPinDigits(previewDigits);
         }
 
         if (parseResult.status === 'success' && parseResult.digits.length === 4) {
           isVoiceSubmittingRef.current = true;
+          voicePinRepeatCountRef.current = 0;
+          SpeechController.markHandling('voice_pin');
           SpeechController.releaseMic('voice_pin');
           setPinDigits(parseResult.digits);
           setMicState('idle');
@@ -329,21 +310,60 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
             : 'PIN received';
 
           setStatusMessage(confirmText);
+          const fullPin = parseResult.digits.join('');
 
-          // SECURITY RULE: Confirmation speech says ONLY "PIN received", NEVER the digits!
-          SpeechController.speak(confirmText, language || 'en', () => {
-            debouncedPinComplete(parseResult.digits.join(''));
-          }, undefined, 'voice_pin');
+          // Call the exact same verify function as the Verify button!
+          debouncedPinComplete(fullPin);
+          return;
+        }
+
+        if (!isFinal) return;
+        setMicState('processing');
+
+        // Wrong length (count != 4) on final transcript: ask ONCE to repeat WITHOUT counting a wrong attempt!
+        voicePinRepeatCountRef.current += 1;
+        if (voicePinRepeatCountRef.current <= 1) {
+          const repeatMsg = (parseResult.status === 'need_more' && parseResult.digits.length > 0)
+            ? (language === 'ta' ? 'மீதமுள்ள இலக்கங்களை கூறுங்கள்' : language === 'hi' ? 'शेष अंक कहें' : 'Please say all 4 digits.')
+            : (language === 'ta'
+              ? 'தயவுசெய்து 4 தனித்தனி இலக்கங்களை கூறவும்.'
+              : language === 'hi'
+              ? 'कृपया 4 अलग-अलग अंक कहें।'
+              : 'Please say 4 single digits.');
+
+          setStatusMessage(repeatMsg);
+          SpeechController.speak(
+            repeatMsg,
+            language || 'en',
+            () => {
+              if (isComponentMounted.current && !isVoiceSubmittingRef.current) {
+                startVoicePinListening(retryIdx);
+              }
+            },
+            undefined,
+            'voice_pin',
+            'voice_pin_repeat'
+          );
+        } else {
+          // After 2 failed voice tries, stop and leave keypad buttons only
+          cleanupSpeech();
+          const fallbackMsg = language === 'ta'
+            ? 'தெளிவாகக் கேட்கவில்லை. தயவுசெய்து எண்களைத் தொடவும்.'
+            : language === 'hi'
+            ? 'साफ़ सुनाई नहीं दिया। कृपया कीपैड बटन दबाएं।'
+            : 'Could not hear 4 digits clearly. Please use the keypad buttons below.';
+          setStatusMessage(fallbackMsg);
         }
       },
       onError: (errCode) => {
         if (!isComponentMounted.current) return;
-        console.warn(`[Voice PIN Error on locale ${targetLocale}]:`, errCode);
         if (errCode === 'not-allowed') {
           setMicState('error');
           setStatusMessage('Microphone access denied. Please use keypad.');
-        } else {
+        } else if (errCode === 'language-not-supported' && retryIdx + 1 < localeChain.length) {
           startVoicePinListening(retryIdx + 1);
+        } else {
+          setMicState('idle');
         }
       },
       onEnd: () => {
@@ -355,6 +375,8 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
   };
 
   const handleMicToggle = () => {
+    SpeechController.markUserGesture();
+    voicePinRepeatCountRef.current = 0;
     if (micState === 'listening') {
       cleanupSpeech();
     } else {

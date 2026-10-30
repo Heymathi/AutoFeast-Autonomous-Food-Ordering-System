@@ -7,6 +7,7 @@ import { AuthService } from '../services/authService';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
 import { VoicePinInput } from './VoicePinInput';
 import { SpeechController } from '../services/speechController';
+import { VoiceIntentRouter } from '../services/voiceIntentRouter';
 
 interface NomineeControlModalProps {
   isOpen: boolean;
@@ -412,24 +413,15 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
   };
 
   const handleApprove = (reqId: string) => {
-    if (nomineeToken) {
-      void handleDecision(reqId, 'approve');
-    } else {
-      approveNomineeRequest(reqId);
-      handleClose();
-    }
+    void handleDecision(reqId, 'approve');
   };
 
   const handleDeny = (reqId: string) => {
-    if (nomineeToken) {
-      void handleDecision(reqId, 'deny');
-    } else {
-      denyNomineeRequest(reqId);
-      handleClose();
-    }
+    void handleDecision(reqId, 'deny');
   };
 
   const startVoiceApprovalListening = () => {
+    SpeechController.markUserGesture();
     if (!SpeechController.isSupported()) return;
     setIsVoiceApproving(true);
     SpeechController.startListening({
@@ -445,8 +437,29 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
         if (!transcript || !isFinal) return;
         setIsVoiceApproving(false);
         const candidates = nBest && nBest.length > 0 ? nBest : [transcript];
-        const firstPending = pendingNomineeApprovals.find(r => r.status === 'pending');
+        const activeList = serverApprovals.length > 0 ? serverApprovals : pendingNomineeApprovals;
+        const firstPending = activeList.find(r => r.status === 'pending');
+
+        const portalMatch = VoiceIntentRouter.matchNomineePortalIntent(candidates, INDIAN_FOOD_CATALOG, language);
+        if (portalMatch.action?.type === 'add_restricted' || portalMatch.action?.type === 'remove_restricted') {
+          void handleToggleRestrictedItem(portalMatch.action.item.id);
+          return;
+        }
+        if (portalMatch.action?.type === 'cancel') {
+          onClose();
+          return;
+        }
         if (!firstPending) return;
+        const targetId = firstPending.id || firstPending._id || '';
+
+        if (portalMatch.action?.type === 'approve') {
+          handleApprove(targetId);
+          return;
+        }
+        if (portalMatch.action?.type === 'deny') {
+          handleDeny(targetId);
+          return;
+        }
 
         // Check approve
         const isApprove = candidates.some(c => {
@@ -466,9 +479,9 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
         });
 
         if (isApprove) {
-          handleApprove(firstPending.id);
+          handleApprove(targetId);
         } else if (isDeny) {
-          handleDeny(firstPending.id);
+          handleDeny(targetId);
         } else if (isCancel) {
           onClose();
         }
@@ -635,7 +648,9 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                 disabled={Boolean(lockCountdown && lockCountdown > 0) || isSubmitting}
                 onPinChange={pin => {
                   setEnteredPin(pin);
-                  void handleVerifyPin(pin);
+                  if (pin.length === 4) {
+                    void handleVerifyPin(pin);
+                  }
                 }}
               />
               {renderPinKeypad('verify', Boolean(lockCountdown && lockCountdown > 0) || isSubmitting)}

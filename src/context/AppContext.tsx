@@ -188,7 +188,8 @@ interface AppContextType {
     duration?: number,
     key?: string,
     i18nKey?: string,
-    i18nParams?: Record<string, string | number>
+    i18nParams?: Record<string, string | number>,
+    skipSpeak?: boolean
   ) => void;
   cart: CartItem[];
   addToCart: (item: FoodItem, quantity?: number, addedFrom?: 'voice_search' | 'dynamic_search' | 'auto_scheduler' | 'healthy_food' | 'general') => Promise<void>;
@@ -1300,12 +1301,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const speakText = (text: string, onEnd?: () => void, targetLang?: Language) => {
     // Respect the Auto Voice ON/OFF toggle from the Accessibility toolbar
     if (!autoVoicePromptEnabled) {
-      console.log('[speakText MUTED]: autoVoicePromptEnabled=false — skipping TTS for:', text?.substring(0, 50));
       if (onEnd) onEnd();
       return;
     }
     const activeLang = targetLang || language;
-    console.log(`[speakText]: lang=${activeLang} | text="${text?.substring(0, 60)}${(text?.length || 0) > 60 ? '...' : ''}"`); 
     SpeechController.speak(
       text,
       activeLang,

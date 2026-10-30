@@ -486,6 +486,11 @@ const DB_CONNECT_RETRY_DELAY_MS = 3000;
 
 app.use('/api', async (req, res, next) => {
   const isHealthCheck = req.path === '/health' || (req.originalUrl || '').startsWith('/api/health');
+  const isTtsEndpoint = req.path === '/tts' || (req.originalUrl || '').startsWith('/api/tts');
+
+  if (isTtsEndpoint) {
+    return next();
+  }
 
   for (let attempt = 1; attempt <= DB_CONNECT_MAX_ATTEMPTS; attempt++) {
     try {
@@ -532,6 +537,107 @@ app.get('/api/health', (req, res) => {
     ? 'connected'
     : (cached.error?.name || 'DisconnectedError');
   res.json({ database });
+});
+
+// In-memory cache for Server TTS audio by hash(lang + text)
+const ttsAudioCache = new Map();
+
+function pcmToWavBase64(pcmBase64, sampleRate = 24000) {
+  const pcmBuf = Buffer.from(pcmBase64, 'base64');
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const blockAlign = numChannels * (bitsPerSample / 8);
+  const wavHeader = Buffer.alloc(44);
+  wavHeader.write('RIFF', 0);
+  wavHeader.writeUInt32LE(36 + pcmBuf.length, 4);
+  wavHeader.write('WAVE', 8);
+  wavHeader.write('fmt ', 12);
+  wavHeader.writeUInt32LE(16, 16); // Subchunk1Size (16 for PCM)
+  wavHeader.writeUInt16LE(1, 20);  // AudioFormat (1 = PCM)
+  wavHeader.writeUInt16LE(numChannels, 22);
+  wavHeader.writeUInt32LE(sampleRate, 24);
+  wavHeader.writeUInt32LE(byteRate, 28);
+  wavHeader.writeUInt16LE(blockAlign, 32);
+  wavHeader.writeUInt16LE(bitsPerSample, 34);
+  wavHeader.write('data', 36);
+  wavHeader.writeUInt32LE(pcmBuf.length, 40);
+  return Buffer.concat([wavHeader, pcmBuf]).toString('base64');
+}
+
+// Server TTS Fallback Endpoint (POST /api/tts { text, lang })
+app.post('/api/tts', async (req, res) => {
+  try {
+    const { text, lang } = req.body || {};
+    if (typeof text !== 'string' || !text.trim() || text.length > 600) {
+      return res.status(400).json({ success: false, error: 'invalid_text', fallback: true });
+    }
+
+    const cleanText = text.trim();
+    // Never accept or synthesize 4-digit PIN patterns
+    if (/\b\d{4}\b/.test(cleanText) || /\bpin\s*[:=-]?\s*\d+/i.test(cleanText)) {
+      return res.status(400).json({ success: false, error: 'pin_rejected', fallback: true });
+    }
+
+    const clientIp = req.ip || req.socket?.remoteAddress || '127.0.0.1';
+    const rateKey = `tts_${clientIp}`;
+    const rateCheck = checkRateLimit(rateKey);
+    if (!rateCheck.allowed || !allowVoiceNluRequest(rateKey)) {
+      return res.status(429).json({ success: false, error: 'rate_limited', fallback: true });
+    }
+
+    const safeLang = ['en', 'ta', 'hi'].includes(lang) ? lang : 'en';
+    const cacheKey = crypto.createHash('sha256').update(`${safeLang}:${cleanText}`).digest('hex');
+    const cachedAudio = ttsAudioCache.get(cacheKey);
+    if (cachedAudio) {
+      return res.json({ success: true, cached: true, ...cachedAudio });
+    }
+
+    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'MY_GEMINI_API_KEY') {
+      return res.status(200).json({ success: false, fallback: true, reason: 'gemini_unavailable' });
+    }
+
+    voiceNluClient ||= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const langLabel = safeLang === 'ta' ? 'Tamil (ta-IN)' : safeLang === 'hi' ? 'Hindi (hi-IN)' : 'Indian English (en-IN)';
+    const response = await voiceNluClient.models.generateContent({
+      model: 'gemini-2.5-flash-preview-tts',
+      contents: `Read this ${langLabel} prompt clearly and naturally: ${cleanText}`,
+      config: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: 'Kore' }
+          }
+        }
+      }
+    });
+
+    const inlineData = response?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+    if (!inlineData || !inlineData.data) {
+      return res.status(200).json({ success: false, fallback: true, reason: 'empty_audio' });
+    }
+
+    const rawMime = String(inlineData.mimeType || 'audio/pcm;rate=24000').toLowerCase();
+    let audioBase64 = inlineData.data;
+    let mimeType = inlineData.mimeType || 'audio/wav';
+    if (rawMime.includes('pcm') || rawMime.includes('l16')) {
+      const rateMatch = rawMime.match(/rate=(\d+)/);
+      const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+      audioBase64 = pcmToWavBase64(inlineData.data, sampleRate);
+      mimeType = 'audio/wav';
+    }
+
+    const payload = { audioBase64, mimeType };
+    if (ttsAudioCache.size >= 250) {
+      const firstKey = ttsAudioCache.keys().next().value;
+      if (firstKey) ttsAudioCache.delete(firstKey);
+    }
+    ttsAudioCache.set(cacheKey, payload);
+    return res.json({ success: true, cached: false, ...payload });
+  } catch (err) {
+    // Fail gracefully if quota exceeded or model unavailable — never cause client error loops
+    return res.status(200).json({ success: false, fallback: true, reason: 'tts_failed' });
+  }
 });
 
 app.post('/api/voice/nlu', async (req, res) => {

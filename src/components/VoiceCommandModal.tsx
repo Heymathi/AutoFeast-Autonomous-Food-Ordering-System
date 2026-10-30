@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
 import { SpeechController } from '../services/speechController';
 import { SttMatcherService } from '../services/sttMatcherService';
+import { VoiceIntentRouter } from '../services/voiceIntentRouter';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
 import { Mic, MicOff, X, Command, CheckCircle2, XCircle, Volume2, Bug } from 'lucide-react';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
@@ -129,8 +130,10 @@ export const VoiceCommandModal: React.FC = () => {
       onSilence: () => {
         setIsListening(false);
         if (awaitingConfirmationRef.current || restaurantStepRef.current || singleRestaurantPromptRef.current) {
-          // In confirmation/restaurant step, keep listening quietly
-          startListeningSession({ allowDuringTts: true });
+          if (silenceRepeatCount.current < 1) {
+            silenceRepeatCount.current += 1;
+            startListeningSession({ allowDuringTts: true });
+          }
           return;
         }
         if (silenceRepeatCount.current === 0) {
@@ -149,7 +152,7 @@ export const VoiceCommandModal: React.FC = () => {
             ? 'सुनना रोक दिया गया है। Retry mic दबाएँ या खोज शुरू करें।'
             : 'Listening stopped. Tap Retry mic or search on screen.';
           setTranscript(message);
-          showToast(message);
+          showToast(message, 'info', 5000, undefined, undefined, undefined, true);
         }
       },
       onStart: () => {
@@ -168,6 +171,15 @@ export const VoiceCommandModal: React.FC = () => {
 
           // Check voice confirmation YES/NO on both interim and final results
           if (awaitingConfirmationRef.current && !confirmHandledRef.current) {
+            const routerConfirm = VoiceIntentRouter.matchConfirmationIntent(candidates, language);
+            if (routerConfirm.action === 'cancel') {
+              handleNo();
+              return;
+            }
+            if (routerConfirm.action === 'confirm') {
+              handleYes();
+              return;
+            }
             const matchConfirm = SttMatcherService.matchConfirmation(candidates, language);
             if (matchConfirm.isMatched && matchConfirm.matchedValue === 'NO') {
               handleNo();
@@ -181,6 +193,15 @@ export const VoiceCommandModal: React.FC = () => {
 
           // Check single restaurant YES/NO confirmation on both interim and final
           if (singleRestaurantPromptRef.current && !confirmHandledRef.current) {
+            const routerConfirm = VoiceIntentRouter.matchConfirmationIntent(candidates, language);
+            if (routerConfirm.action === 'cancel') {
+              handleNo();
+              return;
+            }
+            if (routerConfirm.action === 'confirm') {
+              handleRestaurantSelected(singleRestaurantPromptRef.current.restaurant);
+              return;
+            }
             const matchConfirm = SttMatcherService.matchConfirmation(candidates, language);
             if (matchConfirm.isMatched && matchConfirm.matchedValue === 'NO') {
               handleNo();
