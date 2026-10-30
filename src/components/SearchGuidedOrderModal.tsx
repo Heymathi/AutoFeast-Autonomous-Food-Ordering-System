@@ -2,35 +2,40 @@
  * SearchGuidedOrderModal.tsx
  *
  * Spoken + listened guided dialog launched whenever a search query matches
- * generic or multi-variety items. Extended with a complete scheduling dialog
+ * generic or multi-variety items. Extended with the complete scheduling dialog
  * flow across English, Tamil, and Hindi.
  *
  * Flow:
  * 1. variety: Which variety?
  * 2. restaurant: Which restaurant?
  * 3. when: Order now or schedule for later?
- * 4. schedule_time: At what time?
- * 5. schedule_repeat: Weekly, Monthly, or Custom date?
- * 6. schedule_days (if weekly) / schedule_monthday (if monthly) / schedule_customdate (if custom)
- * 7. schedule_confirm: Spoken summary, Yes/No confirmation (NO checked before YES)
- * 8. schedule_change (if NO): Select what to change
- * 9. Result popup: Scheduled order confirmed
+ * 4. schedule_time: "At what time should I schedule the order?"
+ * 5. schedule_duration: "For how long: 1 week, 1 month, 3 months, or a custom period?"
+ * 6. schedule_custom_duration (if custom): "How many days, or until which date?"
+ * 7. schedule_days_mode: "Which days: a particular day, every day of the week, or custom days?"
+ * 8. schedule_weekdays (if particular): "Which days of the week?"
+ * 9. schedule_bill: Show full bill (item, restaurant, deliveries, delivery fee, taxes, total) & speak summary
+ * 10. schedule_pin: "Please enter your security PIN." (spoken or masked numeric keypad)
+ * 11. schedule_success: Show & speak success popup matching cart/order style
  *
  * Rules:
  * - TTS starts immediately; STT starts as soon as TTS finishes.
  * - Tap and voice call the same handlers, guarded against double-firing.
  * - Cancel-intent closes immediately.
+ * - NO is checked before YES everywhere.
  * - Restricted-item check delegated to existing nominee flow untouched.
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
-import { FoodItem, AutoOrderSchedule } from '../types';
+import { FoodItem, AutoOrderSchedule, ScheduleDuration } from '../types';
 import { SpeechController } from '../services/speechController';
 import { SttMatcherService } from '../services/sttMatcherService';
 import { deriveMealSlot } from '../services/timeVoiceParser';
 import { calculateHaversineDistance } from '../services/locationService';
 import { AutoOrderBackgroundService } from '../services/autoOrderBackgroundService';
+import { AuthService } from '../services/authService';
+import { parsePinSpeech } from '../services/pinVoiceParserService';
 import {
   matchOptionByTokens,
   classifyOrderNowOrSchedule,
@@ -38,14 +43,15 @@ import {
 } from '../services/guidedMatchingService';
 import {
   parseTime,
-  parseRepeatType,
-  parseDays,
-  parseDayOfMonth,
-  parseCustomDate,
-  buildSummary,
-  parseChangeTarget,
-  RepeatType,
-  CustomDateResult,
+  parseDuration,
+  parseCustomDays,
+  parseDaysMode,
+  parseWeekdays,
+  buildScheduleDates,
+  calcScheduleBill,
+  ScheduleDurationType,
+  DaysModeType,
+  CustomDaysResult,
   ParsedTimeResult,
   ALL_DAYS
 } from '../services/scheduleVoiceParser';
@@ -59,8 +65,12 @@ import {
   AlertCircle,
   Calendar,
   Check,
-  RotateCcw,
-  CheckCircle2
+  CheckCircle2,
+  ArrowLeft,
+  Lock,
+  ShieldCheck,
+  FileText,
+  Delete
 } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -70,12 +80,13 @@ type GuidedStep =
   | 'restaurant'
   | 'when'
   | 'schedule_time'
-  | 'schedule_repeat'
-  | 'schedule_days'
-  | 'schedule_monthday'
-  | 'schedule_customdate'
-  | 'schedule_confirm'
-  | 'schedule_change';
+  | 'schedule_duration'
+  | 'schedule_custom_duration'
+  | 'schedule_days_mode'
+  | 'schedule_weekdays'
+  | 'schedule_bill'
+  | 'schedule_pin'
+  | 'schedule_success';
 
 export interface SearchGuidedOrderModalProps {
   isOpen: boolean;
@@ -93,12 +104,22 @@ const CANCEL_WORDS = [
   'வேண்டாம்', 'ரத்து', 'நிறுத்து', 'வேணாம்', 'vendam', 'rathu',
   'nahi', 'nahin', 'band karo', 'ruko', 'naa', 'mat', 'रद्द', 'बंद करो', 'नहीं'
 ];
+
 const isCancelIntent = (text: string): boolean => {
   const t = text.toLowerCase().replace(/[,.!?;:()'"~`-]+/g, ' ').trim();
   return CANCEL_WORDS.some(w => ` ${t} `.includes(` ${w} `));
 };
 
-// ─── Date formatting helpers ────────────────────────────────────────────────
+const isBackIntent = (text: string): boolean => {
+  const t = text.toLowerCase().replace(/[,.!?;:()'"~`-]+/g, ' ').trim();
+  return (
+    t.includes('back') || t.includes('go back') || t.includes('previous') ||
+    t.includes('பின்னால்') || t.includes('முந்தையது') || t.includes('திரும்பு') ||
+    t.includes('पीछे') || t.includes('वापस')
+  );
+};
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 const getTodayDateStr = (): string => {
   const d = new Date();
@@ -106,24 +127,6 @@ const getTodayDateStr = (): string => {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
-};
-
-const getTomorrowDateStr = (): string => {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
-
-const formatCustomDateDisplay = (dateStr: string): string => {
-  const parts = dateStr.split('-');
-  if (parts.length !== 3) return dateStr;
-  const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-  if (isNaN(d.getTime())) return dateStr;
-  const monthNamesEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  return `${d.getDate()} ${monthNamesEn[d.getMonth()]} ${d.getFullYear()}`;
 };
 
 const DAY_LABELS: Record<string, { en: string; ta: string; hi: string }> = {
@@ -142,8 +145,6 @@ const deriveSlotIndex = (hours: number): 1 | 2 | 3 | 4 => {
   if (hours < 19) return 3;
   return 4;
 };
-
-// ─── Deduplicate restaurants from matched items ──────────────────────────────
 
 const getUniqueRestaurants = (
   items: FoodItem[],
@@ -205,12 +206,19 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
   // Scheduling flow state
   const [schedTime, setSchedTime] = useState('08:00');
   const [schedTimeDisplay, setSchedTimeDisplay] = useState('8:00 AM');
-  const [schedRepeatType, setSchedRepeatType] = useState<RepeatType>('weekly');
+  const [schedDuration, setSchedDuration] = useState<ScheduleDurationType>('1_week');
+  const [customDaysCount, setCustomDaysCount] = useState<number>(10);
+  const [customUntilDate, setCustomUntilDate] = useState<string>('');
+  const [customUntilDateDisplay, setCustomUntilDateDisplay] = useState<string>('');
+  const [schedDaysMode, setSchedDaysMode] = useState<DaysModeType>('all_days');
   const [schedDays, setSchedDays] = useState<string[]>(['Monday', 'Thursday']);
-  const [schedMonthDay, setSchedMonthDay] = useState<number>(1);
-  const [schedCustomDate, setSchedCustomDate] = useState<string>(getTomorrowDateStr);
-  const [schedCustomDateDisplay, setSchedCustomDateDisplay] = useState<string>(() => formatCustomDateDisplay(getTomorrowDateStr()));
-  const [schedSuccessPopup, setSchedSuccessPopup] = useState<string | null>(null);
+
+  // PIN verification state
+  const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '']);
+  const [isPinVerifying, setIsPinVerifying] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinLockSeconds, setPinLockSeconds] = useState<number>(0);
+  const [successPopupMsg, setSuccessPopupMsg] = useState<string | null>(null);
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const handledRef = useRef(false);
@@ -223,6 +231,31 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
   useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
 
   const varieties = matchedItems;
+
+  // Lockout countdown timer
+  useEffect(() => {
+    if (pinLockSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setPinLockSeconds(prev => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [pinLockSeconds]);
+
+  // Derived delivery dates & bill calculation
+  const deliveryDates = buildScheduleDates({
+    time: schedTime,
+    duration: schedDuration,
+    customDaysCount: schedDuration === 'custom' && customDaysCount > 0 ? customDaysCount : undefined,
+    customUntilDate: schedDuration === 'custom' && customUntilDate ? customUntilDate : undefined,
+    selectedDays: schedDaysMode === 'all_days' ? undefined : schedDays
+  });
+
+  const bill = calcScheduleBill({
+    basePrice: selectedItem?.basePrice || 100,
+    deliveryCount: deliveryDates.length,
+    quantity: 1,
+    restaurantCount: 1
+  });
 
   // ── Helper: speak then start listening ───────────────────────────────────
   const speakAndListen = useCallback((text: string, onAfterSpeak?: () => void) => {
@@ -275,14 +308,14 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       },
       onEnd: () => {
         setIsListening(false);
-        if (isOpenRef.current && !isSpeakingRef.current && !schedSuccessPopup) {
+        if (isOpenRef.current && !isSpeakingRef.current && !successPopupMsg) {
           setTimeout(() => {
-            if (isOpenRef.current && !isSpeakingRef.current && !schedSuccessPopup) startListening();
+            if (isOpenRef.current && !isSpeakingRef.current && !successPopupMsg) startListening();
           }, 400);
         }
       }
     });
-  }, [language, schedSuccessPopup]);
+  }, [language, successPopupMsg]);
 
   const clearSilenceTimer = () => {
     if (silenceTimerRef.current) {
@@ -316,7 +349,35 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     onClose();
   }, [language, onClose, showToast, speakText, t]);
 
-  // ── Step handlers ─────────────────────────────────────────────────────────
+  // ── Step navigation helper ────────────────────────────────────────────────
+
+  const handleGoBack = useCallback(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    SpeechController.releaseMic(MIC_OWNER);
+    handledRef.current = false;
+    setSilenceCount(0);
+    setLiveText('');
+    setSpeechError(null);
+
+    const curr = stepRef.current;
+    if (curr === 'schedule_time') setStep('when');
+    else if (curr === 'schedule_duration') setStep('schedule_time');
+    else if (curr === 'schedule_custom_duration') setStep('schedule_duration');
+    else if (curr === 'schedule_days_mode') {
+      setStep(schedDuration === 'custom' ? 'schedule_custom_duration' : 'schedule_duration');
+    }
+    else if (curr === 'schedule_weekdays') setStep('schedule_days_mode');
+    else if (curr === 'schedule_bill') {
+      setStep(schedDaysMode === 'all_days' ? 'schedule_days_mode' : 'schedule_weekdays');
+    }
+    else if (curr === 'schedule_pin') setStep('schedule_bill');
+    else if (curr === 'restaurant') setStep('variety');
+    else if (curr === 'when') setStep('restaurant');
+  }, [schedDaysMode, schedDuration]);
+
+  // ── Handlers (Shared between Voice and Tap) ───────────────────────────────
 
   const handleVarietyChosen = useCallback((item: FoodItem) => {
     if (handledRef.current) return;
@@ -364,7 +425,6 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     }
   }, [checkIsItemRestrictedByNominee, handleNomineeRestrictedInterception, onClose, placeInstantOrder]);
 
-  // Start scheduling flow
   const handleStartSchedule = useCallback(() => {
     if (handledRef.current) return;
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -378,7 +438,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     setStep('schedule_time');
   }, []);
 
-  // Time step handler
+  // 1. Time Set
   const handleScheduleTimeSet = useCallback((parsed: ParsedTimeResult) => {
     if (handledRef.current) return;
     handledRef.current = true;
@@ -392,34 +452,90 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     setSilenceCount(0);
     setLiveText('');
     setSpeechError(null);
-    setStep('schedule_repeat');
+    setStep('schedule_duration');
   }, []);
 
-  // Repeat step handler
-  const handleScheduleRepeatSet = useCallback((type: RepeatType) => {
+  // 2. Duration Set
+  const handleScheduleDurationSet = useCallback((dur: ScheduleDurationType) => {
     if (handledRef.current) return;
     handledRef.current = true;
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
     SpeechController.releaseMic(MIC_OWNER);
-    setSchedRepeatType(type);
+    setSchedDuration(dur);
     handledRef.current = false;
     setSilenceCount(0);
     setLiveText('');
     setSpeechError(null);
 
-    if (type === 'weekly') {
-      setStep('schedule_days');
-    } else if (type === 'monthly') {
-      setStep('schedule_monthday');
+    if (dur === 'custom') {
+      setStep('schedule_custom_duration');
     } else {
-      setStep('schedule_customdate');
+      setStep('schedule_days_mode');
     }
   }, []);
 
-  // Days step handler (Weekly)
-  const handleScheduleDaysSet = useCallback((days: string[]) => {
+  // 3. Custom Duration Set
+  const handleCustomDurationSet = useCallback((res: CustomDaysResult) => {
+    if (handledRef.current) return;
+    if (res.isOutOfRange || (res.type === 'days' && (res.count! < 1 || res.count! > 180))) {
+      const err = t('guided.customDurationError');
+      setSpeechError(err);
+      speakText(err, () => { if (isOpenRef.current) startListening(); }, language);
+      return;
+    }
+    if (res.type === 'until_date' && res.isPast) {
+      const err = t('guided.pastDateError');
+      setSpeechError(err);
+      speakText(err, () => { if (isOpenRef.current) startListening(); }, language);
+      return;
+    }
+
+    handledRef.current = true;
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    SpeechController.releaseMic(MIC_OWNER);
+    if (res.type === 'days') {
+      setCustomDaysCount(res.count || 10);
+      setCustomUntilDate('');
+      setCustomUntilDateDisplay('');
+    } else if (res.type === 'until_date') {
+      setCustomUntilDate(res.dateStr || '');
+      setCustomUntilDateDisplay(res.displayDate || '');
+      setCustomDaysCount(0);
+    }
+    handledRef.current = false;
+    setSilenceCount(0);
+    setLiveText('');
+    setSpeechError(null);
+    setStep('schedule_days_mode');
+  }, [language, speakText, startListening, t]);
+
+  // 4. Days Mode Set
+  const handleDaysModeSet = useCallback((mode: DaysModeType) => {
+    if (handledRef.current) return;
+    handledRef.current = true;
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    SpeechController.releaseMic(MIC_OWNER);
+    setSchedDaysMode(mode);
+    handledRef.current = false;
+    setSilenceCount(0);
+    setLiveText('');
+    setSpeechError(null);
+
+    if (mode === 'all_days') {
+      setStep('schedule_bill');
+    } else {
+      setStep('schedule_weekdays');
+    }
+  }, []);
+
+  // 5. Particular Weekdays Set
+  const handleWeekdaysSet = useCallback((days: string[]) => {
     if (handledRef.current || days.length === 0) return;
     handledRef.current = true;
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -431,173 +547,9 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     setSilenceCount(0);
     setLiveText('');
     setSpeechError(null);
-    setStep('schedule_confirm');
+    setStep('schedule_bill');
   }, []);
 
-  // Day of Month handler (Monthly)
-  const handleScheduleMonthDaySet = useCallback((day: number) => {
-    if (handledRef.current || day < 1 || day > 31) return;
-    handledRef.current = true;
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    SpeechController.releaseMic(MIC_OWNER);
-    setSchedMonthDay(day);
-    handledRef.current = false;
-    setSilenceCount(0);
-    setLiveText('');
-    setSpeechError(null);
-    setStep('schedule_confirm');
-  }, []);
-
-  // Custom Date handler
-  const handleScheduleCustomDateSet = useCallback((dateResult: CustomDateResult) => {
-    if (handledRef.current) return;
-    if (dateResult.isPast) {
-      const pastErr = t('guided.pastDateError');
-      setSpeechError(pastErr);
-      speakText(pastErr, () => { if (isOpenRef.current) startListening(); }, language);
-      return;
-    }
-    handledRef.current = true;
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    SpeechController.releaseMic(MIC_OWNER);
-    setSchedCustomDate(dateResult.dateStr);
-    setSchedCustomDateDisplay(dateResult.displayDate);
-    handledRef.current = false;
-    setSilenceCount(0);
-    setLiveText('');
-    setSpeechError(null);
-    setStep('schedule_confirm');
-  }, [language, speakText, startListening, t]);
-
-  // Confirm YES -> execute save schedule
-  const handleScheduleConfirmYes = useCallback(() => {
-    if (handledRef.current || !selectedItem) return;
-    handledRef.current = true;
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    SpeechController.releaseMic(MIC_OWNER);
-
-    // 1. Delegate restricted items to existing nominee flow untouched
-    const isRestricted = checkIsItemRestrictedByNominee(selectedItem.id, selectedItem.name);
-    if (isRestricted) {
-      onClose();
-      handleNomineeRestrictedInterception(selectedItem, 'scheduled', {
-        time: schedTime,
-        slotName: `${deriveMealSlot(parseInt(schedTime.split(':')[0], 10))} Schedule`,
-        frequency: schedRepeatType === 'weekly' ? 'weekly' : (schedRepeatType === 'monthly' ? 'custom' : 'once')
-      });
-      return;
-    }
-
-    // 2. Save schedule via existing scheduler
-    const hours = parseInt(schedTime.split(':')[0], 10) || 8;
-    const slotIdx = deriveSlotIndex(hours);
-    const slot = deriveMealSlot(hours);
-    const newSchedule: AutoOrderSchedule = {
-      id: `sched-${Date.now()}`,
-      slotName: `${slot} Schedule`,
-      slotIndex: slotIdx,
-      time: schedTime,
-      frequency: schedRepeatType === 'weekly' ? 'weekly' : (schedRepeatType === 'monthly' ? 'custom' : 'once'),
-      selectedDays: schedRepeatType === 'weekly' ? schedDays : undefined,
-      foodItemId: selectedItem.id,
-      foodItemName: selectedItem.name,
-      restaurant: selectedRestaurant || selectedItem.restaurant || 'Restaurant',
-      quantity: 1,
-      strategy: 'best_value',
-      isEnabled: true,
-      walletAutoDebit: true,
-      duration: schedRepeatType === 'custom' ? 'custom' : (schedRepeatType === 'monthly' ? '3_months' : '1_month'),
-      startDate: schedRepeatType === 'custom' ? schedCustomDate : undefined,
-      endDate: schedRepeatType === 'custom' ? schedCustomDate : undefined,
-      notes: schedRepeatType === 'monthly' ? `monthlyDay: ${schedMonthDay}` : undefined
-    };
-
-    try {
-      AutoOrderBackgroundService.saveSchedule(newSchedule);
-      if (typeof saveSchedule === 'function') {
-        saveSchedule(newSchedule);
-      }
-      const successMsg = t('guided.schedSuccessPopup');
-      setSchedSuccessPopup(successMsg);
-      showToast(successMsg);
-      speakText(successMsg, () => {
-        setTimeout(() => {
-          onClose();
-        }, 1500);
-      }, language);
-    } catch (err) {
-      console.error('[GuidedDialog] Schedule save error:', err);
-      const errMsg = t('guided.schedSaveError');
-      setSpeechError(errMsg);
-      speakText(errMsg, undefined, language);
-      handledRef.current = false;
-    }
-  }, [
-    checkIsItemRestrictedByNominee,
-    handleNomineeRestrictedInterception,
-    language,
-    onClose,
-    saveSchedule,
-    schedCustomDate,
-    schedDays,
-    schedMonthDay,
-    schedRepeatType,
-    schedTime,
-    selectedItem,
-    selectedRestaurant,
-    showToast,
-    speakText,
-    t
-  ]);
-
-  // Confirm NO -> ask what to change
-  const handleScheduleConfirmNo = useCallback(() => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    SpeechController.releaseMic(MIC_OWNER);
-    handledRef.current = false;
-    setSilenceCount(0);
-    setLiveText('');
-    setSpeechError(null);
-    setStep('schedule_change');
-  }, []);
-
-  // Jump to specific step from change menu
-  const handleScheduleChangeTarget = useCallback((target: 'time' | 'repeat' | 'days' | 'restaurant') => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    SpeechController.releaseMic(MIC_OWNER);
-    handledRef.current = false;
-    setSilenceCount(0);
-    setLiveText('');
-    setSpeechError(null);
-
-    if (target === 'time') {
-      setStep('schedule_time');
-    } else if (target === 'repeat') {
-      setStep('schedule_repeat');
-    } else if (target === 'days') {
-      if (schedRepeatType === 'weekly') {
-        setStep('schedule_days');
-      } else if (schedRepeatType === 'monthly') {
-        setStep('schedule_monthday');
-      } else {
-        setStep('schedule_customdate');
-      }
-    } else if (target === 'restaurant') {
-      setStep('restaurant');
-    }
-  }, [schedRepeatType]);
-
-  // Toggle single day chip
   const toggleDay = useCallback((day: string) => {
     setSchedDays(prev => {
       if (prev.includes(day)) {
@@ -609,12 +561,197 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     });
   }, []);
 
+  // 6. Bill confirmation -> Move to PIN
+  const handleBillProceedToPin = useCallback(() => {
+    if (handledRef.current) return;
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    SpeechController.releaseMic(MIC_OWNER);
+    handledRef.current = false;
+    setSilenceCount(0);
+    setLiveText('');
+    setSpeechError(null);
+    setPinDigits(['', '', '', '']);
+    setPinError(null);
+    setStep('schedule_pin');
+  }, []);
+
+  // 7. PIN execution & Save Schedule
+  const verifyAndSaveSchedule = useCallback(async (pinToVerify: string) => {
+    if (isPinVerifying || pinLockSeconds > 0 || !selectedItem) return;
+    setIsPinVerifying(true);
+    setPinError(null);
+
+    const res = await AuthService.verifyPIN(pinToVerify);
+    setIsPinVerifying(false);
+
+    if (res.success) {
+      // 1. Delegate restricted items to existing nominee flow untouched
+      const isRestricted = checkIsItemRestrictedByNominee(selectedItem.id, selectedItem.name);
+      if (isRestricted) {
+        SpeechController.releaseMic(MIC_OWNER);
+        onClose();
+        handleNomineeRestrictedInterception(selectedItem, 'scheduled', {
+          time: schedTime,
+          slotName: `${deriveMealSlot(parseInt(schedTime.split(':')[0], 10))} Schedule`,
+          duration: schedDuration as ScheduleDuration,
+          frequency: schedDaysMode === 'all_days' ? 'daily' : 'weekly'
+        });
+        return;
+      }
+
+      // 2. Save ONE recurring schedule with existing scheduler
+      const hours = parseInt(schedTime.split(':')[0], 10) || 8;
+      const slotIdx = deriveSlotIndex(hours);
+      const slot = deriveMealSlot(hours);
+      const newSchedule: AutoOrderSchedule = {
+        id: `sched-${Date.now()}`,
+        slotName: `${slot} Schedule`,
+        slotIndex: slotIdx,
+        time: schedTime,
+        frequency: schedDaysMode === 'all_days' ? 'daily' : 'weekly',
+        selectedDays: schedDaysMode === 'all_days' ? undefined : schedDays,
+        foodItemId: selectedItem.id,
+        foodItemName: selectedItem.name,
+        restaurant: selectedRestaurant || selectedItem.restaurant || 'Restaurant',
+        quantity: 1,
+        strategy: 'best_value',
+        isEnabled: true,
+        walletAutoDebit: true,
+        duration: schedDuration as ScheduleDuration,
+        startDate: deliveryDates[0] || getTodayDateStr(),
+        endDate: deliveryDates[deliveryDates.length - 1],
+        notes: `Deliveries: ${deliveryDates.length} days; Total: Rs ${bill.grandTotal}`
+      };
+
+      try {
+        AutoOrderBackgroundService.saveSchedule(newSchedule);
+        if (typeof saveSchedule === 'function') {
+          saveSchedule(newSchedule, res.token);
+        }
+
+        const successMsg = (t('guided.scheduleSuccess') || 'Your {item} from {restaurant} is scheduled for {n} days at {time}. Total Rs {total}.')
+          .replace('{item}', selectedItem.nativeNames?.[language] || selectedItem.name)
+          .replace('{restaurant}', selectedRestaurant || selectedItem.restaurant || 'Restaurant')
+          .replace('{n}', String(deliveryDates.length))
+          .replace('{time}', schedTimeDisplay)
+          .replace('{total}', String(bill.grandTotal));
+
+        setSuccessPopupMsg(successMsg);
+        showToast(successMsg);
+        speakText(successMsg, undefined, language);
+        setStep('schedule_success');
+      } catch (err) {
+        console.error('[GuidedDialog] Save error:', err);
+        const errMsg = t('guided.schedSaveError');
+        setSpeechError(errMsg);
+        speakText(errMsg, undefined, language);
+      }
+    } else {
+      // Wrong PIN or Locked
+      setPinDigits(['', '', '', '']);
+      if (res.isLocked) {
+        const secs = res.lockRemainingSeconds || 30;
+        setPinLockSeconds(secs);
+        const lockMsg = (t('guided.pinLocked') || 'Too many attempts. Locked for {seconds} seconds.').replace('{seconds}', String(secs));
+        setPinError(lockMsg);
+        speakText(lockMsg, () => { if (isOpenRef.current) startListening(); }, language);
+      } else {
+        const attempts = res.attemptsLeft ?? 0;
+        const errMsg = (t('guided.pinWrong') || 'Incorrect PIN. {attempts} attempts remaining.').replace('{attempts}', String(attempts));
+        setPinError(errMsg);
+        speakText(errMsg, () => { if (isOpenRef.current) startListening(); }, language);
+      }
+    }
+  }, [
+    bill.grandTotal,
+    checkIsItemRestrictedByNominee,
+    deliveryDates,
+    handleNomineeRestrictedInterception,
+    isPinVerifying,
+    language,
+    onClose,
+    pinLockSeconds,
+    saveSchedule,
+    schedDays,
+    schedDaysMode,
+    schedDuration,
+    schedTime,
+    schedTimeDisplay,
+    selectedItem,
+    selectedRestaurant,
+    showToast,
+    speakText,
+    startListening,
+    t
+  ]);
+
+  // Keypad tap handler
+  const handleKeypadDigit = (digit: string) => {
+    if (isPinVerifying || pinLockSeconds > 0) return;
+    setPinError(null);
+    setPinDigits(prev => {
+      const idx = prev.findIndex(d => d === '');
+      if (idx === -1) return prev;
+      const next = [...prev];
+      next[idx] = digit;
+      if (idx === 3) {
+        // Complete 4 digits entered!
+        const full = next.join('');
+        verifyAndSaveSchedule(full);
+      }
+      return next;
+    });
+  };
+
+  const handleKeypadBackspace = () => {
+    if (isPinVerifying || pinLockSeconds > 0) return;
+    setPinError(null);
+    setPinDigits(prev => {
+      const filled = prev.map((d, i) => (d !== '' ? i : -1)).filter(i => i !== -1);
+      if (filled.length === 0) return prev;
+      const last = filled[filled.length - 1];
+      const next = [...prev];
+      next[last] = '';
+      return next;
+    });
+  };
+
+  const handleKeypadClear = () => {
+    if (isPinVerifying || pinLockSeconds > 0) return;
+    setPinDigits(['', '', '', '']);
+    setPinError(null);
+  };
+
   // ── Voice result router ───────────────────────────────────────────────────
   const handleVoiceResult = useCallback((candidates: string[]) => {
     const raw = candidates[0] || '';
 
+    // Cancel everywhere
     if (isCancelIntent(raw)) {
       handleCancel();
+      return;
+    }
+
+    // Back everywhere in schedule
+    if (isBackIntent(raw)) {
+      handleGoBack();
+      return;
+    }
+
+    // Direct change commands
+    const norm = normalizeInputText(raw);
+    if (norm.includes('change time') || norm.includes('நேரம் மாற்று') || norm.includes('समय बदलो')) {
+      setStep('schedule_time');
+      return;
+    }
+    if (norm.includes('change duration') || norm.includes('காலம் மாற்று') || norm.includes('अवधि बदलो')) {
+      setStep('schedule_duration');
+      return;
+    }
+    if (norm.includes('change days') || norm.includes('நாட்கள் மாற்று') || norm.includes('दिन बदलो')) {
+      setStep('schedule_days_mode');
       return;
     }
 
@@ -622,15 +759,6 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
     if (currentStep === 'variety') {
       const decision = matchOptionByTokens(raw, varieties, language);
-      console.log('[GuidedDialog]', {
-        step: currentStep,
-        heard: raw,
-        normalized: normalizeInputText(raw),
-        candidates: decision.scored.map(s => ({ label: s.label, score: parseFloat(s.score.toFixed(2)) })),
-        chosen: decision.chosen ? (decision.chosen as FoodItem).name : null,
-        reason: decision.reason
-      });
-
       if (decision.chosen) {
         handleVarietyChosen(decision.chosen as FoodItem);
       } else if (decision.isTie && decision.tieCandidates) {
@@ -668,10 +796,10 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
       if (restaurantList.length === 1) {
         const conf = SttMatcherService.matchConfirmation(candidates, language);
-        if (conf.matchedValue === 'YES') {
-          handleRestaurantChosen(restaurantList[0]);
-        } else if (conf.matchedValue === 'NO') {
+        if (conf.matchedValue === 'NO') {
           handleCancel();
+        } else if (conf.matchedValue === 'YES') {
+          handleRestaurantChosen(restaurantList[0]);
         } else {
           startListening();
         }
@@ -679,12 +807,6 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
         const decision = matchOptionByTokens(raw, restaurantList, language);
         if (decision.chosen) {
           handleRestaurantChosen(decision.chosen as string);
-        } else if (decision.isTie && decision.tieCandidates) {
-          const [a, b] = decision.tieCandidates as [string, string];
-          const tieMsg = (t('guided.tiePrompt') || 'Did you mean {nameA}, or {nameB}?')
-            .replace('{nameA}', a)
-            .replace('{nameB}', b);
-          speakText(tieMsg, () => { if (isOpenRef.current) startListening(); }, language);
         } else {
           startListening();
         }
@@ -692,15 +814,6 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
     } else if (currentStep === 'when') {
       const intent = classifyOrderNowOrSchedule(raw);
-      console.log('[GuidedDialog]', {
-        step: currentStep,
-        heard: raw,
-        normalized: normalizeInputText(raw),
-        candidates: [{ label: 'NOW', score: intent === 'NOW' ? 1 : 0 }, { label: 'SCHEDULE', score: intent === 'SCHEDULE' ? 1 : 0 }],
-        chosen: intent === 'UNKNOWN' ? null : intent,
-        reason: `classifyOrderNowOrSchedule → ${intent}`
-      });
-
       if (intent === 'NOW') {
         if (selectedItem) handleOrderNow(selectedItem);
       } else if (intent === 'SCHEDULE') {
@@ -716,138 +829,78 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
     } else if (currentStep === 'schedule_time') {
       const parsed = parseTime(raw);
-      console.log('[GuidedDialog]', {
-        step: currentStep,
-        heard: raw,
-        normalized: normalizeInputText(raw),
-        candidates: [],
-        chosen: parsed ? parsed.time24 : null,
-        reason: parsed ? `parsed time: ${parsed.time24}` : 'time parse failed'
-      });
       if (parsed) {
         handleScheduleTimeSet(parsed);
       } else {
         speakText(t('guided.timeReask'), () => { if (isOpenRef.current) startListening(); }, language);
       }
 
-    } else if (currentStep === 'schedule_repeat') {
-      const rType = parseRepeatType(raw);
-      console.log('[GuidedDialog]', {
-        step: currentStep,
-        heard: raw,
-        normalized: normalizeInputText(raw),
-        candidates: [],
-        chosen: rType,
-        reason: rType ? `parsed repeat: ${rType}` : 'repeat parse failed'
-      });
-      if (rType) {
-        handleScheduleRepeatSet(rType);
+    } else if (currentStep === 'schedule_duration') {
+      const dur = parseDuration(raw);
+      if (dur) {
+        handleScheduleDurationSet(dur);
       } else {
-        speakText(t('guided.repeatReask'), () => { if (isOpenRef.current) startListening(); }, language);
+        speakText(t('guided.schedDurationQuestion'), () => { if (isOpenRef.current) startListening(); }, language);
       }
 
-    } else if (currentStep === 'schedule_days') {
-      const days = parseDays(raw);
-      console.log('[GuidedDialog]', {
-        step: currentStep,
-        heard: raw,
-        normalized: normalizeInputText(raw),
-        candidates: [],
-        chosen: days,
-        reason: days ? `parsed days: ${days.join(', ')}` : 'days parse failed'
-      });
+    } else if (currentStep === 'schedule_custom_duration') {
+      const res = parseCustomDays(raw);
+      if (res) {
+        handleCustomDurationSet(res);
+      } else {
+        speakText(t('guided.customDurationError'), () => { if (isOpenRef.current) startListening(); }, language);
+      }
+
+    } else if (currentStep === 'schedule_days_mode') {
+      const mode = parseDaysMode(raw);
+      if (mode) {
+        handleDaysModeSet(mode);
+      } else {
+        speakText(t('guided.daysModeQuestion'), () => { if (isOpenRef.current) startListening(); }, language);
+      }
+
+    } else if (currentStep === 'schedule_weekdays') {
+      const days = parseWeekdays(raw);
       if (days && days.length > 0) {
-        handleScheduleDaysSet(days);
+        handleWeekdaysSet(days);
       } else {
-        speakText(t('guided.daysReask'), () => { if (isOpenRef.current) startListening(); }, language);
+        speakText(t('guided.whichDaysQuestion'), () => { if (isOpenRef.current) startListening(); }, language);
       }
 
-    } else if (currentStep === 'schedule_monthday') {
-      const mDay = parseDayOfMonth(raw);
-      console.log('[GuidedDialog]', {
-        step: currentStep,
-        heard: raw,
-        normalized: normalizeInputText(raw),
-        candidates: [],
-        chosen: mDay,
-        reason: mDay ? `parsed month day: ${mDay}` : 'month day parse failed'
-      });
-      if (mDay) {
-        handleScheduleMonthDaySet(mDay);
-      } else {
-        speakText(t('guided.monthDayReask'), () => { if (isOpenRef.current) startListening(); }, language);
-      }
-
-    } else if (currentStep === 'schedule_customdate') {
-      const cDate = parseCustomDate(raw);
-      console.log('[GuidedDialog]', {
-        step: currentStep,
-        heard: raw,
-        normalized: normalizeInputText(raw),
-        candidates: [],
-        chosen: cDate ? cDate.dateStr : null,
-        reason: cDate ? `parsed date: ${cDate.dateStr} (isPast: ${cDate.isPast})` : 'custom date parse failed'
-      });
-      if (cDate) {
-        if (cDate.isPast) {
-          setSpeechError(t('guided.pastDateError'));
-          speakText(t('guided.pastDateError'), () => { if (isOpenRef.current) startListening(); }, language);
-        } else {
-          handleScheduleCustomDateSet(cDate);
-        }
-      } else {
-        speakText(t('guided.customDateReask'), () => { if (isOpenRef.current) startListening(); }, language);
-      }
-
-    } else if (currentStep === 'schedule_confirm') {
-      // RULE: NO checked before YES
+    } else if (currentStep === 'schedule_bill') {
+      // Confirmation: NO checked before YES
       const conf = SttMatcherService.matchConfirmation(candidates, language);
-      console.log('[GuidedDialog]', {
-        step: currentStep,
-        heard: raw,
-        normalized: normalizeInputText(raw),
-        candidates: [{ label: 'CONFIRM', score: conf.matchedValue }],
-        chosen: conf.matchedValue,
-        reason: `matchConfirmation: ${conf.matchedValue}`
-      });
       if (conf.matchedValue === 'NO') {
-        handleScheduleConfirmNo();
+        handleGoBack();
       } else if (conf.matchedValue === 'YES') {
-        handleScheduleConfirmYes();
+        handleBillProceedToPin();
       } else {
-        speakText(t('guided.confirmReask'), () => { if (isOpenRef.current) startListening(); }, language);
+        startListening();
       }
 
-    } else if (currentStep === 'schedule_change') {
-      const target = parseChangeTarget(raw);
-      console.log('[GuidedDialog]', {
-        step: currentStep,
-        heard: raw,
-        normalized: normalizeInputText(raw),
-        candidates: [],
-        chosen: target,
-        reason: `parseChangeTarget: ${target}`
-      });
-      if (target) {
-        handleScheduleChangeTarget(target);
+    } else if (currentStep === 'schedule_pin') {
+      // Spoken PIN parsed via parsePinSpeech
+      const pinRes = parsePinSpeech(raw);
+      if (pinRes.status === 'success' && pinRes.digits.length === 4) {
+        const fullPin = pinRes.digits.join('');
+        verifyAndSaveSchedule(fullPin);
       } else {
-        speakText(t('guided.changeQuestion'), () => { if (isOpenRef.current) startListening(); }, language);
+        speakText(t('guided.pinQuestion'), () => { if (isOpenRef.current) startListening(); }, language);
       }
     }
   }, [
+    handleBillProceedToPin,
     handleCancel,
+    handleCustomDurationSet,
+    handleDaysModeSet,
+    handleGoBack,
     handleOrderNow,
     handleRestaurantChosen,
-    handleScheduleChangeTarget,
-    handleScheduleConfirmNo,
-    handleScheduleConfirmYes,
-    handleScheduleCustomDateSet,
-    handleScheduleDaysSet,
-    handleScheduleMonthDaySet,
-    handleScheduleRepeatSet,
+    handleScheduleDurationSet,
     handleScheduleTimeSet,
     handleStartSchedule,
     handleVarietyChosen,
+    handleWeekdaysSet,
     language,
     matchedItems,
     query,
@@ -857,7 +910,8 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     t,
     userLocation.latitude,
     userLocation.longitude,
-    varieties
+    varieties,
+    verifyAndSaveSchedule
   ]);
 
   // Reset state on open
@@ -872,8 +926,10 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     setSilenceCount(0);
     setLiveText('');
     setSpeechError(null);
-    setSchedSuccessPopup(null);
+    setSuccessPopupMsg(null);
     setSelectedRestaurant(null);
+    setPinDigits(['', '', '', '']);
+    setPinError(null);
 
     if (matchedItems.length === 1) {
       setSelectedItem(matchedItems[0]);
@@ -886,7 +942,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
   // Speak prompt when step changes
   useEffect(() => {
-    if (!isOpen || schedSuccessPopup) return;
+    if (!isOpen || successPopupMsg) return;
 
     handledRef.current = false;
     setSilenceCount(0);
@@ -941,38 +997,33 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     } else if (step === 'schedule_time') {
       speakAndListen(t('guided.schedTimeQuestion'));
 
-    } else if (step === 'schedule_repeat') {
+    } else if (step === 'schedule_duration') {
       const ack = (t('guided.timeAck') || 'Time set to {time}.').replace('{time}', schedTimeDisplay);
-      speakAndListen(`${ack} ${t('guided.schedRepeatQuestion')}`);
+      speakAndListen(`${ack} ${t('guided.schedDurationQuestion')}`);
 
-    } else if (step === 'schedule_days') {
-      const ack = (t('guided.repeatAck') || '{type} selected.').replace('{type}', t('guided.repeatWeekly'));
-      speakAndListen(`${ack} ${t('guided.schedDaysQuestion')}`);
+    } else if (step === 'schedule_custom_duration') {
+      speakAndListen(t('guided.customDurationQuestion'));
 
-    } else if (step === 'schedule_monthday') {
-      const ack = (t('guided.repeatAck') || '{type} selected.').replace('{type}', t('guided.repeatMonthly'));
-      speakAndListen(`${ack} ${t('guided.schedMonthDayQuestion')}`);
+    } else if (step === 'schedule_days_mode') {
+      const durLabel =
+        schedDuration === '1_week' ? t('guided.duration1Week') :
+        schedDuration === '1_month' ? t('guided.duration1Month') :
+        schedDuration === '3_months' ? t('guided.duration3Months') :
+        (customUntilDateDisplay || `${customDaysCount} days`);
+      const ack = (t('guided.durationAck') || '{duration}, got it.').replace('{duration}', durLabel);
+      speakAndListen(`${ack} ${t('guided.daysModeQuestion')}`);
 
-    } else if (step === 'schedule_customdate') {
-      const ack = (t('guided.repeatAck') || '{type} selected.').replace('{type}', t('guided.repeatCustom'));
-      speakAndListen(`${ack} ${t('guided.schedCustomDateQuestion')}`);
+    } else if (step === 'schedule_weekdays') {
+      speakAndListen(t('guided.whichDaysQuestion'));
 
-    } else if (step === 'schedule_confirm') {
-      const itemName = selectedItem?.nativeNames?.[language] || selectedItem?.name || 'Dish';
-      const restName = selectedRestaurant || selectedItem?.restaurant || 'Restaurant';
-      const summary = buildSummary({
-        foodItemName: itemName,
-        restaurant: restName,
-        repeatType: schedRepeatType,
-        timeDisplay: schedTimeDisplay,
-        days: schedDays,
-        dayOfMonth: schedMonthDay,
-        customDate: schedCustomDateDisplay || schedCustomDate
-      }, language);
-      speakAndListen(summary);
+    } else if (step === 'schedule_bill') {
+      const billMsg = (t('guided.billSpoken') || 'Total for {n} deliveries is Rs {total}.')
+        .replace('{n}', String(deliveryDates.length))
+        .replace('{total}', String(bill.grandTotal));
+      speakAndListen(billMsg);
 
-    } else if (step === 'schedule_change') {
-      speakAndListen(t('guided.changeQuestion'));
+    } else if (step === 'schedule_pin') {
+      speakAndListen(t('guided.pinQuestion'));
     }
   }, [step, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1002,6 +1053,16 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2.5">
+            {step !== 'variety' && step !== 'schedule_success' && (
+              <button
+                type="button"
+                onClick={handleGoBack}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#FF5A1F] hover:text-white text-slate-500 transition-all cursor-pointer"
+                title={t('guided.backBtn')}
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
             <div className="p-2 rounded-xl bg-[#FF5A1F]/10 text-[#FF5A1F]">
               <Zap className="w-5 h-5" />
             </div>
@@ -1011,12 +1072,13 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                 {step === 'restaurant' && t('guided.step2Title')}
                 {step === 'when' && t('guided.step3Title')}
                 {step === 'schedule_time' && t('guided.schedTimeTitle')}
-                {step === 'schedule_repeat' && t('guided.schedRepeatTitle')}
-                {step === 'schedule_days' && t('guided.schedDaysTitle')}
-                {step === 'schedule_monthday' && t('guided.schedMonthDayTitle')}
-                {step === 'schedule_customdate' && t('guided.schedCustomDateTitle')}
-                {step === 'schedule_confirm' && t('guided.schedConfirmTitle')}
-                {step === 'schedule_change' && t('guided.changeTitle')}
+                {step === 'schedule_duration' && t('guided.schedDurationQuestion')}
+                {step === 'schedule_custom_duration' && t('guided.customDurationQuestion')}
+                {step === 'schedule_days_mode' && t('guided.daysModeQuestion')}
+                {step === 'schedule_weekdays' && t('guided.whichDaysQuestion')}
+                {step === 'schedule_bill' && t('guided.billTitle')}
+                {step === 'schedule_pin' && t('guided.pinTitle')}
+                {step === 'schedule_success' && 'Order Scheduled'}
               </p>
             </div>
           </div>
@@ -1149,7 +1211,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
           </div>
         )}
 
-        {/* ── STEP 4: SCHEDULE TIME ── */}
+        {/* ── STEP 4: TIME ── */}
         {step === 'schedule_time' && (
           <div className="p-5 space-y-4">
             <p className="text-xs font-bold text-slate-500">{t('guided.schedTimeQuestion')}</p>
@@ -1214,45 +1276,125 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
           </div>
         )}
 
-        {/* ── STEP 5: SCHEDULE REPEAT ── */}
-        {step === 'schedule_repeat' && (
+        {/* ── STEP 5: DURATION ── */}
+        {step === 'schedule_duration' && (
           <div className="p-5 space-y-3">
-            <p className="text-xs font-bold text-slate-500">{t('guided.schedRepeatQuestion')}</p>
+            <p className="text-xs font-bold text-slate-500">{t('guided.schedDurationQuestion')}</p>
             <div className="grid grid-cols-1 gap-2.5">
               {[
-                { type: 'weekly' as const, label: t('guided.repeatWeekly'), desc: 'Deliver every week on chosen days', icon: Calendar },
-                { type: 'monthly' as const, label: t('guided.repeatMonthly'), desc: 'Deliver once every month on a set date', icon: Clock },
-                { type: 'custom' as const, label: t('guided.repeatCustom'), desc: 'Deliver once on a specific future date', icon: Check }
-              ].map(opt => {
-                const IconComp = opt.icon;
-                return (
-                  <button
-                    key={opt.type}
-                    type="button"
-                    onClick={() => handleScheduleRepeatSet(opt.type)}
-                    className="w-full text-left flex items-center gap-3.5 px-4 py-3.5 bg-[#DAF0F7]/60 hover:bg-[#FF5A1F] hover:text-white rounded-2xl border border-[#B2E2F0] transition-all group cursor-pointer"
-                  >
-                    <div className="p-2 rounded-xl bg-[#FF5A1F]/15 group-hover:bg-white/20 text-[#FF5A1F] group-hover:text-white shrink-0">
-                      <IconComp className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-black">{opt.label}</p>
-                      <p className="text-[11px] opacity-70">{opt.desc}</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 opacity-50 group-hover:opacity-100 shrink-0" />
-                  </button>
-                );
-              })}
+                { type: '1_week' as const, label: t('guided.duration1Week'), desc: '7 days schedule' },
+                { type: '1_month' as const, label: t('guided.duration1Month'), desc: '30 days schedule' },
+                { type: '3_months' as const, label: t('guided.duration3Months'), desc: '90 days schedule' },
+                { type: 'custom' as const, label: t('guided.durationCustom'), desc: 'Specify days or end date' }
+              ].map(opt => (
+                <button
+                  key={opt.type}
+                  type="button"
+                  onClick={() => handleScheduleDurationSet(opt.type)}
+                  className="w-full text-left flex items-center gap-3.5 px-4 py-3.5 bg-[#DAF0F7]/60 hover:bg-[#FF5A1F] hover:text-white rounded-2xl border border-[#B2E2F0] transition-all group cursor-pointer"
+                >
+                  <div className="p-2 rounded-xl bg-[#FF5A1F]/15 group-hover:bg-white/20 text-[#FF5A1F] group-hover:text-white shrink-0">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-black">{opt.label}</p>
+                    <p className="text-[11px] opacity-70">{opt.desc}</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 opacity-50 group-hover:opacity-100 shrink-0" />
+                </button>
+              ))}
             </div>
           </div>
         )}
 
-        {/* ── STEP 6A: WEEKLY DAYS ── */}
-        {step === 'schedule_days' && (
+        {/* ── STEP 6: CUSTOM DURATION (Days count or Until date) ── */}
+        {step === 'schedule_custom_duration' && (
           <div className="p-5 space-y-4">
-            <p className="text-xs font-bold text-slate-500">{t('guided.schedDaysQuestion')}</p>
+            <p className="text-xs font-bold text-slate-500">{t('guided.customDurationQuestion')}</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                  {language === 'ta' ? 'நாட்களின் எண்ணிக்கை (1 - 180):' : language === 'hi' ? 'दिनों की संख्या (1 - 180):' : 'Number of Days (1 - 180):'}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={180}
+                    value={customDaysCount}
+                    onChange={e => setCustomDaysCount(parseInt(e.target.value, 10) || 1)}
+                    className="flex-1 py-2.5 px-4 bg-slate-50 dark:bg-slate-800 border-2 border-[#FF5A1F] rounded-2xl text-lg font-black text-center"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleCustomDurationSet({ type: 'days', count: customDaysCount })}
+                    className="py-2.5 px-5 bg-[#FF5A1F] hover:bg-[#E04810] text-white font-black rounded-2xl text-xs cursor-pointer"
+                  >
+                    Set Days
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs font-black text-slate-400">
+                <div className="flex-1 border-t border-slate-200 dark:border-slate-800"></div>
+                <span>OR</span>
+                <div className="flex-1 border-t border-slate-200 dark:border-slate-800"></div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                  {language === 'ta' ? 'குறிப்பிட்ட முடிவு தேதி:' : language === 'hi' ? 'अंतिम तारीख:' : 'Until Specific Date:'}
+                </label>
+                <input
+                  type="date"
+                  min={getTodayDateStr()}
+                  value={customUntilDate}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setCustomUntilDate(val);
+                    if (val) {
+                      handleCustomDurationSet({ type: 'until_date', dateStr: val, displayDate: val });
+                    }
+                  }}
+                  className="w-full py-2.5 px-4 bg-slate-50 dark:bg-slate-800 border-2 border-[#FF5A1F] rounded-2xl text-sm font-black text-center"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 7: DAYS MODE (All Days vs Particular Days) ── */}
+        {step === 'schedule_days_mode' && (
+          <div className="p-5 space-y-3">
+            <p className="text-xs font-bold text-slate-500">{t('guided.daysModeQuestion')}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleDaysModeSet('all_days')}
+                className="flex flex-col items-center gap-2 p-5 bg-[#DAF0F7]/60 hover:bg-[#FF5A1F] hover:text-white rounded-2xl border border-[#B2E2F0] transition-all cursor-pointer group"
+              >
+                <Calendar className="w-6 h-6 text-[#FF5A1F] group-hover:text-white" />
+                <span className="text-sm font-black">{t('guided.daysModeAll')}</span>
+                <span className="text-[10px] opacity-70">Daily delivery</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDaysModeSet('particular_days')}
+                className="flex flex-col items-center gap-2 p-5 bg-[#DAF0F7]/60 hover:bg-[#FF5A1F] hover:text-white rounded-2xl border border-[#B2E2F0] transition-all cursor-pointer group"
+              >
+                <Clock className="w-6 h-6 text-[#FF5A1F] group-hover:text-white" />
+                <span className="text-sm font-black">{t('guided.daysModeParticular')}</span>
+                <span className="text-[10px] opacity-70">Custom weekdays</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 8: PARTICULAR WEEKDAYS ── */}
+        {step === 'schedule_weekdays' && (
+          <div className="p-5 space-y-4">
+            <p className="text-xs font-bold text-slate-500">{t('guided.whichDaysQuestion')}</p>
             
-            {/* Presets */}
             <div className="flex gap-2">
               <button
                 type="button"
@@ -1268,16 +1410,8 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
               >
                 Weekends
               </button>
-              <button
-                type="button"
-                onClick={() => setSchedDays([...ALL_DAYS])}
-                className="px-2.5 py-1 text-[11px] font-black rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-[#FF5A1F] hover:text-white transition-all cursor-pointer"
-              >
-                All Days
-              </button>
             </div>
 
-            {/* Day Chips */}
             <div className="grid grid-cols-4 gap-2">
               {ALL_DAYS.map(day => {
                 const isSelected = schedDays.includes(day);
@@ -1301,7 +1435,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
             <button
               type="button"
-              onClick={() => handleScheduleDaysSet(schedDays)}
+              onClick={() => handleWeekdaysSet(schedDays)}
               disabled={schedDays.length === 0}
               className="w-full py-3.5 bg-[#FF5A1F] hover:bg-[#E04810] disabled:opacity-50 text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
             >
@@ -1310,204 +1444,181 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
           </div>
         )}
 
-        {/* ── STEP 6B: MONTHLY DAY ── */}
-        {step === 'schedule_monthday' && (
+        {/* ── STEP 9: FULL BILL PREVIEW & GST ── */}
+        {step === 'schedule_bill' && (
+          <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+            {/* Header info */}
+            <div className="bg-[#DAF0F7]/60 p-3.5 rounded-2xl border border-[#B2E2F0] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#FF5A1F] block">
+                  {selectedRestaurant || selectedItem?.restaurant}
+                </span>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                  {selectedItem?.nativeNames?.[language] || selectedItem?.name}
+                </h4>
+              </div>
+              <span className="text-xs font-black bg-[#FF5A1F] text-white px-3 py-1 rounded-full shadow-sm">
+                {deliveryDates.length} {language === 'ta' ? 'நாட்கள்' : language === 'hi' ? 'दिन' : 'Deliveries'}
+              </span>
+            </div>
+
+            {/* Financial Breakdown */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+              <div className="flex justify-between">
+                <span className="text-slate-500">{t('guided.itemsSubtotal')}:</span>
+                <span className="font-mono font-black">₹{bill.itemSubtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">{t('guided.deliveryFee')}:</span>
+                <span className="font-mono font-black">₹{bill.totalDeliveryFee.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">{t('guided.platformFee')}:</span>
+                <span className="font-mono font-black">₹{bill.totalPlatformFee.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">{t('guided.gstTax')}:</span>
+                <span className="font-mono font-black">₹{bill.totalGstTax.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 font-black text-slate-900 dark:text-white">
+                <span>{t('guided.perOrderTotal')}:</span>
+                <span className="font-mono text-[#FF5A1F]">₹{bill.perOrderTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between border-t-2 border-[#FF5A1F]/30 pt-2 text-sm font-black text-slate-900 dark:text-white">
+                <span>{t('guided.grandTotal')}:</span>
+                <span className="font-mono text-emerald-600 dark:text-emerald-400 text-base">₹{bill.grandTotal}</span>
+              </div>
+            </div>
+
+            {/* Delivery Dates preview */}
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 mb-1.5">
+                📅 Delivery Dates ({deliveryDates.length}):
+              </p>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-2 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                {deliveryDates.map(d => (
+                  <span key={d} className="px-2 py-0.5 bg-white dark:bg-slate-700 text-[10px] font-mono font-black rounded-md border border-slate-200 dark:border-slate-600">
+                    {d}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleBillProceedToPin}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <ShieldCheck className="w-5 h-5" />
+                <span>{t('guided.proceedPinBtn')} (₹{bill.grandTotal})</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 10: SECURITY PIN ── */}
+        {step === 'schedule_pin' && (
           <div className="p-5 space-y-4">
-            <p className="text-xs font-bold text-slate-500">{t('guided.schedMonthDayQuestion')}</p>
-            <input
-              type="number"
-              min={1}
-              max={31}
-              value={schedMonthDay}
-              onChange={e => {
-                const val = parseInt(e.target.value, 10);
-                if (val >= 1 && val <= 31) setSchedMonthDay(val);
-              }}
-              className="w-full py-3 px-4 bg-slate-50 dark:bg-slate-800 border-2 border-[#FF5A1F] rounded-2xl text-2xl font-black text-center text-slate-900 dark:text-white focus:outline-none"
-            />
-            <div className="flex flex-wrap gap-2 justify-center">
-              {[1, 5, 10, 15, 20, 25, 31].map(d => (
+            <div className="text-center space-y-1">
+              <div className="w-10 h-10 rounded-2xl bg-[#FF5A1F]/10 text-[#FF5A1F] flex items-center justify-center mx-auto">
+                <Lock className="w-5 h-5" />
+              </div>
+              <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                {t('guided.pinQuestion')}
+              </h4>
+              <p className="text-[11px] text-slate-400 font-bold">
+                {language === 'ta' ? '4 இலக்க எண்ணை சொல்லுங்கள் அல்லது விசைப்பலகையைப் பயன்படுத்தவும்' : language === 'hi' ? '4 अंकों का पिन बोलें या कीपैड का उपयोग करें' : 'Speak 4-digit PIN or tap numbers below'}
+              </p>
+            </div>
+
+            {/* Masked PIN Display Circles (Never logs or reveals digits) */}
+            <div className="flex justify-center items-center gap-4 py-2">
+              {[0, 1, 2, 3].map(idx => (
+                <div
+                  key={idx}
+                  className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all ${
+                    pinDigits[idx] !== ''
+                      ? 'border-[#FF5A1F] bg-[#FF5A1F]/10 text-[#FF5A1F]'
+                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                  }`}
+                >
+                  {pinDigits[idx] !== '' ? (
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#FF5A1F]"></span>
+                  ) : (
+                    <span className="text-slate-300 dark:text-slate-600 text-xs font-mono">•</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Error or Lockout Display */}
+            {pinError && (
+              <div className="px-3 py-1.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl text-xs font-bold text-rose-700 dark:text-rose-300 text-center animate-fade-in">
+                {pinError}
+              </div>
+            )}
+
+            {/* Masked Numeric Keypad */}
+            <div className="grid grid-cols-3 gap-2.5 max-w-xs mx-auto pt-1">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(d => (
                 <button
                   key={d}
                   type="button"
-                  onClick={() => setSchedMonthDay(d)}
-                  className={`w-10 h-10 rounded-xl text-xs font-black border transition-all cursor-pointer ${
-                    schedMonthDay === d
-                      ? 'bg-[#FF5A1F] text-white border-[#FF5A1F]'
-                      : 'bg-[#DAF0F7] text-[#1A1110] border-[#B2E2F0] hover:bg-[#FF5A1F]/20'
-                  }`}
+                  onClick={() => handleKeypadDigit(d)}
+                  disabled={isPinVerifying || pinLockSeconds > 0}
+                  className="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-[#FF5A1F] hover:text-white rounded-2xl text-base font-black text-slate-900 dark:text-white transition-all cursor-pointer disabled:opacity-40"
                 >
                   {d}
                 </button>
               ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => handleScheduleMonthDaySet(schedMonthDay)}
-              className="w-full py-3.5 bg-[#FF5A1F] hover:bg-[#E04810] text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
-            >
-              {t('guided.continueBtn')} (Day {schedMonthDay}) ✓
-            </button>
-          </div>
-        )}
-
-        {/* ── STEP 6C: CUSTOM DATE ── */}
-        {step === 'schedule_customdate' && (
-          <div className="p-5 space-y-4">
-            <p className="text-xs font-bold text-slate-500">{t('guided.schedCustomDateQuestion')}</p>
-            <input
-              type="date"
-              min={getTodayDateStr()}
-              value={schedCustomDate}
-              onChange={e => {
-                const val = e.target.value;
-                if (!val) return;
-                setSchedCustomDate(val);
-                setSchedCustomDateDisplay(formatCustomDateDisplay(val));
-              }}
-              className="w-full py-3 px-4 bg-slate-50 dark:bg-slate-800 border-2 border-[#FF5A1F] rounded-2xl text-base font-black text-center text-slate-900 dark:text-white focus:outline-none"
-            />
-            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  const tStr = getTomorrowDateStr();
-                  setSchedCustomDate(tStr);
-                  setSchedCustomDateDisplay(formatCustomDateDisplay(tStr));
-                }}
-                className="px-3 py-1.5 rounded-xl bg-[#DAF0F7] text-xs font-black text-[#1A1110] border border-[#B2E2F0] hover:bg-[#FF5A1F] hover:text-white transition-all cursor-pointer"
+                onClick={handleKeypadClear}
+                disabled={isPinVerifying || pinLockSeconds > 0}
+                className="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 rounded-2xl transition-all cursor-pointer disabled:opacity-40"
               >
-                {language === 'ta' ? 'நாளை' : language === 'hi' ? 'कल' : 'Tomorrow'}
+                Clear
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  const d = new Date();
-                  d.setDate(d.getDate() + 2);
-                  const s = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                  setSchedCustomDate(s);
-                  setSchedCustomDateDisplay(formatCustomDateDisplay(s));
-                }}
-                className="px-3 py-1.5 rounded-xl bg-[#DAF0F7] text-xs font-black text-[#1A1110] border border-[#B2E2F0] hover:bg-[#FF5A1F] hover:text-white transition-all cursor-pointer"
+                onClick={() => handleKeypadDigit('0')}
+                disabled={isPinVerifying || pinLockSeconds > 0}
+                className="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-[#FF5A1F] hover:text-white rounded-2xl text-base font-black text-slate-900 dark:text-white transition-all cursor-pointer disabled:opacity-40"
               >
-                {language === 'ta' ? 'நாளை மறுநாள்' : language === 'hi' ? 'परसों' : 'Day After Tomorrow'}
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const parsed = parseCustomDate(schedCustomDate);
-                if (parsed) handleScheduleCustomDateSet(parsed);
-              }}
-              className="w-full py-3.5 bg-[#FF5A1F] hover:bg-[#E04810] text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
-            >
-              {t('guided.continueBtn')} ({schedCustomDateDisplay}) ✓
-            </button>
-          </div>
-        )}
-
-        {/* ── STEP 7: CONFIRM (YES / NO) ── */}
-        {step === 'schedule_confirm' && (
-          <div className="p-5 space-y-4">
-            <div className="p-4 bg-[#DAF0F7]/70 rounded-2xl border border-[#B2E2F0] space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  {selectedRestaurant || selectedItem?.restaurant}
-                </span>
-                <span className="px-2 py-0.5 rounded-md bg-[#FF5A1F]/15 text-[#FF5A1F] text-[10px] font-black uppercase">
-                  {schedRepeatType}
-                </span>
-              </div>
-              <h3 className="text-base font-black text-slate-900 dark:text-white">
-                {selectedItem?.nativeNames?.[language] || selectedItem?.name}
-              </h3>
-              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                🕒 {schedTimeDisplay}&nbsp;&nbsp;·&nbsp;&nbsp;
-                {schedRepeatType === 'weekly' && `Every ${schedDays.join(', ')}`}
-                {schedRepeatType === 'monthly' && `Day ${schedMonthDay} of every month`}
-                {schedRepeatType === 'custom' && schedCustomDateDisplay}
-              </p>
-            </div>
-
-            <p className="text-xs font-black text-slate-700 dark:text-slate-300 text-center italic">
-              &ldquo;{buildSummary({
-                foodItemName: selectedItem?.nativeNames?.[language] || selectedItem?.name || '',
-                restaurant: selectedRestaurant || selectedItem?.restaurant || '',
-                repeatType: schedRepeatType,
-                timeDisplay: schedTimeDisplay,
-                days: schedDays,
-                dayOfMonth: schedMonthDay,
-                customDate: schedCustomDateDisplay || schedCustomDate
-              }, language)}&rdquo;
-            </p>
-
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <button
-                type="button"
-                onClick={handleScheduleConfirmYes}
-                className="py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Check className="w-5 h-5" />
-                <span>{t('guided.confirmYes')}</span>
+                0
               </button>
               <button
                 type="button"
-                onClick={handleScheduleConfirmNo}
-                className="py-3.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                onClick={handleKeypadBackspace}
+                disabled={isPinVerifying || pinLockSeconds > 0}
+                className="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl flex items-center justify-center transition-all cursor-pointer disabled:opacity-40"
               >
-                <RotateCcw className="w-5 h-5" />
-                <span>{t('guided.confirmNo')}</span>
+                <Delete className="w-5 h-5" />
               </button>
             </div>
           </div>
         )}
 
-        {/* ── STEP 8: CHANGE (If user says NO) ── */}
-        {step === 'schedule_change' && (
-          <div className="p-5 space-y-3">
-            <p className="text-xs font-bold text-slate-500">{t('guided.changeQuestion')}</p>
-            <div className="grid grid-cols-2 gap-2.5">
-              {[
-                { target: 'time' as const, label: t('guided.changeTime'), icon: Clock },
-                { target: 'repeat' as const, label: t('guided.changeRepeat'), icon: Calendar },
-                { target: 'days' as const, label: t('guided.changeDays'), icon: Check },
-                { target: 'restaurant' as const, label: t('guided.changeRestaurant'), icon: Zap }
-              ].map(opt => {
-                const IconComp = opt.icon;
-                return (
-                  <button
-                    key={opt.target}
-                    type="button"
-                    onClick={() => handleScheduleChangeTarget(opt.target)}
-                    className="p-4 bg-[#DAF0F7]/60 hover:bg-[#FF5A1F] hover:text-white rounded-2xl border border-[#B2E2F0] flex flex-col items-center gap-2 font-black text-xs transition-all cursor-pointer group"
-                  >
-                    <IconComp className="w-5 h-5 text-[#FF5A1F] group-hover:text-white" />
-                    <span>{opt.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ── SUCCESS POPUP MODAL ── */}
-        {schedSuccessPopup && (
-          <div className="absolute inset-0 bg-white/95 dark:bg-slate-900/95 flex flex-col items-center justify-center p-6 text-center z-20 animate-fade-in">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
+        {/* ── STEP 11: SUCCESS POPUP ── */}
+        {step === 'schedule_success' && successPopupMsg && (
+          <div className="p-6 text-center space-y-4 animate-fade-in">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-10 h-10 animate-bounce" />
             </div>
-            <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">
-              {schedSuccessPopup}
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">
+              {successPopupMsg}
             </h3>
-            <p className="text-xs font-semibold text-slate-500 mb-6 max-w-xs">
-              {selectedItem?.nativeNames?.[language] || selectedItem?.name} from {selectedRestaurant || selectedItem?.restaurant}
-            </p>
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 text-xs font-bold text-emerald-800 dark:text-emerald-300 space-y-1">
+              <p>🕒 {schedTimeDisplay}&nbsp;&nbsp;·&nbsp;&nbsp;{deliveryDates.length} Deliveries</p>
+              <p>💰 Grand Total: ₹{bill.grandTotal}</p>
+            </div>
             <button
               type="button"
               onClick={onClose}
-              className="py-3 px-8 bg-[#FF5A1F] hover:bg-[#E04810] text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
+              className="w-full py-3.5 bg-[#FF5A1F] hover:bg-[#E04810] text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
             >
-              {t('guided.continueBtn')}
+              Done ✓
             </button>
           </div>
         )}

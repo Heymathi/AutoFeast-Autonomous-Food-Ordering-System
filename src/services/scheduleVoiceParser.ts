@@ -527,3 +527,330 @@ export function parseChangeTarget(text: string): 'time' | 'repeat' | 'days' | 'r
 
   return null;
 }
+
+// ─── 8. parseDuration ───────────────────────────────────────────────────────
+
+export type ScheduleDurationType = '1_week' | '1_month' | '3_months' | 'custom';
+
+const DURATION_KEYWORDS: Record<ScheduleDurationType, string[]> = {
+  '3_months': [
+    'three months', '3 months', '3 month', 'three month', 'quarterly',
+    'மூன்று மாதம்', '3 மாதம்', 'மூணு மாதம்', 'மூன்று மாதங்கள்', 'moonru madham',
+    'तीन महीने', '3 महीने', 'तीन महीना', 'teen mahine', '3 mahina'
+  ],
+  '1_month': [
+    'one month', '1 month', 'a month', 'per month', 'monthly', 'month',
+    'ஒரு மாதம்', '1 மாதம்', 'மாதம்', 'மாதாந்திர', 'oru maadham', 'oru madham', 'maadham',
+    'एक महीना', '1 महीने', 'एक महीने', 'महीना', 'महीने', 'मासिक', 'ek mahina', '1 mahina', 'mahine'
+  ],
+  '1_week': [
+    'one week', '1 week', 'a week', 'per week', 'weekly', 'week',
+    'ஒரு வாரம்', '1 வாரம்', 'வாரம்', 'வாராந்திர', 'oru vaaram', 'oru varam', 'vaaram',
+    'एक हफ्ता', '1 हफ्ते', 'एक हफ्ते', 'हफ्ता', 'हफ्ते', 'साप्ताहिक', 'ek hafta', '1 hafta', 'hafte'
+  ],
+  'custom': [
+    'custom period', 'custom', 'other', 'particular period',
+    'வேறு', 'தனிப்பயன்', 'வேறொரு', 'குறிப்பிட்ட காலம்', 'kurippitta', 'custom',
+    'कस्टम', 'दूसरा', 'अन्य', 'खास अवधि', 'अलग', 'dusra'
+  ]
+};
+
+export function parseDuration(text: string): ScheduleDurationType | null {
+  const norm = normalizeInput(text);
+  if (!norm) return null;
+
+  // 3 months before 1 month
+  for (const w of DURATION_KEYWORDS['3_months']) {
+    if (containsWord(norm, w)) return '3_months';
+  }
+  for (const w of DURATION_KEYWORDS['1_month']) {
+    if (containsWord(norm, w)) return '1_month';
+  }
+  for (const w of DURATION_KEYWORDS['1_week']) {
+    if (containsWord(norm, w)) return '1_week';
+  }
+  for (const w of DURATION_KEYWORDS['custom']) {
+    if (containsWord(norm, w)) return 'custom';
+  }
+  return null;
+}
+
+// ─── 9. parseCustomDays ─────────────────────────────────────────────────────
+
+export interface CustomDaysResult {
+  type: 'days' | 'until_date';
+  count?: number;
+  dateStr?: string;
+  displayDate?: string;
+  isPast?: boolean;
+  isOutOfRange?: boolean;
+}
+
+const CUSTOM_NUMBER_WORDS: Record<string, number> = {
+  'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+  'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+  'fifteen': 15, 'twenty': 20, 'thirty': 30,
+  'ஒரு': 1, 'ஒன்று': 1, 'இரண்டு': 2, 'ரெண்டு': 2, 'மூன்று': 3, 'நான்கு': 4,
+  'ஐந்து': 5, 'அஞ்சு': 5, 'பத்து': 10, 'பதினைந்து': 15, 'இருபது': 20, 'முப்பது': 30,
+  'एक': 1, 'दो': 2, 'तीन': 3, 'चार': 4, 'पाँच': 5, 'पांच': 5,
+  'दस': 10, 'पंद्रह': 15, 'बीस': 20, 'तीस': 30,
+  'pathu': 10, 'das': 10, 'pandrah': 15, 'bees': 20
+};
+
+export function parseCustomDays(text: string, referenceDate?: Date): CustomDaysResult | null {
+  if (!text) return null;
+  const raw = text.trim();
+  const norm = normalizeInput(text);
+  if (!norm && !raw) return null;
+
+  // 1. Check for until / till date or custom date pattern
+  const isDatePattern = raw.match(/\b\d{4}[-\s/]\d{1,2}[-\s/]\d{1,2}\b/) ||
+    norm.includes('until') || norm.includes('till') || norm.includes('வரை') ||
+    norm.includes('tak') || norm.includes('तक') ||
+    Object.keys(MONTHS).some(m => norm.includes(m));
+
+  if (isDatePattern) {
+    const parsedDate = parseCustomDate(raw, referenceDate);
+    if (parsedDate) {
+      return {
+        type: 'until_date',
+        dateStr: parsedDate.dateStr,
+        displayDate: parsedDate.displayDate,
+        isPast: parsedDate.isPast
+      };
+    }
+  }
+
+  // 2. Check for weeks count (e.g. "2 weeks", "இரண்டு வாரங்கள்", "दो हफ्ते")
+  const weekDigitMatch = norm.match(/(\d+)\s*(?:weeks?|வாரங்கள்?|வாரம்|हफ्ते|हफ्ता|hafte)/i);
+  if (weekDigitMatch) {
+    const w = parseInt(weekDigitMatch[1], 10);
+    const count = w * 7;
+    return {
+      type: 'days',
+      count,
+      isOutOfRange: count < 1 || count > 180
+    };
+  }
+  for (const [wName, wVal] of Object.entries(CUSTOM_NUMBER_WORDS)) {
+    if (containsWord(norm, `${wName} weeks`) || containsWord(norm, `${wName} week`) ||
+        containsWord(norm, `${wName} வாரங்கள்`) || containsWord(norm, `${wName} வாரம்`) ||
+        containsWord(norm, `${wName} हफ्ते`) || containsWord(norm, `${wName} hafte`)) {
+      const count = wVal * 7;
+      return {
+        type: 'days',
+        count,
+        isOutOfRange: count < 1 || count > 180
+      };
+    }
+  }
+
+  // 3. Check for days count (e.g. "10 days", "பத்து நாட்கள்", "दस दिन")
+  const dayDigitMatch = norm.match(/(\d+)\s*(?:days?|நாட்கள்?|நாள்|दिन|din)?/i);
+  if (dayDigitMatch && (dayDigitMatch[0].match(/days?|நாட்கள்?|நாள்|दिन|din/i) || norm.match(/days?|நாட்கள்?|நாள்|दिन|din/i))) {
+    const count = parseInt(dayDigitMatch[1], 10);
+    return {
+      type: 'days',
+      count,
+      isOutOfRange: count < 1 || count > 180
+    };
+  }
+
+  // Spoken number words + days
+  const sortedNumberWords = Object.entries(CUSTOM_NUMBER_WORDS).sort((a, b) => b[0].length - a[0].length);
+  for (const [wName, wVal] of sortedNumberWords) {
+    if (containsWord(norm, wName) && (norm.includes('day') || norm.includes('நாட்') || norm.includes('நாள்') || norm.includes('दिन') || norm.includes('din'))) {
+      return {
+        type: 'days',
+        count: wVal,
+        isOutOfRange: wVal < 1 || wVal > 180
+      };
+    }
+  }
+
+  return null;
+}
+
+// ─── 10. parseDaysMode ──────────────────────────────────────────────────────
+
+export type DaysModeType = 'all_days' | 'particular_days';
+
+const DAYS_MODE_KEYWORDS: Record<DaysModeType, string[]> = {
+  all_days: [
+    'every day', 'all days', 'daily', 'all day', 'all the days', 'seven days',
+    'தினமும்', 'எல்லா நாளும்', 'எல்லா நாட்களும்', 'அனைத்து நாட்களும்', 'தினசரி', 'thinamum',
+    'रोज़', 'रोज', 'हर दिन', 'सभी दिन', 'प्रतिदिन', 'har din', 'roz', 'rozana'
+  ],
+  particular_days: [
+    'a particular day', 'particular day', 'particular', 'custom', 'custom days', 'specific days', 'specific day', 'some days', 'few days',
+    'குறிப்பிட்ட நாள்', 'குறிப்பிட்ட நாட்கள்', 'சில நாட்கள்', 'சில நாள்', 'ஒரு குறிப்பிட்ட நாள்', 'குறிப்பிட்ட கிழமை', 'சில கிழமைகள்', 'kurippitta naal',
+    'कुछ दिन', 'खास दिन', 'विशेष दिन', 'कुछ खास दिन', 'कस्टम दिन', 'khas din', 'kuch din'
+  ]
+};
+
+export function parseDaysMode(text: string): DaysModeType | null {
+  const norm = normalizeInput(text);
+  if (!norm) return null;
+
+  for (const w of DAYS_MODE_KEYWORDS.all_days) {
+    if (containsWord(norm, w)) return 'all_days';
+  }
+  for (const w of DAYS_MODE_KEYWORDS.particular_days) {
+    if (containsWord(norm, w)) return 'particular_days';
+  }
+  return null;
+}
+
+// ─── 11. parseWeekdays ──────────────────────────────────────────────────────
+
+export function parseWeekdays(text: string): string[] | null {
+  return parseDays(text);
+}
+
+// ─── 12. buildScheduleDates ─────────────────────────────────────────────────
+
+export interface BuildScheduleDatesParams {
+  startDate?: string;
+  time?: string;
+  duration: '1_week' | '1_month' | '3_months' | 'custom';
+  customDaysCount?: number;
+  customUntilDate?: string;
+  selectedDays?: string[];
+  referenceDate?: Date;
+}
+
+export function buildScheduleDates(params: BuildScheduleDatesParams): string[] {
+  const ref = params.referenceDate ? new Date(params.referenceDate) : new Date();
+  const todayISO = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}-${String(ref.getDate()).padStart(2, '0')}`;
+
+  let startISO = params.startDate;
+  if (!startISO) {
+    if (params.time) {
+      const [h, m] = params.time.split(':').map(Number);
+      const targetTime = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), h, m, 0, 0);
+      if (targetTime.getTime() > ref.getTime()) {
+        startISO = todayISO;
+      } else {
+        const tomorrow = new Date(ref);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        startISO = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+      }
+    } else {
+      startISO = todayISO;
+    }
+  }
+
+  const parts = startISO.split('-');
+  const startYear = parseInt(parts[0], 10);
+  const startMonth = parseInt(parts[1], 10) - 1;
+  const startDay = parseInt(parts[2], 10);
+  const current = new Date(startYear, startMonth, startDay);
+
+  let totalCalendarDays = 7;
+  if (params.duration === '1_week') {
+    totalCalendarDays = 7;
+  } else if (params.duration === '1_month') {
+    totalCalendarDays = 30;
+  } else if (params.duration === '3_months') {
+    totalCalendarDays = 90;
+  } else if (params.duration === 'custom') {
+    if (params.customDaysCount && params.customDaysCount > 0) {
+      totalCalendarDays = params.customDaysCount;
+    } else if (params.customUntilDate) {
+      const endParts = params.customUntilDate.split('-');
+      const endD = new Date(parseInt(endParts[0], 10), parseInt(endParts[1], 10) - 1, parseInt(endParts[2], 10));
+      if (!isNaN(endD.getTime())) {
+        const diffTime = Math.max(0, endD.getTime() - current.getTime());
+        totalCalendarDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+      }
+    }
+  }
+
+  const dayNameMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const activeDays = params.selectedDays && params.selectedDays.length > 0
+    ? new Set(params.selectedDays.map(d => d.trim().toLowerCase()))
+    : null;
+
+  const dates: string[] = [];
+  for (let i = 0; i < totalCalendarDays; i++) {
+    const dayName = dayNameMap[current.getDay()].toLowerCase();
+    const shortDayName = dayName.slice(0, 3);
+    const matchesDay = !activeDays || activeDays.size === 0 ||
+      activeDays.has(dayName) || activeDays.has(shortDayName);
+
+    if (matchesDay) {
+      const y = current.getFullYear();
+      const m = String(current.getMonth() + 1).padStart(2, '0');
+      const d = String(current.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
+// ─── 13. calcScheduleBill ───────────────────────────────────────────────────
+
+export interface CalcScheduleBillParams {
+  basePrice: number;
+  deliveryCount: number;
+  quantity?: number;
+  restaurantCount?: number;
+}
+
+export interface ScheduleBillResult {
+  basePrice: number;
+  quantity: number;
+  deliveryCount: number;
+  restaurantCount: number;
+  itemSubtotal: number;
+  perDeliverySubtotal: number;
+  deliveryFeePerOrder: number;
+  totalDeliveryFee: number;
+  platformFeePerOrder: number;
+  totalPlatformFee: number;
+  gstTaxPerOrder: number;
+  totalGstTax: number;
+  perOrderTotal: number;
+  grandTotal: number;
+}
+
+export function calcScheduleBill(params: CalcScheduleBillParams): ScheduleBillResult {
+  const basePrice = Math.max(0, params.basePrice || 0);
+  const quantity = Math.max(1, params.quantity || 1);
+  const deliveryCount = Math.max(0, params.deliveryCount || 0);
+  const restaurantCount = Math.max(1, params.restaurantCount || 1);
+
+  const perDeliverySubtotal = basePrice * quantity;
+  const itemSubtotal = perDeliverySubtotal * deliveryCount;
+
+  const deliveryFeePerOrder = 30 * restaurantCount;
+  const totalDeliveryFee = deliveryFeePerOrder * deliveryCount;
+
+  const platformFeePerOrder = 5.00;
+  const totalPlatformFee = platformFeePerOrder * deliveryCount;
+
+  const gstTaxPerOrder = parseFloat(((perDeliverySubtotal + deliveryFeePerOrder) * 0.05).toFixed(2));
+  const totalGstTax = parseFloat((gstTaxPerOrder * deliveryCount).toFixed(2));
+
+  const perOrderTotal = parseFloat((perDeliverySubtotal + deliveryFeePerOrder + platformFeePerOrder + gstTaxPerOrder).toFixed(2));
+  const grandTotal = Math.round(perOrderTotal * deliveryCount);
+
+  return {
+    basePrice,
+    quantity,
+    deliveryCount,
+    restaurantCount,
+    itemSubtotal,
+    perDeliverySubtotal,
+    deliveryFeePerOrder,
+    totalDeliveryFee,
+    platformFeePerOrder,
+    totalPlatformFee,
+    gstTaxPerOrder,
+    totalGstTax,
+    perOrderTotal,
+    grandTotal
+  };
+}

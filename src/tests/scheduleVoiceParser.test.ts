@@ -6,7 +6,13 @@ import {
   parseDayOfMonth,
   parseCustomDate,
   buildSummary,
-  parseChangeTarget
+  parseChangeTarget,
+  parseDuration,
+  parseCustomDays,
+  parseDaysMode,
+  parseWeekdays,
+  buildScheduleDates,
+  calcScheduleBill
 } from '../services/scheduleVoiceParser';
 
 describe('scheduleVoiceParser - Pure Function Tests Across EN, TA, HI', () => {
@@ -380,6 +386,221 @@ describe('scheduleVoiceParser - Pure Function Tests Across EN, TA, HI', () => {
     it('handles noise and empty inputs', () => {
       expect(parseChangeTarget('')).toBeNull();
       expect(parseChangeTarget('random unrelated word')).toBeNull();
+    });
+  });
+
+  // ─── 8. parseDuration ─────────────────────────────────────────────────────
+  describe('8. parseDuration', () => {
+    it('parses English duration strings (>= 6)', () => {
+      expect(parseDuration('1 week')).toBe('1_week');
+      expect(parseDuration('one week')).toBe('1_week');
+      expect(parseDuration('a week')).toBe('1_week');
+      expect(parseDuration('1 month')).toBe('1_month');
+      expect(parseDuration('one month')).toBe('1_month');
+      expect(parseDuration('3 months')).toBe('3_months');
+      expect(parseDuration('three months')).toBe('3_months');
+      expect(parseDuration('custom period')).toBe('custom');
+    });
+
+    it('parses Tamil duration strings (>= 6)', () => {
+      expect(parseDuration('ஒரு வாரம்')).toBe('1_week');
+      expect(parseDuration('1 வாரம்')).toBe('1_week');
+      expect(parseDuration('ஒரு மாதம்')).toBe('1_month');
+      expect(parseDuration('1 மாதம்')).toBe('1_month');
+      expect(parseDuration('மூன்று மாதம்')).toBe('3_months');
+      expect(parseDuration('3 மாதம்')).toBe('3_months');
+      expect(parseDuration('தனிப்பயன்')).toBe('custom');
+    });
+
+    it('parses Hindi duration strings (>= 6)', () => {
+      expect(parseDuration('एक हफ्ता')).toBe('1_week');
+      expect(parseDuration('1 हफ्ते')).toBe('1_week');
+      expect(parseDuration('एक महीना')).toBe('1_month');
+      expect(parseDuration('1 महीने')).toBe('1_month');
+      expect(parseDuration('तीन महीने')).toBe('3_months');
+      expect(parseDuration('3 महीने')).toBe('3_months');
+      expect(parseDuration('कस्टम')).toBe('custom');
+    });
+
+    it('handles noise and empty inputs', () => {
+      expect(parseDuration('')).toBeNull();
+      expect(parseDuration('   ')).toBeNull();
+      expect(parseDuration('random gibberish')).toBeNull();
+    });
+  });
+
+  // ─── 9. parseCustomDays ───────────────────────────────────────────────────
+  describe('9. parseCustomDays', () => {
+    const fixedRef = new Date('2026-11-10T08:00:00');
+
+    it('parses English custom days (>= 6)', () => {
+      expect(parseCustomDays('10 days')?.count).toBe(10);
+      expect(parseCustomDays('2 weeks')?.count).toBe(14);
+      expect(parseCustomDays('five days')?.count).toBe(5);
+      expect(parseCustomDays('20 days')?.count).toBe(20);
+      expect(parseCustomDays('until 15th November', fixedRef)?.dateStr).toBe('2026-11-15');
+      expect(parseCustomDays('until 2026-11-20', fixedRef)?.dateStr).toBe('2026-11-20');
+    });
+
+    it('parses Tamil custom days (>= 6)', () => {
+      expect(parseCustomDays('10 நாட்கள்')?.count).toBe(10);
+      expect(parseCustomDays('பத்து நாட்கள்')?.count).toBe(10);
+      expect(parseCustomDays('இரண்டு வாரங்கள்')?.count).toBe(14);
+      expect(parseCustomDays('5 நாட்கள்')?.count).toBe(5);
+      expect(parseCustomDays('இருபது நாட்கள்')?.count).toBe(20);
+      expect(parseCustomDays('நவம்பர் 15 வரை', fixedRef)?.dateStr).toBe('2026-11-15');
+    });
+
+    it('parses Hindi custom days (>= 6)', () => {
+      expect(parseCustomDays('10 दिन')?.count).toBe(10);
+      expect(parseCustomDays('दस दिन')?.count).toBe(10);
+      expect(parseCustomDays('दो हफ्ते')?.count).toBe(14);
+      expect(parseCustomDays('5 din')?.count).toBe(5);
+      expect(parseCustomDays('बीस दिन')?.count).toBe(20);
+      expect(parseCustomDays('15 november tak', fixedRef)?.dateStr).toBe('2026-11-15');
+    });
+
+    it('rejects numbers < 1 or > 180 and past dates', () => {
+      expect(parseCustomDays('0 days')?.isOutOfRange).toBe(true);
+      expect(parseCustomDays('200 days')?.isOutOfRange).toBe(true);
+      expect(parseCustomDays('until 2025-01-01', fixedRef)?.isPast).toBe(true);
+    });
+
+    it('handles noise and empty inputs', () => {
+      expect(parseCustomDays('')).toBeNull();
+      expect(parseCustomDays('some unknown string')).toBeNull();
+    });
+  });
+
+  // ─── 10. parseWeekdays ────────────────────────────────────────────────────
+  describe('10. parseWeekdays', () => {
+    it('parses English weekdays (>= 6)', () => {
+      expect(parseWeekdays('Monday and Thursday')).toEqual(['Monday', 'Thursday']);
+      expect(parseWeekdays('weekdays')).toEqual(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+      expect(parseWeekdays('weekend')).toEqual(['Saturday', 'Sunday']);
+      expect(parseWeekdays('every day')).toHaveLength(7);
+      expect(parseWeekdays('Tuesday and Friday')).toEqual(['Tuesday', 'Friday']);
+      expect(parseWeekdays('Wednesday')).toEqual(['Wednesday']);
+    });
+
+    it('parses Tamil weekdays (>= 6)', () => {
+      expect(parseWeekdays('திங்கள் வியாழன்')).toEqual(['Monday', 'Thursday']);
+      expect(parseWeekdays('வார நாட்கள்')).toEqual(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+      expect(parseWeekdays('வார இறுதி')).toEqual(['Saturday', 'Sunday']);
+      expect(parseWeekdays('தினமும்')).toHaveLength(7);
+      expect(parseWeekdays('செவ்வாய் வெள்ளி')).toEqual(['Tuesday', 'Friday']);
+      expect(parseWeekdays('புதன்')).toEqual(['Wednesday']);
+    });
+
+    it('parses Hindi weekdays (>= 6)', () => {
+      expect(parseWeekdays('somvar aur guruwar')).toEqual(['Monday', 'Thursday']);
+      expect(parseWeekdays('सप्ताह के दिन')).toEqual(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+      expect(parseWeekdays('वीकेंड')).toEqual(['Saturday', 'Sunday']);
+      expect(parseWeekdays('हर दिन')).toHaveLength(7);
+      expect(parseWeekdays('mangalwar aur shukrawar')).toEqual(['Tuesday', 'Friday']);
+      expect(parseWeekdays('बुधवार')).toEqual(['Wednesday']);
+    });
+
+    it('handles noise and empty inputs', () => {
+      expect(parseWeekdays('')).toBeNull();
+      expect(parseWeekdays('unrelated words')).toBeNull();
+    });
+  });
+
+  // ─── 11. buildScheduleDates ───────────────────────────────────────────────
+  describe('11. buildScheduleDates', () => {
+    const fixedRef = new Date('2026-11-10T08:00:00'); // Tuesday 8:00 AM
+
+    it('1 week every day = 7 dates', () => {
+      const dates = buildScheduleDates({
+        duration: '1_week',
+        referenceDate: fixedRef,
+        startDate: '2026-11-10'
+      });
+      expect(dates).toHaveLength(7);
+      expect(dates[0]).toBe('2026-11-10');
+      expect(dates[6]).toBe('2026-11-16');
+    });
+
+    it('1 month on Mon + Thu matches correct count', () => {
+      const dates = buildScheduleDates({
+        duration: '1_month',
+        selectedDays: ['Monday', 'Thursday'],
+        referenceDate: fixedRef,
+        startDate: '2026-11-10'
+      });
+      expect(dates.length).toBeGreaterThanOrEqual(8);
+      dates.forEach(d => {
+        const dayIdx = new Date(d).getDay();
+        expect([1, 4]).toContain(dayIdx); // 1 = Monday, 4 = Thursday
+      });
+    });
+
+    it('3 months all days = 90 dates', () => {
+      const dates = buildScheduleDates({
+        duration: '3_months',
+        referenceDate: fixedRef,
+        startDate: '2026-11-10'
+      });
+      expect(dates).toHaveLength(90);
+    });
+
+    it('custom 10 days all days = 10 dates', () => {
+      const dates = buildScheduleDates({
+        duration: 'custom',
+        customDaysCount: 10,
+        referenceDate: fixedRef,
+        startDate: '2026-11-10'
+      });
+      expect(dates).toHaveLength(10);
+    });
+
+    it('custom until a date matches exact difference', () => {
+      const dates = buildScheduleDates({
+        duration: 'custom',
+        customUntilDate: '2026-11-19',
+        referenceDate: fixedRef,
+        startDate: '2026-11-10'
+      });
+      expect(dates).toHaveLength(10);
+    });
+  });
+
+  // ─── 12. calcScheduleBill ─────────────────────────────────────────────────
+  describe('12. calcScheduleBill', () => {
+    it('calculates full bill for 1 week (7 deliveries)', () => {
+      const bill = calcScheduleBill({ basePrice: 100, deliveryCount: 7, quantity: 1, restaurantCount: 1 });
+      expect(bill.perDeliverySubtotal).toBe(100);
+      expect(bill.itemSubtotal).toBe(700);
+      expect(bill.deliveryFeePerOrder).toBe(30);
+      expect(bill.totalDeliveryFee).toBe(210);
+      expect(bill.platformFeePerOrder).toBe(5);
+      expect(bill.gstTaxPerOrder).toBe(6.5);
+      expect(bill.perOrderTotal).toBe(141.5);
+      expect(bill.grandTotal).toBe(991);
+    });
+
+    it('calculates full bill for 10 deliveries', () => {
+      const bill = calcScheduleBill({ basePrice: 150, deliveryCount: 10, quantity: 1, restaurantCount: 1 });
+      expect(bill.perDeliverySubtotal).toBe(150);
+      expect(bill.deliveryFeePerOrder).toBe(30);
+      expect(bill.gstTaxPerOrder).toBe(9.0);
+      expect(bill.perOrderTotal).toBe(194);
+      expect(bill.grandTotal).toBe(1940);
+    });
+
+    it('handles quantity > 1', () => {
+      const bill = calcScheduleBill({ basePrice: 100, deliveryCount: 5, quantity: 2, restaurantCount: 1 });
+      expect(bill.perDeliverySubtotal).toBe(200);
+      expect(bill.gstTaxPerOrder).toBe(11.5);
+      expect(bill.perOrderTotal).toBe(246.5);
+      expect(bill.grandTotal).toBe(1233);
+    });
+
+    it('handles 0 deliveries gracefully', () => {
+      const bill = calcScheduleBill({ basePrice: 100, deliveryCount: 0 });
+      expect(bill.grandTotal).toBe(0);
+      expect(bill.itemSubtotal).toBe(0);
     });
   });
 });
