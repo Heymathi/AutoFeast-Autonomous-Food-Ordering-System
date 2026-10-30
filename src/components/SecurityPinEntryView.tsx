@@ -109,23 +109,37 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
 
   const currentPinString = pinDigits.join('');
   const isInputBlocked = isVerifying || lockSecondsLeft > 0;
+  const onPinCompleteRef = useRef(onPinComplete);
+  onPinCompleteRef.current = onPinComplete;
+  const isVoiceSubmittingRef = useRef<boolean>(false);
+  const isSubmittingRef = useRef<boolean>(false);
 
-  const debouncedPinComplete = useRef(
-    debounceHandler((pinStr: string) => {
-      if (pinStr.length === 4) {
-        cleanupSpeech();
-        onPinComplete(pinStr);
-      }
-    }, 500)
-  ).current;
+  const debouncedPinComplete = useRef((pinStr: string) => {
+    if (pinStr.length === 4 && !isSubmittingRef.current) {
+      isSubmittingRef.current = true;
+      isVoiceSubmittingRef.current = false;
+      cleanupSpeech();
+      setPinDigits(['', '', '', '']);
+      Promise.resolve(onPinCompleteRef.current(pinStr)).finally(() => {
+        isSubmittingRef.current = false;
+      });
+    }
+  }).current;
 
-  // Auto-submit when all 4 digits filled
+  // Auto-submit when all 4 digits filled via keypad/keyboard
   useEffect(() => {
-    if (currentPinString.length === 4 && !isVerifying) {
+    if (currentPinString.length === 4 && !isVerifying && !isVoiceSubmittingRef.current) {
       cleanupSpeech();
       debouncedPinComplete(currentPinString);
     }
   }, [currentPinString, isVerifying]);
+
+  useEffect(() => {
+    if (errorMessage) {
+      setPinDigits(['', '', '', '']);
+      setStatusMessage(null);
+    }
+  }, [errorMessage]);
 
   useEffect(() => {
     if (lockSecondsLeft > 0) setPinDigits(['', '', '', '']);
@@ -176,12 +190,15 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
     if (isInputBlocked) return;
     if (setErrorMessage) setErrorMessage(null);
     setStatusMessage(null);
-    const emptyIdx = pinDigits.findIndex(d => d === '');
-    if (emptyIdx !== -1) {
-      const next = [...pinDigits];
-      next[emptyIdx] = num.toString();
-      setPinDigits(next);
-    }
+    setPinDigits(prev => {
+      const emptyIdx = prev.findIndex(d => d === '');
+      if (emptyIdx !== -1) {
+        const next = [...prev];
+        next[emptyIdx] = num.toString();
+        return next;
+      }
+      return prev;
+    });
   };
 
   const handleBackspace = () => {
@@ -300,6 +317,7 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
         }
 
         if (parseResult.status === 'success' && parseResult.digits.length === 4) {
+          isVoiceSubmittingRef.current = true;
           SpeechController.releaseMic('voice_pin');
           setPinDigits(parseResult.digits);
           setMicState('idle');

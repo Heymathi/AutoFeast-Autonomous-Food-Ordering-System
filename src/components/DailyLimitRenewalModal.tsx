@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { SpeechController } from '../services/speechController';
 import { SecurityPinEntryView } from './SecurityPinEntryView';
@@ -44,7 +44,10 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null);
   const [nomineeNotificationSent, setNomineeNotificationSent] = useState(false);
+  const attemptIdRef = useRef(0);
+  const lastSpokenAttemptIdRef = useRef(0);
 
   // PIN Form & Keypad State
   const [pinDigits, setPinDigits] = useState('');
@@ -137,17 +140,28 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
   /**
    * Option 1: 4-Digit PIN Limit Renewal Verification
    */
-  const handlePINSubmit = (pinToVerify: string) => {
-    if (!pinToVerify || pinToVerify.length !== 4) return;
+  const handlePINSubmit = async (pinToVerify: string) => {
+    const cleanPin = String(pinToVerify ?? '').trim();
+    if (!/^\d{4}$/.test(cleanPin) || isProcessing) return;
 
+    const currentAttemptId = ++attemptIdRef.current;
     setIsProcessing(true);
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const result = renewLimitWithPIN(pinToVerify);
+    const speakOnceForAttempt = (text: string) => {
+      if (lastSpokenAttemptIdRef.current === currentAttemptId) return;
+      lastSpokenAttemptIdRef.current = currentAttemptId;
+      SpeechController.cancelSpeech();
+      speakText(text, undefined, language);
+    };
+
+    const result = await renewLimitWithPIN(cleanPin);
     setIsProcessing(false);
 
     if (result.success) {
+      setFailedAttempts(0);
+      setAttemptsLeft(3);
       const msg = language === 'ta'
         ? `தினசரி ஆர்டர் வரம்பு 0/6 ஆக வெற்றிகரமாக மீட்டமைக்கப்பட்டது!`
         : language === 'hi'
@@ -155,32 +169,55 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
         : `Daily order limit successfully reset to 0/6 for ${currentUser?.name || 'User'}!`;
 
       setSuccessMessage(msg);
-      speakText(msg);
+      speakOnceForAttempt(msg);
       showToast(msg);
 
       setTimeout(() => {
         onClose();
       }, 1500);
+      return;
+    }
+
+    setPinDigits('');
+
+    if (result.code === 'PIN_NOT_SET' || result.pinNotSet) {
+      const noPinMsg = 'No PIN set. Please set your PIN first';
+      setErrorMessage(noPinMsg);
+      speakOnceForAttempt(noPinMsg);
+      return;
+    }
+
+    if (result.serverError) {
+      const serverErrMsg = result.error || 'Cannot verify PIN right now, please try again.';
+      setErrorMessage(serverErrMsg);
+      speakOnceForAttempt(serverErrMsg);
+      return;
+    }
+
+    const serverAttemptsLeft = typeof result.attemptsLeft === 'number'
+      ? result.attemptsLeft
+      : Math.max(0, 3 - (failedAttempts + 1));
+    const usedAttempts = Math.min(3, Math.max(1, 3 - serverAttemptsLeft));
+    setFailedAttempts(usedAttempts);
+    setAttemptsLeft(serverAttemptsLeft);
+
+    if (result.isLocked || serverAttemptsLeft <= 0) {
+      const lockMsg = language === 'ta'
+        ? `தவறான PIN (3/3 முயற்சிகள், 0 முயற்சிகள் மீதமுள்ளன). கணக்கு 15 நிமிடங்களுக்கு முடக்கப்பட்டுள்ளது.`
+        : language === 'hi'
+        ? `गलत पिन (3/3 प्रयास, 0 प्रयास शेष)। खाता 15 मिनट के लिए लॉक किया गया है।`
+        : `Incorrect PIN (3/3 attempts, 0 attempts left). Account locked for 15 minutes.`;
+      setErrorMessage(lockMsg);
+      speakOnceForAttempt(lockMsg);
     } else {
-      setPinDigits('');
-      const newFailCount = failedAttempts + 1;
-      setFailedAttempts(newFailCount);
+      const failMsg = language === 'ta'
+        ? `தவறான PIN (${usedAttempts}/3 முயற்சிகள், ${serverAttemptsLeft} மீதமுள்ளன). மீண்டும் முயற்சிக்கவும்.`
+        : language === 'hi'
+        ? `गलत पिन (${usedAttempts}/3 प्रयास, ${serverAttemptsLeft} शेष)। कृपया पुनः प्रयास करें।`
+        : `Incorrect PIN (${usedAttempts}/3 attempts, ${serverAttemptsLeft} attempts left). Please try again.`;
 
-      if (newFailCount >= 3) {
-        // Trigger Nominee Fallback after 3 failed attempts
-        triggerNomineeNotification('Maximum PIN attempts reached.');
-      } else {
-        const failMsg = language === 'ta'
-          ? `தவறான PIN (${newFailCount}/3 முயற்சிகள்). மீண்டும் முயற்சிக்கவும்.`
-          : language === 'hi'
-          ? `गलत पिन (${newFailCount}/3 प्रयास)। कृपया पुनः प्रयास करें।`
-          : `Incorrect PIN (${newFailCount}/3 attempts). Please try again.`;
-
-        setErrorMessage(failMsg);
-
-        // Auto-restart voice listening after speaking incorrect PIN retry prompt
-        speakText(failMsg, undefined, language);
-      }
+      setErrorMessage(failMsg);
+      speakOnceForAttempt(failMsg);
     }
   };
 
@@ -357,8 +394,8 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
           </button>
         </div>
 
-        {/* Status Alerts */}
-        {errorMessage && (
+        {/* Status Alerts (when not already shown inside SecurityPinEntryView) */}
+        {errorMessage && renewalMethod !== 'pin' && (
           <div className="mx-6 mt-4 p-4 bg-[#C2185B]/10 border border-[#C2185B] rounded-2xl flex items-start space-x-3 text-[#C2185B] text-xs sm:text-sm">
             <AlertCircle className="w-5 h-5 text-[#C2185B] shrink-0 mt-0.5" />
             <div>

@@ -333,7 +333,7 @@ describe('REAL HTTP Endpoint Test Suite against Express Server (/api/orders/crea
     expect(blocked.status).toBe(429);
   });
 
-  test('PIN verification allows three failures, locks on the fourth, and unlocks after cooldown', async () => {
+  test('PIN verification returns attemptsLeft 2, then 1, locks on the third, and unlocks after cooldown', async () => {
     const testUser = fallbackUsersDb.find(u => u.id === testUserId);
     expect(testUser).toBeDefined();
     if (testUser) {
@@ -341,22 +341,22 @@ describe('REAL HTTP Endpoint Test Suite against Express Server (/api/orders/crea
       testUser.pinLockedUntil = null;
     }
 
-    for (let attempt = 1; attempt <= 4; attempt += 1) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
       const res = await fetch(`${baseUrl}/api/verify-pin`, {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({ pin: '9999' })
       });
-      if (attempt < 4) {
+      if (attempt < 3) {
         expect(res.status).toBe(400);
-        expect((await res.json()).attemptsLeft).toBe(4 - attempt);
+        expect((await res.json()).attemptsLeft).toBe(3 - attempt);
       } else {
         expect(res.status).toBe(429);
         const body = await res.json();
         expect(body.locked).toBe(true);
         expect(body.attemptsLeft).toBe(0);
         expect(body.lockExpiresMs).toBeGreaterThan(Date.now());
-        expect(body.lockExpiresMs).toBeLessThanOrEqual(Date.now() + 30_000);
+        expect(body.lockExpiresMs).toBeLessThanOrEqual(Date.now() + 15 * 60 * 1000);
       }
     }
 
@@ -724,7 +724,7 @@ describe('Real MongoDB MongoMemoryServer PIN Lockout & Persistence Tests', () =>
     expect(lockedCount).toBeGreaterThanOrEqual(1);
 
     const userDb: any = await (User as any).findOne({ id: mongoUserId });
-    expect(userDb?.pinFailedAttempts).toBeGreaterThanOrEqual(4);
+    expect(userDb?.pinFailedAttempts).toBeGreaterThanOrEqual(3);
     expect(userDb?.pinLockedUntil).not.toBeNull();
   });
 

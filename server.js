@@ -730,7 +730,6 @@ app.post('/api/auth/register', async (req, res) => {
       delete userResponse.passwordHash;
       delete userResponse.nomineePasswordHash;
       delete userResponse.nomineeInviteTokenHash;
-      userResponse.plainPin = cleanPin;
       const token = signJwt({ userId: newUser.id, email: cleanEmail });
 
       res.cookie('autofeast_jwt', token, {
@@ -900,9 +899,26 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // 🚀 SERVER-SIDE 4-DIGIT SECURITY PIN VERIFICATION ENDPOINT
+const USER_PIN_MAX_ATTEMPTS = 3;
+const USER_PIN_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+// TODO(remove-after-testing): Temporary safe debug log for PIN verification (never logs PIN value, hash, or digits)
+function logSafePinVerifyDebug({ userId, endpoint, storedPinExists, storedPinFormat, storedPinLength, receivedPinLength, result }) {
+  console.log(
+    `[PIN-VERIFY-DEBUG] userId=${userId} endpoint=${endpoint} storedPinExists=${storedPinExists} format=${storedPinFormat} storedLen=${storedPinLength} receivedLen=${receivedPinLength} result=${result}`
+  );
+}
+
 app.post('/api/verify-pin', async (req, res) => {
+  const endpoint = '/api/verify-pin';
   try {
-    // 1. Require JWT authentication (userId strictly from verified token, ignoring body params)
+    // Reject nominee tokens on the main user PIN verification endpoint
+    const nomineeSession = getAuthenticatedNomineeUserIdFromSession(req);
+    if (nomineeSession) {
+      return res.status(403).json({ success: false, error: 'Forbidden. Nominee token cannot verify main user PIN.' });
+    }
+
+    // 1. Require main user JWT authentication (userId strictly from verified token, ignoring body params)
     const userId = getAuthenticatedUserIdFromSession(req);
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized. Missing or invalid authentication token.' });
@@ -916,9 +932,13 @@ app.post('/api/verify-pin', async (req, res) => {
       return res.status(503).json({ success: false, error: 'Database service unavailable. Failed closed.' });
     }
 
-    const { pin } = req.body;
-    if (!pin || typeof pin !== 'string') {
+    const rawPin = req.body?.pin;
+    if (rawPin === undefined || rawPin === null || (typeof rawPin !== 'string' && typeof rawPin !== 'number')) {
       return res.status(400).json({ success: false, error: 'PIN is required.' });
+    }
+    const cleanPin = String(rawPin).trim();
+    if (!/^\d{4}$/.test(cleanPin)) {
+      return res.status(400).json({ success: false, error: 'PIN must be exactly 4 digits.' });
     }
 
     // 3. Find user in MongoDB or test database store
@@ -935,27 +955,62 @@ app.post('/api/verify-pin', async (req, res) => {
       return res.status(404).json({ success: false, error: 'User account not found.' });
     }
 
-    // 4. If user has no pinHash, return 409 "PIN not set"
-    if (!user.pinHash) {
-      return res.status(409).json({ success: false, error: 'PIN not set for this account.' });
+    // Inspect main user's own stored PIN (never nomineePinHash)
+    const rawStoredPin = user.pinHash ?? user.pin ?? (typeof user.get === 'function' ? user.get('pin') : null) ?? null;
+    const storedPinStr = rawStoredPin === null || rawStoredPin === undefined
+      ? ''
+      : typeof rawStoredPin === 'number'
+        ? String(rawStoredPin).padStart(4, '0')
+        : String(rawStoredPin).trim();
+    const storedPinExists = storedPinStr.length > 0;
+    const isBcryptHash = /^\$2[aby]\$\d{2}\$/.test(storedPinStr);
+    const storedPinFormat = !storedPinExists ? 'none' : (isBcryptHash ? 'hashed' : 'plain');
+
+    // 4. If user has no PIN stored at all, return PIN_NOT_SET
+    if (!storedPinExists) {
+      logSafePinVerifyDebug({
+        userId,
+        endpoint,
+        storedPinExists: false,
+        storedPinFormat: 'none',
+        storedPinLength: 0,
+        receivedPinLength: cleanPin.length,
+        result: 'PIN_NOT_SET'
+      });
+      return res.status(409).json({
+        success: false,
+        code: 'PIN_NOT_SET',
+        error: 'No PIN set. Please set your PIN first (PIN not set)',
+        message: 'No PIN set. Please set your PIN first'
+      });
     }
 
     const now = new Date();
 
-    // 5. Enforce the server-side four-attempt, 30-second lockout.
-    if (user.pinLockedUntil && now < user.pinLockedUntil) {
-      const remainingSecs = Math.ceil((user.pinLockedUntil.getTime() - now.getTime()) / 1000);
+    // 5. Enforce the server-side 3-attempt, 15-minute lockout stored on the user document in MongoDB
+    if (user.pinLockedUntil && now < new Date(user.pinLockedUntil)) {
+      const lockExpiresMs = new Date(user.pinLockedUntil).getTime();
+      const remainingSecs = Math.ceil((lockExpiresMs - now.getTime()) / 1000);
+      logSafePinVerifyDebug({
+        userId,
+        endpoint,
+        storedPinExists,
+        storedPinFormat,
+        storedPinLength: storedPinStr.length,
+        receivedPinLength: cleanPin.length,
+        result: 'LOCKED'
+      });
       return res.status(429).json({
         success: false,
         locked: true,
         attemptsLeft: 0,
-        error: `Four incorrect PIN attempts. Try again in ${remainingSecs}s.`,
-        lockExpiresMs: user.pinLockedUntil.getTime()
+        error: `Three incorrect PIN attempts. Try again in ${remainingSecs}s.`,
+        lockExpiresMs
       });
     }
 
-    // If lock expired, reset attempt count in DB.
-    if (user.pinLockedUntil && now >= user.pinLockedUntil) {
+    // If lock expired, reset attempt count in DB
+    if (user.pinLockedUntil && now >= new Date(user.pinLockedUntil)) {
       if (mongoose.connection.readyState === 1) {
         await User.findOneAndUpdate(
           { id: userId },
@@ -966,13 +1021,13 @@ app.post('/api/verify-pin', async (req, res) => {
       user.pinLockedUntil = null;
     }
 
-    if ((user.pinFailedAttempts || 0) >= 4) {
-      const lockUntil = new Date(Date.now() + 30_000);
+    if ((user.pinFailedAttempts || 0) >= USER_PIN_MAX_ATTEMPTS) {
+      const lockUntil = new Date(Date.now() + USER_PIN_LOCKOUT_MS);
       if (mongoose.connection.readyState === 1) {
         const updatedUser = await User.findOneAndUpdate(
           {
             id: userId,
-            pinFailedAttempts: { $gte: 4 },
+            pinFailedAttempts: { $gte: USER_PIN_MAX_ATTEMPTS },
             $or: [{ pinLockedUntil: null }, { pinLockedUntil: { $exists: false } }]
           },
           { $set: { pinLockedUntil: lockUntil } },
@@ -982,30 +1037,60 @@ app.post('/api/verify-pin', async (req, res) => {
       } else {
         user.pinLockedUntil = lockUntil;
       }
-      const lockExpiresMs = user?.pinLockedUntil?.getTime?.() || lockUntil.getTime();
+      const lockExpiresMs = user?.pinLockedUntil ? new Date(user.pinLockedUntil).getTime() : lockUntil.getTime();
+      logSafePinVerifyDebug({
+        userId,
+        endpoint,
+        storedPinExists,
+        storedPinFormat,
+        storedPinLength: storedPinStr.length,
+        receivedPinLength: cleanPin.length,
+        result: 'LOCKED'
+      });
       return res.status(429).json({
         success: false,
         locked: true,
         attemptsLeft: 0,
-        error: 'Four incorrect PIN attempts. Try again after the cooldown.',
+        error: 'Three incorrect PIN attempts. Try again after the cooldown.',
         lockExpiresMs
       });
     }
 
-    // 6. Strict bcrypt comparison ONLY
-    const isMatch = await bcrypt.compare(pin, user.pinHash).catch(() => false);
+    // 6. Compare PINs as strings: support both hashed PINs and legacy plain-stored PINs
+    let isMatch = false;
+    if (isBcryptHash) {
+      isMatch = await bcrypt.compare(cleanPin, storedPinStr).catch(() => false);
+    } else {
+      isMatch = cleanPin === storedPinStr;
+    }
 
     if (isMatch) {
+      const updateFields = { pinFailedAttempts: 0, pinLockedUntil: null };
+      // If an old plain-stored PIN matched, re-save it hashed with bcrypt
+      if (!isBcryptHash) {
+        const upgradedHash = await bcrypt.hash(cleanPin, 10);
+        updateFields.pinHash = upgradedHash;
+        user.pinHash = upgradedHash;
+        if ('pin' in user) delete user.pin;
+      }
       if (mongoose.connection.readyState === 1) {
         await User.findOneAndUpdate(
           { id: userId },
-          { $set: { pinFailedAttempts: 0, pinLockedUntil: null } }
+          { $set: updateFields, $unset: { pin: 1, plainPin: 1 } }
         );
       }
       user.pinFailedAttempts = 0;
       user.pinLockedUntil = null;
-      console.log(`[PIN VERIFY]: User ${userId} PIN verification SUCCESS.`);
-      return res.json({ success: true, message: 'PIN verified successfully.' });
+      logSafePinVerifyDebug({
+        userId,
+        endpoint,
+        storedPinExists,
+        storedPinFormat,
+        storedPinLength: storedPinStr.length,
+        receivedPinLength: cleanPin.length,
+        result: !isBcryptHash ? 'SUCCESS_UPGRADED_HASH' : 'SUCCESS'
+      });
+      return res.json({ success: true, attemptsLeft: USER_PIN_MAX_ATTEMPTS, message: 'PIN verified successfully.' });
     } else {
       let attempts = (user.pinFailedAttempts || 0) + 1;
       if (mongoose.connection.readyState === 1) {
@@ -1013,7 +1098,7 @@ app.post('/api/verify-pin', async (req, res) => {
           {
             id: userId,
             $and: [
-              { $or: [{ pinFailedAttempts: { $lt: 4 } }, { pinFailedAttempts: { $exists: false } }] },
+              { $or: [{ pinFailedAttempts: { $lt: USER_PIN_MAX_ATTEMPTS } }, { pinFailedAttempts: { $exists: false } }] },
               { $or: [{ pinLockedUntil: null }, { pinLockedUntil: { $exists: false } }] }
             ]
           },
@@ -1026,40 +1111,56 @@ app.post('/api/verify-pin', async (req, res) => {
           const currentUser = await User.findOne({ id: userId });
           if (!currentUser) return res.status(404).json({ success: false, error: 'User account not found.' });
           user = currentUser;
-          attempts = currentUser.pinFailedAttempts || 0;
+          attempts = currentUser.pinFailedAttempts || USER_PIN_MAX_ATTEMPTS;
         }
       } else {
         user.pinFailedAttempts = attempts;
       }
 
-      if (attempts >= 4) {
-        const proposedLockUntil = new Date(Date.now() + 30_000);
+      if (attempts >= USER_PIN_MAX_ATTEMPTS) {
+        const proposedLockUntil = new Date(Date.now() + USER_PIN_LOCKOUT_MS);
         let lockUntil = proposedLockUntil;
         if (mongoose.connection.readyState === 1) {
           const updatedUser = await User.findOneAndUpdate(
             {
               id: userId,
-              pinFailedAttempts: { $gte: 4 },
+              pinFailedAttempts: { $gte: USER_PIN_MAX_ATTEMPTS },
               $or: [{ pinLockedUntil: null }, { pinLockedUntil: { $exists: false } }]
             },
             { $set: { pinLockedUntil: proposedLockUntil } },
             { new: true }
           );
           const currentUser = updatedUser || await User.findOne({ id: userId });
-          if (currentUser?.pinLockedUntil) lockUntil = currentUser.pinLockedUntil;
+          if (currentUser?.pinLockedUntil) lockUntil = new Date(currentUser.pinLockedUntil);
         }
         user.pinLockedUntil = lockUntil;
-        console.warn(`[PIN VERIFY]: User ${userId} 4 failed PIN attempts. Account locked for 30 seconds.`);
+        logSafePinVerifyDebug({
+          userId,
+          endpoint,
+          storedPinExists,
+          storedPinFormat,
+          storedPinLength: storedPinStr.length,
+          receivedPinLength: cleanPin.length,
+          result: 'FAIL_LOCKED'
+        });
         return res.status(429).json({
           success: false,
           locked: true,
           attemptsLeft: 0,
-          error: 'Incorrect PIN. Account locked for 30 seconds.',
+          error: 'Incorrect PIN. Account locked for 15 minutes.',
           lockExpiresMs: lockUntil.getTime()
         });
       } else {
-        const triesLeft = Math.max(0, 4 - attempts);
-        console.warn(`[PIN VERIFY]: User ${userId} incorrect PIN attempt. Tries remaining: ${triesLeft}`);
+        const triesLeft = Math.max(0, USER_PIN_MAX_ATTEMPTS - attempts);
+        logSafePinVerifyDebug({
+          userId,
+          endpoint,
+          storedPinExists,
+          storedPinFormat,
+          storedPinLength: storedPinStr.length,
+          receivedPinLength: cleanPin.length,
+          result: 'FAIL'
+        });
         return res.status(400).json({
           success: false,
           locked: false,

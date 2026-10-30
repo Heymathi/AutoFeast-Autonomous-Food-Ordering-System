@@ -54,7 +54,7 @@ interface AppContextType {
     enableFaceID: boolean
   ) => Promise<boolean>;
   renewLimitWithFaceID: () => Promise<{ success: boolean; error?: string }>;
-  renewLimitWithPIN: (pin: string) => { success: boolean; error?: string };
+  renewLimitWithPIN: (pin: string) => Promise<{ success: boolean; error?: string; code?: string; pinNotSet?: boolean; attemptsLeft?: number; isLocked?: boolean; lockRemainingSeconds?: number; serverError?: boolean }>;
   renewLimitWithNominee: (name: string, phone: string) => { success: boolean; error?: string };
   renewLimitWithPassword: (pass: string) => { success: boolean; error?: string };
   resetDailyLimit: () => void;
@@ -333,29 +333,38 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return { success: false, error: result.error };
   };
 
-  const renewLimitWithPIN = (pin: string): { success: boolean; error?: string } => {
-    const cleanPin = pin.trim();
-    if (cleanPin.length !== 4) {
+  const renewLimitWithPIN = async (pin: string): Promise<{
+    success: boolean;
+    error?: string;
+    code?: string;
+    pinNotSet?: boolean;
+    attemptsLeft?: number;
+    isLocked?: boolean;
+    lockRemainingSeconds?: number;
+    serverError?: boolean;
+  }> => {
+    const cleanPin = String(pin ?? '').trim();
+    if (!/^\d{4}$/.test(cleanPin)) {
       return { success: false, error: 'Please enter a 4-digit PIN.' };
     }
 
-    if (currentUser && currentUser.pinHash === cleanPin) {
+    const verifyRes = await AuthService.verifyPIN(cleanPin);
+    if (verifyRes.success) {
       resetDailyLimit();
-      showToast(`Daily order limit reset to 0/6 for ${currentUser.name}!`);
-      return { success: true };
+      showToast(`Daily order limit reset to 0/6 for ${currentUser?.name || 'User'}!`);
+      return { success: true, attemptsLeft: verifyRes.attemptsLeft ?? 3 };
     }
 
-    const users = AuthService.getUsers();
-    const matchingUser = users.find(u => u.pinHash === cleanPin);
-    if (matchingUser) {
-      setCurrentUser(matchingUser);
-      AuthService.setCurrentUser(matchingUser);
-      resetDailyLimit();
-      showToast(`Daily order limit reset to 0/6 for ${matchingUser.name}!`);
-      return { success: true };
-    }
-
-    return { success: false, error: 'Incorrect PIN. Daily order limit remains 6/6.' };
+    return {
+      success: false,
+      code: verifyRes.code,
+      pinNotSet: verifyRes.pinNotSet,
+      attemptsLeft: verifyRes.attemptsLeft,
+      isLocked: verifyRes.isLocked,
+      lockRemainingSeconds: verifyRes.lockRemainingSeconds,
+      serverError: verifyRes.serverError,
+      error: verifyRes.error
+    };
   };
 
   const renewLimitWithNominee = (nomineeNameInput: string, nomineePhoneInput: string): { success: boolean; error?: string } => {

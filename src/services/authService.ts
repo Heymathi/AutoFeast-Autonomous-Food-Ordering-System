@@ -29,6 +29,8 @@ export interface VerifyPinResult {
   success: boolean;
   token?: string;
   error?: string;
+  code?: string;
+  pinNotSet?: boolean;
   isLocked?: boolean;
   lockRemainingSeconds?: number;
   attemptsLeft?: number;
@@ -315,33 +317,27 @@ export class AuthService {
    * Verify 4-Digit Security PIN via Backend API & Issue Single-Use 2-Minute Token
    */
   public static async verifyPIN(pin: string): Promise<VerifyPinResult> {
-    const now = Date.now();
-    if (now < this.lockoutUntil) {
-      const rem = Math.ceil((this.lockoutUntil - now) / 1000);
-      return {
-        success: false,
-        isLocked: true,
-        lockRemainingSeconds: rem,
-        error: `Too many incorrect attempts. Security locked for ${rem} more seconds.`
-      };
-    }
-
-    const cleanPin = pin ? pin.trim() : '';
+    const cleanPin = pin !== undefined && pin !== null ? String(pin).trim() : '';
     if (!/^\d{4}$/.test(cleanPin)) {
       return { success: false, error: 'Please enter a valid 4-digit numeric PIN.' };
     }
 
-    let serverDefinitivelyWrong = false;
     let isMatch = false;
     let serverAttemptsLeft: number | undefined;
     let serverLocked = false;
     let serverLockMs: number | undefined;
 
     try {
+      const authToken = this.getAuthToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
       const res = await fetch('/api/verify-pin', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ pin: cleanPin })
       });
 
@@ -349,39 +345,51 @@ export class AuthService {
         const data = await res.json();
         if (data.success) {
           isMatch = true;
-        } else {
-          serverDefinitivelyWrong = true;
+          serverAttemptsLeft = typeof data.attemptsLeft === 'number' ? data.attemptsLeft : 3;
         }
+      } else if (res.status === 409) {
+        const data = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          code: data.code || 'PIN_NOT_SET',
+          pinNotSet: true,
+          error: 'No PIN set. Please set your PIN first'
+        };
       } else if (res.status === 400 || res.status === 429) {
         // 400 = wrong PIN with attempts remaining; 429 = account locked
         const data = await res.json().catch(() => ({}));
-        serverDefinitivelyWrong = res.status === 400;
+        if (data.code === 'PIN_NOT_SET') {
+          return {
+            success: false,
+            code: 'PIN_NOT_SET',
+            pinNotSet: true,
+            error: 'No PIN set. Please set your PIN first'
+          };
+        }
         serverLocked = res.status === 429 || Boolean(data.locked);
         serverAttemptsLeft = typeof data.attemptsLeft === 'number' ? data.attemptsLeft : undefined;
         serverLockMs = typeof data.lockExpiresMs === 'number' ? data.lockExpiresMs : undefined;
 
         if (serverLocked) {
-          // Sync the frontend lockout with the server-enforced lockout
-          const lockUntilMs = serverLockMs ?? (Date.now() + 30000);
+          const lockUntilMs = serverLockMs ?? (Date.now() + 15 * 60 * 1000);
           this.lockoutUntil = lockUntilMs;
           this.failedPinAttempts = 0;
-          const remSecs = Math.ceil((lockUntilMs - Date.now()) / 1000);
+          const remSecs = Math.max(1, Math.ceil((lockUntilMs - Date.now()) / 1000));
           return {
             success: false,
             isLocked: true,
             lockRemainingSeconds: remSecs,
             attemptsLeft: 0,
-            error: `Incorrect PIN. Account locked for ${remSecs} seconds due to too many failed attempts.`
+            error: data.error || 'Incorrect PIN. Account locked for 15 minutes.'
           };
         }
         // Wrong PIN, not yet locked — use server's attemptsLeft
         const attemptsMsg = typeof serverAttemptsLeft === 'number'
           ? `Incorrect PIN. ${serverAttemptsLeft} attempt${serverAttemptsLeft !== 1 ? 's' : ''} remaining.`
-          : 'Incorrect PIN. Please try again.';
-        if (serverDefinitivelyWrong) this.failedPinAttempts += 1;
-        return { success: false, attemptsLeft: serverAttemptsLeft, error: attemptsMsg };
+          : (data.error || 'Incorrect PIN. Please try again.');
+        return { success: false, isLocked: false, attemptsLeft: serverAttemptsLeft, error: attemptsMsg };
       } else {
-        // HTTP 401, 503, 500 etc. — transient server/auth error, do NOT count as wrong attempt
+        // HTTP 401, 403, 503, 500 etc. — server/auth error, do NOT count as wrong attempt
         const serverErrMsg = 'Cannot verify PIN right now, please try again.';
         console.warn(`[AuthService] Server verify-pin HTTP ${res.status}`);
         return { success: false, serverError: true, error: serverErrMsg };
@@ -398,29 +406,14 @@ export class AuthService {
       const token = `tok_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
       this.verifiedTokensMap.set(token, { expiry: Date.now() + 120000 });
       console.log(`[AuthService]: PIN verified. Single-use token issued: "${token}" (expires in 2m)`);
-      return { success: true, token };
-    } else {
-      if (serverDefinitivelyWrong) {
-        this.failedPinAttempts += 1;
-      }
-      if (this.failedPinAttempts >= 4) {
-        this.lockoutUntil = Date.now() + 30000;
-        this.failedPinAttempts = 0;
-        return {
-          success: false,
-          isLocked: true,
-          lockRemainingSeconds: 30,
-          attemptsLeft: 0,
-          error: '4 incorrect PIN attempts! Security locked for 30 seconds.'
-        };
-      }
-      const remaining = Math.max(0, 4 - this.failedPinAttempts);
-      return {
-        success: false,
-        attemptsLeft: remaining,
-        error: `Incorrect PIN. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`
-      };
+      return { success: true, token, attemptsLeft: serverAttemptsLeft ?? 3 };
     }
+
+    return {
+      success: false,
+      attemptsLeft: serverAttemptsLeft,
+      error: 'Incorrect PIN. Please try again.'
+    };
   }
 
   /**
