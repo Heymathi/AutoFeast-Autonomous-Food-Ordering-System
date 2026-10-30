@@ -59,7 +59,7 @@ export function extractAreaCityFromAddress(addr: any): { area: string; city: str
     .replace(/\s+/g, ' ')
     .trim();
 
-  // 2. Area: suburb || neighbourhood || village || town || city_district || hamlet
+  // 2. Area: suburb || neighbourhood || village || town || city_district || hamlet || quarter || locality || road
   const rawArea =
     addr.suburb ||
     addr.neighbourhood ||
@@ -67,6 +67,11 @@ export function extractAreaCityFromAddress(addr: any): { area: string; city: str
     addr.town ||
     addr.city_district ||
     addr.hamlet ||
+    addr.quarter ||
+    addr.locality ||
+    addr.commercial ||
+    addr.residential ||
+    addr.road ||
     '';
 
   let cleanArea = String(rawArea).trim();
@@ -305,34 +310,71 @@ export interface GeocodedPlace {
 }
 
 let lastNominatimRequestTime = 0;
+export let lastForwardGeocodeError: string | null = null;
 
 const KNOWN_INDIAN_LOCATIONS: Record<string, { area: string; city: string; lat: number; lng: number }> = {
   'salem': { area: 'Fairlands', city: 'Salem', lat: 11.6643, lng: 78.1460 },
+  'suramangalam': { area: 'Suramangalam', city: 'Salem', lat: 11.6778, lng: 78.1255 },
   'சேலம்': { area: 'ஃபேர்லான்ட்ஸ்', city: 'Salem', lat: 11.6643, lng: 78.1460 },
+  'சுரமங்கலம்': { area: 'சுரமங்கலம்', city: 'Salem', lat: 11.6778, lng: 78.1255 },
+  'सलेम': { area: 'फेयरलैंड्स', city: 'Salem', lat: 11.6643, lng: 78.1460 },
+  'सुरमंगलम': { area: 'सुरमंगलम', city: 'Salem', lat: 11.6778, lng: 78.1255 },
   'chennai': { area: 'Anna Nagar', city: 'Chennai', lat: 13.0827, lng: 80.2707 },
   'சென்னை': { area: 'அண்ணா நகர்', city: 'Chennai', lat: 13.0827, lng: 80.2707 },
   'चेन्नई': { area: 'अन्ना नगर', city: 'Chennai', lat: 13.0827, lng: 80.2707 },
   'anna nagar': { area: 'Anna Nagar', city: 'Chennai', lat: 13.0850, lng: 80.2101 },
   'anna nagar chennai': { area: 'Anna Nagar', city: 'Chennai', lat: 13.0850, lng: 80.2101 },
+  'அண்ணா நகர்': { area: 'அண்ணா நகர்', city: 'Chennai', lat: 13.0850, lng: 80.2101 },
+  'अन्ना नगर': { area: 'अन्ना नगर', city: 'Chennai', lat: 13.0850, lng: 80.2101 },
   't nagar': { area: 'T. Nagar', city: 'Chennai', lat: 13.0418, lng: 80.2341 },
+  't. nagar': { area: 'T. Nagar', city: 'Chennai', lat: 13.0418, lng: 80.2341 },
+  'thyagaraya nagar': { area: 'T. Nagar', city: 'Chennai', lat: 13.0418, lng: 80.2341 },
+  'தி. நகர்': { area: 'தி. நகர்', city: 'Chennai', lat: 13.0418, lng: 80.2341 },
+  'டி நகர்': { area: 'தி. நகர்', city: 'Chennai', lat: 13.0418, lng: 80.2341 },
+  'टी नगर': { area: 'टी. नगर', city: 'Chennai', lat: 13.0418, lng: 80.2341 },
+  'टी. नगर': { area: 'टी. नगर', city: 'Chennai', lat: 13.0418, lng: 80.2341 },
+  'velachery': { area: 'Velachery', city: 'Chennai', lat: 12.9815, lng: 80.2180 },
+  'வேளச்சேரி': { area: 'வேளச்சேரி', city: 'Chennai', lat: 12.9815, lng: 80.2180 },
+  'वेलचेरी': { area: 'वेलचेरी', city: 'Chennai', lat: 12.9815, lng: 80.2180 },
+  'adyar': { area: 'Adyar', city: 'Chennai', lat: 13.0012, lng: 80.2565 },
+  'அடையாறு': { area: 'அடையாறு', city: 'Chennai', lat: 13.0012, lng: 80.2565 },
+  'अड्यार': { area: 'अड्यार', city: 'Chennai', lat: 13.0012, lng: 80.2565 },
+  'mylapore': { area: 'Mylapore', city: 'Chennai', lat: 13.0368, lng: 80.2676 },
+  'மயிலாப்பூர்': { area: 'மயிலாப்பூர்', city: 'Chennai', lat: 13.0368, lng: 80.2676 },
+  'मायलापुर': { area: 'मायलापुर', city: 'Chennai', lat: 13.0368, lng: 80.2676 },
+  'tambaram': { area: 'Tambaram', city: 'Chennai', lat: 12.9249, lng: 80.1000 },
+  'தாம்பரம்': { area: 'தாம்பரம்', city: 'Chennai', lat: 12.9249, lng: 80.1000 },
+  'तांबरम': { area: 'तांबरम', city: 'Chennai', lat: 12.9249, lng: 80.1000 },
   'coimbatore': { area: 'Gandhipuram', city: 'Coimbatore', lat: 11.0168, lng: 76.9558 },
   'கோயம்புத்தூர்': { area: 'காந்திபுரம்', city: 'Coimbatore', lat: 11.0168, lng: 76.9558 },
   'கோயம்புத்தூர் காந்திபுரம்': { area: 'காந்திபுரம்', city: 'Coimbatore', lat: 11.0168, lng: 76.9558 },
+  'காந்திபுரம்': { area: 'காந்திபுரம்', city: 'Coimbatore', lat: 11.0168, lng: 76.9558 },
+  'कोयंबटूर': { area: 'गांधीपुरम', city: 'Coimbatore', lat: 11.0168, lng: 76.9558 },
+  'गांधीपुरम': { area: 'गांधीपुरम', city: 'Coimbatore', lat: 11.0168, lng: 76.9558 },
   'gandhipuram': { area: 'Gandhipuram', city: 'Coimbatore', lat: 11.0168, lng: 76.9558 },
   'delhi': { area: 'Connaught Place', city: 'Delhi', lat: 28.6315, lng: 77.2167 },
+  'டெல்லி': { area: 'கனாட் பிளேஸ்', city: 'Delhi', lat: 28.6315, lng: 77.2167 },
   'दिल्ली': { area: 'कनॉट प्लेस', city: 'Delhi', lat: 28.6315, lng: 77.2167 },
+  'connaught place': { area: 'Connaught Place', city: 'Delhi', lat: 28.6315, lng: 77.2167 },
   'bengaluru': { area: 'Indiranagar', city: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
   'bangalore': { area: 'Indiranagar', city: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
+  'indiranagar': { area: 'Indiranagar', city: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
   'பெங்களூரு': { area: 'இந்திரா நகர்', city: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
+  'இந்திரா நகர்': { area: 'இந்திரா நகர்', city: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
   'बेंगलुरु': { area: 'इंदिरा नगर', city: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
+  'इंदिरा नगर': { area: 'इंदिरा नगर', city: 'Bengaluru', lat: 12.9784, lng: 77.6408 },
   'hyderabad': { area: 'Gachibowli', city: 'Hyderabad', lat: 17.4401, lng: 78.3489 },
+  'gachibowli': { area: 'Gachibowli', city: 'Hyderabad', lat: 17.4401, lng: 78.3489 },
   'ஹைதராபாத்': { area: 'கச்சிபௌலி', city: 'Hyderabad', lat: 17.4401, lng: 78.3489 },
   'हैदराबाद': { area: 'गाचीबोवली', city: 'Hyderabad', lat: 17.4401, lng: 78.3489 },
   'mumbai': { area: 'Bandra West', city: 'Mumbai', lat: 19.0596, lng: 72.8295 },
+  'bandra': { area: 'Bandra West', city: 'Mumbai', lat: 19.0596, lng: 72.8295 },
   'மும்பை': { area: 'பாந்த்ரா மேற்கு', city: 'Mumbai', lat: 19.0596, lng: 72.8295 },
   'मुंबई': { area: 'बांद्रा वेस्ट', city: 'Mumbai', lat: 19.0596, lng: 72.8295 },
   'madurai': { area: 'KK Nagar', city: 'Madurai', lat: 9.9252, lng: 78.1198 },
+  'kk nagar': { area: 'KK Nagar', city: 'Madurai', lat: 9.9252, lng: 78.1198 },
   'மதுரை': { area: 'கேகே நகர்', city: 'Madurai', lat: 9.9252, lng: 78.1198 },
+  'मदुरै': { area: 'केके नगर', city: 'Madurai', lat: 9.9252, lng: 78.1198 },
   'dharmapuri': { area: 'Main Road', city: 'Dharmapuri', lat: 12.1211, lng: 78.1582 },
   'தர்மபுரி': { area: 'மெயின் ரோடு', city: 'Dharmapuri', lat: 12.1211, lng: 78.1582 },
   'dharmapuri main road': { area: 'Main Road', city: 'Dharmapuri', lat: 12.1211, lng: 78.1582 }
@@ -347,21 +389,49 @@ const KNOWN_INDIAN_LOCATIONS: Record<string, { area: string; city: string; lat: 
  * - Falls back cleanly to known Indian coordinates if network/Nominatim is unavailable.
  */
 export async function forwardGeocode(query: string): Promise<GeocodedPlace[]> {
+  lastForwardGeocodeError = null;
   const clean = (query || '').trim().toLowerCase();
   if (!clean) return [];
 
-  // Check known dictionary first for instant high-confidence matching
+  const normalizedQuery = clean.replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
+  const knownMatches: GeocodedPlace[] = [];
+  const seenKeys = new Set<string>();
+
+  // Check known dictionary first for instant high-confidence matching (up to 5 results)
   for (const [key, loc] of Object.entries(KNOWN_INDIAN_LOCATIONS)) {
-    if (clean === key || clean.includes(key) || key.includes(clean)) {
-      return [{
-        area: loc.area,
-        city: loc.city,
-        addressName: `${loc.area}, ${loc.city}`,
-        latitude: loc.lat,
-        longitude: loc.lng,
-        confidence: 0.95
-      }];
+    const normalizedKey = key.replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
+    const areaLower = loc.area.toLowerCase();
+    const cityLower = loc.city.toLowerCase();
+    if (
+      clean === key ||
+      normalizedQuery === normalizedKey ||
+      (normalizedQuery.length >= 2 && (
+        normalizedKey.includes(normalizedQuery) ||
+        normalizedQuery.includes(normalizedKey) ||
+        areaLower.includes(normalizedQuery) ||
+        cityLower.includes(normalizedQuery)
+      ))
+    ) {
+      const dedupKey = `${loc.area.toLowerCase()}|${loc.city.toLowerCase()}`;
+      if (!seenKeys.has(dedupKey)) {
+        seenKeys.add(dedupKey);
+        knownMatches.push({
+          area: loc.area,
+          city: loc.city,
+          addressName: `${loc.area}, ${loc.city}`,
+          latitude: loc.lat,
+          longitude: loc.lng,
+          confidence: 0.95
+        });
+        if (knownMatches.length >= 5) {
+          return knownMatches;
+        }
+      }
     }
+  }
+
+  if (knownMatches.length > 0) {
+    return knownMatches.slice(0, 5);
   }
 
   // Rate-limit check: enforce 1 second (1000ms) interval between Nominatim calls
@@ -387,11 +457,16 @@ export async function forwardGeocode(query: string): Promise<GeocodedPlace[]> {
     const data = await res.json();
     if (!Array.isArray(data) || data.length === 0) return [];
 
-    return data.map((item: any) => {
+    return data.slice(0, 5).map((item: any) => {
       const addr = item.address || {};
-      const { area, city } = extractAreaCityFromAddress(addr);
-      const addressName = item.display_name
-        ? item.display_name.split(',').slice(0, 3).join(', ')
+      const extracted = extractAreaCityFromAddress(addr);
+      const displayParts = item.display_name
+        ? String(item.display_name).split(',').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+      const area = extracted.area || item.name || displayParts[0] || extracted.city || query.trim();
+      const city = extracted.city || displayParts[1] || displayParts[0] || area;
+      const addressName = displayParts.length > 0
+        ? displayParts.slice(0, 3).join(', ')
         : `${area}, ${city}`;
 
       return {
@@ -403,8 +478,9 @@ export async function forwardGeocode(query: string): Promise<GeocodedPlace[]> {
         confidence: 0.9
       };
     });
-  } catch (err) {
+  } catch (err: any) {
     console.warn('[LocationService]: Forward geocoding failed or offline:', err);
+    lastForwardGeocodeError = err?.message || 'Forward geocoding failed';
     return [];
   }
 }

@@ -519,7 +519,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const setUserLocation = (loc: UserLocation) => {
     setUserLocationState(loc);
     if (loc.city && loc.city !== 'Not set') {
-      setSelectedLocation(loc.city);
+      const cityMap: Record<string, string> = {
+        'chennai': 'Chennai',
+        'சென்னை': 'Chennai',
+        'चेन्नई': 'Chennai',
+        'salem': 'Salem',
+        'சேலம்': 'Salem',
+        'सलेम': 'Salem',
+        'bengaluru': 'Bengaluru',
+        'bangalore': 'Bengaluru',
+        'பெங்களூரு': 'Bengaluru',
+        'बेंगलुरु': 'Bengaluru',
+        'hyderabad': 'Hyderabad',
+        'ஹைதராபாத்': 'Hyderabad',
+        'हैदराबाद': 'Hyderabad',
+        'mumbai': 'Mumbai',
+        'மும்பை': 'Mumbai',
+        'मुंबई': 'Mumbai',
+        'delhi': 'Delhi',
+        'new delhi': 'Delhi',
+        'டெல்லி': 'Delhi',
+        'दिल्ली': 'Delhi',
+        'coimbatore': 'Coimbatore',
+        'கோயம்புத்தூர்': 'Coimbatore',
+        'कोयंबटूर': 'Coimbatore'
+      };
+      const mappedCity = cityMap[loc.city.trim().toLowerCase()];
+      setSelectedLocation(mappedCity || 'All');
     }
     try {
       localStorage.setItem('smart_food_user_location', JSON.stringify(loc));
@@ -1559,7 +1585,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, selectedLocation, selectedCuisine, vegOnly, userLocation]);
+  }, [searchQuery]);
+
+  // Immediately refresh restaurant list and nearest-restaurant sorting when delivery location or filters change
+  useEffect(() => {
+    const result = DynamicFoodSearchEngine.search({
+      query: searchQuery,
+      selectedLocation,
+      selectedCuisine,
+      vegOnly,
+      language
+    });
+
+    const enrichDistance = (items: FoodItem[]) => {
+      return items.map(item => {
+        const dist = calculateHaversineDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          item.restaurantLat || 13.0827,
+          item.restaurantLng || 80.2707
+        );
+        return { ...item, distanceKm: dist };
+      }).sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+    };
+
+    setSearchResult({
+      ...result,
+      matchedItems: enrichDistance(result.matchedItems),
+      suggestedItems: enrichDistance(result.suggestedItems)
+    });
+  }, [selectedLocation, selectedCuisine, vegOnly, userLocation]);
 
   const rechargeWallet = (amount: number) => {
     WalletService.recharge(amount, `Bank Auto-Debited (${linkedBank.bankName})`);
