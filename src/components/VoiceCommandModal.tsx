@@ -5,7 +5,7 @@ import { SpeechController } from '../services/speechController';
 import { SttMatcherService } from '../services/sttMatcherService';
 import { VoiceIntentRouter } from '../services/voiceIntentRouter';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
-import { Mic, MicOff, X, Command, CheckCircle2, XCircle, Volume2, Bug } from 'lucide-react';
+import { Mic, MicOff, X, Command, CheckCircle2, XCircle, Volume2, Bug, Sparkles } from 'lucide-react';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { DynamicFoodSearchEngine } from '../services/dynamicFoodSearch';
 import { parseSpokenTimeTo24Hr } from './VoiceOrderDialogModal';
@@ -13,9 +13,22 @@ import { calculateHaversineDistance } from '../services/locationService';
 import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
 import { NLPParserService } from '../services/nlpParserService';
 import { ItemActionChooser } from './ItemActionChooser';
+import { VoiceCommandParser } from '../services/voiceCommandParser';
 
 const voiceDebug = (message: string, details?: unknown) => {
   if ((import.meta as any).env?.DEV) console.info(message, details ?? '');
+};
+
+const POPULAR_ITEMS = INDIAN_FOOD_CATALOG.filter(i =>
+  i.name === 'Crispy Plain Dosa' ||
+  i.name === 'South Indian Idli' ||
+  i.name === 'Parotta with Salna' ||
+  i.name === 'Crispy Masala Dosa'
+).slice(0, 4);
+
+const sanitizeTranscriptForDisplay = (text: string) => {
+  if (!text) return '';
+  return text.replace(/\b\d{4}\b/g, '••••');
 };
 
 export const VoiceCommandModal: React.FC = () => {
@@ -40,12 +53,16 @@ export const VoiceCommandModal: React.FC = () => {
     skipScheduleByVoiceCommand,
     currentUser,
     userLocation,
+    openGuidedSearch,
     checkIsItemRestrictedByNominee,
     handleNomineeRestrictedInterception
   } = useApp();
 
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [showPopularSuggestions, setShowPopularSuggestions] = useState(false);
+  const [pendingScheduleFlow, setPendingScheduleFlow] = useState<{ item: FoodItem; recurrence?: string } | null>(null);
   const [pendingCommand, setPendingCommand] = useState('');
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [chooserItems, setChooserItems] = useState<FoodItem[] | null>(null);
@@ -56,6 +73,12 @@ export const VoiceCommandModal: React.FC = () => {
   const confirmRepromptCountRef = useRef(0);
   const pendingConfirmedFoodItemRef = useRef<FoodItem | null>(null);
   const restaurantHandledRef = useRef(false);
+  const retryCountRef = useRef(0);
+  const pendingScheduleFlowRef = useRef(pendingScheduleFlow);
+
+  useEffect(() => {
+    pendingScheduleFlowRef.current = pendingScheduleFlow;
+  }, [pendingScheduleFlow]);
 
   // Restaurant selection state
   const [restaurantStep, setRestaurantStep] = useState<{ item: FoodItem; restaurants: string[]; candidates: string[] } | null>(null);
@@ -91,6 +114,10 @@ export const VoiceCommandModal: React.FC = () => {
       SpeechController.cancelSpeech();
       setIsListening(false);
       setTranscript('');
+      setStatusMessage('');
+      setShowPopularSuggestions(false);
+      setPendingScheduleFlow(null);
+      retryCountRef.current = 0;
       setPendingCommand('');
       setAwaitingConfirmation(false);
       setRestaurantStep(null);
@@ -109,7 +136,7 @@ export const VoiceCommandModal: React.FC = () => {
   const startListeningSession = (opts?: { allowDuringTts?: boolean }) => {
     if (!SpeechController.isSupported()) {
       const message = t('voice.micUnavailableHint');
-      setTranscript(message);
+      setStatusMessage(message);
       setMicErrorHint(message);
       showToast(message);
       speakText(message, undefined, language);
@@ -143,7 +170,7 @@ export const VoiceCommandModal: React.FC = () => {
             : language === 'hi'
             ? 'कृपया भोजन का नाम बोलें। मैं एक बार फिर सुनूँगा।'
             : 'Please say a food name. I will listen once more.';
-          setTranscript(message);
+          setStatusMessage(message);
           speakText(message, () => startListeningSession(), language);
         } else {
           const message = language === 'ta'
@@ -151,7 +178,7 @@ export const VoiceCommandModal: React.FC = () => {
             : language === 'hi'
             ? 'सुनना रोक दिया गया है। Retry mic दबाएँ या खोज शुरू करें।'
             : 'Listening stopped. Tap Retry mic or search on screen.';
-          setTranscript(message);
+          setStatusMessage(message);
           showToast(message, 'info', 5000, undefined, undefined, undefined, true);
         }
       },
@@ -229,7 +256,7 @@ export const VoiceCommandModal: React.FC = () => {
               if (confirmRepromptCountRef.current === 0) {
                 confirmRepromptCountRef.current = 1;
                 const reprompt = t('voice.pleaseSayYesOrNo');
-                setTranscript(reprompt);
+                setStatusMessage(reprompt);
                 speakText(reprompt, () => startListeningSession({ allowDuringTts: true }), language);
                 return;
               }
@@ -245,6 +272,7 @@ export const VoiceCommandModal: React.FC = () => {
                 chosenIntent: 'pending-local-match',
                 source: 'Web Speech'
               });
+              setTranscript(text.trim());
               handleSpeechResult(text.trim(), candidates);
             }
           } else {
@@ -258,9 +286,9 @@ export const VoiceCommandModal: React.FC = () => {
         if (errorCode === 'not-allowed' || errorCode === 'not-supported') {
           const hint = t('voice.micUnavailableHint');
           setMicErrorHint(hint);
-          setTranscript(hint);
+          setStatusMessage(hint);
         } else {
-          setTranscript(errorMessage);
+          setStatusMessage(errorMessage);
           showToast(errorMessage);
         }
       },
@@ -287,67 +315,259 @@ export const VoiceCommandModal: React.FC = () => {
 
   const [variantSuggestions, setVariantSuggestions] = useState<{ prompt: string; items: FoodItem[] } | null>(null);
 
-  const handleSpeechResult = (spokenText: string, candidates: string[] = [spokenText]) => {
-    // Match spoken input using SttMatcherService
-    const matchRes = SttMatcherService.matchCatalogItem(candidates, INDIAN_FOOD_CATALOG, language);
-    voiceDebug('[Voice Turn Decision]', {
-      state: SpeechController.getState(),
-      step: 'item_search',
-      chosenIntent: matchRes.isMatched ? 'catalog_item' : matchRes.needsClarification ? 'clarify_item' : 'unknown',
-      confidence: matchRes.confidence,
-      alternatives: candidates,
-      source: 'local catalog matcher'
-    });
-
-    // Case 1: Generic query with multiple catalog variants ("order dosa" -> 4 variants)
-    if (matchRes.needsClarification && matchRes.top3Candidates && matchRes.top3Candidates.length > 1) {
-      const prompt = matchRes.clarificationPrompt || (language === 'ta' ? 'எந்த தோசை உங்களுக்கு வேண்டும்?' : language === 'hi' ? 'आपको कौन सा डोसा चाहिए?' : 'Which dosa would you like?');
-      setTranscript(spokenText);
-      setVariantSuggestions({ prompt, items: matchRes.top3Candidates });
-      setAwaitingConfirmation(false);
-      SpeechController.stopListening('VoiceCommandModal');
-      speakText(prompt, () => {
-        startListeningSession();
+  const executeVoiceSchedule = (item: FoodItem, timeStr: string, recurrence?: string) => {
+    if (NomineeNotificationService.hasRestrictedFetchError()) {
+      showToast(t('nominee.restrictedLoadError'), 'warning');
+      setIsVoiceModalOpen(false);
+      return;
+    }
+    if (checkIsItemRestrictedByNominee(item.id, item.name)) {
+      handleNomineeRestrictedInterception(item, 'scheduled', {
+        time: timeStr || '08:00',
+        duration: recurrence === 'once' ? 'today_only' : '1_month',
+        frequency: recurrence || 'daily'
       });
+      setIsVoiceModalOpen(false);
+      return;
+    }
+    if (checkDailyOrderLimitReached()) {
+      setIsVoiceModalOpen(false);
       return;
     }
 
-    // Case 2: Specific item matched or single-variant auto-selected
-    if (!matchRes.isMatched || !matchRes.matchedValue) {
-      const retryPrompt = language === 'ta'
-        ? 'உணவு தெளிவாகப் புரியவில்லை. பட்டியலில் உள்ள உணவுப் பெயரைச் சொல்லுங்கள் அல்லது தேடலைத் தொடவும்.'
+    const newSchedule: any = {
+      id: Date.now().toString(),
+      foodItemId: item.id,
+      foodItemName: item.name,
+      restaurant: item.restaurant || 'Saravana Bhavan',
+      slotName: 'custom',
+      time: timeStr || '08:00',
+      frequency: recurrence === 'daily' ? 'daily' : (recurrence === 'weekdays' ? 'weekdays' : (recurrence === 'weekends' ? 'weekends' : (recurrence === 'once' ? 'once' : 'daily'))),
+      duration: recurrence === 'once' ? 'today_only' : '1_month',
+      customDays: [],
+      enabled: true,
+      createdAt: new Date().toISOString()
+    };
+
+    saveSchedule(newSchedule);
+    setIsVoiceModalOpen(false);
+  };
+
+  const handleUnknownCommand = (spokenText: string) => {
+    retryCountRef.current += 1;
+    if (retryCountRef.current >= 2) {
+      setShowPopularSuggestions(true);
+      const deadEndPrompt = language === 'ta'
+        ? 'எந்த உணவு? தோசை, இட்லி, பரோட்டா என்று சொல்லுங்கள் அல்லது கீழே தொடவும்.'
         : language === 'hi'
-        ? 'खाने का नाम स्पष्ट नहीं है। कैटलॉग में दिया नाम बोलें या खोज शुरू करने के लिए टैप करें।'
-        : 'I could not match that to a menu item. Say a menu item name or tap to search.';
-      setTranscript(retryPrompt);
-      showToast(retryPrompt);
-      SpeechController.stopListening('VoiceCommandModal');
-      speakText(retryPrompt, startListeningSession, language);
+        ? 'कौन सा आइटम? डोसा, इडली, पराठा बोलें या नीचे टैप करें।'
+        : 'Which item? Say dosa, idli, or parotta, or tap below.';
+      setStatusMessage(deadEndPrompt);
+      speakText(deadEndPrompt, () => startListeningSession(), language);
+    } else {
+      const retryPrompt = language === 'ta'
+        ? 'உணவுப் பெயரைச் சொல்லுங்கள். மீண்டும் ஒருமுறை கேட்கிறேன்.'
+        : language === 'hi'
+        ? 'कृपया भोजन का नाम बोलें। मैं फिर से सुन रहा हूँ।'
+        : 'Which food item would you like? Please say the name again.';
+      setStatusMessage(retryPrompt);
+      speakText(retryPrompt, () => startListeningSession(), language);
+    }
+  };
+
+  const handleSpeechResult = async (spokenText: string, candidates: string[] = [spokenText]) => {
+    if (!spokenText || !spokenText.trim()) return;
+
+    // Check if we are waiting for schedule time
+    if (pendingScheduleFlowRef.current) {
+      const timeMatch = VoiceCommandParser.extractTime(spokenText, language) || parseSpokenTimeTo24Hr(spokenText);
+      if (timeMatch) {
+        const pending = pendingScheduleFlowRef.current;
+        pendingScheduleFlowRef.current = null;
+        setPendingScheduleFlow(null);
+        executeVoiceSchedule(pending.item, timeMatch.time24, pending.recurrence);
+        return;
+      }
+    }
+
+    // Step 0: Single-day schedule skip/cancel voice command
+    const isSkipHandled = await skipScheduleByVoiceCommand(spokenText);
+    if (isSkipHandled) {
+      voiceDebug(`[VoiceCommandModal]: Single-day schedule skip voice command processed for "${spokenText}"`);
+      setIsVoiceModalOpen(false);
       return;
     }
 
-    const matchedItem = matchRes.matchedValue;
-    const targetItemName = matchedItem.nativeNames?.[language] || matchedItem.name;
+    // Balance Reveal Intent
+    const rawLower = spokenText.toLowerCase().trim();
+    if (
+      rawLower.includes('check balance') ||
+      rawLower.includes('show balance') ||
+      rawLower.includes('view balance') ||
+      rawLower.includes('my balance') ||
+      rawLower.includes('wallet balance') ||
+      rawLower.includes('இருப்பு') ||
+      rawLower.includes('வாலட் இருப்பு') ||
+      rawLower.includes('बैलेंस')
+    ) {
+      setIsVoiceModalOpen(false);
+      requestWalletBalanceReveal();
+      return;
+    }
 
-    setVariantSuggestions(null);
-    setTranscript(targetItemName);
-    setPendingCommand(spokenText);
-    pendingAlternativesRef.current = candidates;
-    pendingConfirmedFoodItemRef.current = matchedItem;
-    confirmHandledRef.current = false;
-    confirmRepromptCountRef.current = 0;
-    setAwaitingConfirmation(true);
+    // Recharge Wallet Intent
+    if (rawLower.includes('recharge') || rawLower.includes('பணம்') || rawLower.includes('ரீசார்ஜ்') || rawLower.includes('रिचार्ज')) {
+      const match = rawLower.match(/\d+/);
+      const amount = match ? parseInt(match[0], 10) : 500;
+      rechargeWallet(amount);
+      setActiveView('wallet');
+      setIsVoiceModalOpen(false);
+      return;
+    }
 
-    const askPrompt = language === 'ta'
-      ? `"${targetItemName}" தொடரவா? "ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள்.`
-      : language === 'hi'
-      ? `क्या "${targetItemName}" जारी रखें? "हाँ" या "नहीं" बोलें।`
-      : `Proceed with "${targetItemName}"? Say Yes or No.`;
+    // Unified Voice Command Parser
+    const parsed = VoiceCommandParser.parse(spokenText, language);
+    voiceDebug('[VoiceCommandParser Result]', parsed);
 
-    // Start recognition IMMEDIATELY without waiting for TTS
-    startListeningSession({ allowDuringTts: true });
+    // Case 1: Item-only spoken ("parotta", "dosa", "பரோட்டா", "डोसा") -> prompt Order or Schedule
+    if (parsed.needsOrderOrScheduleClarification && parsed.matchedFoodItem) {
+      const targetItem = parsed.matchedFoodItem;
+      const targetName = targetItem.nativeNames?.[language] || targetItem.name;
+      const clarifyPrompt = language === 'ta'
+        ? `${targetName} - இப்போதே ஆர்டர் செய்யவா அல்லது திட்டமிடவா?`
+        : language === 'hi'
+        ? `${targetName} - अभी ऑर्डर करें या बाद के लिए शेड्यूल करें?`
+        : `${targetName} - Order now or schedule for later?`;
+      setStatusMessage(clarifyPrompt);
+      setChooserItems([targetItem]);
+      speakText(clarifyPrompt, () => startListeningSession({ allowDuringTts: true }), language);
+      return;
+    }
 
-    speakText(askPrompt, undefined, language);
+    // Case 2: Order Instant
+    if (parsed.action === 'order' && parsed.items.length > 0) {
+      let matchedItem = parsed.matchedFoodItem || DynamicFoodSearchEngine.findBestMatchingFoodItem(parsed.items[0].name);
+      if (!matchedItem) {
+        handleUnknownCommand(spokenText);
+        return;
+      }
+
+      // Check multiple restaurants if restaurant not specified
+      const matchingItems = INDIAN_FOOD_CATALOG.filter(i =>
+        i.id === matchedItem!.id ||
+        i.name.toLowerCase() === matchedItem!.name.toLowerCase() ||
+        (matchedItem!.tags && matchedItem!.tags[0] && i.tags && i.tags.includes(matchedItem!.tags[0]))
+      );
+
+      let chosenItem = matchedItem;
+      if (parsed.restaurant) {
+        const restLower = parsed.restaurant.toLowerCase();
+        const found = matchingItems.find(i => i.restaurant.toLowerCase().includes(restLower));
+        if (found) chosenItem = found;
+      } else {
+        const restaurantNames = [...new Set(matchingItems.map(i => i.restaurant))];
+        if (restaurantNames.length > 1) {
+          const rList = restaurantNames;
+          setRestaurantStep({ item: matchedItem, restaurants: rList, candidates });
+          restaurantHandledRef.current = false;
+          const top3Names = rList.slice(0, 3).join(', ');
+          const prompt = language === 'ta'
+            ? `எந்த உணவகம்? ${top3Names}`
+            : language === 'hi'
+            ? `कौन सा रेस्तरां? ${top3Names}`
+            : `Which restaurant? ${top3Names}`;
+          setStatusMessage(prompt);
+          speakText(prompt, undefined, language);
+          startListeningSession({ allowDuringTts: true });
+          return;
+        }
+      }
+
+      // Check nominee restriction
+      if (NomineeNotificationService.hasRestrictedFetchError()) {
+        showToast(t('nominee.restrictedLoadError'), 'warning');
+        setIsVoiceModalOpen(false);
+        return;
+      }
+      if (checkIsItemRestrictedByNominee(chosenItem.id, chosenItem.name)) {
+        handleNomineeRestrictedInterception(chosenItem, 'instant');
+        setIsVoiceModalOpen(false);
+        return;
+      }
+      if (checkDailyOrderLimitReached()) {
+        setIsVoiceModalOpen(false);
+        return;
+      }
+
+      placeInstantOrder(chosenItem);
+      setIsVoiceModalOpen(false);
+      return;
+    }
+
+    // Case 3: Schedule
+    if (parsed.action === 'schedule' && parsed.items.length > 0) {
+      let matchedItem = parsed.matchedFoodItem || DynamicFoodSearchEngine.findBestMatchingFoodItem(parsed.items[0].name);
+      if (!matchedItem) {
+        handleUnknownCommand(spokenText);
+        return;
+      }
+
+      let chosenItem = matchedItem;
+      if (parsed.restaurant) {
+        const restLower = parsed.restaurant.toLowerCase();
+        const matchingItems = INDIAN_FOOD_CATALOG.filter(i =>
+          i.id === matchedItem!.id ||
+          i.name.toLowerCase() === matchedItem!.name.toLowerCase() ||
+          (matchedItem!.tags && matchedItem!.tags[0] && i.tags && i.tags.includes(matchedItem!.tags[0]))
+        );
+        const found = matchingItems.find(i => i.restaurant.toLowerCase().includes(restLower));
+        if (found) chosenItem = found;
+      }
+
+      // Check nominee restriction early
+      if (NomineeNotificationService.hasRestrictedFetchError()) {
+        showToast(t('nominee.restrictedLoadError'), 'warning');
+        setIsVoiceModalOpen(false);
+        return;
+      }
+      if (checkIsItemRestrictedByNominee(chosenItem.id, chosenItem.name)) {
+        handleNomineeRestrictedInterception(chosenItem, 'scheduled', {
+          time: parsed.time || '08:00',
+          duration: parsed.recurrence === 'once' ? 'today_only' : '1_month',
+          frequency: parsed.recurrence || 'daily'
+        });
+        setIsVoiceModalOpen(false);
+        return;
+      }
+
+      // If time missing, ask "At what time?"
+      if (!parsed.time) {
+        const askTimePrompt = language === 'ta'
+          ? 'எந்த நேரத்தில் அட்டவணைப்படுத்த வேண்டும்?'
+          : language === 'hi'
+          ? 'किस समय शेड्यूल करना है?'
+          : 'At what time should I schedule the order?';
+        setStatusMessage(askTimePrompt);
+        setPendingScheduleFlow({ item: chosenItem, recurrence: parsed.recurrence });
+        speakText(askTimePrompt, () => startListeningSession({ allowDuringTts: true }), language);
+        return;
+      }
+
+      executeVoiceSchedule(chosenItem, parsed.time, parsed.recurrence);
+      return;
+    }
+
+    // Case 4: Search action
+    if (parsed.action === 'search' || (parsed.items.length > 0 && !parsed.matchedFoodItem)) {
+      const q = parsed.items[0]?.name || spokenText;
+      executeSearch(q, false);
+      setActiveView('search');
+      setIsVoiceModalOpen(false);
+      return;
+    }
+
+    // If still not matched, handle unknown
+    handleUnknownCommand(spokenText);
   };
 
   const handleYes = () => {
@@ -364,7 +584,7 @@ export const VoiceCommandModal: React.FC = () => {
     setAwaitingConfirmation(false);
 
     if (!item) {
-      processCommand(cmd, candidates);
+      processCommand(cmd);
       return;
     }
 
@@ -389,24 +609,22 @@ export const VoiceCommandModal: React.FC = () => {
     }).sort((a, b) => a.distanceKm - b.distanceKm);
 
     if (sorted.length === 1) {
-      // Single restaurant: confirm with one short yes/no
       const singleR = sorted[0].name;
       setSingleRestaurantPrompt({ item, restaurant: singleR, candidates });
       confirmHandledRef.current = false;
       const singlePrompt = t('voice.orderFromSingleRestaurant').replace('{restaurant}', singleR);
-      setTranscript(singlePrompt);
+      setStatusMessage(singlePrompt);
       speakText(singlePrompt, undefined, language);
       startListeningSession({ allowDuringTts: true });
       return;
     }
 
-    // Multiple restaurants: read up to 3 names
     const rList = sorted.map(r => r.name);
     setRestaurantStep({ item, restaurants: rList, candidates });
     restaurantHandledRef.current = false;
     const top3Names = rList.slice(0, 3).join(', ');
     const multiPrompt = t('voice.restaurantPromptSpoken').replace('{names}', top3Names);
-    setTranscript(multiPrompt);
+    setStatusMessage(multiPrompt);
     speakText(multiPrompt, undefined, language);
     startListeningSession({ allowDuringTts: true });
   };
@@ -422,12 +640,12 @@ export const VoiceCommandModal: React.FC = () => {
     setSingleRestaurantPrompt(null);
     setRestaurantStep(null);
     setPendingCommand('');
-    setTranscript('');
+    setStatusMessage('');
     pendingConfirmedFoodItemRef.current = null;
 
     const cancelMsg = t('voice.cancelledOkay');
     showToast(cancelMsg);
-    setTranscript(cancelMsg);
+    setStatusMessage(cancelMsg);
     speakText(cancelMsg, () => {
       startListeningSession();
     }, language);
@@ -442,9 +660,6 @@ export const VoiceCommandModal: React.FC = () => {
     SpeechController.cancelSpeech();
 
     const baseItem = restaurantStep?.item || singleRestaurantPrompt?.item || pendingConfirmedFoodItemRef.current;
-    const cmd = pendingCommandRef.current;
-    const candidates = restaurantStep?.candidates || singleRestaurantPrompt?.candidates || pendingAlternativesRef.current;
-
     setRestaurantStep(null);
     setSingleRestaurantPrompt(null);
     setAwaitingConfirmation(false);
@@ -461,118 +676,30 @@ export const VoiceCommandModal: React.FC = () => {
       chosenItem = specificItem || { ...baseItem, restaurant: restaurantName };
     }
 
-    processCommand(cmd || chosenItem?.name || '', candidates, chosenItem || undefined);
+    if (!chosenItem) return;
+
+    if (NomineeNotificationService.hasRestrictedFetchError()) {
+      showToast(t('nominee.restrictedLoadError'), 'warning');
+      setIsVoiceModalOpen(false);
+      return;
+    }
+    if (checkIsItemRestrictedByNominee(chosenItem.id, chosenItem.name)) {
+      handleNomineeRestrictedInterception(chosenItem, 'instant');
+      setIsVoiceModalOpen(false);
+      return;
+    }
+    if (checkDailyOrderLimitReached()) {
+      setIsVoiceModalOpen(false);
+      return;
+    }
+
+    placeInstantOrder(chosenItem);
+    setIsVoiceModalOpen(false);
   };
 
-  const processCommand = async (cmdText: string, alternatives: string[] = [cmdText], explicitItem?: FoodItem) => {
+  const processCommand = (cmdText: string) => {
     if (!cmdText || !cmdText.trim()) return;
-
-    const raw = cmdText.toLowerCase().trim();
-
-    // STEP -1: Check single-day schedule skip/cancel voice command
-    const isSkipHandled = await skipScheduleByVoiceCommand(cmdText);
-    if (isSkipHandled) {
-      voiceDebug(`[VoiceCommandModal]: Single-day schedule skip voice command processed for "${cmdText}"`);
-      setIsVoiceModalOpen(false);
-      return;
-    }
-
-    // STEP 0: Run NLP Algorithm parser
-    const isNlpHandled = await processNaturalLanguageVoiceCommand(cmdText, alternatives);
-    if (isNlpHandled) {
-      voiceDebug('[VoiceCommandModal]: Handled by NLP algorithm -> Voice command processed!');
-      setIsVoiceModalOpen(false);
-      return;
-    }
-
-    // Balance Reveal Intent
-    if (
-      raw.includes('check balance') ||
-      raw.includes('show balance') ||
-      raw.includes('view balance') ||
-      raw.includes('my balance') ||
-      raw.includes('wallet balance') ||
-      raw.includes('இருப்பு') ||
-      raw.includes('வாலட் இருப்பு') ||
-      raw.includes('बैलेंस')
-    ) {
-      setIsVoiceModalOpen(false);
-      requestWalletBalanceReveal();
-      return;
-    }
-
-    // Recharge Wallet Intent
-    if (raw.includes('recharge') || raw.includes('பணம்') || raw.includes('ரீசார்ஜ்') || raw.includes('रिचार्ज')) {
-      const match = raw.match(/\d+/);
-      const amount = match ? parseInt(match[0], 10) : 500;
-      rechargeWallet(amount);
-      setActiveView('wallet');
-      setIsVoiceModalOpen(false);
-      return;
-    }
-
-    // Food Item Matcher
-    const matchedItem = explicitItem || DynamicFoodSearchEngine.findBestMatchingFoodItem(cmdText);
-
-    // Multilingual Intent Detection
-    const isScheduleIntent = raw.includes('schedule') || raw.includes('அட்டவணை') || raw.includes('திட்டமிடு') || raw.includes('அட்டவணைப்படுத்து') || raw.includes('शेड्यूल');
-    const isOrderNowIntent = raw.includes('order') || raw.includes('now') || raw.includes('instant') || raw.includes('ஆர்டர்') || raw.includes('இப்போதே') || raw.includes('இப்போ') || raw.includes('ஆர்டர் பண்ணு') || raw.includes('ஆர்டர் செய்') || raw.includes('ऑर्डर') || raw.includes('अभी');
-
-    // RULE 1: SCHEDULE INTENT
-    if (isScheduleIntent && matchedItem) {
-      voiceDebug(`[VoiceCommandModal]: Schedule Intent Triggered for "${matchedItem.name}"`);
-      if (NomineeNotificationService.hasRestrictedFetchError()) {
-        showToast(t('nominee.restrictedLoadError'), 'warning');
-        setIsVoiceModalOpen(false);
-        return;
-      }
-      if (checkIsItemRestrictedByNominee(matchedItem.id, matchedItem.name)) {
-        handleNomineeRestrictedInterception(matchedItem, 'scheduled');
-        setIsVoiceModalOpen(false);
-        return;
-      }
-      if (checkDailyOrderLimitReached()) {
-        setIsVoiceModalOpen(false);
-        return;
-      }
-      setVoiceDialogItem(matchedItem);
-      setIsVoiceModalOpen(false);
-      return;
-    }
-
-    // RULE 2: ORDER INSTANT INTENT
-    if (isOrderNowIntent && matchedItem) {
-      voiceDebug(`[VoiceCommandModal]: Direct Instant Order Triggered for "${matchedItem.name}" (Spoken: "${cmdText}")`);
-      if (NomineeNotificationService.hasRestrictedFetchError()) {
-        showToast(t('nominee.restrictedLoadError'), 'warning');
-        setIsVoiceModalOpen(false);
-        return;
-      }
-      if (checkIsItemRestrictedByNominee(matchedItem.id, matchedItem.name)) {
-        handleNomineeRestrictedInterception(matchedItem, 'instant');
-        setIsVoiceModalOpen(false);
-        return;
-      }
-      if (checkDailyOrderLimitReached()) {
-        setIsVoiceModalOpen(false);
-        return;
-      }
-      placeInstantOrder(matchedItem);
-      setIsVoiceModalOpen(false);
-      return;
-    }
-
-    // RULE 3: ONLY ITEM NAME SPOKEN
-    if (matchedItem) {
-      voiceDebug(`[VoiceCommandModal]: Item matched ("${cmdText}") -> Opening ItemActionChooser for "${matchedItem.name}"`);
-      setChooserItems([matchedItem]);
-      return;
-    }
-
-    // Fallback if no specific food item matched
-    executeSearch(cmdText, false);
-    setActiveView('search');
-    setIsVoiceModalOpen(false);
+    handleSpeechResult(cmdText, [cmdText]);
   };
 
   if (!isVoiceModalOpen) return null;
@@ -650,28 +777,38 @@ export const VoiceCommandModal: React.FC = () => {
           {transcript ? (
             <div>
               <p className="text-xs uppercase font-black tracking-wider text-[#FF5A1F] mb-1">
-                {awaitingConfirmation
-                  ? 'Recognized Command — Awaiting Voice "Yes" or "No"'
-                  : restaurantStep
-                  ? 'Select Restaurant'
+                {restaurantStep
+                  ? (language === 'ta' ? 'உணவகத்தைத் தேர்ந்தெடுக்கவும்' : language === 'hi' ? 'रेस्तरां चुनें' : 'Select Restaurant')
                   : singleRestaurantPrompt
-                  ? 'Confirm Restaurant'
-                  : 'Recognized Speech'}
+                  ? (language === 'ta' ? 'உணவக உறுதிப்படுத்தல்' : language === 'hi' ? 'रेस्तरां पुष्टि' : 'Confirm Restaurant')
+                  : awaitingConfirmation
+                  ? 'Recognized Command — Awaiting Voice "Yes" or "No"'
+                  : (t('voice.recognizedSpeech') || 'Recognized Speech')}
               </p>
-              <p className="text-lg font-black leading-snug">"{transcript}"</p>
-              {awaitingConfirmation && (
-                <p className="text-xs font-bold text-[#4A5568] mt-1 flex items-center justify-center gap-1">
-                  <Volume2 className="w-3.5 h-3.5 text-[#FF5A1F] animate-pulse" />
-                  <span>
-                    {language === 'ta' ? 'தொடரவா? "ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள்' : language === 'hi' ? 'जारी रखें? "हाँ" या "नहीं" बोलें' : 'Proceed? Say "Yes" or "No" out loud'}
-                  </span>
+              <p className="text-lg font-black leading-snug">"{sanitizeTranscriptForDisplay(transcript)}"</p>
+              {statusMessage && (
+                <p className="text-xs font-bold text-[#FF5A1F] mt-2 flex items-center justify-center gap-1">
+                  <Volume2 className="w-3.5 h-3.5 animate-pulse" />
+                  <span>{statusMessage}</span>
                 </p>
               )}
             </div>
           ) : (
-            <p className="text-xs text-[#4A5568] italic font-bold">
-              Say "order dosa" or "schedule parotta at 8 AM". Say "Yes" or "No" to confirm hands-free!
-            </p>
+            <div>
+              <p className="text-xs text-[#4A5568] italic font-bold">
+                {language === 'ta'
+                  ? 'Say "தோசை ஆர்டர் பண்ணு" or "காலை 8 மணிக்கு பரோட்டா அட்டவணைப்படுத்து".'
+                  : language === 'hi'
+                  ? 'Say "दो डोसा ऑर्डर करो" or "सुबह 8 बजे पराठा शेड्यूल करो".'
+                  : 'Say "order dosa" or "schedule parotta at 8 AM".'}
+              </p>
+              {statusMessage && (
+                <p className="text-xs font-bold text-[#FF5A1F] mt-2 flex items-center justify-center gap-1">
+                  <Volume2 className="w-3.5 h-3.5 animate-pulse" />
+                  <span>{statusMessage}</span>
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -758,6 +895,37 @@ export const VoiceCommandModal: React.FC = () => {
           </div>
         )}
 
+        {/* Popular Items Fallback after retries */}
+        {showPopularSuggestions && (
+          <div className="mb-4 p-4 bg-[#FF5A1F]/10 rounded-2xl border border-[#FF5A1F]/30 space-y-2">
+            <p className="text-xs font-black text-[#FF5A1F] flex items-center gap-1">
+              <Sparkles className="w-4 h-4 animate-pulse" />
+              <span>
+                {language === 'ta'
+                  ? 'பிரபலமான உணவுகள் (தொட்டு தேர்ந்தெடுக்கலாம்):'
+                  : language === 'hi'
+                  ? 'लोकप्रिय आइटम (टैप करके चुनें):'
+                  : 'Popular Items (Tap to choose):'}
+              </span>
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {POPULAR_ITEMS.map(pItem => (
+                <button
+                  key={pItem.id}
+                  onClick={() => {
+                    setShowPopularSuggestions(false);
+                    handleSpeechResult(pItem.name);
+                  }}
+                  className="p-2.5 bg-white hover:bg-[#DAF0F7] text-[#1A1110] font-black rounded-xl text-xs border border-[#B2E2F0] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
+                >
+                  <span className="truncate">{pItem.nativeNames?.[language] || pItem.name}</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#FF5A1F] shrink-0" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Generic Category Variant Buttons */}
         {variantSuggestions && variantSuggestions.items.length > 0 && (
           <div className="mb-4 p-4 bg-[#FF5A1F]/10 rounded-2xl border border-[#FF5A1F]/30 space-y-2">
@@ -824,7 +992,7 @@ export const VoiceCommandModal: React.FC = () => {
               onClick={() => handleSpeechResult("order dosa")}
               className="text-left bg-[#16A34A]/10 hover:bg-[#16A34A]/20 text-[#16A34A] font-extrabold p-2.5 rounded-xl border border-[#16A34A]/30 cursor-pointer"
             >
-              ⚡ "order dosa" → (Transcribes "Order Dosa" & Asks Voice "Yes/No")
+              ⚡ "order dosa" → (Orders Dosa via Dynamic Search Pipeline)
             </button>
 
             <button
