@@ -51,6 +51,7 @@ export class OfflineSpeechEngine {
   private static isDownloading: boolean = false;
   private static lastOptions: OfflineSpeechOptions | null = null;
   private static recordingTimeoutTimer: any = null;
+  private static cachedModelVerified: boolean | null = null;
 
   /**
    * Check if the browser supports offline audio capture (MediaDevices + AudioContext)
@@ -63,12 +64,60 @@ export class OfflineSpeechEngine {
   }
 
   /**
-   * Get current model download and readiness status
+   * Asynchronously verify whether model files and weights actually exist in Cache API.
+   * Does NOT rely solely on localStorage.
+   */
+  public static async verifyCacheState(): Promise<OfflineModelStatus> {
+    if (this.pipelineInstance) {
+      this.cachedModelVerified = true;
+      return this.getModelStatus();
+    }
+
+    if (typeof window === 'undefined' || !('caches' in window)) {
+      return this.getModelStatus();
+    }
+
+    try {
+      const hasCache = await window.caches.has('transformers-cache');
+      if (!hasCache) {
+        this.cachedModelVerified = false;
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem(STORAGE_KEY_OFFLINE_READY);
+        }
+        return this.getModelStatus();
+      }
+
+      const cache = await window.caches.open('transformers-cache');
+      const requests = await cache.keys();
+      const urls = requests.map(r => r.url);
+
+      const hasModelConfig = urls.some(u => u.includes('whisper-tiny') && u.includes('config.json'));
+      const hasOnnxWeights = urls.some(u => u.includes('whisper-tiny') && (u.includes('.onnx') || u.includes('encoder') || u.includes('decoder')));
+
+      const isComplete = hasModelConfig && hasOnnxWeights;
+      this.cachedModelVerified = isComplete;
+
+      if (!isComplete && typeof localStorage !== 'undefined') {
+        localStorage.removeItem(STORAGE_KEY_OFFLINE_READY);
+      }
+    } catch (e) {
+      console.warn('[OfflineSpeechEngine]: Failed to verify Cache API:', e);
+    }
+
+    return this.getModelStatus();
+  }
+
+  /**
+   * Get current model download and readiness status.
+   * Verifies against live pipeline instance, cache verification, or local flag.
    */
   public static getModelStatus(): OfflineModelStatus {
-    const isDownloaded =
+    const storedFlag =
       typeof localStorage !== 'undefined' &&
       localStorage.getItem(STORAGE_KEY_OFFLINE_READY) === 'true';
+
+    const isDownloaded = this.pipelineInstance != null ||
+      (this.cachedModelVerified !== null ? this.cachedModelVerified : storedFlag);
 
     return {
       isDownloaded,
@@ -79,6 +128,61 @@ export class OfflineSpeechEngine {
 
   public static getStatus(): OfflineEngineStatus {
     return this.status;
+  }
+
+  /**
+   * Configure Transformers.js environment to run 100% locally with local WASM assets
+   * and persistent Cache API storage (zero CDN calls).
+   */
+  private static configureTransformersEnv(env: any): void {
+    env.allowLocalModels = false;
+    env.useBrowserCache = true;
+    env.useWasmCache = true;
+    env.cacheKey = 'transformers-cache';
+
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin;
+      const wasmPrefix = `${origin}/wasm/`;
+      const wasmSuffix = '.asyncify';
+
+      if (!env.backends) env.backends = {};
+      if (!env.backends.onnx) env.backends.onnx = {};
+      if (!env.backends.onnx.wasm) env.backends.onnx.wasm = {};
+
+      // Point ONNX Runtime WASM to locally hosted files in public/wasm
+      env.backends.onnx.wasm.wasmPaths = {
+        mjs: `${wasmPrefix}ort-wasm-simd-threaded${wasmSuffix}.mjs`,
+        wasm: `${wasmPrefix}ort-wasm-simd-threaded${wasmSuffix}.wasm`
+      };
+    }
+  }
+
+  /**
+   * Load or retrieve the Transformers.js pipeline instance bundled by Vite
+   */
+  private static async getPipeline(onProgress?: (progressPercent: number) => void): Promise<any> {
+    if (this.pipelineInstance) {
+      return this.pipelineInstance;
+    }
+
+    // Dynamic import of locally installed @huggingface/transformers (bundled by Vite into a local chunk)
+    const { pipeline, env } = await import('@huggingface/transformers');
+    this.configureTransformersEnv(env);
+
+    const progress_callback = onProgress ? (info: any) => {
+      if (info && typeof info.progress === 'number') {
+        onProgress(Math.round(info.progress * 100));
+      }
+    } : undefined;
+
+    this.pipelineInstance = await pipeline('automatic-speech-recognition', MODEL_ID, {
+      dtype: 'q8',
+      device: 'wasm',
+      progress_callback
+    });
+
+    this.cachedModelVerified = true;
+    return this.pipelineInstance;
   }
 
   /**
@@ -93,24 +197,8 @@ export class OfflineSpeechEngine {
     this.status = 'downloading';
 
     try {
-      // Dynamic import of Transformers.js to prevent bloating main bundle
-      const { pipeline, env } = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3');
-
-      // Configure caching and offline execution
-      env.allowLocalModels = false;
-      env.useBrowserCache = true;
-
       onProgress?.(10);
-
-      this.pipelineInstance = await pipeline('automatic-speech-recognition', MODEL_ID, {
-        dtype: 'q8',
-        device: 'wasm',
-        progress_callback: (info: any) => {
-          if (info && typeof info.progress === 'number') {
-            onProgress?.(Math.round(info.progress * 100));
-          }
-        }
-      });
+      await this.getPipeline(onProgress);
 
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(STORAGE_KEY_OFFLINE_READY, 'true');
@@ -259,18 +347,13 @@ export class OfflineSpeechEngine {
       const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
       const float32Pcm = this.extractMono16kHz(decodedBuffer);
       await audioCtx.close();
+      console.log('[STT Diagnostic] Audio recorded and converted to 16kHz PCM', { samples: float32Pcm.length, durationSec: (float32Pcm.length / 16000).toFixed(2) });
 
-      // Ensure model pipeline is initialized
+      // Ensure model pipeline is initialized via local Vite bundle
       if (!this.pipelineInstance) {
-        const { pipeline, env } = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3');
-        env.allowLocalModels = false;
-        env.useBrowserCache = true;
-
-        this.pipelineInstance = await pipeline('automatic-speech-recognition', MODEL_ID, {
-          dtype: 'q8',
-          device: 'wasm'
-        });
+        await this.getPipeline();
       }
+      console.log('[STT Diagnostic] Whisper model pipeline loaded');
 
       const langCode = String(options.language).startsWith('ta')
         ? 'tamil'
@@ -283,7 +366,9 @@ export class OfflineSpeechEngine {
         task: 'transcribe'
       });
 
-      const recognizedText = (output?.text || '').trim();
+      const rawText = Array.isArray(output) ? output[0]?.text : output?.text;
+      const recognizedText = (typeof rawText === 'string' ? rawText : '').trim();
+      console.log('[STT Diagnostic] Whisper inference completed', { transcript: recognizedText });
       this.status = 'ready';
       options.onStateChange?.('ready');
 
@@ -330,6 +415,7 @@ export class OfflineSpeechEngine {
     if (this.activeStream) {
       try {
         this.activeStream.getTracks().forEach(t => t.stop());
+        console.log('[STT Diagnostic] Microphone tracks released');
       } catch {
         // Ignore track stop error
       }

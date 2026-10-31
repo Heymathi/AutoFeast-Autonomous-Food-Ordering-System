@@ -725,7 +725,7 @@ export function buildScheduleDates(params: BuildScheduleDatesParams): string[] {
 
   let startISO = params.startDate;
   if (!startISO) {
-    if (params.time) {
+    if (params.time && typeof params.time === 'string' && params.time.includes(':')) {
       const [h, m] = params.time.split(':').map(Number);
       const targetTime = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), h, m, 0, 0);
       if (targetTime.getTime() > ref.getTime()) {

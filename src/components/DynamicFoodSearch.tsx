@@ -144,54 +144,63 @@ export const DynamicFoodSearch: React.FC = () => {
 
         if (!isFinal) return;
 
-        const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [transcribedText];
-        if (transcribedText.trim().split(/\s+/).length >= 3) {
-          const handledByNlp = await processNaturalLanguageVoiceCommand(transcribedText, candidates);
-          if (handledByNlp) return;
-        }
-        const familyIntent = detectFoodFamilyIntent(candidates);
-        if (familyIntent) {
-          console.log(`[Search Voice Family Match]: alternatives=${JSON.stringify(candidates)} transcript="${familyIntent.transcript}" normalized="${familyIntent.normalizedQuery}" score=${familyIntent.score} rule=${familyIntent.kind === 'family' ? 'generic-family-alias' : 'specific-variant-alias'} family="${familyIntent.family.key}" variant="${familyIntent.variantToken || ''}"`);
-          setSearchQuery(familyIntent.transcript);
-          setTopSuggestions(null);
-          setCategoryStatusText('');
-          executeSearch(familyIntent.transcript, false);
-          return;
-        }
-
-        const matchRes = SttMatcherService.matchCatalogItem(candidates, INDIAN_FOOD_CATALOG, language);
-
-        if (matchRes.isMatched && matchRes.matchedValue) {
-          const searchInput = matchRes.matchedValue.nativeNames?.[language] || matchRes.matchedValue.name;
-          setSearchQuery(searchInput);
-          setTopSuggestions(null);
-          executeSearch(searchInput, true);
-
-          const categoryResult = CategoryVoiceService.checkCategoryQuery(searchInput, language);
-          if (categoryResult.isCategoryQuery && categoryResult.varieties.length >= 2) {
-            setCategoryStatusText(`📢 Listing ${categoryResult.categoryName} Varieties...`);
-            speakText(categoryResult.spokenPromptText, () => {
-              setCategoryStatusText(`🎙️ Listening for variety selection...`);
-              startCategoryFollowUpListening(categoryResult.varieties);
-            });
+        setIsMicListening(false);
+        try {
+          const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [transcribedText];
+          if (transcribedText.trim().split(/\s+/).length >= 3) {
+            const handledByNlp = await processNaturalLanguageVoiceCommand(transcribedText, candidates);
+            if (handledByNlp) return;
           }
-        } else if (matchRes.needsClarification && matchRes.top3Candidates && matchRes.top3Candidates.length > 0) {
-          executeSearch(transcribedText, true);
-          setTopSuggestions({ items: matchRes.top3Candidates, prompt: matchRes.clarificationPrompt });
-          if (matchRes.clarificationPrompt) {
-            speakText(matchRes.clarificationPrompt);
+          const familyIntent = detectFoodFamilyIntent(candidates);
+          if (familyIntent) {
+            console.log(`[Search Voice Family Match]: alternatives=${JSON.stringify(candidates)} transcript="${familyIntent.transcript}" normalized="${familyIntent.normalizedQuery}" score=${familyIntent.score} rule=${familyIntent.kind === 'family' ? 'generic-family-alias' : 'specific-variant-alias'} family="${familyIntent.family.key}" variant="${familyIntent.variantToken || ''}"`);
+            console.log('[STT Diagnostic] Transcript sent to local food search', { query: familyIntent.transcript });
+            setSearchQuery(familyIntent.transcript);
+            setTopSuggestions(null);
+            setCategoryStatusText('');
+            executeSearch(familyIntent.transcript, false);
+            return;
           }
-        } else {
-          executeSearch(transcribedText, true);
-          if (matchRes.top3Candidates && matchRes.top3Candidates.length > 0) {
-            const notFoundPrompt = language === 'ta'
-              ? 'தெளிவாகப் புரியவில்லை. இந்த பிரபலமான உணவுகளில் ஒன்றா?'
-              : language === 'hi'
-              ? 'स्पष्ट नहीं हुआ। क्या आप इनमें से कुछ चाहते हैं?'
-              : "Didn't catch that clearly. Did you mean one of these popular dishes?";
-            setTopSuggestions({ items: matchRes.top3Candidates, prompt: notFoundPrompt });
-            speakText(notFoundPrompt);
+
+          const matchRes = SttMatcherService.matchCatalogItem(candidates, INDIAN_FOOD_CATALOG, language);
+
+          if (matchRes.isMatched && matchRes.matchedValue) {
+            const searchInput = matchRes.matchedValue.nativeNames?.[language] || matchRes.matchedValue.name;
+            console.log('[STT Diagnostic] Transcript sent to local food search', { query: searchInput });
+            setSearchQuery(searchInput);
+            setTopSuggestions(null);
+            executeSearch(searchInput, true);
+
+            const categoryResult = CategoryVoiceService.checkCategoryQuery(searchInput, language);
+            if (categoryResult.isCategoryQuery && categoryResult.varieties.length >= 2) {
+              setCategoryStatusText(`📢 Listing ${categoryResult.categoryName} Varieties...`);
+              speakText(categoryResult.spokenPromptText, () => {
+                setCategoryStatusText(`🎙️ Listening for variety selection...`);
+                startCategoryFollowUpListening(categoryResult.varieties);
+              });
+            }
+          } else if (matchRes.needsClarification && matchRes.top3Candidates && matchRes.top3Candidates.length > 0) {
+            console.log('[STT Diagnostic] Transcript sent to local food search', { query: transcribedText });
+            executeSearch(transcribedText, true);
+            setTopSuggestions({ items: matchRes.top3Candidates, prompt: matchRes.clarificationPrompt });
+            if (matchRes.clarificationPrompt) {
+              speakText(matchRes.clarificationPrompt);
+            }
+          } else {
+            console.log('[STT Diagnostic] Transcript sent to local food search', { query: transcribedText });
+            executeSearch(transcribedText, true);
+            if (matchRes.top3Candidates && matchRes.top3Candidates.length > 0) {
+              const notFoundPrompt = language === 'ta'
+                ? 'தெளிவாகப் புரியவில்லை. இந்த பிரபலமான உணவுகளில் ஒன்றா?'
+                : language === 'hi'
+                ? 'स्पष्ट नहीं हुआ। क्या आप इनमें से कुछ चाहते हैं?'
+                : "Didn't catch that clearly. Did you mean one of these popular dishes?";
+              setTopSuggestions({ items: matchRes.top3Candidates, prompt: notFoundPrompt });
+              speakText(notFoundPrompt);
+            }
           }
+        } finally {
+          setIsMicListening(false);
         }
       },
       onError: (errCode, errMsg) => {

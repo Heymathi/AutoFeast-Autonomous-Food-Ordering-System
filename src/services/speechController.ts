@@ -898,6 +898,7 @@ class SpeechControllerManager {
     const sessionTurnId = this.currentTurnId;
     this.currentState = 'listening';
     this.setTurnState('LISTENING', opt.owner);
+    console.log('[STT Diagnostic] Web Speech started', { owner: opt.owner, language: targetLang, turnId: sessionTurnId });
 
     // Stop any existing Offline Whisper session before starting Web Speech
     OfflineSpeechEngine.stopRecording();
@@ -1004,6 +1005,7 @@ class SpeechControllerManager {
         // 4. Recoverable errors: 'network', 'service-not-allowed'
         // Attempt Offline Whisper if model is downloaded and available
         if (errString === 'network' || errString === 'service-not-allowed') {
+          console.warn('[STT Diagnostic] Web Speech network error', { error: errString, turnId: sessionTurnId });
           clearSilenceTimer();
           const modelStatus = OfflineSpeechEngine.getModelStatus();
           if (modelStatus.isDownloaded && !this.isOfflineFallbackInFlight) {
@@ -1021,7 +1023,7 @@ class SpeechControllerManager {
         this.notifyStateChange();
       },
       onEnd: () => {
-        if (sessionTurnId !== this.currentTurnId || this.isIntentionallyStopped) return;
+        if (sessionTurnId !== this.currentTurnId || this.isIntentionallyStopped || this.isOfflineFallbackInFlight) return;
         const shouldRestart = opt.continuous && !this.isRecognitionBlocked && this.turnState !== 'HANDLING' &&
           this.scheduleSttRestart('natural-end', 350);
         if (!shouldRestart) clearSilenceTimer();
@@ -1211,6 +1213,7 @@ class SpeechControllerManager {
       this.silenceTimer = null;
     }
     SpeechService.stopListening();
+    console.log('[STT Diagnostic] Web Speech stopped');
     OfflineSpeechEngine.stopRecording();
     this.activeSttEngine = 'none';
     if (isFullReset) {
@@ -1235,6 +1238,7 @@ class SpeechControllerManager {
   private async fallbackToOfflineWhisper(sessionTurnId: number, opt: SpeechControllerOptions): Promise<void> {
     if (this.isOfflineFallbackInFlight) return;
     this.isOfflineFallbackInFlight = true;
+    console.log('[STT Diagnostic] Whisper fallback started', { owner: opt.owner, language: opt.language, turnId: sessionTurnId });
 
     this.addDebugLog('STT_FALLBACK', `[Turn #${sessionTurnId}] Web Speech error; transitioning exclusively to Offline Whisper.`);
 
@@ -1291,12 +1295,19 @@ class SpeechControllerManager {
         if (sessionTurnId !== this.currentTurnId || this.isIntentionallyStopped) return;
         this.isOfflineFallbackInFlight = false;
         this.activeSttEngine = 'none';
-        this.currentState = isFinal ? 'processing' : 'listening';
+        this.currentState = isFinal ? 'idle' : 'listening';
         if (isFinal) {
-          this.setTurnState('HANDLING', opt.owner);
+          this.setTurnState('IDLE', `${opt.owner}_done`);
         }
-        opt.onResult(transcript, isFinal, alternatives);
-        this.notifyStateChange();
+        console.log('[STT Diagnostic] Final transcript received', { transcript, isFinal });
+        try {
+          opt.onResult(transcript, isFinal, alternatives);
+        } finally {
+          if (isFinal) {
+            opt.onEnd?.();
+          }
+          this.notifyStateChange();
+        }
       },
       onError: (errorCode, userMsg) => {
         if (sessionTurnId !== this.currentTurnId || this.isIntentionallyStopped) return;
@@ -1304,8 +1315,12 @@ class SpeechControllerManager {
         this.activeSttEngine = 'none';
         this.currentState = 'error';
         this.setTurnState('IDLE', `whisper-error:${errorCode}`);
-        opt.onError?.(errorCode, userMsg);
-        this.notifyStateChange();
+        try {
+          opt.onError?.(errorCode, userMsg);
+        } finally {
+          opt.onEnd?.();
+          this.notifyStateChange();
+        }
       }
     });
 

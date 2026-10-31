@@ -461,14 +461,18 @@ export class FuzzyMatchEngine {
 
     // 4. Past Time Check (If execution time is earlier than current time today)
     const now = new Date();
-    const [hVal, mVal] = result.time.split(':').map(Number);
-    if (hVal < now.getHours() || (hVal === now.getHours() && mVal <= now.getMinutes())) {
+    if (result.time && typeof result.time === 'string' && result.time.includes(':')) {
+      const [hVal, mVal] = result.time.split(':').map(Number);
+      if (!isNaN(hVal) && !isNaN(mVal)) {
+        if (hVal < now.getHours() || (hVal === now.getHours() && mVal <= now.getMinutes())) {
       result.isPastTime = true;
       result.pastTimeNotice = language === 'ta'
         ? `குறிப்பு: ${result.timeFormatted} கடந்த நேரம். ஆர்டர் அடுத்த வேலை நாளில் இயங்கும்.`
         : language === 'hi'
         ? `नोट: ${result.timeFormatted} बीत चुका है। ऑर्डर अगले दिन निष्पादित होगा।`
         : `Notice: ${result.timeFormatted} has already passed for today. Order will run on the next upcoming scheduled date.`;
+        }
+      }
     }
 
     return result;

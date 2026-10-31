@@ -4,9 +4,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SpeechController } from '../services/speechController';
 import { OfflineSpeechEngine } from '../services/offlineSpeechEngine';
+import { FuzzyMatchEngine } from '../services/fuzzyMatchService';
+import { AutoOrderBackgroundService } from '../services/autoOrderBackgroundService';
+import { LlmNluService } from '../services/llmNluService';
 
 if (typeof (globalThis as any).window === 'undefined') {
   (globalThis as any).window = globalThis;
+}
+
+if (typeof (globalThis as any).localStorage === 'undefined') {
+  const store = new Map<string, string>();
+  (globalThis as any).localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => store.set(k, String(v)),
+    removeItem: (k: string) => store.delete(k),
+    clear: () => store.clear(),
+    get length() { return store.size; },
+    key: (i: number) => Array.from(store.keys())[i] ?? null,
+  };
 }
 
 describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', () => {
@@ -346,5 +361,108 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     });
 
     expect(geminiOrNetworkCalls.length).toBe(0);
+  });
+
+  it('11. FuzzyMatchEngine.fuzzyParseTimeAndSchedule handles queries safely without throwing .split error', () => {
+    const res = FuzzyMatchEngine.fuzzyParseTimeAndSchedule('i want chicken biryani', 'en');
+    expect(res).toBeDefined();
+    expect(res.time).toBe('08:00');
+    expect(res.isPastTime).toBeDefined();
+
+    // Also test empty query
+    const emptyRes = FuzzyMatchEngine.fuzzyParseTimeAndSchedule('', 'en');
+    expect(emptyRes.time).toBe('08:00');
+  });
+
+  it('12. AutoOrderBackgroundService safely ignores schedules with missing or malformed time without throwing g.split error', () => {
+    // Save a schedule with undefined / invalid time
+    const invalidSchedule: any = {
+      id: 'test-sched-invalid',
+      slotName: 'Breakfast',
+      time: undefined, // Simulates corrupted or legacy schedule without time string
+      foodItemId: 'dosa-masala',
+      foodItemName: 'Crispy Masala Dosa',
+      restaurant: 'Murugan Idli Shop',
+      quantity: 1,
+      isEnabled: true,
+      strategy: 'best_value',
+      walletAutoDebit: true,
+      duration: '1_week',
+      startDate: '2026-10-31',
+      frequency: 'daily'
+    };
+
+    AutoOrderBackgroundService.saveSchedule(invalidSchedule);
+
+    // Trigger schedule check - must complete cleanly without throwing TypeError: g.split is not a function
+    expect(() => {
+      AutoOrderBackgroundService.checkSchedules();
+    }).not.toThrow();
+
+    // Cleanup
+    AutoOrderBackgroundService.deleteSchedule('test-sched-invalid');
+  });
+
+  it('13. LlmNluService does not invoke /api/voice/nlu when offline (navigator.onLine === false)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const originalOnLine = navigator.onLine;
+
+    try {
+      Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+
+      const nluRes = await LlmNluService.interpretVoiceTurn('dosa', { step: 'item_search' });
+      expect(nluRes).toBeNull();
+
+      // extractFoodItemWithLlmSync should return offline rule extraction without firing background fetch
+      const syncRes = LlmNluService.extractFoodItemWithLlmSync('dosa', 'en');
+      expect(syncRes).toBeDefined();
+      expect(syncRes.item).toBe('Dosa');
+
+      // Verify fetch was never called
+      const nluCalls = fetchSpy.mock.calls.filter((c: any) => String(c[0]).includes('/api/voice/nlu'));
+      expect(nluCalls.length).toBe(0);
+    } finally {
+      Object.defineProperty(navigator, 'onLine', { value: originalOnLine, configurable: true });
+    }
+  });
+
+  it('14. Whisper final result exits listening state and dispatches onEnd callback', async () => {
+    vi.spyOn(OfflineSpeechEngine, 'getModelStatus').mockReturnValue({
+      isDownloaded: true,
+      sizeMb: 39,
+      modelName: 'Whisper Multilingual Tiny'
+    });
+
+    let whisperCallback: any;
+    offlineStartSpy.mockImplementation(async (opts: any) => {
+      whisperCallback = opts;
+      return true;
+    });
+
+    const onResult = vi.fn();
+    const onEnd = vi.fn();
+
+    SpeechController.requestMic({
+      owner: 'food_search',
+      language: 'en',
+      onResult,
+      onEnd
+    });
+
+    const activeRec = mockInstances[0];
+    activeRec.onerror({ error: 'network' });
+
+    await new Promise((r) => setTimeout(r, 120));
+
+    expect(whisperCallback).toBeDefined();
+    expect(SpeechController.getActiveSttEngine()).toBe('whisper');
+
+    // Deliver final Whisper transcript
+    whisperCallback.onResult('masala dosa', true, ['masala dosa']);
+
+    expect(onResult).toHaveBeenCalledWith('masala dosa', true, ['masala dosa']);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(SpeechController.getState().voiceState).toBe('idle');
+    expect(SpeechController.getActiveSttEngine()).toBe('none');
   });
 });

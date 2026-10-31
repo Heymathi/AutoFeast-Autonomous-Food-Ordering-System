@@ -404,90 +404,101 @@ export class AutoOrderBackgroundService {
   }
 
   /**
+   * Check all active schedules against current clock time.
+   */
+  public static checkSchedules() {
+    const now = new Date();
+    const todayStr = getTodayFormattedDate();
+    const currentHoursMin = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const schedules = this.getSchedules();
+    schedules.forEach(schedule => {
+      if (!schedule.isEnabled) return;
+
+      // 1. Check Schedule Duration & Start/End Date Range
+      const startDate = schedule.startDate || todayStr;
+      if (todayStr < startDate) {
+        return; // Schedule start date is in the future
+      }
+
+      if (schedule.endDate && todayStr > schedule.endDate) {
+        return; // Schedule duration has ended
+      }
+
+      // 2. Check Recurrence Frequency
+      if (schedule.frequency === 'once' && todayStr !== startDate) {
+        return;
+      }
+
+      if (schedule.frequency === 'weekly' && schedule.selectedDays && schedule.selectedDays.length > 0) {
+        const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const currentDayName = dayNames[now.getDay()];
+        if (!schedule.selectedDays.map(d => d.toLowerCase()).includes(currentDayName)) {
+          return;
+        }
+      }
+
+      // 3. Check Per-Date Override or Excluded Dates for Today
+      if (schedule.excludedDates && schedule.excludedDates.includes(todayStr)) {
+        return; // Explicitly excluded for today
+      }
+      const override = this.getOverride(schedule.id, todayStr);
+      if (override && override.isSkipped) {
+        // Explicitly skipped by user for today
+        return;
+      }
+
+      // Effective trigger time for today (override time if set, else schedule default time)
+      const targetTime = (override && override.time) ? override.time : schedule.time;
+
+      if (!targetTime || typeof targetTime !== 'string' || !targetTime.includes(':')) {
+        return;
+      }
+
+      // 4. Check 5-Minute Pre-Order Voice Confirmation Trigger
+      const [targetH, targetM] = targetTime.split(':').map(n => parseInt(n, 10));
+      if (!isNaN(targetH) && !isNaN(targetM)) {
+        const targetTotalMinutes = targetH * 60 + targetM;
+        const diffMinutes = targetTotalMinutes - currentTotalMinutes;
+
+        const promptKey = `preorder_prompt_${schedule.id}_${todayStr}`;
+        if (diffMinutes === 5 && !this.promptedSchedulesToday.has(promptKey)) {
+          this.promptedSchedulesToday.add(promptKey);
+          console.log(`[AutoOrderBackgroundService]: Triggering 5-minute pre-order voice confirmation for schedule "${schedule.slotName}" (${schedule.foodItemName})`);
+          this.preOrderListeners.forEach(cb => cb(schedule));
+        }
+      }
+
+      if (targetTime === currentHoursMin) {
+        const lastRunDate = schedule.lastRun ? new Date(schedule.lastRun) : null;
+        const isSameMinute = lastRunDate && (now.getTime() - lastRunDate.getTime() < 60000);
+
+        if (!isSameMinute) {
+          // Check Daily Order Limit before executing scheduled order
+          if (this.isDailyLimitReachedToday()) {
+            console.warn(`[AutoOrderBackgroundService]: Daily order limit reached (6/6). Skipping auto-execution for schedule "${schedule.slotName}" until limit is renewed.`);
+            return;
+          }
+
+          try {
+            this.executeScheduleNow(schedule.id, todayStr);
+          } catch (err) {
+            console.error('Failed to auto-execute schedule:', err);
+          }
+        }
+      }
+    });
+  }
+
+  /**
    * Start background monitor service polling schedules across extended long-term durations.
    */
   public static startService() {
     if (this.timerId !== null) return;
 
     this.timerId = setInterval(() => {
-      const now = new Date();
-      const todayStr = getTodayFormattedDate();
-      const currentHoursMin = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
-
-      const schedules = this.getSchedules();
-      schedules.forEach(schedule => {
-        if (!schedule.isEnabled) return;
-
-        // 1. Check Schedule Duration & Start/End Date Range
-        const startDate = schedule.startDate || todayStr;
-        if (todayStr < startDate) {
-          return; // Schedule start date is in the future
-        }
-
-        if (schedule.endDate && todayStr > schedule.endDate) {
-          return; // Schedule duration has ended
-        }
-
-        // 2. Check Recurrence Frequency
-        if (schedule.frequency === 'once' && todayStr !== startDate) {
-          return;
-        }
-
-        if (schedule.frequency === 'weekly' && schedule.selectedDays && schedule.selectedDays.length > 0) {
-          const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-          const currentDayName = dayNames[now.getDay()];
-          if (!schedule.selectedDays.map(d => d.toLowerCase()).includes(currentDayName)) {
-            return;
-          }
-        }
-
-        // 3. Check Per-Date Override or Excluded Dates for Today
-        if (schedule.excludedDates && schedule.excludedDates.includes(todayStr)) {
-          return; // Explicitly excluded for today
-        }
-        const override = this.getOverride(schedule.id, todayStr);
-        if (override && override.isSkipped) {
-          // Explicitly skipped by user for today
-          return;
-        }
-
-        // Effective trigger time for today (override time if set, else schedule default time)
-        const targetTime = (override && override.time) ? override.time : schedule.time;
-
-        // 4. Check 5-Minute Pre-Order Voice Confirmation Trigger
-        const [targetH, targetM] = targetTime.split(':').map(n => parseInt(n, 10));
-        if (!isNaN(targetH) && !isNaN(targetM)) {
-          const targetTotalMinutes = targetH * 60 + targetM;
-          const diffMinutes = targetTotalMinutes - currentTotalMinutes;
-
-          const promptKey = `preorder_prompt_${schedule.id}_${todayStr}`;
-          if (diffMinutes === 5 && !this.promptedSchedulesToday.has(promptKey)) {
-            this.promptedSchedulesToday.add(promptKey);
-            console.log(`[AutoOrderBackgroundService]: Triggering 5-minute pre-order voice confirmation for schedule "${schedule.slotName}" (${schedule.foodItemName})`);
-            this.preOrderListeners.forEach(cb => cb(schedule));
-          }
-        }
-
-        if (targetTime === currentHoursMin) {
-          const lastRunDate = schedule.lastRun ? new Date(schedule.lastRun) : null;
-          const isSameMinute = lastRunDate && (now.getTime() - lastRunDate.getTime() < 60000);
-
-          if (!isSameMinute) {
-            // Check Daily Order Limit before executing scheduled order
-            if (this.isDailyLimitReachedToday()) {
-              console.warn(`[AutoOrderBackgroundService]: Daily order limit reached (6/6). Skipping auto-execution for schedule "${schedule.slotName}" until limit is renewed.`);
-              return;
-            }
-
-            try {
-              this.executeScheduleNow(schedule.id, todayStr);
-            } catch (err) {
-              console.error('Failed to auto-execute schedule:', err);
-            }
-          }
-        }
-      });
+      this.checkSchedules();
     }, 15000); // Check every 15 seconds
   }
 

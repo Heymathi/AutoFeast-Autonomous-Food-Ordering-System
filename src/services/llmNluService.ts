@@ -60,6 +60,11 @@ export class LlmNluService {
   ): Promise<VoiceNluResult | null> {
     const cleanTranscript = transcript.trim();
     if (!cleanTranscript) return null;
+
+    // Do NOT invoke network API if offline or during offline Whisper STT processing
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return null;
+    }
     const payload = {
       transcript: cleanTranscript,
       alternatives: (options.alternatives || []).slice(0, 5),
@@ -164,12 +169,14 @@ export class LlmNluService {
 
     const result = this.extractFoodItemOfflineFallback(cleanInput);
     if (!this.pendingExtractionRequests.has(cacheKey)) {
-      this.pendingExtractionRequests.add(cacheKey);
-      void this.extractFoodItemWithLlm(cleanInput, language)
-        .catch(error => {
-          console.error('[Voice NLU] Background extraction failed unexpectedly.', error);
-        })
-        .finally(() => this.pendingExtractionRequests.delete(cacheKey));
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        this.pendingExtractionRequests.add(cacheKey);
+        void this.extractFoodItemWithLlm(cleanInput, language)
+          .catch(error => {
+            console.error('[Voice NLU] Background extraction failed unexpectedly.', error);
+          })
+          .finally(() => this.pendingExtractionRequests.delete(cacheKey));
+      }
     }
 
     return result;

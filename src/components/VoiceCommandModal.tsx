@@ -86,6 +86,10 @@ export const VoiceCommandModal: React.FC = () => {
       if (current.isDownloaded) {
         setDownloadError(null);
       }
+      // Check actual Cache API files to verify status is accurate
+      OfflineSpeechEngine.verifyCacheState().then(verified => {
+        setOfflineStatus(verified);
+      }).catch(() => {});
     }
   }, [isVoiceModalOpen]);
 
