@@ -695,14 +695,14 @@ export const Navbar: React.FC = () => {
       ? 'bg-black text-white border-2 border-yellow-400'
       : currentTheme === 'dark'
       ? 'bg-zinc-800 text-zinc-100 border border-zinc-700 shadow-xs'
-      : 'bg-rose-50/40 text-zinc-900 border border-rose-100/70 shadow-xs';
+      : 'bg-[#EFF7F1] text-zinc-900 border border-[#E4EBE5] shadow-xs';
 
   const unselectedBtnClass =
     currentTheme === 'high-contrast'
       ? 'bg-black hover:bg-neutral-900 text-white border border-yellow-400'
       : currentTheme === 'dark'
       ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
-      : 'bg-transparent hover:bg-rose-100/60 text-zinc-700';
+      : 'bg-transparent hover:bg-[#DFF3E8]/60 text-zinc-700';
 
   return (
     <header

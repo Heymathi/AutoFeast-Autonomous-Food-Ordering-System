@@ -795,7 +795,7 @@ export const VoiceCommandModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl border-2 border-[#FFF5F6] relative text-[#1A1110]">
+      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl border-2 border-[#DFF3E8] relative text-[#242B27]">
         
         {/* Close Button & Debug Toggle (Dev Only) */}
         <div className="absolute top-4 right-4 flex items-center space-x-2">
@@ -803,7 +803,7 @@ export const VoiceCommandModal: React.FC = () => {
             <button
               onClick={() => setShowDebugPanel(!showDebugPanel)}
               className={`p-2 rounded-full cursor-pointer transition-colors ${
-                showDebugPanel ? 'bg-[#C82346] text-white' : 'bg-slate-100 hover:bg-slate-200 text-[#4A5568]'
+                showDebugPanel ? 'bg-[#087F5B] text-white' : 'bg-slate-100 hover:bg-slate-200 text-[#4A5568]'
               }`}
               title="Toggle SpeechController Debug Logs"
             >
@@ -823,11 +823,11 @@ export const VoiceCommandModal: React.FC = () => {
 
         {/* Modal Header */}
         <div className="flex items-center space-x-3 mb-4">
-          <div className="p-3 bg-[#C82346]/10 text-[#C82346] rounded-2xl">
+          <div className="p-3 bg-[#087F5B]/10 text-[#087F5B] rounded-2xl">
             <Mic className="w-6 h-6 animate-pulse" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-[#1A1110]">{t('voice.modalTitle')}</h2>
+            <h2 className="text-xl font-black text-[#242B27]">{t('voice.modalTitle')}</h2>
             <p className="text-xs text-[#4A5568] font-bold">
               {awaitingConfirmation
                 ? (language === 'ta' ? 'குரல் உறுதிப்படுத்தல்: "ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள்' : language === 'hi' ? 'आवाज़ पुष्टि: "हाँ" या "नहीं" बोलें' : 'Voice Confirmation Active: Say "Yes" or "No"')
@@ -846,13 +846,13 @@ export const VoiceCommandModal: React.FC = () => {
             onClick={toggleListening}
             className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95 cursor-pointer ${
               isListening
-                ? 'bg-[#C82346] text-white animate-ping'
-                : 'bg-[#C82346] hover:bg-[#B31D3D] text-white hover:scale-105'
+                ? 'bg-[#087F5B] text-white animate-ping'
+                : 'bg-[#087F5B] hover:bg-[#064E3B] text-white hover:scale-105'
             }`}
           >
             {isListening ? <Mic className="w-8 h-8 text-white" /> : <MicOff className="w-8 h-8 text-white" />}
           </button>
-          <span className="mt-2 text-xs font-extrabold text-[#1A1110]">
+          <span className="mt-2 text-xs font-extrabold text-[#242B27]">
             {isListening ? 'Mic Active - Listening...' : 'Tap Mic to Speak'}
           </span>
         </div>
@@ -860,12 +860,12 @@ export const VoiceCommandModal: React.FC = () => {
         {/* Transcript & Confirmation Display */}
         <div className={`p-4 rounded-2xl border min-h-[90px] mb-4 transition-all text-center flex flex-col items-center justify-center space-y-2 ${
           awaitingConfirmation || singleRestaurantPrompt || restaurantStep
-            ? 'bg-[#FFF5F6]/60 border-[#C82346] text-[#1A1110]'
-            : 'bg-[#FFF5F6]/30 border-[#FCE7EB] text-[#1A1110]'
+            ? 'bg-[#DFF3E8]/60 border-[#087F5B] text-[#242B27]'
+            : 'bg-[#DFF3E8]/30 border-[#E4EBE5] text-[#242B27]'
         }`}>
           {transcript ? (
             <div>
-              <p className="text-xs uppercase font-black tracking-wider text-[#C82346] mb-1">
+              <p className="text-xs uppercase font-black tracking-wider text-[#087F5B] mb-1">
                 {restaurantStep
                   ? (language === 'ta' ? 'உணவகத்தைத் தேர்ந்தெடுக்கவும்' : language === 'hi' ? 'रेस्तरां चुनें' : 'Select Restaurant')
                   : singleRestaurantPrompt
@@ -876,7 +876,7 @@ export const VoiceCommandModal: React.FC = () => {
               </p>
               <p className="text-lg font-black leading-snug">"{sanitizeTranscriptForDisplay(transcript)}"</p>
               {statusMessage && (
-                <p className="text-xs font-bold text-[#C82346] mt-2 flex items-center justify-center gap-1">
+                <p className="text-xs font-bold text-[#087F5B] mt-2 flex items-center justify-center gap-1">
                   <Volume2 className="w-3.5 h-3.5 animate-pulse" />
                   <span>{statusMessage}</span>
                 </p>
@@ -892,7 +892,7 @@ export const VoiceCommandModal: React.FC = () => {
                   : 'Say "order dosa" or "schedule parotta at 8 AM".'}
               </p>
               {statusMessage && (
-                <p className="text-xs font-bold text-[#C82346] mt-2 flex items-center justify-center gap-1">
+                <p className="text-xs font-bold text-[#087F5B] mt-2 flex items-center justify-center gap-1">
                   <Volume2 className="w-3.5 h-3.5 animate-pulse" />
                   <span>{statusMessage}</span>
                 </p>
@@ -903,7 +903,7 @@ export const VoiceCommandModal: React.FC = () => {
 
         {/* Mic unavailable hint if permission denied or unsupported */}
         {micErrorHint && (
-          <p className="text-[11px] text-[#C82346] font-bold text-center mb-3">
+          <p className="text-[11px] text-[#087F5B] font-bold text-center mb-3">
             {micErrorHint}
           </p>
         )}
@@ -913,9 +913,9 @@ export const VoiceCommandModal: React.FC = () => {
           <div className="grid grid-cols-2 gap-3 mb-4">
             <button
               onClick={handleNo}
-              className="py-3 px-4 bg-[#C82346]/10 hover:bg-[#C82346]/20 text-[#C82346] font-black rounded-2xl text-xs shadow-sm transition-all flex items-center justify-center space-x-1.5 cursor-pointer border border-[#C82346]/30"
+              className="py-3 px-4 bg-[#087F5B]/10 hover:bg-[#087F5B]/20 text-[#087F5B] font-black rounded-2xl text-xs shadow-sm transition-all flex items-center justify-center space-x-1.5 cursor-pointer border border-[#087F5B]/30"
             >
-              <XCircle className="w-4 h-4 text-[#C82346]" />
+              <XCircle className="w-4 h-4 text-[#087F5B]" />
               <span>
                 {language === 'ta' ? 'இல்லை (Cancel)' : language === 'hi' ? 'नहीं (Cancel)' : 'No, Cancel (Say "No")'}
               </span>
@@ -923,7 +923,7 @@ export const VoiceCommandModal: React.FC = () => {
 
             <button
               onClick={handleYes}
-              className="py-3 px-4 bg-[#C82346] hover:bg-[#B31D3D] text-white font-black rounded-2xl text-xs shadow-md shadow-[#C82346]/30 transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+              className="py-3 px-4 bg-[#087F5B] hover:bg-[#064E3B] text-white font-black rounded-2xl text-xs shadow-md shadow-[#087F5B]/30 transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4 text-white" />
               <span>
@@ -938,9 +938,9 @@ export const VoiceCommandModal: React.FC = () => {
           <div className="grid grid-cols-2 gap-3 mb-4">
             <button
               onClick={handleNo}
-              className="py-3 px-4 bg-[#C82346]/10 hover:bg-[#C82346]/20 text-[#C82346] font-black rounded-2xl text-xs shadow-sm transition-all flex items-center justify-center space-x-1.5 cursor-pointer border border-[#C82346]/30"
+              className="py-3 px-4 bg-[#087F5B]/10 hover:bg-[#087F5B]/20 text-[#087F5B] font-black rounded-2xl text-xs shadow-sm transition-all flex items-center justify-center space-x-1.5 cursor-pointer border border-[#087F5B]/30"
             >
-              <XCircle className="w-4 h-4 text-[#C82346]" />
+              <XCircle className="w-4 h-4 text-[#087F5B]" />
               <span>
                 {language === 'ta' ? 'இல்லை (Cancel)' : language === 'hi' ? 'नहीं (Cancel)' : 'No, Cancel'}
               </span>
@@ -948,7 +948,7 @@ export const VoiceCommandModal: React.FC = () => {
 
             <button
               onClick={() => handleRestaurantSelected(singleRestaurantPrompt.restaurant)}
-              className="py-3 px-4 bg-[#C82346] hover:bg-[#B31D3D] text-white font-black rounded-2xl text-xs shadow-md shadow-[#C82346]/30 transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+              className="py-3 px-4 bg-[#087F5B] hover:bg-[#064E3B] text-white font-black rounded-2xl text-xs shadow-md shadow-[#087F5B]/30 transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4 text-white" />
               <span>
@@ -960,8 +960,8 @@ export const VoiceCommandModal: React.FC = () => {
 
         {/* Multi-Restaurant List Selection Cards */}
         {restaurantStep && restaurantStep.restaurants.length > 0 && (
-          <div className="mb-4 p-4 bg-[#C82346]/10 rounded-2xl border border-[#C82346]/30 space-y-2">
-            <p className="text-xs font-black text-[#C82346] flex items-center gap-1">
+          <div className="mb-4 p-4 bg-[#087F5B]/10 rounded-2xl border border-[#087F5B]/30 space-y-2">
+            <p className="text-xs font-black text-[#087F5B] flex items-center gap-1">
               <Volume2 className="w-4 h-4 animate-pulse" /> {t('voice.restaurantsAvailable')}
             </p>
             <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
@@ -969,15 +969,15 @@ export const VoiceCommandModal: React.FC = () => {
                 <button
                   key={rName}
                   onClick={() => handleRestaurantSelected(rName)}
-                  className="p-3 bg-white hover:bg-[#FFF5F6] text-[#1A1110] font-black rounded-xl text-xs border border-[#FCE7EB] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
+                  className="p-3 bg-white hover:bg-[#DFF3E8] text-[#242B27] font-black rounded-xl text-xs border border-[#E4EBE5] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
                 >
                   <div className="flex items-center space-x-2">
-                    <span className="w-5 h-5 rounded-full bg-[#C82346] text-white text-[10px] flex items-center justify-center font-bold">
+                    <span className="w-5 h-5 rounded-full bg-[#087F5B] text-white text-[10px] flex items-center justify-center font-bold">
                       {idx + 1}
                     </span>
                     <span className="font-extrabold">{rName}</span>
                   </div>
-                  <CheckCircle2 className="w-4 h-4 text-[#C82346]" />
+                  <CheckCircle2 className="w-4 h-4 text-[#087F5B]" />
                 </button>
               ))}
             </div>
@@ -986,8 +986,8 @@ export const VoiceCommandModal: React.FC = () => {
 
         {/* Popular Items Fallback after retries */}
         {showPopularSuggestions && (
-          <div className="mb-4 p-4 bg-[#C82346]/10 rounded-2xl border border-[#C82346]/30 space-y-2">
-            <p className="text-xs font-black text-[#C82346] flex items-center gap-1">
+          <div className="mb-4 p-4 bg-[#087F5B]/10 rounded-2xl border border-[#087F5B]/30 space-y-2">
+            <p className="text-xs font-black text-[#087F5B] flex items-center gap-1">
               <Sparkles className="w-4 h-4 animate-pulse" />
               <span>
                 {language === 'ta'
@@ -1005,10 +1005,10 @@ export const VoiceCommandModal: React.FC = () => {
                     setShowPopularSuggestions(false);
                     handleSpeechResult(pItem.name);
                   }}
-                  className="p-2.5 bg-white hover:bg-[#FFF5F6] text-[#1A1110] font-black rounded-xl text-xs border border-[#FCE7EB] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
+                  className="p-2.5 bg-white hover:bg-[#DFF3E8] text-[#242B27] font-black rounded-xl text-xs border border-[#E4EBE5] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
                 >
                   <span className="truncate">{pItem.nativeNames?.[language] || pItem.name}</span>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#C82346] shrink-0" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#087F5B] shrink-0" />
                 </button>
               ))}
             </div>
@@ -1017,8 +1017,8 @@ export const VoiceCommandModal: React.FC = () => {
 
         {/* Generic Category Variant Buttons */}
         {variantSuggestions && variantSuggestions.items.length > 0 && (
-          <div className="mb-4 p-4 bg-[#C82346]/10 rounded-2xl border border-[#C82346]/30 space-y-2">
-            <p className="text-xs font-black text-[#C82346] flex items-center gap-1">
+          <div className="mb-4 p-4 bg-[#087F5B]/10 rounded-2xl border border-[#087F5B]/30 space-y-2">
+            <p className="text-xs font-black text-[#087F5B] flex items-center gap-1">
               <Volume2 className="w-4 h-4 animate-pulse" /> {variantSuggestions.prompt}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1029,13 +1029,13 @@ export const VoiceCommandModal: React.FC = () => {
                     setVariantSuggestions(null);
                     setChooserItems([vItem]);
                   }}
-                  className="p-3 bg-white hover:bg-[#FFF5F6] text-[#1A1110] font-black rounded-xl text-xs border border-[#FCE7EB] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
+                  className="p-3 bg-white hover:bg-[#DFF3E8] text-[#242B27] font-black rounded-xl text-xs border border-[#E4EBE5] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
                 >
                   <div>
                     <div className="font-extrabold">{vItem.nativeNames?.[language] || vItem.name}</div>
                     <div className="text-[10px] text-[#4A5568]">{vItem.restaurant} • ₹{vItem.basePrice}</div>
                   </div>
-                  <CheckCircle2 className="w-4 h-4 text-[#C82346]" />
+                  <CheckCircle2 className="w-4 h-4 text-[#087F5B]" />
                 </button>
               ))}
             </div>
@@ -1046,7 +1046,7 @@ export const VoiceCommandModal: React.FC = () => {
         {transcript && !awaitingConfirmation && !restaurantStep && !singleRestaurantPrompt && (
           <button
             onClick={() => processCommand(transcript)}
-            className="w-full bg-[#C82346] hover:bg-[#B31D3D] text-white font-black py-3 rounded-2xl mb-4 shadow-md transition-transform active:scale-98 cursor-pointer text-xs sm:text-sm"
+            className="w-full bg-[#087F5B] hover:bg-[#064E3B] text-white font-black py-3 rounded-2xl mb-4 shadow-md transition-transform active:scale-98 cursor-pointer text-xs sm:text-sm"
           >
             Process Voice Command Now 🚀
           </button>
@@ -1076,10 +1076,10 @@ export const VoiceCommandModal: React.FC = () => {
           {/* Header & Status Badge */}
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center space-x-2">
-              <div className="p-1.5 bg-[#C82346]/10 text-[#C82346] rounded-lg">
+              <div className="p-1.5 bg-[#087F5B]/10 text-[#087F5B] rounded-lg">
                 <HardDrive className="w-4 h-4" />
               </div>
-              <h4 className="text-xs sm:text-sm font-black text-[#1A1110]">
+              <h4 className="text-xs sm:text-sm font-black text-[#242B27]">
                 {language === 'ta'
                   ? 'ஆஃப்லைன் குரல் அமைப்பு'
                   : language === 'hi'
@@ -1126,7 +1126,7 @@ export const VoiceCommandModal: React.FC = () => {
             <div className="mb-3 space-y-1.5">
               <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                 <div
-                  className="bg-[#C82346] h-full transition-all duration-300 rounded-full"
+                  className="bg-[#087F5B] h-full transition-all duration-300 rounded-full"
                   style={{ width: `${Math.max(5, downloadProgress)}%` }}
                 />
               </div>
@@ -1174,7 +1174,7 @@ export const VoiceCommandModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleConfirmConsentDownload}
-                  className="flex-1 py-2 px-3 bg-[#C82346] hover:bg-[#B31D3D] text-white font-black text-xs rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-3 bg-[#087F5B] hover:bg-[#064E3B] text-white font-black text-xs rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>
@@ -1212,7 +1212,7 @@ export const VoiceCommandModal: React.FC = () => {
                   className={`w-full py-2.5 px-4 rounded-xl text-xs font-black shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     isDownloadingModel
                       ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                      : 'bg-[#C82346] hover:bg-[#B31D3D] text-white hover:shadow active:scale-98'
+                      : 'bg-[#087F5B] hover:bg-[#064E3B] text-white hover:shadow active:scale-98'
                   }`}
                 >
                   {isDownloadingModel ? (
@@ -1270,14 +1270,14 @@ export const VoiceCommandModal: React.FC = () => {
 
             <button
               onClick={() => handleSpeechResult("schedule parotta at 8 AM")}
-              className="text-left bg-[#FFF5F6] hover:bg-[#FCE7EB] text-[#1A1110] font-extrabold p-2.5 rounded-xl border border-[#FCE7EB] cursor-pointer"
+              className="text-left bg-[#DFF3E8] hover:bg-[#E4EBE5] text-[#242B27] font-extrabold p-2.5 rounded-xl border border-[#E4EBE5] cursor-pointer"
             >
               📅 "schedule parotta at 8 AM" → Direct Schedule for 8 AM
             </button>
 
             <button
               onClick={() => handleSpeechResult("parotta")}
-              className="text-left bg-[#C82346]/10 hover:bg-[#C82346]/20 text-[#C82346] font-extrabold p-2.5 rounded-xl border border-[#C82346]/30 cursor-pointer"
+              className="text-left bg-[#087F5B]/10 hover:bg-[#087F5B]/20 text-[#087F5B] font-extrabold p-2.5 rounded-xl border border-[#087F5B]/30 cursor-pointer"
             >
               ❓ "parotta" → (Item only spoken → Asks "Order Now or Schedule?")
             </button>

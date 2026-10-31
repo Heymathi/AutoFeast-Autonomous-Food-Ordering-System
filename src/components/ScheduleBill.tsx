@@ -98,13 +98,13 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
       : `${startDate} → ${endDate || 'Custom'}`;
 
   return (
-    <div className="space-y-4 text-xs text-[#1A1110]">
+    <div className="space-y-4 text-xs text-[#242B27]">
       
       {/* Bill Section Header */}
-      <div className="bg-[#FFF5F6]/50 p-3 rounded-2xl border border-[#FCE7EB] flex items-center justify-between">
+      <div className="bg-[#DFF3E8]/50 p-3 rounded-2xl border border-[#E4EBE5] flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <FileText className="w-4 h-4 text-[#C82346]" />
-          <span className="font-black text-[#1A1110] uppercase tracking-wider">
+          <FileText className="w-4 h-4 text-[#087F5B]" />
+          <span className="font-black text-[#242B27] uppercase tracking-wider">
             {language === 'ta'
               ? 'அட்டவணை பில் & GST விவரம்'
               : language === 'hi'
@@ -112,7 +112,7 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
               : 'Schedule Bill & GST Summary'}
           </span>
         </div>
-        <span className="text-[10px] font-black bg-[#C82346]/10 text-[#C82346] px-2.5 py-0.5 rounded-full border border-[#C82346]/20">
+        <span className="text-[10px] font-black bg-[#087F5B]/10 text-[#087F5B] px-2.5 py-0.5 rounded-full border border-[#087F5B]/20">
           {occurrences} {language === 'ta' ? 'டெலிவரிகள்' : language === 'hi' ? 'डिलीवरी' : 'Deliveries'}
         </span>
       </div>
@@ -120,9 +120,9 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
       {/* Restaurant-grouped Items Section */}
       <div className="space-y-3">
         {restaurantNames.map(restName => (
-          <div key={restName} className="bg-slate-50 p-3.5 rounded-2xl border border-[#FFF5F6] space-y-2">
-            <div className="flex items-center justify-between border-b border-[#FFF5F6] pb-1.5">
-              <span className="font-black text-[#C82346] uppercase text-xs">{restName}</span>
+          <div key={restName} className="bg-slate-50 p-3.5 rounded-2xl border border-[#DFF3E8] space-y-2">
+            <div className="flex items-center justify-between border-b border-[#DFF3E8] pb-1.5">
+              <span className="font-black text-[#087F5B] uppercase text-xs">{restName}</span>
               <span className="text-[10px] text-[#4A5568] font-bold">
                 {language === 'ta' ? 'டெலிவரி கட்டணம்:' : language === 'hi' ? 'डिलीवरी शुल्क:' : 'Delivery Fee:'} ₹{deliveryFeePerRestaurant}
               </span>
@@ -132,7 +132,7 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
               {restaurantGroups[restName].map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between font-bold">
                   <div className="flex items-center space-x-2 min-w-0">
-                    <span className="w-5 h-5 rounded-md bg-[#C82346] text-white font-black text-[10px] flex items-center justify-center shrink-0">
+                    <span className="w-5 h-5 rounded-md bg-[#087F5B] text-white font-black text-[10px] flex items-center justify-center shrink-0">
                       {item.quantity}x
                     </span>
                     <span className="truncate text-xs font-black">
@@ -150,7 +150,7 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
       </div>
 
       {/* Financial Breakdown Card */}
-      <div className="p-4 bg-[#FFF5F6]/40 rounded-2xl border border-[#FCE7EB] space-y-2 text-xs font-bold text-[#1A1110]">
+      <div className="p-4 bg-[#DFF3E8]/40 rounded-2xl border border-[#E4EBE5] space-y-2 text-xs font-bold text-[#242B27]">
         <div className="flex justify-between">
           <span className="text-[#4A5568]">
             {language === 'ta' ? 'பொருட்கள் தொகை:' : language === 'hi' ? 'सामग्री सब-टोटल:' : 'Items Subtotal:'}
@@ -182,11 +182,11 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
         </div>
 
         {/* Per-Order Total Row */}
-        <div className="flex justify-between border-t border-[#FCE7EB] pt-2 text-xs font-black text-[#1A1110]">
+        <div className="flex justify-between border-t border-[#E4EBE5] pt-2 text-xs font-black text-[#242B27]">
           <span>
             {language === 'ta' ? 'ஒரு ஆர்டரின் மொத்தம் (Per-Order Total):' : language === 'hi' ? 'प्रति ऑर्डर कुल (Per-Order Total):' : 'Per-Order Total:'}
           </span>
-          <span className="font-mono text-[#C82346]">₹{perOrderTotal.toFixed(2)}</span>
+          <span className="font-mono text-[#087F5B]">₹{perOrderTotal.toFixed(2)}</span>
         </div>
 
         {/* Occurrences & Duration Row */}
@@ -198,7 +198,7 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
         </div>
 
         {/* Grand Total Row */}
-        <div className="flex justify-between border-t-2 border-[#C82346] pt-2 text-base font-black text-[#C82346]">
+        <div className="flex justify-between border-t-2 border-[#087F5B] pt-2 text-base font-black text-[#087F5B]">
           <span>
             {language === 'ta' ? 'மொத்த தொகை (Grand Total):' : language === 'hi' ? 'कुल योग (Grand Total):' : 'Grand Total:'}
           </span>
@@ -215,12 +215,12 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
               <span className="text-[10px] font-black uppercase text-[#4A5568] block">
                 {language === 'ta' ? 'தினசரி ஆர்டர் வரம்பு பயன்பாடு' : language === 'hi' ? 'दैनिक सीमा उपयोग' : 'Daily Limit Impact'}
               </span>
-              <span className="text-xs font-black text-[#1A1110]">
+              <span className="text-xs font-black text-[#242B27]">
                 {dailyOrderCount}/6 {language === 'ta' ? 'ஆர்டர்கள் முடிந்தது' : language === 'hi' ? 'ऑर्डर प्रयुक्त' : 'orders used today'}
               </span>
             </div>
             <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
-              dailyOrderCount >= 6 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+              dailyOrderCount >= 6 ? 'bg-[#DFF3E8] text-rose-800' : 'bg-emerald-100 text-emerald-800'
             }`}>
               {dailyOrderCount >= 6 ? 'Limit Full' : 'OK'}
             </span>
@@ -232,14 +232,14 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
               <span className="text-[10px] font-black uppercase text-[#4A5568] block">
                 {language === 'ta' ? 'வால்லெட் இருப்பு' : language === 'hi' ? 'वॉलेट शेष' : 'Wallet Balance'}
               </span>
-              <span className="text-xs font-black font-mono text-[#1A1110]">₹{walletBalance.toFixed(2)}</span>
+              <span className="text-xs font-black font-mono text-[#242B27]">₹{walletBalance.toFixed(2)}</span>
             </div>
             {walletBalance >= perOrderTotal ? (
               <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
                 Sufficient
               </span>
             ) : (
-              <span className="text-[10px] font-black bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-black bg-[#DFF3E8] text-rose-800 px-2 py-0.5 rounded-full">
                 Low Balance
               </span>
             )}

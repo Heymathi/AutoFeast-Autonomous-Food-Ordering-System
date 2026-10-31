@@ -110,7 +110,7 @@ export const NomineeSetupScreen: React.FC<NomineeSetupScreenProps> = ({
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm flex items-center space-x-2">
+        <div className="mb-4 p-3 bg-[#EFF7F1]0/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm flex items-center space-x-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>

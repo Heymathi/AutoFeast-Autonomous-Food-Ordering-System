@@ -148,3 +148,4 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onCl
     </div>
   );
 };
+

@@ -269,9 +269,9 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
               type="button"
               role="menuitem"
               onClick={handleLogout}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-rose-50 text-rose-700 transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#EFF7F1] text-[#064E3B] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-rose-100 group-hover:bg-rose-200 text-rose-700 flex items-center justify-center mr-3 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#DFF3E8] group-hover:bg-[#DFF3E8] text-[#064E3B] flex items-center justify-center mr-3 shrink-0">
                 <LogOut className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
@@ -291,3 +291,4 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
     </div>
   );
 };
+

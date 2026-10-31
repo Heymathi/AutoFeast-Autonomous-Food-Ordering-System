@@ -523,23 +523,23 @@ export const LocationPermissionModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-lg bg-white text-[#1A1110] rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-[#C82346] text-center space-y-5">
+      <div className="w-full max-w-lg bg-white text-[#242B27] rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-[#087F5B] text-center space-y-5">
 
         {/* Header Icon */}
-        <div className="inline-flex p-4 bg-[#FFF5F6] rounded-full border-2 border-[#FCE7EB] text-[#C82346]">
-          <MapPin className="w-9 h-9 animate-bounce text-[#C82346]" />
+        <div className="inline-flex p-4 bg-[#DFF3E8] rounded-full border-2 border-[#E4EBE5] text-[#087F5B]">
+          <MapPin className="w-9 h-9 animate-bounce text-[#087F5B]" />
         </div>
 
         {/* Step Badge */}
         <div>
-          <span className="text-xs font-black uppercase tracking-widest text-[#C82346] bg-[#C82346]/10 px-3 py-1 rounded-full border border-[#C82346]/30">
+          <span className="text-xs font-black uppercase tracking-widest text-[#087F5B] bg-[#087F5B]/10 px-3 py-1 rounded-full border border-[#087F5B]/30">
             {language === 'ta' ? 'படி 4: இருப்பிட அனுமதி' : language === 'hi' ? 'चरण 4: स्थान अनुमति' : 'Step 4: Location Choice'}
           </span>
         </div>
 
         {/* Dynamic Header Question */}
         <div className="space-y-1">
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-[#1A1110]">
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-[#242B27]">
             {modalMode === 'confirming_place' && pendingCandidatePlace
               ? t('location.confirmLocation').replace('{place}', pendingCandidatePlace.addressName)
               : modalMode === 'asking_place'
@@ -575,7 +575,7 @@ export const LocationPermissionModal: React.FC = () => {
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
               </span>
             ) : (
-              <Mic className="w-4 h-4 text-[#C82346]" />
+              <Mic className="w-4 h-4 text-[#087F5B]" />
             )}
             <span>
               {isSpeakingPrompt
@@ -609,7 +609,7 @@ export const LocationPermissionModal: React.FC = () => {
             className={`px-3 py-1.5 rounded-xl font-bold text-[11px] shadow-xs cursor-pointer flex items-center space-x-1 transition-all ${
               isListening
                 ? 'bg-emerald-600 text-white animate-pulse cursor-not-allowed'
-                : 'bg-[#C82346] hover:bg-[#B31D3D] text-white'
+                : 'bg-[#087F5B] hover:bg-[#064E3B] text-white'
             }`}
           >
             <Mic className="w-3.5 h-3.5" />
@@ -736,7 +736,7 @@ export const LocationPermissionModal: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSearchingGeocode}
-                  className="px-4 py-2.5 bg-[#C82346] hover:bg-[#B31D3D] text-white font-black text-xs rounded-xl shadow cursor-pointer shrink-0"
+                  className="px-4 py-2.5 bg-[#087F5B] hover:bg-[#064E3B] text-white font-black text-xs rounded-xl shadow cursor-pointer shrink-0"
                 >
                   {isSearchingGeocode ? '...' : <ArrowRight className="w-4 h-4" />}
                 </button>

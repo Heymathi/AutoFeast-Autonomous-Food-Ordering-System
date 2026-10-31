@@ -296,7 +296,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
       <div className={`relative w-full max-w-lg rounded-3xl p-6 shadow-2xl border-4 transition-all ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-yellow-400'
-          : 'bg-white text-[#1A1110] border-[#C82346]'
+          : 'bg-white text-[#242B27] border-[#087F5B]'
       }`}>
         
         {/* Close button */}
@@ -309,13 +309,13 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
         </button>
 
         {/* Modal Header */}
-        <div className="space-y-2 pr-8 border-b border-[#FFF5F6] pb-4">
-          <span className="text-xs font-black uppercase text-[#C82346] bg-[#C82346]/10 px-3 py-1 rounded-full border border-[#C82346]/20">
+        <div className="space-y-2 pr-8 border-b border-[#DFF3E8] pb-4">
+          <span className="text-xs font-black uppercase text-[#087F5B] bg-[#087F5B]/10 px-3 py-1 rounded-full border border-[#087F5B]/20">
             {t('nav.title')} • Item Chooser
           </span>
 
-          <h3 className="text-xl sm:text-2xl font-black text-[#1A1110] flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-[#C82346]" />
+          <h3 className="text-xl sm:text-2xl font-black text-[#242B27] flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-[#087F5B]" />
             {items.length === 1 ? primaryItem.name : `${items.length} Items Selected`}
           </h3>
 
@@ -325,21 +325,21 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
         </div>
 
         {/* Spoken Prompt / Live Voice Indicator */}
-        <div className="my-4 p-3 bg-[#FFF5F6]/40 rounded-2xl border border-[#FCE7EB] space-y-1">
-          <div className="flex items-center justify-between text-xs font-black text-[#1A1110]">
-            <span className="flex items-center gap-1.5 text-[#C82346]">
+        <div className="my-4 p-3 bg-[#DFF3E8]/40 rounded-2xl border border-[#E4EBE5] space-y-1">
+          <div className="flex items-center justify-between text-xs font-black text-[#242B27]">
+            <span className="flex items-center gap-1.5 text-[#087F5B]">
               <Volume2 className="w-4 h-4 animate-pulse" />
               <span>Prompt:</span>
             </span>
             {isListening && (
-              <span className="bg-[#C82346] text-white px-2 py-0.5 rounded-md text-[10px] uppercase font-bold flex items-center gap-1">
+              <span className="bg-[#087F5B] text-white px-2 py-0.5 rounded-md text-[10px] uppercase font-bold flex items-center gap-1">
                 <Mic className="w-3 h-3 animate-ping" /> Listening...
               </span>
             )}
           </div>
-          <p className="text-xs font-bold text-[#1A1110]">{statusMessage || getPromptText()}</p>
+          <p className="text-xs font-bold text-[#242B27]">{statusMessage || getPromptText()}</p>
           {liveTranscript && (
-            <p className="text-xs font-extrabold text-[#C82346] italic">Heard: "{liveTranscript}"</p>
+            <p className="text-xs font-extrabold text-[#087F5B] italic">Heard: "{liveTranscript}"</p>
           )}
         </div>
 
@@ -348,8 +348,8 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
           <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-2xl border border-slate-200 mb-4">
             <img src={primaryItem.image} alt={primaryItem.name} className="w-16 h-16 rounded-xl object-cover" />
             <div>
-              <h4 className="text-sm font-black text-[#1A1110]">{primaryItem.name}</h4>
-              <p className="text-xs text-[#C82346] font-extrabold">{primaryItem.restaurant}</p>
+              <h4 className="text-sm font-black text-[#242B27]">{primaryItem.name}</h4>
+              <p className="text-xs text-[#087F5B] font-extrabold">{primaryItem.restaurant}</p>
               <span className="text-xs font-black text-[#16A34A]">₹{primaryItem.basePrice}</span>
             </div>
           </div>
@@ -389,7 +389,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
                   console.log('[ItemActionChooser]: "Order Now" button clicked for items:', items);
                   debouncedSelectAction('order_now');
                 }}
-                className="w-full min-h-[48px] bg-[#C82346] hover:bg-[#B31D3D] text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
+                className="w-full min-h-[48px] bg-[#087F5B] hover:bg-[#064E3B] text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
               >
                 <Zap className="w-5 h-5 text-white" />
                 <span>{t('orderNow')}</span>
@@ -402,9 +402,9 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
                   console.log('[ItemActionChooser]: "Schedule" button clicked for items:', items);
                   debouncedSelectAction('schedule');
                 }}
-                className="w-full min-h-[48px] bg-[#FFF5F6] hover:bg-[#FCE7EB] text-[#1A1110] font-black py-3.5 px-4 rounded-2xl border-2 border-[#FCE7EB] shadow-sm transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
+                className="w-full min-h-[48px] bg-[#DFF3E8] hover:bg-[#E4EBE5] text-[#242B27] font-black py-3.5 px-4 rounded-2xl border-2 border-[#E4EBE5] shadow-sm transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
               >
-                <Clock className="w-5 h-5 text-[#C82346]" />
+                <Clock className="w-5 h-5 text-[#087F5B]" />
                 <span>{t('scheduleCart')}</span>
               </button>
             </>

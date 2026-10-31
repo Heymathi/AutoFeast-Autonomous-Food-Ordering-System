@@ -449,7 +449,7 @@ export const DynamicFoodSearch: React.FC = () => {
             <span>{t('search.noResultsTitle')}</span>
           </div>
           <p className="text-xs sm:text-sm font-bold">{t('search.noResultsMessage')}</p>
-          <div className="p-3 bg-white rounded-xl border border-[#087F5B]/30 text-xs font-extrabold text-[#1A1110]">
+          <div className="p-3 bg-white rounded-xl border border-[#087F5B]/30 text-xs font-extrabold text-[#242B27]">
             <ShieldCheck className="w-4 h-4 inline mr-1 text-[#16A34A]" />
             {t('search.zeroFallbackNotice')}
           </div>

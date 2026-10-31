@@ -8,7 +8,7 @@ import { SttMatcherService } from '../services/sttMatcherService';
 import { VoiceIntentRouter } from '../services/voiceIntentRouter';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
 import { PlatformComparisonSection } from './PlatformComparisonSection';
-import { FileText, CheckCircle, XCircle, Mic, MapPin, Clock, X, Loader2 } from 'lucide-react';
+import { FileText, CheckCircle, XCircle, Mic, MapPin, Clock, X, Loader2, Printer } from 'lucide-react';
 
 interface PreOrderBillModalProps {
   bill: ParsedOrderBill | null;
@@ -248,32 +248,42 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
       <div className={`relative w-full max-w-lg max-h-[94vh] flex flex-col rounded-3xl p-4 sm:p-6 shadow-2xl transition-all border-4 overflow-hidden ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-yellow-400'
-          : 'bg-white text-[#1A1110] border-[#C82346]'
+          : 'bg-white text-[#242B27] border-[#087F5B]'
       }`}>
 
-        {/* Close Button */}
-        <button
-          onClick={() => {
-            SpeechController.cancelSpeech();
-    SpeechController.releaseMic('cart_checkout');
-            setIsListening(false);
-            onClose();
-          }}
-          className="absolute top-4 right-4 z-10 p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-red-100 hover:text-red-600 transition-all text-[#4A5568] cursor-pointer"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* Header (Fixed Top) Actions */}
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            title="Print / Save Invoice"
+            className="p-2 rounded-full bg-[#EFF7F1] hover:bg-[#DFF3E8] text-[#087F5B] transition-all cursor-pointer"
+          >
+            <Printer className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => {
+              SpeechController.cancelSpeech();
+              SpeechController.releaseMic('cart_checkout');
+              setIsListening(false);
+              onClose();
+            }}
+            className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-red-100 hover:text-red-600 transition-all text-[#707B73] cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
         {/* Header (Fixed Top) */}
-        <div className="flex items-center space-x-3 mb-3 pr-8 shrink-0">
-          <div className="p-2.5 bg-[#C82346]/10 rounded-2xl border border-[#C82346]/30 text-[#C82346] shrink-0">
-            <FileText className="w-6 h-6 text-[#C82346]" />
+        <div className="flex items-center space-x-3 mb-3 pr-20 shrink-0">
+          <div className="p-2.5 bg-[#087F5B]/10 rounded-2xl border border-[#087F5B]/30 text-[#087F5B] shrink-0">
+            <FileText className="w-6 h-6 text-[#087F5B]" />
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#C82346] bg-[#C82346]/10 px-2.5 py-0.5 rounded-full inline-block truncate max-w-full">
-              {language === 'ta' ? 'GST இன்வாய்ஸ் விவரம்' : language === 'hi' ? 'जीएसटी चालान विवरण' : 'Official GST Tax Invoice Preview'}
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#087F5B] bg-[#087F5B]/10 px-2.5 py-0.5 rounded-full inline-block truncate max-w-full">
+              {language === 'ta' ? 'GST இன்வாய்ஸ் விவரம்' : language === 'hi' ? 'जीएसटी चालान विवरण' : 'AutoFeast AI • Official GST Tax Invoice'}
             </span>
-            <h2 className="text-lg sm:text-xl font-black text-[#1A1110] dark:text-white mt-0.5 truncate">
+            <h2 className="text-lg sm:text-xl font-black text-[#242B27] dark:text-white mt-0.5 truncate">
               {bill.restaurantName}
             </h2>
           </div>
@@ -282,13 +292,25 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
         {/* Scrollable Content Body */}
         <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 my-1 text-xs">
           
+          {/* Customer & Restaurant Billed Info */}
+          <div className="p-2.5 bg-[#F8FAF8] rounded-xl border border-[#E4EBE5] flex items-center justify-between text-xs">
+            <div>
+              <span className="text-[10px] text-[#707B73] block font-medium">Billed To</span>
+              <span className="font-bold text-[#064E3B]">{currentUser?.name || 'Verified Customer'}</span>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-[#707B73] block font-medium">Provider</span>
+              <span className="font-bold text-[#242B27]">{bill.restaurantName}</span>
+            </div>
+          </div>
+
           {/* Delivery Address & ETA Badge */}
-          <div className="bg-[#FFF5F6]/40 dark:bg-slate-900/60 p-3 rounded-2xl border border-[#FCE7EB] dark:border-slate-800 flex items-center justify-between text-xs gap-2">
-            <div className="flex items-center space-x-2 text-[#4A5568] dark:text-slate-300 font-bold min-w-0 truncate">
-              <MapPin className="w-4 h-4 text-[#C82346] shrink-0" />
+          <div className="bg-[#DFF3E8]/40 dark:bg-slate-900/60 p-3 rounded-2xl border border-[#E4EBE5] dark:border-slate-800 flex items-center justify-between text-xs gap-2">
+            <div className="flex items-center space-x-2 text-[#707B73] dark:text-slate-300 font-bold min-w-0 truncate">
+              <MapPin className="w-4 h-4 text-[#087F5B] shrink-0" />
               <span className="truncate">{bill.deliveryAddress}</span>
             </div>
-            <div className="flex items-center space-x-1 shrink-0 text-[#16A34A] font-black bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200">
+            <div className="flex items-center space-x-1 shrink-0 text-[#16845B] font-black bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200">
               <Clock className="w-3.5 h-3.5" />
               <span>{bill.etaMinutes} mins</span>
             </div>
@@ -302,17 +324,17 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             {bill.items.map((item, idx) => (
               <div key={idx} className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
                 <div className="flex items-center space-x-2.5 min-w-0">
-                  <span className="w-6 h-6 rounded-lg bg-[#C82346] text-white font-black text-xs flex items-center justify-center shrink-0">
+                  <span className="w-6 h-6 rounded-lg bg-[#087F5B] text-white font-black text-xs flex items-center justify-center shrink-0">
                     {item.quantity}x
                   </span>
                   <div className="min-w-0">
-                    <h5 className="text-xs font-black text-[#1A1110] dark:text-white truncate">
+                    <h5 className="text-xs font-black text-[#242B27] dark:text-white truncate">
                       {item.foodItem.nativeNames?.[language] || item.foodItem.name}
                     </h5>
                     <span className="text-[10px] text-[#4A5568] dark:text-slate-400 font-bold block">₹{item.unitPrice} each</span>
                   </div>
                 </div>
-                <span className="text-xs font-black text-[#1A1110] dark:text-white shrink-0">₹{item.totalPrice}</span>
+                <span className="text-xs font-black text-[#242B27] dark:text-white shrink-0">₹{item.totalPrice}</span>
               </div>
             ))}
           </div>
@@ -342,8 +364,8 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
               <span>{language === 'ta' ? 'தள கட்டணம்' : language === 'hi' ? 'प्लेटफॉर्म शुल्क' : 'Platform Fee'}</span>
               <span>₹{bill.platformFee.toFixed(2)}</span>
             </div>
-            <div className="pt-2 border-t border-slate-300 dark:border-slate-700 flex items-center justify-between text-sm sm:text-base font-black text-[#1A1110] dark:text-white">
-              <span className="text-[#C82346]">{language === 'ta' ? 'மொத்தத் தொகை (GST உடன்):' : language === 'hi' ? 'कुल योग (GST सहित):' : 'Grand Total (with GST):'}</span>
+            <div className="pt-2 border-t border-slate-300 dark:border-slate-700 flex items-center justify-between text-sm sm:text-base font-black text-[#242B27] dark:text-white">
+              <span className="text-[#087F5B]">{language === 'ta' ? 'மொத்தத் தொகை (GST உடன்):' : language === 'hi' ? 'कुल योग (GST सहित):' : 'Grand Total (with GST):'}</span>
               <span className="text-[#16A34A] text-lg sm:text-xl font-mono">₹{bill.grandTotal}</span>
             </div>
           </div>
@@ -364,7 +386,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
           </div>
 
           {/* Prompt Question */}
-          <p className="text-center text-xs sm:text-sm font-black text-[#1A1110] dark:text-white">
+          <p className="text-center text-xs sm:text-sm font-black text-[#242B27] dark:text-white">
             {language === 'ta'
               ? 'இந்த ஆர்டரை பதிவு செய்ய விரும்புகிறீர்களா?'
               : language === 'hi'
@@ -394,8 +416,8 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             aria-busy={isChecking}
             className={`w-full sm:w-2/3 py-3 px-5 font-black rounded-2xl text-xs sm:text-sm shadow-lg transition-transform active:scale-95 flex items-center justify-center space-x-2 ${
               isChecking
-                ? 'bg-[#C82346]/60 text-white cursor-not-allowed'
-                : 'bg-[#C82346] hover:bg-[#B31D3D] text-white shadow-[#C82346]/30 cursor-pointer'
+                ? 'bg-[#087F5B]/60 text-white cursor-not-allowed'
+                : 'bg-[#087F5B] hover:bg-[#064E3B] text-white shadow-[#087F5B]/30 cursor-pointer'
             }`}
           >
             {isChecking ? (

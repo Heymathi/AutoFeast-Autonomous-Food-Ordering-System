@@ -390,10 +390,10 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
 
       {/* Title & Lock Icon */}
       <div className="text-center space-y-1">
-        <div className="inline-flex p-2.5 bg-[#C82346]/10 rounded-2xl border border-[#C82346]/30 text-[#C82346] shadow-sm">
+        <div className="inline-flex p-2.5 bg-[#087F5B]/10 rounded-2xl border border-[#087F5B]/30 text-[#087F5B] shadow-sm">
           <Lock className="w-6 h-6" />
         </div>
-        <h2 className="text-xl sm:text-2xl font-black text-[#1A1110]">
+        <h2 className="text-xl sm:text-2xl font-black text-[#242B27]">
           {title || t('pinEnter4') || 'Enter 4-Digit PIN'}
         </h2>
         {subtitle && (
@@ -414,7 +414,7 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
             data-testid={`pin-box-${idx}`}
             className={`w-12 h-14 sm:w-14 sm:h-16 rounded-2xl border-3 flex items-center justify-center text-2xl font-black transition-all shadow-inner ${
               digit
-                ? 'border-[#C82346] bg-[#C82346]/10 text-[#C82346] scale-105'
+                ? 'border-[#087F5B] bg-[#087F5B]/10 text-[#087F5B] scale-105'
                 : 'border-slate-200 bg-slate-50 text-slate-400'
             }`}
           >
@@ -441,14 +441,14 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
       )}
 
       {statusMessage && !errorMessage && (
-        <div className="p-2 bg-[#FFF5F6] border border-[#FCE7EB] rounded-xl text-[#0284C7] font-bold text-xs text-center flex items-center justify-center space-x-2 animate-fadeIn">
+        <div className="p-2 bg-[#DFF3E8] border border-[#E4EBE5] rounded-xl text-[#0284C7] font-bold text-xs text-center flex items-center justify-center space-x-2 animate-fadeIn">
           <Volume2 className="w-4 h-4 text-[#0284C7] shrink-0 animate-pulse" />
           <span>{statusMessage}</span>
         </div>
       )}
 
       {/* Prominent Voice Mic Banner */}
-      <div className="bg-slate-50 p-3.5 rounded-2xl border-2 border-[#C82346]/30 flex items-center justify-between gap-3 shadow-xs">
+      <div className="bg-slate-50 p-3.5 rounded-2xl border-2 border-[#087F5B]/30 flex items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center space-x-3">
           <button
             type="button"
@@ -460,7 +460,7 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
                 ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-300'
                 : micState === 'processing'
                 ? 'bg-amber-500 text-white animate-bounce'
-                : 'bg-[#C82346] text-white hover:bg-[#B31D3D]'
+                : 'bg-[#087F5B] text-white hover:bg-[#064E3B]'
             }`}
             title="Tap to speak PIN digits"
           >
@@ -474,7 +474,7 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
                 ? 'Processing PIN...'
                 : 'Speak PIN Digits'}
             </span>
-            <span className="text-[10px] font-bold text-[#C82346] block">
+            <span className="text-[10px] font-bold text-[#087F5B] block">
               💡 Say 4 digits in English, Tamil, or Hindi
             </span>
           </div>
@@ -488,7 +488,7 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
           className={`px-3 py-1.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
             micState === 'listening'
               ? 'bg-red-100 text-red-600 border border-red-300'
-              : 'bg-[#C82346]/10 text-[#C82346] hover:bg-[#C82346]/20'
+              : 'bg-[#087F5B]/10 text-[#087F5B] hover:bg-[#087F5B]/20'
           }`}
         >
           {micState === 'listening' ? 'Stop' : 'Speak PIN'}
@@ -509,7 +509,7 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
             data-testid={`keypad-digit-${num}`}
             onClick={() => handleDigitClick(num)}
             disabled={isInputBlocked}
-            className="py-2.5 sm:py-3 rounded-2xl bg-slate-100 hover:bg-[#C82346] hover:text-white text-[#1A1110] font-black text-lg sm:text-xl shadow-xs active:scale-95 transition-all border border-slate-200 cursor-pointer"
+            className="py-2.5 sm:py-3 rounded-2xl bg-slate-100 hover:bg-[#087F5B] hover:text-white text-[#242B27] font-black text-lg sm:text-xl shadow-xs active:scale-95 transition-all border border-slate-200 cursor-pointer"
           >
             {num}
           </button>
@@ -527,7 +527,7 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
           data-testid="keypad-digit-0"
           onClick={() => handleDigitClick(0)}
           disabled={isInputBlocked}
-          className="py-2.5 sm:py-3 rounded-2xl bg-slate-100 hover:bg-[#C82346] hover:text-white text-[#1A1110] font-black text-lg sm:text-xl shadow-xs active:scale-95 transition-all border border-slate-200 cursor-pointer"
+          className="py-2.5 sm:py-3 rounded-2xl bg-slate-100 hover:bg-[#087F5B] hover:text-white text-[#242B27] font-black text-lg sm:text-xl shadow-xs active:scale-95 transition-all border border-slate-200 cursor-pointer"
         >
           0
         </button>
