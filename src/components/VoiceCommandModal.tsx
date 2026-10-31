@@ -5,7 +5,8 @@ import { SpeechController } from '../services/speechController';
 import { SttMatcherService } from '../services/sttMatcherService';
 import { VoiceIntentRouter } from '../services/voiceIntentRouter';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
-import { Mic, MicOff, X, Command, CheckCircle2, XCircle, Volume2, Bug, Sparkles } from 'lucide-react';
+import { Mic, MicOff, X, Command, CheckCircle2, XCircle, Volume2, Bug, Sparkles, HardDrive, Download, AlertCircle, Loader2, WifiOff } from 'lucide-react';
+import { OfflineSpeechEngine, OfflineModelStatus } from '../services/offlineSpeechEngine';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { DynamicFoodSearchEngine } from '../services/dynamicFoodSearch';
 import { parseSpokenTimeTo24Hr } from './VoiceOrderDialogModal';
@@ -69,6 +70,76 @@ export const VoiceCommandModal: React.FC = () => {
   const [chooserItems, setChooserItems] = useState<FoodItem[] | null>(null);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
 
+  // Offline Voice Setup State
+  const [offlineStatus, setOfflineStatus] = useState<OfflineModelStatus>(() => OfflineSpeechEngine.getModelStatus());
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [isDownloadingModel, setIsDownloadingModel] = useState<boolean>(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloadSuccessMessage, setDownloadSuccessMessage] = useState<string | null>(null);
+  const [showConsentPrompt, setShowConsentPrompt] = useState<boolean>(false);
+
+  // Synchronize Offline Voice model status when modal opens
+  useEffect(() => {
+    if (isVoiceModalOpen) {
+      const current = OfflineSpeechEngine.getModelStatus();
+      setOfflineStatus(current);
+      if (current.isDownloaded) {
+        setDownloadError(null);
+      }
+    }
+  }, [isVoiceModalOpen]);
+
+  const handleInitiateDownload = () => {
+    if (isDownloadingModel || offlineStatus.isDownloaded) return;
+    setDownloadError(null);
+    setDownloadSuccessMessage(null);
+    setShowConsentPrompt(true);
+  };
+
+  const handleConfirmConsentDownload = async () => {
+    setShowConsentPrompt(false);
+    if (isDownloadingModel || offlineStatus.isDownloaded) return;
+
+    setIsDownloadingModel(true);
+    setDownloadProgress(5);
+    setDownloadError(null);
+    setDownloadSuccessMessage(null);
+
+    try {
+      const success = await OfflineSpeechEngine.downloadModelWithConsent((progress) => {
+        setDownloadProgress(progress);
+      });
+
+      if (success) {
+        const updatedStatus = OfflineSpeechEngine.getModelStatus();
+        setOfflineStatus(updatedStatus);
+        setDownloadSuccessMessage(
+          language === 'ta'
+            ? 'Whisper ஆஃப்லைன் குரல் மாதிரி வெற்றிகரமாக பதிவிறக்கப்பட்டு சேமிக்கப்பட்டது! இணையம் இல்லாமலும் குரல் தேடல் செயல்படும்.'
+            : language === 'hi'
+            ? 'Whisper ऑफ़लाइन वॉइस मॉडल सफलतापूर्वक डाउनलोड और कैश हो गया! अब बिना इंटरनेट के भी वॉइस सर्च काम करेगा।'
+            : 'Whisper offline voice model downloaded & cached successfully! Speech recognition is now ready for offline use.'
+        );
+      } else {
+        setDownloadError(
+          language === 'ta'
+            ? 'மாதிரி பதிவிறக்கம் தோல்வியடைந்தது. இணைய இணைப்பை சரிபார்த்து மீண்டும் முயற்சிக்கவும்.'
+            : language === 'hi'
+            ? 'मॉडल डाउनलोड विफल रहा। कृपया इंटरनेट कनेक्शन जांचें और पुनः प्रयास करें।'
+            : 'Model download failed. Please check your internet connection and retry.'
+        );
+      }
+    } catch (err: any) {
+      setDownloadError(err?.message || 'Download error. Please retry.');
+    } finally {
+      setIsDownloadingModel(false);
+    }
+  };
+
+  const handleCancelConsent = () => {
+    setShowConsentPrompt(false);
+  };
+
   // Guard refs to prevent double-firing
   const confirmHandledRef = useRef(false);
   const confirmRepromptCountRef = useRef(0);
@@ -125,6 +196,7 @@ export const VoiceCommandModal: React.FC = () => {
       setSingleRestaurantPrompt(null);
       confirmHandledRef.current = false;
       restaurantHandledRef.current = false;
+      setShowConsentPrompt(false);
     } else {
       startListeningSession();
     }
@@ -718,8 +790,8 @@ export const VoiceCommandModal: React.FC = () => {
   if (!isVoiceModalOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-[#DAF0F7] relative text-[#1A1110]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
+      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl border-2 border-[#DAF0F7] relative text-[#1A1110]">
         
         {/* Close Button & Debug Toggle (Dev Only) */}
         <div className="absolute top-4 right-4 flex items-center space-x-2">
@@ -994,6 +1066,190 @@ export const VoiceCommandModal: React.FC = () => {
             )}
           </div>
         )}
+
+        {/* Offline Voice Setup Section */}
+        <div className="my-4 p-4 bg-slate-50 border border-slate-200/90 rounded-2xl shadow-sm text-left">
+          {/* Header & Status Badge */}
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 bg-[#FF5A1F]/10 text-[#FF5A1F] rounded-lg">
+                <HardDrive className="w-4 h-4" />
+              </div>
+              <h4 className="text-xs sm:text-sm font-black text-[#1A1110]">
+                {language === 'ta'
+                  ? 'ஆஃப்லைன் குரல் அமைப்பு'
+                  : language === 'hi'
+                  ? 'ऑफ़लाइन वॉइस सेटअप'
+                  : 'Offline Voice Setup'}
+              </h4>
+            </div>
+
+            {/* Model Status Badge */}
+            {isDownloadingModel ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-blue-100 text-blue-700 animate-pulse">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Downloading {downloadProgress}%</span>
+              </span>
+            ) : offlineStatus.isDownloaded ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Downloaded / Ready</span>
+              </span>
+            ) : downloadError ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-red-100 text-red-700 border border-red-200">
+                <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                <span>Download Failed</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-slate-200/80 text-slate-700">
+                <WifiOff className="w-3 h-3 text-slate-500" />
+                <span>Not Downloaded</span>
+              </span>
+            )}
+          </div>
+
+          {/* Model Description & Details */}
+          <p className="text-[11px] text-[#4A5568] font-medium leading-relaxed mb-3">
+            {language === 'ta'
+              ? 'Whisper Multilingual Tiny (~39 MB) மாதிரியை உலாவியில் சேமித்து வைத்தால், இணைய இணைப்பு இல்லாதபோதும் தமிழ் மற்றும் ஆங்கில குரல் தேடல் சீராக இயங்கும்.'
+              : language === 'hi'
+              ? 'Whisper Multilingual Tiny (~39 MB) मॉडल को ब्राउज़र में सहेजें ताकि बिना इंटरनेट के भी तमिल और अंग्रेज़ी वॉइस सर्च काम करे।'
+              : 'Download the compact Whisper Multilingual Tiny model (~39 MB) into browser storage to enable voice search even without internet connectivity.'}
+          </p>
+
+          {/* Progress Bar (Visible while downloading) */}
+          {isDownloadingModel && (
+            <div className="mb-3 space-y-1.5">
+              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-[#FF5A1F] h-full transition-all duration-300 rounded-full"
+                  style={{ width: `${Math.max(5, downloadProgress)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] font-extrabold text-[#4A5568]">
+                <span>Downloading Whisper model...</span>
+                <span>{downloadProgress}%</span>
+              </div>
+            </div>
+          )}
+
+          {/* Success Message Banner */}
+          {downloadSuccessMessage && (
+            <div className="mb-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <span>{downloadSuccessMessage}</span>
+            </div>
+          )}
+
+          {/* Error Message Banner */}
+          {downloadError && (
+            <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs font-bold flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <span>{downloadError}</span>
+            </div>
+          )}
+
+          {/* User Consent Prompt */}
+          {showConsentPrompt ? (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+              <p className="text-xs font-bold text-amber-900">
+                {language === 'ta'
+                  ? 'ஆஃப்லைன் குரல் மாதிரி பதிவிறக்கம் (~39 MB):'
+                  : language === 'hi'
+                  ? 'ऑफ़लाइन वॉइस मॉडल डाउनलोड (~39 MB):'
+                  : 'Download Offline Whisper Model (~39 MB)?'}
+              </p>
+              <p className="text-[11px] text-amber-800 leading-normal">
+                {language === 'ta'
+                  ? 'இந்த மாதிரி உங்கள் சாதனத்தின் உலாவியில் ஒருமுறை மட்டுமே பதிவிறக்கப்பட்டு சேமிக்கப்படும். இணையம் இல்லாதபோதும் குரல் மூலம் உணவுகளைத் தேட இது உதவும். தொடரலாமா?'
+                  : language === 'hi'
+                  ? 'यह मॉडल आपके ब्राउज़र में एक बार डाउनलोड होकर सुरक्षित रहेगा जिससे बिना इंटरनेट के भी वॉइस सर्च चलेगा। क्या आप आगे बढ़ना चाहते हैं?'
+                  : 'This will download the Whisper Multilingual Tiny model (~39 MB) into your local browser cache so voice search works without internet. Would you like to proceed?'}
+              </p>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleConfirmConsentDownload}
+                  className="flex-1 py-2 px-3 bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black text-xs rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>
+                    {language === 'ta' ? 'ஆம், பதிவிறக்கு' : language === 'hi' ? 'हाँ, डाउनलोड करें' : 'Confirm & Download'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelConsent}
+                  className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-lg border border-slate-300 transition-colors cursor-pointer"
+                >
+                  {language === 'ta' ? 'ரத்து செய்' : language === 'hi' ? 'रद्द करें' : 'Cancel'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Action Button: Download or Ready Status */
+            <div>
+              {offlineStatus.isDownloaded ? (
+                <div className="w-full py-2.5 px-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-black flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>
+                    {language === 'ta'
+                      ? 'ஆஃப்லைன் குரல் தயார் (Whisper 39 MB சேமிக்கப்பட்டுள்ளது)'
+                      : language === 'hi'
+                      ? 'ऑफ़लाइन वॉइस तैयार (Whisper 39 MB सुरक्षित)'
+                      : 'Offline Voice Ready (Whisper 39 MB Cached)'}
+                  </span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleInitiateDownload}
+                  disabled={isDownloadingModel}
+                  className={`w-full py-2.5 px-4 rounded-xl text-xs font-black shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    isDownloadingModel
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                      : 'bg-[#FF5A1F] hover:bg-[#E04812] text-white hover:shadow active:scale-98'
+                  }`}
+                >
+                  {isDownloadingModel ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>
+                        {language === 'ta'
+                          ? `பதிவிறக்குகிறது (${downloadProgress}%)...`
+                          : language === 'hi'
+                          ? `डाउनलोड हो रहा है (${downloadProgress}%)...`
+                          : `Downloading (${downloadProgress}%)...`}
+                      </span>
+                    </>
+                  ) : downloadError ? (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>
+                        {language === 'ta'
+                          ? 'மீண்டும் பதிவிறக்க முயற்சிக்கவும் (~39 MB)'
+                          : language === 'hi'
+                          ? 'पुनः डाउनलोड का प्रयास करें (~39 MB)'
+                          : 'Retry Download Offline Voice Model (~39 MB)'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>
+                        {language === 'ta'
+                          ? 'ஆஃப்லைன் குரல் மாதிரியைப் பதிவிறக்கு (~39 MB)'
+                          : language === 'hi'
+                          ? 'ऑफ़लाइन वॉइस मॉडल डाउनलोड करें (~39 MB)'
+                          : 'Download Offline Voice Model (~39 MB)'}
+                      </span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Quick Sample Voice Command Presets */}
         <div>

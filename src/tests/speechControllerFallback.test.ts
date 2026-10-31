@@ -1,3 +1,5 @@
+
+
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SpeechController } from '../services/speechController';
@@ -54,7 +56,7 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     offlineStartSpy = vi.spyOn(OfflineSpeechEngine, 'startRecording').mockImplementation(async (opts) => {
       return true;
     });
-    offlineStopSpy = vi.spyOn(OfflineSpeechEngine, 'stopRecording').mockImplementation(() => {});
+    offlineStopSpy = vi.spyOn(OfflineSpeechEngine, 'stopRecording').mockImplementation(() => { });
   });
 
   afterEach(() => {
@@ -110,7 +112,7 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     SpeechController.requestMic({
       owner: 'food_search',
       language: 'en',
-      onResult: () => {},
+      onResult: () => { },
       onError
     });
 
@@ -135,7 +137,7 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     SpeechController.requestMic({
       owner: 'food_search',
       language: 'ta',
-      onResult: () => {},
+      onResult: () => { },
       onError
     });
 
@@ -155,7 +157,7 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     SpeechController.requestMic({
       owner: 'food_search',
       language: 'en',
-      onResult: () => {},
+      onResult: () => { },
       onError
     });
 
@@ -180,7 +182,7 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     SpeechController.requestMic({
       owner: 'food_search',
       language: 'en',
-      onResult: () => {},
+      onResult: () => { },
       onError
     });
 
@@ -206,7 +208,7 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     SpeechController.requestMic({
       owner: 'food_search',
       language: 'en',
-      onResult: () => {}
+      onResult: () => { }
     });
 
     engineTimeline.push(`init:${SpeechController.getActiveSttEngine()}`);
@@ -239,7 +241,7 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     SpeechController.requestMic({
       owner: 'food_search',
       language: 'en',
-      onResult: () => {}
+      onResult: () => { }
     });
 
     const activeRec = mockInstances[0];
@@ -265,7 +267,7 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     SpeechController.requestMic({
       owner: 'food_search',
       language: 'en',
-      onResult: () => {}
+      onResult: () => { }
     });
 
     const activeRec = mockInstances[0];
@@ -329,7 +331,7 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     SpeechController.requestMic({
       owner: 'food_search',
       language: 'ta',
-      onResult: () => {}
+      onResult: () => { }
     });
 
     const activeRec = mockInstances[0];
