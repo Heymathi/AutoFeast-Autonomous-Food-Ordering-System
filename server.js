@@ -263,7 +263,7 @@ function sanitizeMongoError(raw) {
         sanitized = sanitized.split(match[2]).join('***');
       }
     }
-  } catch {}
+  } catch { }
   return sanitized;
 }
 
@@ -673,7 +673,7 @@ app.post('/api/voice/nlu', async (req, res) => {
 
     if (isLocationStep) {
       const response = await voiceNluClient.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: `You are the NLU engine for AutoFeast food delivery app. Interpret this user voice turn during the delivery location choice/permission step.
 The user was asked: "Can we use your live location, or do you want to change the address?"
 Intents:
@@ -701,7 +701,7 @@ Context: ${JSON.stringify(context)}`,
     }
 
     const response = await voiceNluClient.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: `Interpret this voice turn only within the given step and expected options. Do not infer an unrelated action. Return JSON only with exactly these fields: {"intent":"order_now|schedule|yes|no|search|repeat|stop|cancel|back|unknown","item":string|null,"quantity":number|null,"time":string|null,"language":"en|ta|hi","confidence":number}. If unsure use intent "unknown", item null, quantity null, and low confidence. Context: ${JSON.stringify(context)}`,
       config: { responseMimeType: 'application/json', maxOutputTokens: 160 }
     });
@@ -737,7 +737,7 @@ app.post('/api/voice/health-nlu', async (req, res) => {
     voiceNluClient ||= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const catalog = INDIAN_FOOD_CATALOG.map(food => ({ id: food.id, name: food.name }));
     const response = await voiceNluClient.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: `Suggest 2 or 3 mild food options for this general dietary context. Do not diagnose or claim to treat disease. Select only catalog IDs. Return JSON only: {"healthContextSummary":string,"targetPerson":"self|appa|amma|thatha|paati|relative","suggestedItemIds":[{"itemId":string,"reasonEn":string,"reasonTa":string,"reasonHi":string}]}. Language: ${['en', 'ta', 'hi'].includes(language) ? language : 'en'}. Catalog: ${JSON.stringify(catalog)}. User: ${JSON.stringify(transcript.trim())}`,
       config: { responseMimeType: 'application/json', maxOutputTokens: 350 }
     });
@@ -745,11 +745,11 @@ app.post('/api/voice/health-nlu', async (req, res) => {
     const targetPeople = ['self', 'appa', 'amma', 'thatha', 'paati', 'relative'];
     const suggestions = Array.isArray(parsed?.suggestedItemIds)
       ? parsed.suggestedItemIds.filter(item => item && INDIAN_FOOD_CATALOG.some(food => food.id === item.itemId) &&
-          ['reasonEn', 'reasonTa', 'reasonHi'].every(key => typeof item[key] === 'string' && item[key].length <= 240))
+        ['reasonEn', 'reasonTa', 'reasonHi'].every(key => typeof item[key] === 'string' && item[key].length <= 240))
         .slice(0, 3)
       : [];
     if (suggestions.length < 2 || typeof parsed.healthContextSummary !== 'string' ||
-        !targetPeople.includes(parsed.targetPerson)) {
+      !targetPeople.includes(parsed.targetPerson)) {
       return res.status(502).json({ error: 'invalid_model_response' });
     }
     return res.json({
@@ -2392,7 +2392,7 @@ app.delete('/api/cart/clear', async (req, res) => {
 });
 
 // Forward declaration: assigned by registerNomineeApproval() at module bottom
-let dispatchApprovalEmail = async () => {};
+let dispatchApprovalEmail = async () => { };
 
 // 🚀 RESTRICTED ITEM APPROVAL REQUEST ENDPOINTS
 app.post('/api/nominee/approval-requests', async (req, res) => {
@@ -3745,8 +3745,8 @@ app.get('/api/yelp/search', async (req, res) => {
     }
 
     const params = new URLSearchParams({ term, limit });
-    if (location)  params.set('location',  location);
-    if (latitude)  params.set('latitude',  latitude);
+    if (location) params.set('location', location);
+    if (latitude) params.set('latitude', latitude);
     if (longitude) params.set('longitude', longitude);
     if (!location && (!latitude || !longitude)) {
       params.set('location', 'Chennai, India'); // default city
@@ -3811,10 +3811,10 @@ app.get('/api/prices/live', (req, res) => {
     const hour = now.getHours();
 
     const platforms = [
-      { id: 'swiggy',   name: 'Swiggy',   color: '#FC8019', baseDeliveryFee: 35, freeAbove: 299,  surgeHours: [12,13,19,20,21], avgRating: 4.1 },
-      { id: 'zomato',   name: 'Zomato',   color: '#E23744', baseDeliveryFee: 30, freeAbove: 349,  surgeHours: [13,14,20,21,22], avgRating: 4.2 },
-      { id: 'eatsure',  name: 'EatSure',  color: '#7C3AED', baseDeliveryFee: 25, freeAbove: 249,  surgeHours: [12,13,14],       avgRating: 4.3 },
-      { id: 'magicpin', name: 'Magicpin', color: '#F59E0B', baseDeliveryFee: 20, freeAbove: 199,  surgeHours: [18,19,20],       avgRating: 3.9 },
+      { id: 'swiggy', name: 'Swiggy', color: '#FC8019', baseDeliveryFee: 35, freeAbove: 299, surgeHours: [12, 13, 19, 20, 21], avgRating: 4.1 },
+      { id: 'zomato', name: 'Zomato', color: '#E23744', baseDeliveryFee: 30, freeAbove: 349, surgeHours: [13, 14, 20, 21, 22], avgRating: 4.2 },
+      { id: 'eatsure', name: 'EatSure', color: '#7C3AED', baseDeliveryFee: 25, freeAbove: 249, surgeHours: [12, 13, 14], avgRating: 4.3 },
+      { id: 'magicpin', name: 'Magicpin', color: '#F59E0B', baseDeliveryFee: 20, freeAbove: 199, surgeHours: [18, 19, 20], avgRating: 3.9 },
     ];
 
     function seededRand(seed, bucket) {
@@ -3827,11 +3827,11 @@ app.get('/api/prices/live', (req, res) => {
     }
 
     const results = platforms.map(p => {
-      const seed  = seededRand(`${itemId}-${p.id}`, timeBucket);
+      const seed = seededRand(`${itemId}-${p.id}`, timeBucket);
       const pSeed = seededRand(`${itemId}-${p.id}`, timeBucket - 1);
 
       const variation = 0.92 + seed * 0.16;
-      const rawPrice  = Math.round(base * variation);
+      const rawPrice = Math.round(base * variation);
 
       const surgeActive = p.surgeHours.includes(hour) && seed > 0.6;
       const surgeMultiplier = surgeActive ? 1.1 + seed * 0.25 : 1.0;
@@ -3849,9 +3849,9 @@ app.get('/api/prices/live', (req, res) => {
       const estimatedArrival = etaDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
       const badgePools = {
-        swiggy:   ['50% OFF up to ₹100', 'Free Delivery', '₹50 OFF on ₹299+'],
-        zomato:   ['60% OFF up to ₹120', 'Zomato Gold -20%', '₹75 OFF'],
-        eatsure:  ['₹30 OFF', 'Hygiene Certified + Free', '20% Cashback'],
+        swiggy: ['50% OFF up to ₹100', 'Free Delivery', '₹50 OFF on ₹299+'],
+        zomato: ['60% OFF up to ₹120', 'Zomato Gold -20%', '₹75 OFF'],
+        eatsure: ['₹30 OFF', 'Hygiene Certified + Free', '20% Cashback'],
         magicpin: ['Earn 5% Cashback', '₹25 Magicpin Cash', 'Flat ₹20 OFF'],
       };
       const badges = badgePools[p.id];
@@ -3860,9 +3860,9 @@ app.get('/api/prices/live', (req, res) => {
         : undefined;
 
       return {
-        platform:      p.id,
-        platformName:  p.name,
-        color:         p.color,
+        platform: p.id,
+        platformName: p.name,
+        color: p.color,
         price,
         originalPrice,
         rating,
@@ -3877,10 +3877,10 @@ app.get('/api/prices/live', (req, res) => {
     });
 
     return res.json({
-      success:     true,
+      success: true,
       itemId,
-      itemName:    itemName ?? 'Unknown Item',
-      platforms:   results,
+      itemName: itemName ?? 'Unknown Item',
+      platforms: results,
       refreshedAt: now.toISOString(),
       nextRefresh: new Date(now.getTime() + 30000).toISOString(),
     });
