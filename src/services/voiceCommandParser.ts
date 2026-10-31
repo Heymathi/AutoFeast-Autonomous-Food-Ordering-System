@@ -375,7 +375,7 @@ export class VoiceCommandParser {
   }
 
   private static hasExplicitActionKeyword(norm: string): boolean {
-    return /\b(order|schedule|now|later|tomorrow|daily|weekly|month|at|am|pm|maniku|baje|மணிக்கு|ஆர்டர்|திட்டமிடு|இப்போ|நாளைக்கு|शेड्यूल|अभी|कल)\b/i.test(norm);
+    return /(?:\b|(?:^|\s))(order|schedule|now|later|tomorrow|daily|weekly|month|at|am|pm|maniku|baje|மணிக்கு|ஆர்டர்|திட்டமிடு|இப்போ|நாளைக்கு|शेड्यूल|अभी|कल)(?:\b|(?:\s|$))/i.test(norm);
   }
 
   /**
@@ -563,7 +563,11 @@ export class VoiceCommandParser {
 
   private static isGenericBaseTerm(queryName: string, variants: FoodItem[]): boolean {
     const q = queryName.toLowerCase().trim();
-    const genericBases = ['dosa', 'dosai', 'idli', 'biryani', 'parotta', 'vada', 'pongal', 'தோசை', 'இட்லி', 'பிரியாணி', 'பரோட்டா', 'डोसा', 'इडली', 'बिरयानी', 'परोटा'];
+    const genericBases = [
+      'dosa', 'dosai', 'idli', 'biryani', 'parotta', 'vada', 'pongal', 'chapati', 'chappathi',
+      'தோசை', 'இட்லி', 'பிரியாணி', 'பரோட்டா', 'சப்பாத்தி',
+      'डोसा', 'इडली', 'बिरयानी', 'परोटा', 'चपाती'
+    ];
     if (genericBases.includes(q)) return true;
     // Check if query is just the base family word while variants have distinctive prefixes
     return variants.length > 1 && variants.every(v => v.name.toLowerCase() !== q);

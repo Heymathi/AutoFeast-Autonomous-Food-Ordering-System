@@ -167,7 +167,30 @@ export const INDIAN_FOOD_CATALOG = [] = [
     ]
   },
 
-  // PAROTTA & NON-VEG SPECIALS
+  // CHAPATI SPECIALS
+  {
+    id: 'chapati-kurma',
+    name: 'Soft Whole Wheat Chapati with Kurma',
+    nativeNames: { en: 'Soft Chapati with Kurma', ta: 'சப்பாத்தி குருமா', hi: 'चपाती और कुर्मा' },
+    cuisine: 'Tamil',
+    category: 'South Indian',
+    isVeg: true,
+    basePrice: 85,
+    description: 'Fresh whole wheat soft chapatis served with mildly spiced vegetable kurma and coconut chutney.',
+    image: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&q=80&w=600',
+    rating: 4.8,
+    tags: ['chapati', 'chappathi', 'chappathi kurma', 'chapathi', 'roti', 'சப்பாத்தி', 'சப்பாத்தி குருமா', 'சப்பாதி', 'चपाती', 'रोटी', 'healthy', 'whole wheat', 'breakfast', 'dinner'],
+    locations: ['Chennai', 'Salem', 'Madurai', 'Coimbatore', 'Bengaluru', 'All'],
+    restaurant: 'Saravana Bhavan',
+    restaurantLat: 13.0400,
+    restaurantLng: 80.2500,
+    platforms: [
+      { platform: 'swiggy', platformName: 'Swiggy', price: 85, originalPrice: 100, rating: 4.8, deliveryTime: 20, deliveryFee: 15, available: true },
+      { platform: 'zomato', platformName: 'Zomato', price: 80, originalPrice: 100, rating: 4.7, deliveryTime: 22, deliveryFee: 15, available: true },
+      { platform: 'magicpin', platformName: 'MagicPin', price: 75, originalPrice: 100, rating: 4.5, deliveryTime: 25, deliveryFee: 10, available: true },
+      { platform: 'eatsure', platformName: 'EatSure', price: 90, originalPrice: 105, rating: 4.8, deliveryTime: 20, deliveryFee: 0, available: true }
+    ]
+  },
   {
     id: 'parotta-kothu',
     name: 'Chicken Kothu Parotta',

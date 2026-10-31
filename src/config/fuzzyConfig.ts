@@ -29,6 +29,21 @@ export interface CanonicalItemAlias {
 
 export const CANONICAL_FOOD_ALIASES: CanonicalItemAlias[] = [
   {
+    id: 'chapati-kurma',
+    canonicalName: 'Soft Chapati with Kurma',
+    nativeNames: {
+      en: 'Soft Chapati with Kurma',
+      ta: 'சப்பாத்தி குருமா',
+      hi: 'चपाती और कुर्मा'
+    },
+    aliases: [
+      'chapati', 'chappathi', 'chappati', 'chapathi', 'roti', 'phulka', 'chapatti',
+      'சப்பாத்தி', 'சப்பாத்தி குருமா', 'ரொட்டி',
+      'चपाती', 'रोटी', 'फुल्का'
+    ]
+  },
+
+  {
     id: 'idli-sambar',
     canonicalName: 'Ghee Sambar Idli',
     nativeNames: {

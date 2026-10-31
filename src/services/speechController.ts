@@ -1300,8 +1300,18 @@ class SpeechControllerManager {
           this.setTurnState('IDLE', `${opt.owner}_done`);
         }
         console.log('[STT Diagnostic] Final transcript received', { transcript, isFinal });
+        console.log('[STT Diagnostic] Callback invocation', {
+          owner: opt.owner,
+          turnId: sessionTurnId,
+          isFinal,
+          transcriptLength: (transcript || '').length
+        });
         try {
-          opt.onResult(transcript, isFinal, alternatives);
+          if (transcript && transcript.trim().length > 0) {
+            opt.onResult(transcript, isFinal, alternatives);
+          } else {
+            opt.onError?.('no-speech', this.getLocalizedSttErrorMessage('no-speech', opt.language));
+          }
         } finally {
           if (isFinal) {
             opt.onEnd?.();

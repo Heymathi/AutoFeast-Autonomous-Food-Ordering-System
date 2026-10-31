@@ -72,6 +72,22 @@ function containsPhrase(text: string, phrase: string): boolean {
 }
 
 export const FOOD_FAMILIES: FoodFamily[] = [
+  // ── CHAPATI ───────────────────────────────────────────────────────────────────
+  {
+    key: 'chapati',
+    familyTag: 'chapati',
+    aliases: [
+      'chapati', 'chappathi', 'chappati', 'chapathi', 'roti', 'chapatis', 'chapaties', 'phulka',
+      'சப்பாத்தி', 'சப்பாதி', 'ரொட்டி',
+      'चपाती', 'रोटी', 'फुल्का',
+    ],
+    variantTokens: [
+      'kurma', 'veg', 'curry', 'butter', 'soft', 'wheat', 'whole wheat',
+      'குருமா', 'காய்கறி', 'கறி', 'வெண்ணெய்',
+      'कुर्मा', 'सब्जी', 'बटर', 'गेहूं',
+    ],
+  },
+
   // ── DOSA ─────────────────────────────────────────────────────────────────────
   {
     key: 'dosa',

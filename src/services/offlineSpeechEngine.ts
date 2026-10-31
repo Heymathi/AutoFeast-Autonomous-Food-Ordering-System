@@ -453,12 +453,90 @@ export class OfflineSpeechEngine {
   }
 
   /**
+   * Robust transcript extractor supporting string, { text }, [{ text }], and chunk streams
+   */
+  public static extractTranscriptFromOutput(output: any): string {
+    if (!output) return '';
+    if (typeof output === 'string') return output;
+    if (Array.isArray(output)) {
+      return output.map(item => (typeof item === 'string' ? item : item?.text || '')).join(' ');
+    }
+    if (typeof output === 'object') {
+      if (typeof output.text === 'string') return output.text;
+      if (Array.isArray(output.chunks)) {
+        return output.chunks.map((c: any) => c?.text || '').join(' ');
+      }
+    }
+    return '';
+  }
+
+  /**
+   * Filter out Whisper hallucination tokens, non-speech markers, and repeated n-grams
+   * (e.g. "பரோட்டா பரோட்டா" -> "பரோட்டா", "[BLANK_AUDIO]" -> "")
+   */
+  public static cleanWhisperTranscript(text: string): string {
+    if (!text || typeof text !== 'string') return '';
+
+    // 1. Remove bracketed / parenthesized hallucination tokens
+    let cleaned = text
+      .replace(/\[[^\]]*\]/g, ' ')
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // 2. Remove common hallucination phrases
+    cleaned = cleaned
+      .replace(/\b(blank audio|subtitles by|amara\.org|watching!|thank you)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!cleaned) return '';
+
+    // 3. Deduplicate consecutive identical words (e.g., "பரோட்டா பரோட்டா" -> "பரோட்டா")
+    const words = cleaned.split(/\s+/);
+    const deduplicatedWords: string[] = [];
+    for (let i = 0; i < words.length; i++) {
+      const current = words[i];
+      const prev = deduplicatedWords[deduplicatedWords.length - 1];
+      if (prev && prev.toLowerCase() === current.toLowerCase()) {
+        continue;
+      }
+      deduplicatedWords.push(current);
+    }
+
+    // 4. Deduplicate consecutive repeated 2-gram or 3-gram phrases
+    for (let ngramSize = 2; ngramSize <= 4; ngramSize++) {
+      if (deduplicatedWords.length >= ngramSize * 2) {
+        let i = 0;
+        while (i + ngramSize * 2 <= deduplicatedWords.length) {
+          const slice1 = deduplicatedWords.slice(i, i + ngramSize).join(' ').toLowerCase();
+          const slice2 = deduplicatedWords.slice(i + ngramSize, i + ngramSize * 2).join(' ').toLowerCase();
+          if (slice1 === slice2) {
+            deduplicatedWords.splice(i + ngramSize, ngramSize);
+          } else {
+            i++;
+          }
+        }
+      }
+    }
+
+    const result = deduplicatedWords.join(' ').trim();
+    // If result is only punctuation or empty, return ''
+    if (/^[\s.,!?;:()"'~`\-_/\\[\]{}]+$/.test(result)) {
+      return '';
+    }
+    return result;
+  }
+
+  /**
    * Convert captured audio blob into 16kHz Float32 mono PCM and run inference
    */
   private static async processRecordedAudio(options: OfflineSpeechOptions): Promise<void> {
     if (this.recordedChunks.length === 0) {
       this.status = 'ready';
       options.onStateChange?.('ready');
+      const noSpeechMsg = this.getLocalizedError('no-speech', options.language);
+      options.onError?.('no-speech', noSpeechMsg);
       return;
     }
 
@@ -474,7 +552,54 @@ export class OfflineSpeechEngine {
       const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
       const float32Pcm = this.extractMono16kHz(decodedBuffer);
       await audioCtx.close();
-      console.log('[STT Diagnostic] Audio recorded and converted to 16kHz PCM', { samples: float32Pcm.length, durationSec: (float32Pcm.length / 16000).toFixed(2) });
+
+      const durationSec = float32Pcm.length / 16000;
+      console.log('[STT Diagnostic] Audio recorded and converted to 16kHz PCM', {
+        samples: float32Pcm.length,
+        durationSec: Number(durationSec.toFixed(2))
+      });
+      console.log('[STT Diagnostic] Audio duration and sample count', {
+        durationSec: Number(durationSec.toFixed(2)),
+        sampleCount: float32Pcm.length,
+        sampleRate: 16000
+      });
+
+      // 1. Prevent empty or extremely short audio (< 0.4s / 6400 samples) from being submitted
+      if (float32Pcm.length < 6400) {
+        console.warn('[STT Diagnostic] Audio duration too short (< 0.4s), treating as no-speech');
+        this.status = 'ready';
+        options.onStateChange?.('ready');
+        const noSpeechMsg = this.getLocalizedError('no-speech', options.language);
+        options.onError?.('no-speech', noSpeechMsg);
+        return;
+      }
+
+      // 2. Silence detection & Peak energy analysis
+      let peak = 0;
+      let sumSq = 0;
+      for (let i = 0; i < float32Pcm.length; i++) {
+        const absVal = Math.abs(float32Pcm[i]);
+        if (absVal > peak) peak = absVal;
+        sumSq += float32Pcm[i] * float32Pcm[i];
+      }
+      const rms = Math.sqrt(sumSq / float32Pcm.length);
+
+      if (peak < 0.008 || rms < 0.002) {
+        console.warn('[STT Diagnostic] Silence detected in captured audio, avoiding hallucination');
+        this.status = 'ready';
+        options.onStateChange?.('ready');
+        const noSpeechMsg = this.getLocalizedError('no-speech', options.language);
+        options.onError?.('no-speech', noSpeechMsg);
+        return;
+      }
+
+      // 3. Peak-normalize quiet speech to optimal dynamic range
+      if (peak > 0.008 && peak < 0.70) {
+        const gain = 0.85 / peak;
+        for (let i = 0; i < float32Pcm.length; i++) {
+          float32Pcm[i] = Math.max(-1, Math.min(1, float32Pcm[i] * gain));
+        }
+      }
 
       // Ensure model pipeline is initialized via local Vite bundle
       if (!this.pipelineInstance) {
@@ -482,24 +607,44 @@ export class OfflineSpeechEngine {
       }
       console.log('[STT Diagnostic] Whisper model pipeline loaded');
 
-      const langCode = String(options.language).startsWith('ta')
-        ? 'tamil'
-        : String(options.language).startsWith('hi')
-        ? 'hindi'
-        : 'english';
+      const rawLang = String(options.language).toLowerCase();
+      const langCode = rawLang.startsWith('ta')
+        ? 'ta'
+        : rawLang.startsWith('hi')
+        ? 'hi'
+        : 'en';
 
       const output = await this.pipelineInstance(float32Pcm, {
         language: langCode,
-        task: 'transcribe'
+        task: 'transcribe',
+        chunk_length_s: 30,
+        temperature: 0.0,
+        repetition_penalty: 1.2,
+        no_repeat_ngram_size: 3
       });
 
-      const rawText = Array.isArray(output) ? output[0]?.text : output?.text;
-      const recognizedText = (typeof rawText === 'string' ? rawText : '').trim();
+      console.log('[STT Diagnostic] Whisper result object structure', {
+        resultType: typeof output,
+        isArray: Array.isArray(output),
+        keys: output && typeof output === 'object' ? Object.keys(output) : [],
+        hasText: Boolean(output && (output.text || (Array.isArray(output) && output[0]?.text))),
+        hasChunks: Boolean(output && output.chunks)
+      });
+
+      const rawExtracted = this.extractTranscriptFromOutput(output);
+      const recognizedText = this.cleanWhisperTranscript(rawExtracted);
+
+      console.log('[STT Diagnostic] Extracted transcript length', {
+        rawLength: rawExtracted.length,
+        cleanedLength: recognizedText.length,
+        isEmpty: recognizedText.length === 0
+      });
       console.log('[STT Diagnostic] Whisper inference completed', { transcript: recognizedText });
+
       this.status = 'ready';
       options.onStateChange?.('ready');
 
-      if (recognizedText) {
+      if (recognizedText && recognizedText.length > 0) {
         options.onResult(recognizedText, true, [recognizedText]);
       } else {
         const noSpeechMsg = this.getLocalizedError('no-speech', options.language);
@@ -518,7 +663,21 @@ export class OfflineSpeechEngine {
    * Resamples AudioBuffer to 16kHz mono Float32Array for Whisper input
    */
   private static extractMono16kHz(buffer: AudioBuffer): Float32Array {
-    const rawData = buffer.getChannelData(0);
+    const numChannels = buffer.numberOfChannels;
+    const length = buffer.length;
+    let rawData: Float32Array;
+
+    if (numChannels <= 1) {
+      rawData = buffer.getChannelData(0);
+    } else {
+      rawData = new Float32Array(length);
+      const ch0 = buffer.getChannelData(0);
+      const ch1 = buffer.getChannelData(1);
+      for (let i = 0; i < length; i++) {
+        rawData[i] = (ch0[i] + ch1[i]) * 0.5;
+      }
+    }
+
     const sourceSampleRate = buffer.sampleRate;
     const targetSampleRate = 16000;
 

@@ -265,13 +265,21 @@ export const VoiceCommandModal: React.FC = () => {
       },
       onResult: (text, isFinal, nBestTranscripts) => {
         if (text && text.trim()) {
+          const cleanText = text.trim();
+          console.log('[STT Diagnostic] UI state update', {
+            component: 'VoiceCommandModal',
+            transcriptLength: cleanText.length,
+            isFinal
+          });
+          setTranscript(cleanText);
+
           // Cancel active speech synthesis on first speech detection
           if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
             try { window.speechSynthesis.cancel(); } catch {}
           }
           SpeechController.cancelSpeech();
 
-          const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [text.trim()];
+          const candidates = nBestTranscripts && nBestTranscripts.length > 0 ? nBestTranscripts : [cleanText];
 
           // Check voice confirmation YES/NO on both interim and final results
           if (awaitingConfirmationRef.current && !confirmHandledRef.current) {
@@ -344,16 +352,20 @@ export const VoiceCommandModal: React.FC = () => {
               voiceDebug('[Voice Turn]', {
                 state: SpeechController.getState(),
                 step: 'item_search',
-                transcript: text.trim(),
+                transcript: cleanText,
                 alternatives: candidates,
                 chosenIntent: 'pending-local-match',
-                source: 'Web Speech'
+                source: SpeechController.getActiveSttEngine()
               });
-              setTranscript(text.trim());
-              handleSpeechResult(text.trim(), candidates);
+              setTranscript(cleanText);
+              console.log('[STT Diagnostic] Transcript sent to local food search', {
+                queryLength: cleanText.length
+              });
+              executeSearch(cleanText, true);
+              handleSpeechResult(cleanText, candidates);
             }
           } else {
-            setTranscript(text);
+            setTranscript(cleanText);
           }
         }
       },
@@ -383,8 +395,20 @@ export const VoiceCommandModal: React.FC = () => {
 
   const toggleListening = () => {
     if (isListening) {
-      SpeechController.stopListening('VoiceCommandModal');
-      setIsListening(false);
+      if (SpeechController.getActiveSttEngine() === 'whisper') {
+        OfflineSpeechEngine.stopRecording();
+        setIsListening(false);
+        setStatusMessage(
+          language === 'ta'
+            ? 'குரல் செயலாக்கப்படுகிறது...'
+            : language === 'hi'
+            ? 'आवाज़ संसाधित हो रही है...'
+            : 'Processing voice...'
+        );
+      } else {
+        SpeechController.stopListening('VoiceCommandModal');
+        setIsListening(false);
+      }
     } else {
       startListeningSession();
     }
@@ -646,7 +670,22 @@ export const VoiceCommandModal: React.FC = () => {
       return;
     }
 
-    // Case 4: Search action
+    // Case 4: Search action or dynamic catalog match fallback
+    const dynamicMatch = DynamicFoodSearchEngine.search({ query: spokenText, language });
+    if (dynamicMatch.matchedItems.length > 0) {
+      const best = dynamicMatch.matchedItems[0];
+      const targetName = best.nativeNames?.[language] || best.name;
+      const clarifyPrompt = language === 'ta'
+        ? `${targetName} - இப்போதே ஆர்டர் செய்யவா அல்லது திட்டமிடவா?`
+        : language === 'hi'
+        ? `${targetName} - अभी ऑर्डर करें या बाद के लिए शेड्यूल करें?`
+        : `${targetName} - Order now or schedule for later?`;
+      setStatusMessage(clarifyPrompt);
+      setChooserItems([best]);
+      speakText(clarifyPrompt, () => startListeningSession({ allowDuringTts: true }), language);
+      return;
+    }
+
     if (parsed.action === 'search' || (parsed.items.length > 0 && !parsed.matchedFoodItem)) {
       const q = parsed.items[0]?.name || spokenText;
       executeSearch(q, false);
