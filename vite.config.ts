@@ -29,7 +29,14 @@ export default defineConfig(() => {
     },
     build: {
       sourcemap: true,
-      target: 'esnext'
+      target: 'esnext',
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            transformers: ['@huggingface/transformers']
+          }
+        }
+      }
     }
 
   };

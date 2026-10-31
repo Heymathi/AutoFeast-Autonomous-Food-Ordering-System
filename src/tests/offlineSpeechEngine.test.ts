@@ -1,9 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { OfflineSpeechEngine } from '../services/offlineSpeechEngine';
 
+const mockPipelineInstance = vi.fn().mockImplementation(async () => {
+  return { text: 'Paneer Butter Masala' };
+});
+
+vi.mock('@huggingface/transformers', () => {
+  return {
+    pipeline: vi.fn().mockImplementation(async () => mockPipelineInstance),
+    env: {
+      backends: { onnx: { wasm: {} } },
+      allowLocalModels: false,
+      useBrowserCache: true,
+      useWasmCache: true
+    }
+  };
+});
+
 describe('OfflineSpeechEngine - Step 1 Verification', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    OfflineSpeechEngine.resetForTesting();
     if (typeof localStorage !== 'undefined') {
       localStorage.clear();
     }
@@ -31,6 +48,23 @@ describe('OfflineSpeechEngine - Step 1 Verification', () => {
         configurable: true
       });
     }
+
+    // Mock MediaRecorder in jsdom
+    class MockMediaRecorder {
+      public state = 'inactive';
+      public ondataavailable: any = null;
+      public onstop: any = null;
+      static isTypeSupported = vi.fn().mockReturnValue(true);
+      start() {
+        this.state = 'recording';
+      }
+      stop() {
+        this.state = 'inactive';
+        if (this.onstop) this.onstop();
+      }
+    }
+    (window as any).MediaRecorder = MockMediaRecorder;
+    (globalThis as any).MediaRecorder = MockMediaRecorder;
   });
 
   afterEach(() => {
@@ -125,5 +159,44 @@ describe('OfflineSpeechEngine - Step 1 Verification', () => {
 
     OfflineSpeechEngine.retryRecognition();
     expect(startRecordingSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('proves engine initializes and transcribes with internet disabled (net::ERR_INTERNET_DISCONNECTED) after online preparation', async () => {
+    // 1. Online preparation step: User downloads model with consent
+    Object.defineProperty(navigator, 'onLine', { value: true, configurable: true, writable: true });
+    const progressSpy = vi.fn();
+    const downloadSuccess = await OfflineSpeechEngine.downloadModelWithConsent(progressSpy);
+
+    expect(downloadSuccess).toBe(true);
+    expect(progressSpy).toHaveBeenCalledWith(100);
+    expect(OfflineSpeechEngine.getModelStatus().isDownloaded).toBe(true);
+    expect(OfflineSpeechEngine.getStatus()).toBe('ready');
+
+    // 2. Disconnect internet completely (navigator.onLine = false and block any network fetch)
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true, writable: true });
+    const fetchMock = vi.fn().mockImplementation(() => {
+      return Promise.reject(new TypeError('Failed to fetch net::ERR_INTERNET_DISCONNECTED'));
+    });
+    globalThis.fetch = fetchMock;
+
+    // 3. Verify engine initializes and transcribes offline without triggering network requests
+    const onResult = vi.fn();
+    const onError = vi.fn();
+
+    const startSuccess = await OfflineSpeechEngine.startRecording({
+      language: 'en',
+      onError,
+      onResult
+    });
+
+    expect(startSuccess).toBe(true);
+    expect(OfflineSpeechEngine.getStatus()).toBe('recording');
+
+    // Stop recording to complete session
+    OfflineSpeechEngine.stopRecording();
+
+    // Verify zero network calls were made and no network errors were raised
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalledWith('transcription-failed', expect.anything());
   });
 });

@@ -11,6 +11,7 @@
  */
 
 import { Language } from '../types';
+import { pipeline, env } from '@huggingface/transformers';
 
 export type OfflineEngineStatus =
   | 'uninitialized'
@@ -52,6 +53,25 @@ export class OfflineSpeechEngine {
   private static lastOptions: OfflineSpeechOptions | null = null;
   private static recordingTimeoutTimer: any = null;
   private static cachedModelVerified: boolean | null = null;
+
+  /**
+   * Reset engine state for testing or clean re-initialization
+   */
+  public static resetForTesting(): void {
+    this.status = 'uninitialized';
+    this.activeStream = null;
+    this.audioContext = null;
+    this.mediaRecorder = null;
+    this.recordedChunks = [];
+    this.pipelineInstance = null;
+    this.isDownloading = false;
+    this.lastOptions = null;
+    if (this.recordingTimeoutTimer) {
+      clearTimeout(this.recordingTimeoutTimer);
+      this.recordingTimeoutTimer = null;
+    }
+    this.cachedModelVerified = null;
+  }
 
   /**
    * Check if the browser supports offline audio capture (MediaDevices + AudioContext)
@@ -165,8 +185,7 @@ export class OfflineSpeechEngine {
       return this.pipelineInstance;
     }
 
-    // Dynamic import of locally installed @huggingface/transformers (bundled by Vite into a local chunk)
-    const { pipeline, env } = await import('@huggingface/transformers');
+    // Use eagerly imported @huggingface/transformers bundled with the application
     this.configureTransformersEnv(env);
 
     const progress_callback = onProgress ? (info: any) => {
@@ -198,7 +217,14 @@ export class OfflineSpeechEngine {
 
     try {
       onProgress?.(10);
-      await this.getPipeline(onProgress);
+      const pipe = await this.getPipeline(onProgress);
+
+      if (!pipe || typeof pipe !== 'function') {
+        throw new Error('Pipeline instantiation failed: recognizer is invalid or null');
+      }
+
+      this.pipelineInstance = pipe;
+      this.cachedModelVerified = true;
 
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(STORAGE_KEY_OFFLINE_READY, 'true');
@@ -209,7 +235,12 @@ export class OfflineSpeechEngine {
       onProgress?.(100);
       return true;
     } catch (err: any) {
-      console.warn('[OfflineSpeechEngine]: Model download failed or aborted:', err?.message || err);
+      console.warn('[OfflineSpeechEngine]: Model download or engine initialization failed:', err?.message || err);
+      this.pipelineInstance = null;
+      this.cachedModelVerified = false;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(STORAGE_KEY_OFFLINE_READY);
+      }
       this.status = 'error';
       this.isDownloading = false;
       return false;

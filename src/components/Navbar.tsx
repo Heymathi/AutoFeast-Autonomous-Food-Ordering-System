@@ -36,7 +36,8 @@ import {
   MapPin,
   Check,
   X,
-  Loader2
+  Loader2,
+  Menu
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -68,6 +69,7 @@ export const Navbar: React.FC = () => {
     pendingNomineeApprovals,
     showToast,
     cart,
+    scheduleCart,
     setIsScheduleCartModalOpen
   } = useApp();
 
@@ -748,7 +750,7 @@ export const Navbar: React.FC = () => {
           {/* CENTER SECTION – MAIN NAVIGATION (Exact order: Home, How It Works, Features, About) */}
           <nav
             aria-label="Main Navigation"
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F7FAF8] border border-[#E4EBE5]"
+            className="header-nav-group hidden md:flex flex-wrap items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F7FAF8] border border-[#E4EBE5]"
           >
             {/* 1. Home */}
             <button
@@ -804,7 +806,7 @@ export const Navbar: React.FC = () => {
           </nav>
 
           {/* RIGHT SECTION – USER PROFILE, LOCATION, CART & MOBILE TOGGLE */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="header-actions-group flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
             {/* Delivery Location Chip with Inline Popover */}
             <div ref={locationContainerRef} className="relative hidden lg:block">
               <button
@@ -814,6 +816,7 @@ export const Navbar: React.FC = () => {
                 aria-haspopup="dialog"
                 aria-expanded={isLocationPopoverOpen}
                 aria-controls="header-location-popover"
+                aria-label={t('location.changeAddress') || 'Change delivery address'}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -856,8 +859,8 @@ export const Navbar: React.FC = () => {
                     </button>
                   </div>
 
-                  <form onSubmit={handleManualSubmitLocation} className="mt-3 space-y-3">
-                    <div className="relative">
+                  <form onSubmit={handleSaveLocation} className="mt-3 space-y-3">
+                    <div className="relative flex items-center gap-2">
                       <input
                         ref={locationInputRef}
                         type="text"
@@ -867,13 +870,30 @@ export const Navbar: React.FC = () => {
                           triggerDebouncedGeocode(e.target.value);
                         }}
                         placeholder={t('location.popoverPlaceholder')}
-                        className="w-full px-3 py-2 text-xs rounded-lg border border-[#E4EBE5] focus:outline-none focus:ring-2 focus:ring-[#087F5B]"
+                        aria-label={t('location.popoverInputLabel') || 'Enter delivery address or landmark'}
+                        className="flex-1 px-3 py-2 text-xs rounded-lg border border-[#E4EBE5] focus:outline-none focus:ring-2 focus:ring-[#087F5B]"
                       />
+                      <button
+                        type="button"
+                        id="popover-voice-location-btn"
+                        onClick={handleToggleVoice}
+                        aria-label={t('location.voiceMicAria') || 'Voice input for delivery address'}
+                        title={t('location.voiceMicAria') || 'Voice input for delivery address'}
+                        className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center transition-colors cursor-pointer ${
+                          isVoiceListening
+                            ? 'bg-red-500 text-white animate-pulse border-red-600'
+                            : isVoiceSpeaking
+                            ? 'bg-amber-500 text-white animate-bounce border-amber-600'
+                            : 'bg-[#EFF7F1] text-[#087F5B] hover:bg-[#DFF3E8] border-[#E4EBE5]'
+                        }`}
+                      >
+                        <Mic className="w-4 h-4" />
+                      </button>
                     </div>
 
                     <button
                       type="button"
-                      onClick={handleDetectGpsClick}
+                      onClick={handleUseCurrentGPS}
                       disabled={isDetectingGps}
                       className="w-full py-2 px-3 rounded-lg border border-[#E4EBE5] bg-[#EFF7F1] hover:bg-[#DFF3E8] text-[#087F5B] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
@@ -888,6 +908,7 @@ export const Navbar: React.FC = () => {
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4EBE5]">
                       <button
                         type="button"
+                        id="popover-cancel-location-btn"
                         onClick={closeLocationPopover}
                         className="px-3 py-1.5 rounded-lg border border-[#E4EBE5] text-xs font-semibold text-[#707B73] hover:bg-[#F7FAF8]"
                       >
