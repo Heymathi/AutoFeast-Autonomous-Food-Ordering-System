@@ -14,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { INDIAN_FOOD_CATALOG } from './src/data/indianFoodCatalog.js';
 import { registerNomineeApproval } from './nomineeApproval.js';
+import { handleSearchFallback } from './api/search-fallback.js';
 
 dotenv.config();
 dotenv.config({ path: '.env.example' });
@@ -763,6 +764,9 @@ app.post('/api/voice/health-nlu', async (req, res) => {
 });
 
 // 🚀 USER REGISTRATION ENDPOINT
+// 🚀 GEMINI SEARCH FALLBACK (CLOSED MENU MATCHING)
+app.post('/api/search-fallback', handleSearchFallback);
+
 app.post('/api/auth/register', async (req, res) => {
   try {
     // nomineePassword is intentionally ignored: nominee sets their own credentials via /nominee/setup
@@ -2405,13 +2409,53 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid or missing foodItem ID.' });
     }
 
+    const cleanFoodId = String(rawFoodId).trim().toLowerCase();
+    const now = new Date();
+
+    // 4) NO DUPLICATES: Check for existing active (pending or approved-and-unused) request
+    let existing = null;
+    const dbConnected = await checkDbConnected();
+    if (dbConnected && ApprovalRequest) {
+      existing = await ApprovalRequest.findOne({
+        userId,
+        orderType,
+        used: { $ne: true },
+        status: { $in: ['pending', 'approved'] },
+        expiresAt: { $gt: now },
+        $or: [
+          { foodItemId: rawFoodId },
+          { 'foodItem.id': rawFoodId }
+        ]
+      }).sort({ requestedAt: -1, createdAt: -1 });
+    }
+    if (!existing) {
+      existing = fallbackApprovalRequestsDb.find(a =>
+        a.userId === userId &&
+        a.orderType === orderType &&
+        !a.used &&
+        (a.status === 'pending' || a.status === 'approved') &&
+        (!a.expiresAt || new Date(a.expiresAt) > now) &&
+        (String(a.foodItemId || a.foodItem?.id || '').trim().toLowerCase() === cleanFoodId)
+      );
+    }
+
+    if (existing) {
+      console.log(`[NomineeApproval] [REUSE EXISTING] id=${existing.id || existing._id} user=${userId} item=${rawFoodId} status=${existing.status}`);
+      return res.status(200).json({
+        success: true,
+        id: existing.id || existing._id,
+        approvalId: existing.id || existing._id,
+        request: existing,
+        reused: true
+      });
+    }
+
     const envNomineeFallback = (process.env.GMAIL_USER || process.env.EMAIL_USER || 'heymathi0711@gmail.com').toLowerCase().trim();
     const cleanNomineeEmail = (nomineeEmail && nomineeEmail !== 'nominee@autofeast.com')
       ? nomineeEmail.toLowerCase().trim()
       : envNomineeFallback;
     const reqId = req.body?.id || req.body?.requestId || `APPROVAL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    const dbConnected = await checkDbConnected();
     if (!dbConnected) {
       if (process.env.NODE_ENV === 'test' || process.env.VITEST || !process.env.MONGODB_URI) {
         const record = {
@@ -2471,6 +2515,118 @@ app.post('/api/nominee/approval-requests', async (req, res) => {
   } catch (err) {
     console.error('[POST /api/nominee/approval-requests error]:', err);
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 🚀 1) STATUS POLLING ENDPOINT (Requires Main User JWT, Owner-Only)
+app.get(['/api/nominee/approval-requests/:id/status', '/api/nominee/approvals/:id/status'], async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserIdFromSession(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized. Authentication token required.' });
+    }
+
+    const id = req.params.id;
+    let record = null;
+    const dbConnected = await checkDbConnected();
+    if (dbConnected && ApprovalRequest) {
+      const isHexObjectId = typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
+      const query = isHexObjectId ? { $or: [{ id }, { _id: id }] } : { id };
+      record = await ApprovalRequest.findOne(query).select('-emailTokenHash -previousTokenHash').lean();
+    }
+    if (!record) {
+      record = fallbackApprovalRequestsDb.find(a => a.id === id || a._id === id);
+    }
+    if (!record) {
+      return res.status(404).json({ success: false, error: 'Approval request not found.' });
+    }
+
+    // Owner check: Ensure caller owns this request
+    if (record.userId && record.userId !== userId) {
+      return res.status(403).json({ success: false, error: 'Forbidden. You do not own this approval request.' });
+    }
+
+    const isExpired = record.expiresAt && new Date(record.expiresAt) <= new Date();
+    const status = (record.status === 'pending' && isExpired) ? 'expired' : record.status;
+
+    return res.json({
+      success: true,
+      status,
+      expiresAt: record.expiresAt,
+      decidedAt: record.decidedAt,
+      decidedVia: record.decidedVia,
+      used: Boolean(record.used)
+    });
+  } catch (err) {
+    console.error('[GET /api/nominee/approval-requests/:id/status error]:', err);
+    return res.status(500).json({ success: false, error: 'Server error.' });
+  }
+});
+
+// 🚀 5) CONSUME APPROVAL ENDPOINT (Requires Main User JWT, Owner-Only)
+app.post(['/api/nominee/approvals/:id/consume', '/api/nominee/approval-requests/:id/consume'], async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserIdFromSession(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized. Authentication token required.' });
+    }
+
+    const id = req.params.id;
+    let record = null;
+    const dbConnected = await checkDbConnected();
+    if (dbConnected && ApprovalRequest) {
+      const isHexObjectId = typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
+      const query = isHexObjectId ? { $or: [{ id }, { _id: id }] } : { id };
+      record = await ApprovalRequest.findOne(query);
+    }
+    if (!record) {
+      record = fallbackApprovalRequestsDb.find(a => a.id === id || a._id === id);
+    }
+    if (!record) {
+      return res.status(404).json({ success: false, error: 'Approval request not found.' });
+    }
+
+    // Owner check
+    if (record.userId && record.userId !== userId) {
+      return res.status(403).json({ success: false, error: 'Forbidden. You do not own this approval request.' });
+    }
+
+    // Must be approved
+    if (record.status !== 'approved') {
+      return res.status(400).json({ success: false, error: 'Approval request is not approved.' });
+    }
+
+    // Check not already used
+    if (record.used) {
+      return res.status(409).json({ success: false, error: 'Approval request has already been used.' });
+    }
+
+    // Check not expired
+    const now = new Date();
+    if (record.expiresAt && new Date(record.expiresAt) <= now) {
+      return res.status(410).json({ success: false, error: 'Approval request has expired.' });
+    }
+
+    // Verify item match if provided in request body
+    const incomingFoodId = req.body?.foodItemId || req.body?.foodItem?.id;
+    if (incomingFoodId) {
+      const recFoodId = record.foodItemId || record.foodItem?.id;
+      if (recFoodId && String(recFoodId).trim().toLowerCase() !== String(incomingFoodId).trim().toLowerCase()) {
+        return res.status(400).json({ success: false, error: 'Approval food item mismatch.' });
+      }
+    }
+
+    record.used = true;
+    record.usedAt = now;
+    if (dbConnected && ApprovalRequest && typeof record.save === 'function') {
+      await record.save();
+    }
+
+    console.log(`[NomineeApproval] [CONSUME] id=${id} user=${userId} marked used=true`);
+    return res.json({ success: true, message: 'Approval consumed successfully.', used: true });
+  } catch (err) {
+    console.error('[POST /api/nominee/approvals/:id/consume error]:', err);
+    return res.status(500).json({ success: false, error: 'Server error.' });
   }
 });
 

@@ -1,5 +1,5 @@
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
-import { FoodItem, Language, ScheduleDuration } from '../types';
+import { FoodItem, Language, ScheduleDuration, PlatformPriceOption } from '../types';
 import { PriceComparisonSummary, PriceComparisonService } from './priceComparisonService';
 import { FuzzyMatchEngine } from './fuzzyMatchService';
 
@@ -8,6 +8,7 @@ export interface ParsedItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  platforms?: PlatformPriceOption[];
 }
 
 export interface ParsedOrderBill {
@@ -270,11 +271,13 @@ export class NLPParserService {
             parsedItems[existingIdx].totalPrice = parsedItems[existingIdx].quantity * parsedItems[existingIdx].unitPrice;
           } else {
             const unitPrice = matchedItem.basePrice || 100;
+            const itemPlatforms = (matchedItem.platforms && matchedItem.platforms.length > 0) ? matchedItem.platforms : (INDIAN_FOOD_CATALOG.find(f => f.id === matchedItem.id)?.platforms || []);
             parsedItems.push({
-              foodItem: matchedItem,
+              foodItem: { ...matchedItem, platforms: itemPlatforms },
               quantity: qty,
               unitPrice,
-              totalPrice: unitPrice * qty
+              totalPrice: unitPrice * qty,
+              platforms: itemPlatforms
             });
           }
         }

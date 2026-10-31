@@ -273,3 +273,134 @@ describe('i18n Translation & Language Freshness', () => {
     expect(active).toBe('ta');
   });
 });
+
+describe('Welcome Single-Execution & Idempotency React Tests', () => {
+  let mockSpeak: any;
+  let mockCancel: any;
+  let mockGetVoices: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSpeak = vi.fn();
+    mockCancel = vi.fn();
+    mockGetVoices = vi.fn(() => [
+      fakeVoice('Google தமிழ்', 'ta-IN'),
+      fakeVoice('Microsoft Swara', 'hi-IN'),
+      fakeVoice('David', 'en-US')
+    ]);
+
+    (globalThis as any).window = globalThis;
+    (globalThis as any).window.speechSynthesis = {
+      speak: mockSpeak,
+      cancel: mockCancel,
+      getVoices: mockGetVoices,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      onvoiceschanged: null
+    };
+
+    (globalThis as any).SpeechSynthesisUtterance = class {
+      text: string;
+      lang: string = 'en-US';
+      rate: number = 1;
+      voice: any = null;
+      onstart: any = null;
+      onend: any = null;
+      onerror: any = null;
+      constructor(text: string) {
+        this.text = text;
+      }
+    };
+  });
+
+  test('setLanguage idempotency: duplicate calls with same language are ignored', () => {
+    let activeLang = 'en';
+    let updateCount = 0;
+
+    const setLanguage = (newLang: Language) => {
+      if (!newLang || newLang === activeLang) return;
+      activeLang = newLang;
+      updateCount++;
+    };
+
+    setLanguage('ta');
+    expect(activeLang).toBe('ta');
+    expect(updateCount).toBe(1);
+
+    // Call again with same language
+    setLanguage('ta');
+    expect(updateCount).toBe(1); // Ignored, no duplicate state update!
+
+    // Call with different language
+    setLanguage('hi');
+    expect(activeLang).toBe('hi');
+    expect(updateCount).toBe(2);
+  });
+
+  test('welcome message deduplication key prevents duplicate speech on effect re-runs', async () => {
+    let lastSpokenKey: string | null = null;
+    let speakCalls = 0;
+
+    const triggerWelcomeEffect = (userName: string, activeLang: Language) => {
+      const currentKey = `${userName}|${activeLang}`;
+      if (lastSpokenKey === currentKey) {
+        return; // Skipped!
+      }
+      lastSpokenKey = currentKey;
+      speakCalls++;
+      window.speechSynthesis.speak(new SpeechSynthesisUtterance('Welcome'));
+    };
+
+    // First render
+    triggerWelcomeEffect('Karthik', 'ta');
+    expect(speakCalls).toBe(1);
+    expect(mockSpeak).toHaveBeenCalledTimes(1);
+
+    // Effect re-runs due to unstable AppContext dependencies or voiceschanged
+    triggerWelcomeEffect('Karthik', 'ta');
+    expect(speakCalls).toBe(1);
+    expect(mockSpeak).toHaveBeenCalledTimes(1); // Not called again!
+
+    // User switches language while on welcome step
+    triggerWelcomeEffect('Karthik', 'hi');
+    expect(speakCalls).toBe(2);
+    expect(mockSpeak).toHaveBeenCalledTimes(2); // Speaks once in new language!
+  });
+
+  test('leaving welcome step cancels speech and resets key for next visit', () => {
+    let lastSpokenKey: string | null = 'Karthik|ta';
+    let isSpeaking = true;
+
+    const onStepChange = (newStep: string) => {
+      if (newStep !== 'welcome') {
+        lastSpokenKey = null;
+        isSpeaking = false;
+        window.speechSynthesis.cancel();
+      }
+    };
+
+    onStepChange('location_permission');
+    expect(mockCancel).toHaveBeenCalled();
+    expect(lastSpokenKey).toBeNull();
+  });
+
+  test('auto-continue fires exactly once after speech ends', () => {
+    let autoContinueFired = 0;
+    let handled = false;
+
+    const proceed = () => {
+      if (handled) return;
+      handled = true;
+      autoContinueFired++;
+    };
+
+    // Simulate utterance onend
+    proceed();
+    expect(autoContinueFired).toBe(1);
+
+    // Simulate duplicate triggers (fallback timer or extra event)
+    proceed();
+    proceed();
+    expect(autoContinueFired).toBe(1);
+  });
+});

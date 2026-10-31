@@ -14,6 +14,7 @@ import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService
 import { NLPParserService } from '../services/nlpParserService';
 import { ItemActionChooser } from './ItemActionChooser';
 import { VoiceCommandParser } from '../services/voiceCommandParser';
+import { fetchSearchFallback } from '../services/geminiSearchFallbackClient';
 
 const voiceDebug = (message: string, details?: unknown) => {
   if ((import.meta as any).env?.DEV) console.info(message, details ?? '');
@@ -447,6 +448,12 @@ export const VoiceCommandModal: React.FC = () => {
     // Case 2: Order Instant
     if (parsed.action === 'order' && parsed.items.length > 0) {
       let matchedItem = parsed.matchedFoodItem || DynamicFoodSearchEngine.findBestMatchingFoodItem(parsed.items[0].name);
+      if (!matchedItem && typeof navigator !== 'undefined' && navigator.onLine) {
+        const fallback = await fetchSearchFallback(parsed.items[0].name, language);
+        if (fallback.items.length > 0) {
+          matchedItem = fallback.items[0];
+        }
+      }
       if (!matchedItem) {
         handleUnknownCommand(spokenText);
         return;
@@ -507,6 +514,12 @@ export const VoiceCommandModal: React.FC = () => {
     // Case 3: Schedule
     if (parsed.action === 'schedule' && parsed.items.length > 0) {
       let matchedItem = parsed.matchedFoodItem || DynamicFoodSearchEngine.findBestMatchingFoodItem(parsed.items[0].name);
+      if (!matchedItem && typeof navigator !== 'undefined' && navigator.onLine) {
+        const fallback = await fetchSearchFallback(parsed.items[0].name, language);
+        if (fallback.items.length > 0) {
+          matchedItem = fallback.items[0];
+        }
+      }
       if (!matchedItem) {
         handleUnknownCommand(spokenText);
         return;

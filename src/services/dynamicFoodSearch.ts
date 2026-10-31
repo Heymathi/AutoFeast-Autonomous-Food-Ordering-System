@@ -29,6 +29,8 @@ export interface SearchResult {
     isVeg?: boolean;
     confidence?: number;
   };
+  isSmartSearch?: boolean;
+  offlineHint?: boolean;
 }
 
 // 🚀 INITIALIZE FUSE.JS INDEX OVER CATALOG

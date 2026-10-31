@@ -20,6 +20,8 @@ import { FuzzyMatchEngine } from '../services/fuzzyMatchService';
 import { CartService } from '../services/cartService';
 import { CartVoiceService } from '../services/cartVoiceService';
 import { isFoodItemRestricted } from '../services/restrictedFoodMatcher';
+import { normalizeTime, formatScheduleTime } from '../utils/scheduleCalculator';
+import { fetchSearchFallback } from '../services/geminiSearchFallbackClient';
 
 interface AppContextType {
   // App Entry Sequence State
@@ -426,7 +428,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const handleLanguageSelected = (selectedLang: Language) => {
     console.log(`[AppContext]: handleLanguageSelected called with: "${selectedLang}" -> transitioning entryStep to "welcome"`);
-    setLanguage(selectedLang);
+    if (selectedLang !== language) {
+      setLanguage(selectedLang);
+    }
     setEntryStep('welcome');
   };
 
@@ -717,7 +721,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     foodItem: FoodItem;
     orderType: 'instant' | 'scheduled';
     scheduleDetails?: any;
-  } | null>(null);
+  } | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('autofeast_pending_nominee_payload');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.approvalId && parsed.foodItem) {
+          if (!parsed.timestamp || Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+            return {
+              requestId: parsed.approvalId,
+              foodItem: parsed.foodItem,
+              orderType: parsed.orderType || 'scheduled',
+              scheduleDetails: parsed.scheduleDetails
+            };
+          }
+        }
+      }
+    } catch (e) {}
+    return null;
+  });
+  const interceptionInFlightRef = useRef(false);
   const [approvedNomineeItemIds, setApprovedNomineeItemIds] = useState<string[]>([]);
   const [pendingNomineeApprovals, setPendingNomineeApprovals] = useState<PendingNomineeApproval[]>(() => NomineeNotificationService.getPendingApprovals());
 
@@ -839,17 +862,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const handleNomineeRestrictedInterception = async (
     item: FoodItem,
     orderType: 'instant' | 'scheduled',
-    scheduleDetails?: { time: string; slotName: string; duration?: string; frequency?: string }
+    scheduleDetails?: { time?: any; slotName?: string; duration?: string; frequency?: string; restaurant?: string }
   ) => {
+    if (!item) return;
+    // Guard against duplicate double-submits
+    if (interceptionInFlightRef.current) {
+      console.log('[AppContext]: Nominee interception already in-flight. Skipping duplicate.');
+      return;
+    }
+    interceptionInFlightRef.current = true;
+
     const nomineeEmail = (currentUser?.nomineeEmail && currentUser.nomineeEmail !== 'nominee@autofeast.com')
       ? currentUser.nomineeEmail
       : (currentUser?.email || 'heymathi0711@gmail.com');
     const nomineeName = currentUser?.nomineeName || 'Emergency Nominee';
 
+    const normalizedTime = scheduleDetails?.time ? normalizeTime(scheduleDetails.time) : '08:00';
+    const cleanDetails = scheduleDetails ? {
+      ...scheduleDetails,
+      time: normalizedTime,
+      slotName: scheduleDetails.slotName || 'Meal Slot',
+      duration: scheduleDetails.duration || '1_month',
+      frequency: scheduleDetails.frequency || 'daily',
+      restaurant: item.restaurant || scheduleDetails.restaurant || 'Saravana Bhavan'
+    } : undefined;
+
     const reqPayload = {
       foodItem: item,
       orderType,
-      scheduleDetails,
+      scheduleDetails: cleanDetails,
       nomineeEmail,
       nomineeName,
       userId: currentUser?.id || 'guest_user',
@@ -867,7 +908,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         body: JSON.stringify(reqPayload)
       });
 
-      if (!res.ok && res.status !== 201) {
+      if (!res.ok && res.status !== 201 && res.status !== 200) {
         throw new Error('Failed to create approval request on server');
       }
 
@@ -878,9 +919,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         id: requestId,
         foodItem: item,
         orderType,
-        scheduleDetails,
+        scheduleDetails: cleanDetails,
         requestedAt: new Date().toISOString(),
-        status: 'pending',
+        status: data.request?.status || 'pending',
         nomineeEmail,
         nomineeName
       };
@@ -889,12 +930,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setPendingNomineeApprovals(updatedList);
       NomineeNotificationService.savePendingApprovals(updatedList);
 
+      // 2) ONE-TIME GATE: Save complete pending payload in sessionStorage so refresh preserves it
+      try {
+        sessionStorage.setItem('autofeast_pending_nominee_payload', JSON.stringify({
+          approvalId: requestId,
+          foodItem: item,
+          orderType,
+          scheduleDetails: cleanDetails,
+          timestamp: Date.now()
+        }));
+      } catch (e) {}
+
       // Open user-facing waiting dialog (which polls server every 5s and handles speech & cancel)
       setWaitingNomineeApproval({
         requestId,
         foodItem: item,
         orderType,
-        scheduleDetails
+        scheduleDetails: cleanDetails
       });
 
     } catch (err) {
@@ -902,10 +954,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const errMsg = t('nominee.emailSendError');
       showToast(errMsg, 'error');
       speakText(errMsg, undefined, language);
+    } finally {
+      interceptionInFlightRef.current = false;
     }
   };
 
-  const handleNomineeApprovalApproved = (
+  const handleNomineeApprovalApproved = async (
     foodItem: FoodItem,
     orderType: 'instant' | 'scheduled',
     scheduleDetails?: any
@@ -914,31 +968,73 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setApprovedNomineeItemIds(prev => [...prev, cleanId]);
 
     const reqId = waitingNomineeApproval?.requestId;
-    if (reqId) {
-      approveNomineeRequest(reqId);
-    }
     setWaitingNomineeApproval(null);
 
-    // Proceed to normal flow!
-    if (orderType === 'instant') {
-      placeInstantOrder(foodItem);
-    } else if (orderType === 'scheduled') {
-      const newSchedule: AutoOrderSchedule = {
-        id: `SCHED-${Date.now()}`,
-        slotName: scheduleDetails?.slotName || 'Meal Slot',
-        slotIndex: 2,
-        time: scheduleDetails?.time || '01:00 PM',
-        frequency: scheduleDetails?.frequency || 'daily',
-        foodItemId: foodItem.id,
-        foodItemName: foodItem.name,
-        restaurant: foodItem.restaurant || 'Saravana Bhavan',
-        quantity: 1,
-        strategy: 'best_value',
-        isEnabled: true,
-        walletAutoDebit: true,
-        duration: scheduleDetails?.duration || '1_week'
-      };
-      saveSchedule(newSchedule);
+    // 5) CONSUME ON COMPLETION: Server marks approval used: true
+    if (reqId) {
+      try {
+        const token = localStorage.getItem('autofeast_jwt_token') || '';
+        await fetch(`/api/nominee/approvals/${reqId}/consume`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ foodItemId: foodItem.id, orderType })
+        });
+      } catch (e) {
+        console.warn('[AppContext handleNomineeApprovalApproved consume warning]:', e);
+      }
+    }
+
+    // 2 & 7) ONE-TIME GATE: Complete the saved payload directly; skip restricted interception
+    try {
+      if (orderType === 'instant') {
+        const itemName = foodItem.nativeNames?.[language] || foodItem.name;
+        const msg = t('nominee.approvedOrderNow') || (language === 'ta'
+          ? `பரிந்துரைப்பாளர் அனுமதித்தார்! "${itemName}" ஆர்டர் செய்யப்படுகிறது.`
+          : language === 'hi'
+          ? `नामांकित व्यक्ति ने अनुमति दी! "${itemName}" ऑर्डर किया जा रहा है।`
+          : `Approved by Nominee! Order for "${itemName}" is being placed now.`);
+        showToast(msg, 'success');
+        speakText(msg, undefined, language);
+
+        executeActualInstantOrder(foodItem, 'best_value');
+        sessionStorage.removeItem('autofeast_pending_nominee_payload');
+      } else if (orderType === 'scheduled') {
+        const normalizedTime = normalizeTime(scheduleDetails?.time);
+        const newSchedule: AutoOrderSchedule = {
+          id: `SCHED-${Date.now()}`,
+          slotName: scheduleDetails?.slotName || 'Meal Slot',
+          slotIndex: 2,
+          time: normalizedTime,
+          frequency: (scheduleDetails?.frequency as any) || 'daily',
+          foodItemId: foodItem.id,
+          foodItemName: foodItem.name,
+          restaurant: foodItem.restaurant || scheduleDetails?.restaurant || 'Saravana Bhavan',
+          quantity: 1,
+          strategy: 'best_value',
+          isEnabled: true,
+          walletAutoDebit: true,
+          duration: (scheduleDetails?.duration as any) || '1_month',
+          approvalId: reqId
+        };
+
+        const itemName = foodItem.nativeNames?.[language] || foodItem.name;
+        const msg = t('nominee.approvedSchedulingNow') || (language === 'ta'
+          ? `பரிந்துரைப்பாளர் அனுமதித்தார்! "${itemName}" அட்டவணை அமைக்கப்படுகிறது.`
+          : language === 'hi'
+          ? `नामांकित व्यक्ति ने अनुमति दी! "${itemName}" शेड्यूल सेट किया जा रहा है।`
+          : `Approved by Nominee! Setting up schedule for "${itemName}" now.`);
+        showToast(msg, 'success');
+
+        executeActualSaveSchedule(newSchedule);
+        sessionStorage.removeItem('autofeast_pending_nominee_payload');
+      }
+    } catch (completionErr: any) {
+      console.error('[AppContext handleNomineeApprovalApproved completion error]:', completionErr);
+      const errMsg = t('nominee.completionError') || 'Unable to complete after approval. Please try again.';
+      showToast(errMsg, 'error');
     }
   };
 
@@ -948,6 +1044,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       denyNomineeRequest(reqId);
     }
     setWaitingNomineeApproval(null);
+    sessionStorage.removeItem('autofeast_pending_nominee_payload');
   };
 
   const approveNomineeRequest = (requestId: string) => {
@@ -1327,6 +1424,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const setLanguage = (newLang: Language) => {
+    if (!newLang || newLang === language) return;
     console.log(`[AppContext]: setLanguage called -> Updating active language state to: "${newLang}"`);
     setLanguageState(newLang);
     SpeechService.setLanguage(newLang);
@@ -1540,10 +1638,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, duration);
   };
 
-  const executeSearch = (overrideQuery?: string, isVoiceTrigger: boolean = false) => {
+  const executeSearch = async (overrideQuery?: string, isVoiceTrigger: boolean = false) => {
     const q = overrideQuery !== undefined ? overrideQuery : searchQuery;
 
-    const result = DynamicFoodSearchEngine.search({
+    let result = DynamicFoodSearchEngine.search({
       query: q,
       selectedLocation,
       selectedCuisine,
@@ -1563,15 +1661,53 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }).sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
     };
 
+    // Calculate best local match score
+    const bestLocalScore = result.matchedItems.length > 0
+      ? (result.extractedIntent?.confidence ?? 1.0)
+      : 0;
+
+    let isOffline = false;
+
+    // Gemini fallback: Triggered ONLY when local search finds nothing or has low confidence (best score < 0.45 or "not found")
+    if (q.trim() && (result.matchedItems.length === 0 || bestLocalScore < 0.45)) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        isOffline = true;
+      } else {
+        const fallbackRes = await fetchSearchFallback(q, language);
+        if (fallbackRes.isOffline) {
+          isOffline = true;
+        } else if (fallbackRes.items.length > 0) {
+          let filteredFallback = fallbackRes.items;
+          if (vegOnly) {
+            filteredFallback = filteredFallback.filter(f => f.isVeg);
+          }
+          if (selectedLocation && selectedLocation !== 'All') {
+            filteredFallback = filteredFallback.filter(f => f.locations.includes(selectedLocation) || f.locations.includes('All'));
+          }
+
+          if (filteredFallback.length > 0) {
+            result = {
+              ...result,
+              isExactMatch: true,
+              matchedItems: filteredFallback,
+              suggestedItems: [],
+              isSmartSearch: true
+            };
+          }
+        }
+      }
+    }
+
     const finalMatched = enrichDistance(result.matchedItems);
     const finalSuggested = enrichDistance(result.suggestedItems);
 
-    console.log("[DIALOG] search handled:", q, finalMatched.length);
+    console.log("[DIALOG] search handled:", q, finalMatched.length, "isSmartSearch:", Boolean(result.isSmartSearch));
 
     setSearchResult({
       ...result,
       matchedItems: finalMatched,
-      suggestedItems: finalSuggested
+      suggestedItems: finalSuggested,
+      offlineHint: isOffline
     });
 
     if (q.trim() && finalMatched.length > 0) {
@@ -2103,14 +2239,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const locAddr = userLocation.addressName || `${userLocation.area || 'Anna Nagar'}, ${userLocation.city || 'Chennai'}`;
 
+    const catalogMatch = INDIAN_FOOD_CATALOG.find(f => f.id === item.id || f.name.toLowerCase() === item.name.toLowerCase());
+    const itemPlatforms = (item.platforms && item.platforms.length > 0) ? item.platforms : (catalogMatch?.platforms || []);
+    const foodItemWithPlatforms = { ...item, platforms: itemPlatforms };
     const bill: ParsedOrderBill = {
       restaurantName: item.restaurant || 'Hotel Saravana Bhavan',
       items: [
         {
-          foodItem: item,
+          foodItem: foodItemWithPlatforms,
           quantity: 1,
           unitPrice: subtotal,
-          totalPrice: subtotal
+          totalPrice: subtotal,
+          platforms: itemPlatforms
         }
       ],
       subtotal,
@@ -2239,7 +2379,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return;
     }
 
-    if (checkIsItemRestrictedByNominee(s.foodItemId, s.foodItemName) && !isItemApprovedByNominee(s.foodItemId, 'scheduled')) {
+    // 3) ONE APPROVAL COVERS WHOLE RECURRING SCHEDULE:
+    // If schedule already has an approvalId or item was approved for scheduling, bypass nominee gate!
+    if (s.approvalId || isItemApprovedByNominee(s.foodItemId, 'scheduled')) {
+      if (verificationToken) {
+        const valRes = await AuthService.validateAndConsumeToken(verificationToken);
+        if (valRes.isValid) {
+          executeActualSaveSchedule(s);
+          return;
+        } else {
+          showToast(valRes.error || 'Security verification token expired. Please try again.', 'error');
+          return;
+        }
+      }
+      executeActualSaveSchedule(s);
+      return;
+    }
+
+    if (checkIsItemRestrictedByNominee(s.foodItemId, s.foodItemName)) {
       console.log(`🔒 [Nominee Interception]: Scheduled item "${s.foodItemName}" is restricted by nominee. Intercepting schedule creation...`);
       const itemObj = INDIAN_FOOD_CATALOG.find(f => f.id === s.foodItemId) || {
         id: s.foodItemId,
@@ -2300,10 +2457,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const template = t('scheduler.scheduleConfirmedMessage');
+    const displayTime = formatScheduleTime(s.time);
     const confirmMessage = template
       .replace('{item}', s.foodItemName || 'Food Item')
       .replace('{restaurant}', s.restaurant || 'Saravana Bhavan')
-      .replace('{time}', s.time || '8:00 AM')
+      .replace('{time}', displayTime)
       .replace('{duration}', durLabel);
 
     console.log(`[AppContext Schedule Confirmed]: ${confirmMessage}`);

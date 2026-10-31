@@ -4,6 +4,7 @@ import { AutoOrderSchedule, FoodItem, OrderStrategy, ScheduleDuration, ScheduleO
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
 import { FuzzyMatchEngine } from '../services/fuzzyMatchService';
+import { fetchSearchFallback } from '../services/geminiSearchFallbackClient';
 import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
 import { ItemActionChooser } from './ItemActionChooser';
@@ -467,6 +468,9 @@ export const AutoOrderScheduler: React.FC = () => {
 
   const calculatedEndDatePreview = calculateScheduleEndDate(startDate, duration, customEndDate);
 
+  const [schedulerFallbackItems, setSchedulerFallbackItems] = useState<FoodItem[]>([]);
+  const [schedulerOfflineHint, setSchedulerOfflineHint] = useState<boolean>(false);
+
   // Filter catalog based on scheduler food search bar using FuzzyMatchEngine
   const filteredCatalog = slotSearchQuery.trim()
     ? INDIAN_FOOD_CATALOG.filter(item => {
@@ -478,6 +482,46 @@ export const AutoOrderScheduler: React.FC = () => {
         return scoreB - scoreA;
       })
     : INDIAN_FOOD_CATALOG;
+
+  useEffect(() => {
+    if (!slotSearchQuery.trim()) {
+      setSchedulerFallbackItems([]);
+      setSchedulerOfflineHint(false);
+      return;
+    }
+
+    const localMatches = INDIAN_FOOD_CATALOG.filter(item => {
+      const fuzzy = FuzzyMatchEngine.matchCatalogFoodItem(slotSearchQuery, [item]);
+      return fuzzy.score >= 0.50 || item.name.toLowerCase().includes(slotSearchQuery.toLowerCase());
+    });
+
+    if (localMatches.length === 0) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setSchedulerOfflineHint(true);
+        setSchedulerFallbackItems([]);
+      } else {
+        setSchedulerOfflineHint(false);
+        let active = true;
+        fetchSearchFallback(slotSearchQuery, language).then(res => {
+          if (!active) return;
+          if (res.isOffline) {
+            setSchedulerOfflineHint(true);
+            setSchedulerFallbackItems([]);
+          } else if (res.items.length > 0) {
+            setSchedulerFallbackItems(res.items);
+          } else {
+            setSchedulerFallbackItems([]);
+          }
+        });
+        return () => { active = false; };
+      }
+    } else {
+      setSchedulerFallbackItems([]);
+      setSchedulerOfflineHint(false);
+    }
+  }, [slotSearchQuery, language]);
+
+  const displayCatalog = schedulerFallbackItems.length > 0 ? schedulerFallbackItems : filteredCatalog;
 
   const getSlotSuggestions = (slotIdx: number): FoodItem[] => {
     if (slotIdx === 1) {
@@ -859,8 +903,15 @@ export const AutoOrderScheduler: React.FC = () => {
             />
           </div>
 
+          {schedulerOfflineHint && (
+            <p className="text-xs font-bold text-amber-800 bg-amber-100/80 p-2.5 rounded-xl border border-amber-300 flex items-center gap-1.5 mb-2">
+              <span>🌐</span>
+              <span>Internet needed for smart search</span>
+            </p>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-1">
-            {filteredCatalog.map(item => (
+            {displayCatalog.map(item => (
               <div
                 key={item.id}
                 onClick={() => {
@@ -874,8 +925,15 @@ export const AutoOrderScheduler: React.FC = () => {
                 }`}
               >
                 <img src={item.image} alt={item.name} className="w-12 h-12 rounded-xl object-cover" />
-                <div className="overflow-hidden">
-                  <h4 className="text-xs font-black truncate">{item.name}</h4>
+                <div className="overflow-hidden min-w-0">
+                  <div className="flex items-center gap-1">
+                    <h4 className="text-xs font-black truncate">{item.name}</h4>
+                    {item.isSmartSearch && (
+                      <span className="text-[8px] font-black bg-indigo-600 text-white px-1.5 py-0.2 rounded-full uppercase shrink-0">
+                        Smart search
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[10px] opacity-80 truncate">{item.restaurant}</p>
                   <span className={`text-xs font-black ${selectedFoodItem.id === item.id ? 'text-yellow-200' : 'text-[#FF5A1F]'}`}>₹{item.basePrice}</span>
                 </div>

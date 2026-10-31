@@ -4,6 +4,7 @@ import { ShoppingBag, Trash2, Plus, Minus, X, AlertTriangle, ArrowRight, Utensil
 import { ScheduleCheckoutModal, ScheduleCheckoutItem } from './ScheduleCheckoutModal';
 import { PreOrderBillModal } from './PreOrderBillModal';
 import { ParsedOrderBill } from '../services/nlpParserService';
+import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 
 import { SpeechController } from '../services/speechController';
 import { ChooserVoiceService } from '../services/chooserVoiceService';
@@ -156,27 +157,39 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
     const platformFee = 10;
     const grandTotal = subtotal + totalGst + deliveryFee + platformFee;
 
-    const parsedItems = cart.map(item => ({
-      foodItem: item.foodItem || {
-        id: item.itemId,
-        name: item.name,
-        restaurant: item.restaurantName,
-        basePrice: item.price,
-        nativeNames: { ta: item.name, hi: item.name, en: item.name },
-        image: item.image || '',
-        description: '',
-        category: item.category || 'General',
-        isVegetarian: item.isVegetarian || false,
-        rating: 4.5,
-        preparationTimeMinutes: 20,
-        locations: ['Chennai'],
-        tags: [],
-        platforms: []
-      },
-      quantity: item.qty,
-      unitPrice: item.price,
-      totalPrice: item.price * item.qty
-    }));
+    const parsedItems = cart.map(item => {
+      const catalogMatch = INDIAN_FOOD_CATALOG.find(f => f.id === item.itemId || f.name.toLowerCase() === item.name.toLowerCase());
+      const itemPlatforms = (item.foodItem?.platforms && item.foodItem.platforms.length > 0)
+        ? item.foodItem.platforms
+        : (catalogMatch?.platforms || []);
+
+      const foodItem = item.foodItem
+        ? { ...item.foodItem, platforms: itemPlatforms }
+        : {
+            id: item.itemId,
+            name: item.name,
+            restaurant: item.restaurantName,
+            basePrice: item.price,
+            nativeNames: { ta: item.name, hi: item.name, en: item.name },
+            image: item.image || '',
+            description: '',
+            category: item.category || 'General',
+            isVegetarian: item.isVegetarian || false,
+            rating: 4.5,
+            preparationTimeMinutes: 20,
+            locations: ['Chennai'],
+            tags: [],
+            platforms: itemPlatforms
+          };
+
+      return {
+        foodItem,
+        quantity: item.qty,
+        unitPrice: item.price,
+        totalPrice: item.price * item.qty,
+        platforms: itemPlatforms
+      };
+    });
 
     const billObj: ParsedOrderBill = {
       restaurantName: Object.keys(groupedCartItems).join(', '),

@@ -317,11 +317,15 @@ export class LlmNluService {
 
         if (fuzzyResult.item && fuzzyResult.confidence === 'high') {
           const unitPrice = fuzzyResult.item.basePrice || 100;
+          const itemPlatforms = (fuzzyResult.item.platforms && fuzzyResult.item.platforms.length > 0)
+            ? fuzzyResult.item.platforms
+            : (INDIAN_FOOD_CATALOG.find(f => f.id === fuzzyResult.item.id)?.platforms || []);
           parsedItems.push({
-            foodItem: fuzzyResult.item,
+            foodItem: { ...fuzzyResult.item, platforms: itemPlatforms },
             quantity: qty,
             unitPrice,
-            totalPrice: unitPrice * qty
+            totalPrice: unitPrice * qty,
+            platforms: itemPlatforms
           });
         } else if (fuzzyResult.item && fuzzyResult.confidence === 'medium') {
           // Medium confidence -> Ask user to confirm item before scheduling

@@ -11,12 +11,13 @@ const ORDER_HISTORY_KEY = 'smart_food_order_history';
  * Calculate end date based on start date and duration setting
  */
 export function calculateScheduleEndDate(
-  startDateStr: string,
+  startDateStr: any,
   duration?: ScheduleDuration,
-  customEndDate?: string
+  customEndDate?: any
 ): string | undefined {
   if (!duration || duration === 'indefinite') return undefined;
-  if (duration === 'custom') return customEndDate || undefined;
+  if (duration === 'custom') return typeof customEndDate === 'string' ? customEndDate : undefined;
+  if (!startDateStr || typeof startDateStr !== 'string') return undefined;
   if (duration === 'today_only') return startDateStr;
 
   const parts = startDateStr.split('-');

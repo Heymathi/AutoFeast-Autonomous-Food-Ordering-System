@@ -56,6 +56,7 @@ export interface FoodItem {
   restaurantLng: number;
   distanceKm?: number;
   platforms: PlatformPriceOption[];
+  isSmartSearch?: boolean;
 }
 
 export type OrderStrategy = 'best_value' | 'cheapest' | 'highest_rated' | 'fastest';
@@ -78,6 +79,7 @@ export interface ScheduleOverride {
 
 export interface AutoOrderSchedule {
   id: string;
+  approvalId?: string;
   slotName: string;
   slotIndex: 1 | 2 | 3 | 4;
   time: string;

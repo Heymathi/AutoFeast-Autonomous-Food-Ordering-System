@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   forwardGeocode,
@@ -6,6 +6,10 @@ import {
   GeocodedPlace,
   lastForwardGeocodeError
 } from '../services/locationService';
+import { SpeechController } from '../services/speechController';
+import { CrossScriptPhoneticMatcher } from '../services/crossScriptPhoneticMatcher';
+import { checkOrdinalMatch } from '../services/guidedMatchingService';
+import { SttMatcherService } from '../services/sttMatcherService';
 import { UserLocation } from '../types';
 import {
   Search,
@@ -43,6 +47,8 @@ export const Navbar: React.FC = () => {
     requestWalletBalanceReveal,
     accessibilitySettings,
     setAccessibilitySettings,
+    language,
+    autoVoicePromptEnabled,
     t,
     speakText,
     logout,
@@ -101,13 +107,386 @@ export const Navbar: React.FC = () => {
     setIsLocationPopoverOpen(true);
   };
 
+  // Inline Delivery Location Popover Voice Assistant State
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [isVoiceSpeaking, setIsVoiceSpeaking] = useState(false);
+  const [voiceStatusText, setVoiceStatusText] = useState<string | null>(null);
+
+  const voiceTurnRef = useRef<'idle' | 'input_address' | 'pick_suggestion' | 'confirm_candidate'>('idle');
+  const pendingPlacesRef = useRef<GeocodedPlace[]>([]);
+  const candidateToConfirmRef = useRef<GeocodedPlace | null>(null);
+  const voiceRetryCountRef = useRef(0);
+  const isLocationPopoverOpenRef = useRef(isLocationPopoverOpen);
+  isLocationPopoverOpenRef.current = isLocationPopoverOpen;
+
+  const stopVoiceFlow = useCallback(() => {
+    SpeechController.cancelSpeech();
+    SpeechController.releaseMic('header_location_voice');
+    setIsVoiceListening(false);
+    setIsVoiceSpeaking(false);
+    setVoiceStatusText(null);
+    voiceTurnRef.current = 'idle';
+  }, []);
+
   const closeLocationPopover = () => {
+    stopVoiceFlow();
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     setIsLocationPopoverOpen(false);
     setIsSearchingLocation(false);
     setLocationError(null);
     setIsDetectingGps(false);
   };
+
+  const handleUseCurrentGPS = async () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    setIsDetectingGps(true);
+    setLocationError(null);
+
+    try {
+      const gpsLoc = await fetchLiveGPSLocation();
+      const resolvedArea =
+        gpsLoc.area && gpsLoc.area !== 'Location not set' && gpsLoc.area !== 'Not set'
+          ? gpsLoc.area
+          : gpsLoc.city && gpsLoc.city !== 'Not set'
+          ? gpsLoc.city
+          : '';
+
+      if (!resolvedArea) {
+        setLocationError(t('location.gpsError'));
+        setIsDetectingGps(false);
+        return;
+      }
+
+      const finalLoc: UserLocation = {
+        ...gpsLoc,
+        area: resolvedArea,
+        city: gpsLoc.city && gpsLoc.city !== 'Not set' ? gpsLoc.city : resolvedArea
+      };
+
+      setUserLocation(finalLoc);
+      const confirmMsg = t('location.deliveryLocationSet').replace('{area}', resolvedArea);
+      speakText(confirmMsg);
+      closeLocationPopover();
+    } catch (err) {
+      setLocationError(t('location.gpsError'));
+      setIsDetectingGps(false);
+    }
+  };
+
+  const saveChosenLocation = useCallback((place: GeocodedPlace) => {
+    const fallbackCity =
+      userLocation.city && userLocation.city !== 'Not set' && userLocation.city !== 'Location not set'
+        ? userLocation.city
+        : 'Chennai';
+
+    const area = place.area || place.city || place.addressName;
+    const city = place.city || fallbackCity;
+    const lat = place.latitude || userLocation.latitude || 13.0827;
+    const lng = place.longitude || userLocation.longitude || 80.2707;
+
+    const finalLoc: UserLocation = {
+      latitude: lat,
+      longitude: lng,
+      addressName: city && area.toLowerCase() !== city.toLowerCase() ? `${area}, ${city}` : area,
+      city,
+      area,
+      isLiveGPS: false,
+      isApproximate: false,
+      isManualOverride: true
+    };
+
+    setManualUserLocation(finalLoc);
+    const updatedMsg = t('location.voiceUpdated').replace('{place}', area);
+    speakText(updatedMsg);
+    showToast(t('location.deliveryLocationSet').replace('{area}', area));
+    closeLocationPopover();
+  }, [userLocation, setManualUserLocation, speakText, showToast, t]);
+
+  const listenForTurn = useCallback((turn: 'input_address' | 'pick_suggestion' | 'confirm_candidate') => {
+    if (!SpeechController.isSupported()) return;
+    SpeechController.cancelSpeech();
+    setIsVoiceSpeaking(false);
+    setIsVoiceListening(true);
+    voiceTurnRef.current = turn;
+    setVoiceStatusText(t('location.voiceStatusListening'));
+
+    const isGpsCommand = (text: string) => {
+      const lower = text.toLowerCase();
+      const gpsWords = [
+        'current location', 'use current location', 'use my current location', 'live location',
+        'use live location', 'gps', 'my location',
+        'ippo irukkura idam', 'en location', 'இப்போதைய இடம்', 'லைவ் இருப்பிடம்', 'லைவ் இடம்',
+        'meri current location', 'abhi ki location', 'वर्तमान स्थान'
+      ];
+      return gpsWords.some(w => lower.includes(w));
+    };
+
+    const isCancelCommand = (text: string) => {
+      const lower = text.toLowerCase();
+      const cancelWords = [
+        'cancel', 'close', 'stop', 'back',
+        'venam', 'vendaam', 'வேண்டாம்', 'வேணாம்', 'ரத்து',
+        'mat karo', 'raddh', 'रद्द', 'बंद करो'
+      ];
+      return cancelWords.some(w => lower.includes(w));
+    };
+
+    SpeechController.requestMic({
+      owner: 'header_location_voice',
+      language,
+      continuous: false,
+      interimResults: true,
+      maxAlternatives: 5,
+      silenceTimeoutMs: 7000,
+      onStart: () => {
+        setIsVoiceListening(true);
+      },
+      onResult: async (transcript, isFinal) => {
+        if (!transcript || !isLocationPopoverOpenRef.current) return;
+        if (!isFinal) {
+          if (turn === 'input_address') {
+            setLocationInput(transcript);
+          }
+          return;
+        }
+
+        setIsVoiceListening(false);
+        SpeechController.releaseMic('header_location_voice');
+
+        const clean = transcript.trim();
+        if (isGpsCommand(clean)) {
+          stopVoiceFlow();
+          handleUseCurrentGPS();
+          return;
+        }
+
+        if (isCancelCommand(clean)) {
+          closeLocationPopover();
+          return;
+        }
+
+        if (turn === 'input_address') {
+          setLocationInput(clean);
+          setIsSearchingLocation(true);
+          setVoiceStatusText(t('location.voiceStatusSearching'));
+
+          let results = await forwardGeocode(clean).catch(() => []);
+          if (!results || results.length === 0) {
+            // Retry with phonetic Latin transliteration
+            const latin = CrossScriptPhoneticMatcher.toPhoneticLatin(clean);
+            if (latin && latin !== clean.toLowerCase()) {
+              results = await forwardGeocode(latin).catch(() => []);
+            }
+          }
+
+          setIsSearchingLocation(false);
+
+          if (!results || results.length === 0) {
+            if (voiceRetryCountRef.current < 2) {
+              voiceRetryCountRef.current += 1;
+              const retryPrompt = t('location.voiceRepeatSlowly');
+              setIsVoiceSpeaking(true);
+              setVoiceStatusText(retryPrompt);
+              SpeechController.speak(retryPrompt, language, () => {
+                if (!isLocationPopoverOpenRef.current) return;
+                setIsVoiceSpeaking(false);
+                listenForTurn('input_address');
+              });
+            } else {
+              setVoiceStatusText(t('location.noMatchFound'));
+              voiceTurnRef.current = 'idle';
+            }
+            return;
+          }
+
+          // Results found!
+          voiceRetryCountRef.current = 0;
+          setSuggestions(results.slice(0, 5));
+          setHasSearchedLocation(true);
+
+          if (results.length === 1) {
+            const single = results[0];
+            candidateToConfirmRef.current = single;
+            setSelectedSuggestion(single);
+            const placeName = single.area && single.city && single.area.toLowerCase() !== single.city.toLowerCase()
+              ? `${single.area}, ${single.city}`
+              : single.area || single.city || single.addressName;
+            setLocationInput(placeName);
+            const prompt = t('location.voiceSingleResult').replace('{place}', placeName);
+            setIsVoiceSpeaking(true);
+            setVoiceStatusText(prompt);
+            SpeechController.speak(prompt, language, () => {
+              if (!isLocationPopoverOpenRef.current) return;
+              setIsVoiceSpeaking(false);
+              listenForTurn('confirm_candidate');
+            });
+          } else {
+            const top3 = results.slice(0, 3);
+            pendingPlacesRef.current = top3;
+            const placesFormatted = top3.map((p, idx) => {
+              const name = p.area && p.city && p.area.toLowerCase() !== p.city.toLowerCase()
+                ? `${p.area}, ${p.city}`
+                : p.area || p.city || p.addressName;
+              return `${idx + 1}: ${name}`;
+            }).join(', ');
+
+            const prompt = t('location.voiceTopResults').replace('{results}', placesFormatted);
+            setIsVoiceSpeaking(true);
+            setVoiceStatusText(prompt);
+            SpeechController.speak(prompt, language, () => {
+              if (!isLocationPopoverOpenRef.current) return;
+              setIsVoiceSpeaking(false);
+              listenForTurn('pick_suggestion');
+            });
+          }
+        } else if (turn === 'pick_suggestion') {
+          const ordMatch = checkOrdinalMatch(clean, pendingPlacesRef.current);
+          const nameMatch = pendingPlacesRef.current.find(p => {
+            const lower = clean.toLowerCase();
+            return (
+              (p.area && lower.includes(p.area.toLowerCase())) ||
+              (p.city && lower.includes(p.city.toLowerCase())) ||
+              (p.addressName && lower.includes(p.addressName.toLowerCase()))
+            );
+          });
+
+          const chosen = ordMatch ? ordMatch.matchedItem : nameMatch;
+          if (chosen) {
+            candidateToConfirmRef.current = chosen;
+            setSelectedSuggestion(chosen);
+            const placeName = chosen.area && chosen.city && chosen.area.toLowerCase() !== chosen.city.toLowerCase()
+              ? `${chosen.area}, ${chosen.city}`
+              : chosen.area || chosen.city || chosen.addressName;
+            setLocationInput(placeName);
+            const prompt = t('location.voiceConfirm').replace('{place}', placeName);
+            setIsVoiceSpeaking(true);
+            setVoiceStatusText(prompt);
+            SpeechController.speak(prompt, language, () => {
+              if (!isLocationPopoverOpenRef.current) return;
+              setIsVoiceSpeaking(false);
+              listenForTurn('confirm_candidate');
+            });
+          } else {
+            const conf = SttMatcherService.matchConfirmation(clean);
+            if (conf.matchedValue === 'YES' && pendingPlacesRef.current[0]) {
+              saveChosenLocation(pendingPlacesRef.current[0]);
+            } else {
+              if (voiceRetryCountRef.current < 2) {
+                voiceRetryCountRef.current += 1;
+                const prompt = t('location.whichLocationQuestion');
+                setIsVoiceSpeaking(true);
+                setVoiceStatusText(prompt);
+                SpeechController.speak(prompt, language, () => {
+                  if (!isLocationPopoverOpenRef.current) return;
+                  setIsVoiceSpeaking(false);
+                  listenForTurn('pick_suggestion');
+                });
+              } else {
+                voiceTurnRef.current = 'idle';
+              }
+            }
+          }
+        } else if (turn === 'confirm_candidate') {
+          const conf = SttMatcherService.matchConfirmation(clean);
+          const lower = clean.toLowerCase();
+          const isYes = conf.matchedValue === 'YES' || ['yes', 'yeah', 'yep', 'ok', 'okay', 'sure', 'சரி', 'ஆமா', 'ஆமாம்', 'हाँ', 'हां', 'theek'].some(w => lower.includes(w));
+          const isNo = conf.matchedValue === 'NO' || ['no', 'change', 'different', 'இல்லை', 'இல்ல', 'வேண்டாம்', 'மாத்து', 'नहीं', 'बदलो', 'दूसरा'].some(w => lower.includes(w));
+
+          if (isYes && candidateToConfirmRef.current) {
+            saveChosenLocation(candidateToConfirmRef.current);
+          } else if (isNo) {
+            startVoiceAddressFlow(false);
+          } else {
+            if (voiceRetryCountRef.current < 2) {
+              voiceRetryCountRef.current += 1;
+              const placeName = candidateToConfirmRef.current?.area || candidateToConfirmRef.current?.city || '';
+              const prompt = t('location.voiceConfirm').replace('{place}', placeName);
+              setIsVoiceSpeaking(true);
+              setVoiceStatusText(prompt);
+              SpeechController.speak(prompt, language, () => {
+                if (!isLocationPopoverOpenRef.current) return;
+                setIsVoiceSpeaking(false);
+                listenForTurn('confirm_candidate');
+              });
+            } else {
+              voiceTurnRef.current = 'idle';
+            }
+          }
+        }
+      },
+      onSilence: () => {
+        setIsVoiceListening(false);
+        SpeechController.releaseMic('header_location_voice');
+        if (voiceRetryCountRef.current < 2) {
+          voiceRetryCountRef.current += 1;
+          const retryHint = t('location.voiceNoSpeech');
+          setVoiceStatusText(retryHint);
+        } else {
+          voiceTurnRef.current = 'idle';
+        }
+      },
+      onError: (errCode) => {
+        setIsVoiceListening(false);
+        SpeechController.releaseMic('header_location_voice');
+        if (errCode === 'not-allowed' || errCode === 'permission-denied') {
+          setVoiceStatusText(t('location.voiceMicDenied'));
+        }
+        voiceTurnRef.current = 'idle';
+      },
+      onEnd: () => {
+        setIsVoiceListening(false);
+      }
+    });
+  }, [language, t, handleUseCurrentGPS, saveChosenLocation, stopVoiceFlow]);
+
+  const startVoiceAddressFlow = useCallback((isRetry = false) => {
+    if (!SpeechController.isSupported()) return;
+    if (!isRetry) {
+      voiceRetryCountRef.current = 0;
+      pendingPlacesRef.current = [];
+      candidateToConfirmRef.current = null;
+    }
+
+    voiceTurnRef.current = 'input_address';
+    const prompt = t('location.voicePrompt');
+    setIsVoiceSpeaking(true);
+    setVoiceStatusText(prompt);
+
+    SpeechController.speak(prompt, language, () => {
+      if (!isLocationPopoverOpenRef.current) return;
+      setIsVoiceSpeaking(false);
+      listenForTurn('input_address');
+    });
+  }, [language, t, listenForTurn]);
+
+  const handleToggleVoice = () => {
+    if (isVoiceListening || isVoiceSpeaking) {
+      stopVoiceFlow();
+    } else {
+      startVoiceAddressFlow(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isLocationPopoverOpen) {
+      if (autoVoicePromptEnabled) {
+        const timer = setTimeout(() => {
+          startVoiceAddressFlow(false);
+        }, 150);
+        return () => clearTimeout(timer);
+      }
+    } else {
+      stopVoiceFlow();
+    }
+  }, [isLocationPopoverOpen, autoVoicePromptEnabled, startVoiceAddressFlow, stopVoiceFlow]);
+
+  useEffect(() => {
+    return () => {
+      stopVoiceFlow();
+    };
+  }, [stopVoiceFlow]);
 
   // Auto-focus input when popover opens
   useEffect(() => {
@@ -207,43 +586,7 @@ export const Navbar: React.FC = () => {
     locationInputRef.current?.focus();
   };
 
-  const handleUseCurrentGPS = async () => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    setIsDetectingGps(true);
-    setLocationError(null);
 
-    try {
-      const gpsLoc = await fetchLiveGPSLocation();
-      const resolvedArea =
-        gpsLoc.area && gpsLoc.area !== 'Location not set' && gpsLoc.area !== 'Not set'
-          ? gpsLoc.area
-          : gpsLoc.city && gpsLoc.city !== 'Not set'
-          ? gpsLoc.city
-          : '';
-
-      if (!resolvedArea) {
-        setLocationError(t('location.gpsError'));
-        setIsDetectingGps(false);
-        return;
-      }
-
-      const finalLoc: UserLocation = {
-        ...gpsLoc,
-        area: resolvedArea,
-        city: gpsLoc.city && gpsLoc.city !== 'Not set' ? gpsLoc.city : resolvedArea
-      };
-
-      setUserLocation(finalLoc);
-      const confirmMsg = t('location.deliveryLocationSet').replace('{area}', resolvedArea);
-      speakText(confirmMsg);
-      closeLocationPopover();
-    } catch (err) {
-      setLocationError(t('location.gpsError'));
-      setIsDetectingGps(false);
-    }
-  };
 
   const handleSaveLocation = async (e?: React.FormEvent) => {
     if (e) {
@@ -371,10 +714,10 @@ export const Navbar: React.FC = () => {
     >
       <div className="header-container w-full max-w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-2.5">
         {/* MAIN TOP BAR */}
-        <div className="flex flex-wrap items-stretch justify-between gap-2 sm:gap-2.5 w-full min-w-0">
+        <div className="flex flex-wrap items-stretch justify-start gap-2 sm:gap-2.5 w-full min-w-0">
           
           {/* LOGO, TITLE & GPS LOCATION BADGE (BRAND GROUP) */}
-          <div className={`header-brand-group flex flex-wrap items-center justify-between gap-2.5 px-3 py-1.5 rounded-2xl min-w-0 ${pillGroupSurface}`}>
+          <div className={`header-brand-group flex flex-wrap items-center justify-start sm:justify-between gap-2.5 px-3 py-1.5 rounded-2xl min-w-0 ${pillGroupSurface}`}>
             <div className="flex items-center gap-2.5 shrink-0">
               <div
                 className="bg-[#FF5A1F] min-h-[48px] min-w-[48px] p-2.5 rounded-xl shadow-md flex items-center justify-center cursor-pointer hover:bg-[#E04812] transition-colors shrink-0"
@@ -503,8 +846,26 @@ export const Navbar: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* 1. Text Input (pre-filled & auto-focused) */}
-                    <div>
+                    {/* Voice feedback / status strip */}
+                    {voiceStatusText && (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[16px] font-bold border ${
+                          isVoiceListening
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500 animate-pulse'
+                            : isVoiceSpeaking
+                            ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                        }`}
+                      >
+                        <Mic className={`w-4 h-4 shrink-0 ${isVoiceListening ? 'text-[#FF5A1F] animate-pulse' : 'text-blue-600'}`} />
+                        <span className="truncate">{voiceStatusText}</span>
+                      </div>
+                    )}
+
+                    {/* 1. Text Input (pre-filled & auto-focused) + Mic Button */}
+                    <div className="flex items-center gap-2">
                       <input
                         ref={locationInputRef}
                         id="header-location-input"
@@ -515,7 +876,7 @@ export const Navbar: React.FC = () => {
                         aria-label={t('location.popoverInputLabel')}
                         autoComplete="off"
                         autoFocus
-                        className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl text-[18px] font-bold leading-snug focus:outline-none focus:ring-2 focus:ring-[#FF5A1F] transition-colors ${
+                        className={`flex-1 min-h-[48px] px-3.5 py-2.5 rounded-xl text-[18px] font-bold leading-snug focus:outline-none focus:ring-2 focus:ring-[#FF5A1F] transition-colors ${
                           currentTheme === 'high-contrast'
                             ? 'bg-black text-white placeholder-neutral-400 border-2 border-yellow-400'
                             : currentTheme === 'dark'
@@ -523,6 +884,27 @@ export const Navbar: React.FC = () => {
                             : 'bg-[#FFFFFF] text-[#111827] placeholder-slate-500 border-2 border-[#9CA3AF]'
                         }`}
                       />
+                      <button
+                        type="button"
+                        id="popover-voice-location-btn"
+                        onClick={handleToggleVoice}
+                        aria-label={t('location.voiceMicAria')}
+                        title={t('location.voiceMicAria')}
+                        className={`min-h-[48px] px-3 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border shrink-0 ${
+                          isVoiceListening
+                            ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse border-red-700 shadow-sm'
+                            : isVoiceSpeaking
+                            ? 'bg-amber-500 text-white animate-bounce border-amber-600'
+                            : currentTheme === 'high-contrast'
+                            ? 'bg-black hover:bg-neutral-900 text-yellow-300 border-2 border-yellow-400'
+                            : currentTheme === 'dark'
+                            ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-600'
+                            : 'bg-[#FF5A1F] hover:bg-[#E04812] text-white border-[#FF5A1F]'
+                        }`}
+                      >
+                        <Mic className="w-5 h-5 shrink-0" />
+                        <span className="text-[16px]">{isVoiceListening ? t('location.listening') : t('search.voice')}</span>
+                      </button>
                     </div>
 
                     {/* 5. Loading, Error & "No results" states */}
@@ -681,13 +1063,13 @@ export const Navbar: React.FC = () => {
 
           {/* NAVIGATION PILLS GROUP */}
           <nav
-            className={`header-nav-group flex flex-wrap items-center justify-evenly gap-2 p-1.5 rounded-2xl min-w-0 ${pillGroupSurface}`}
+            className={`header-nav-group flex flex-wrap items-center justify-start sm:justify-between gap-2 p-1.5 rounded-2xl min-w-0 ${pillGroupSurface}`}
           >
             {/* Search */}
             <button
               type="button"
               onClick={() => setActiveView('search')}
-              className={`header-btn flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
+              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
                 activeView === 'search'
                   ? 'bg-[#FF5A1F] text-white shadow-sm'
                   : unselectedBtnClass
@@ -704,7 +1086,7 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveView('tracking')}
-                className={`header-btn flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
+                className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
                   activeView === 'tracking'
                     ? 'bg-[#16A34A] text-white shadow-md'
                     : 'bg-[#16A34A] hover:bg-[#15803D] text-white'
@@ -721,7 +1103,7 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('scheduler')}
-              className={`header-btn flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
+              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
                 activeView === 'scheduler'
                   ? 'bg-[#FF5A1F] text-white shadow-sm'
                   : unselectedBtnClass
@@ -743,7 +1125,7 @@ export const Navbar: React.FC = () => {
                   requestWalletBalanceReveal();
                 }
               }}
-              className={`header-btn flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
+              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
                 activeView === 'wallet'
                   ? 'bg-[#FF5A1F] text-white shadow-sm'
                   : unselectedBtnClass
@@ -768,7 +1150,7 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsLimitRenewalModalOpen(true)}
-              className={`header-btn flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all border cursor-pointer ${
+              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all border cursor-pointer ${
                 dailyOrderCount >= 6
                   ? 'bg-[#C2185B] text-white border-[#C2185B]'
                   : currentTheme === 'high-contrast'
@@ -793,7 +1175,7 @@ export const Navbar: React.FC = () => {
                 } catch {}
                 setIsNomineeModalOpen(true);
               }}
-              className={`header-btn flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all border cursor-pointer relative ${
+              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all border cursor-pointer relative ${
                 currentTheme === 'high-contrast'
                   ? 'bg-black hover:bg-neutral-900 text-white border-yellow-400'
                   : currentTheme === 'dark'
@@ -816,7 +1198,7 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('orders')}
-              className={`header-btn flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
+              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
                 activeView === 'orders'
                   ? 'bg-[#FF5A1F] text-white shadow-sm'
                   : unselectedBtnClass
@@ -835,7 +1217,7 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsScheduleCartModalOpen(true)}
-                  className={`header-btn flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer border relative ${
+                  className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer border relative ${
                     currentTheme === 'high-contrast'
                       ? 'bg-black hover:bg-neutral-900 text-white border-yellow-400'
                       : currentTheme === 'dark'
@@ -858,12 +1240,12 @@ export const Navbar: React.FC = () => {
           </nav>
 
           {/* ACTION BUTTONS (USER PROFILE, VOICE SEARCH, HEALTHY FOOD, THEME, LOGOUT) */}
-          <div className={`header-actions-group flex flex-wrap items-center justify-evenly gap-2 p-1.5 rounded-2xl min-w-0 ${pillGroupSurface}`}>
+          <div className={`header-actions-group flex flex-wrap items-center justify-start sm:justify-between gap-2 p-1.5 rounded-2xl min-w-0 ${pillGroupSurface}`}>
             
             {/* User Profile / Sign In */}
             {currentUser ? (
               <div
-                className={`header-chip flex-1 flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border min-w-0 ${
+                className={`header-chip flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border min-w-0 ${
                   currentTheme === 'high-contrast'
                     ? 'bg-black text-white border-yellow-400'
                     : currentTheme === 'dark'
@@ -898,7 +1280,7 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsAuthGateOpen(true)}
-                className="header-btn flex-1 flex items-center justify-center gap-2 bg-[#FF5A1F] text-white font-bold px-3.5 py-2.5 rounded-xl shadow-sm hover:bg-[#E04812] cursor-pointer"
+                className="header-btn flex items-center justify-center gap-2 bg-[#FF5A1F] text-white font-bold px-3.5 py-2.5 rounded-xl shadow-sm hover:bg-[#E04812] cursor-pointer"
                 title="Sign In"
                 aria-label="Sign In"
               >
@@ -911,7 +1293,7 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsVoiceModalOpen(true)}
-              className="header-btn flex-1 flex items-center justify-center gap-2 bg-[#FF5A1F] hover:bg-[#E04812] text-white font-bold px-3.5 py-2.5 rounded-xl shadow-sm transition-colors cursor-pointer"
+              className="header-btn flex items-center justify-center gap-2 bg-[#FF5A1F] hover:bg-[#E04812] text-white font-bold px-3.5 py-2.5 rounded-xl shadow-sm transition-colors cursor-pointer"
               title={t('search.voice')}
               aria-label={t('search.voice')}
             >
@@ -923,7 +1305,7 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsHealthModalOpen(true)}
-              className="header-btn flex-1 flex items-center justify-center gap-2 bg-[#C2185B] hover:bg-[#A3134C] text-white font-bold px-3.5 py-2.5 rounded-xl shadow-sm transition-colors cursor-pointer border border-[#C2185B]"
+              className="header-btn flex items-center justify-center gap-2 bg-[#C2185B] hover:bg-[#A3134C] text-white font-bold px-3.5 py-2.5 rounded-xl shadow-sm transition-colors cursor-pointer border border-[#C2185B]"
               title={t('nav.healthyFood')}
               aria-label={t('nav.healthyFood')}
             >

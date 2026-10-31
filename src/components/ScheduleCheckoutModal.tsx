@@ -9,7 +9,8 @@ import {
   calculateScheduleOccurrences,
   calculateScheduleDatesList,
   checkIsDateTimePast,
-  getNextAvailableTimeSlot
+  getNextAvailableTimeSlot,
+  normalizeTime
 } from '../utils/scheduleCalculator';
 import { Clock, Calendar, CheckCircle2, ShieldCheck, Wallet, Lock, X, AlertTriangle, ArrowRight, Utensils, Tag, FileText, Check, Mic } from 'lucide-react';
 import { SpeechService } from '../services/speechService';
@@ -477,7 +478,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
           id: `sched-${Date.now()}-${idx}`,
           slotName: slotTitle || `Scheduled Slot ${idx + 1}`,
           slotIndex: 1,
-          time: timeInput,
+          time: normalizeTime(timeInput),
           frequency,
           foodItemId: item.foodItem.id || `item_${idx}`,
           foodItemName: item.foodItem.name || 'Food Item',

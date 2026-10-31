@@ -7,6 +7,7 @@ import { ChooserVoiceService } from '../services/chooserVoiceService';
 import { SttMatcherService } from '../services/sttMatcherService';
 import { VoiceIntentRouter } from '../services/voiceIntentRouter';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
+import { PlatformComparisonSection } from './PlatformComparisonSection';
 import { FileText, CheckCircle, XCircle, Mic, MapPin, Clock, X, Loader2 } from 'lucide-react';
 
 interface PreOrderBillModalProps {
@@ -316,49 +317,8 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             ))}
           </div>
 
-          {/* Delivery Platform Price Comparison Card */}
-          {bill.priceComparison && (
-            <div className="bg-emerald-50 dark:bg-emerald-950/40 p-3 rounded-2xl border border-emerald-300 dark:border-emerald-800 space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
-                📊 {language === 'ta' ? 'செயலி விலை ஒப்பீடு (Price Comparison):' : language === 'hi' ? 'ऐप कीमत तुलना:' : 'App Price Comparison:'}
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                {bill.priceComparison.allPlatforms.map((p, idx) => {
-                  const isCheapest = p.platform === bill.priceComparison!.cheapest.platform;
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`p-2 rounded-xl border flex items-center justify-between gap-2 ${
-                        isCheapest
-                          ? 'bg-emerald-100 dark:bg-emerald-900/60 border-emerald-500 font-black'
-                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <span className="font-extrabold text-[11px] text-slate-900 dark:text-white block truncate">
-                          {p.platformName}
-                        </span>
-                        <span className="text-[9px] text-slate-500 dark:text-slate-400 font-bold block">
-                          ⏱ {p.deliveryTime} mins
-                        </span>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="font-black text-xs text-slate-900 dark:text-white block">
-                          ₹{p.price + p.deliveryFee}
-                        </span>
-                        {isCheapest && (
-                          <span className="text-[8px] font-black bg-emerald-600 text-white px-1.5 py-0.5 rounded-full uppercase inline-block">
-                            Best Price
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Live Platform Comparison (same data as the food card: foodItem.platforms) */}
+          <PlatformComparisonSection items={bill.items} language={language} />
 
           {/* Tax & Bill Breakdown Calculation Card */}
           <div className="bg-slate-100 dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">

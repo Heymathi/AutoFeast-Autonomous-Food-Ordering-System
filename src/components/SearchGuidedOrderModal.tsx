@@ -35,6 +35,7 @@ import { deriveMealSlot } from '../services/timeVoiceParser';
 import { calculateHaversineDistance } from '../services/locationService';
 import { AutoOrderBackgroundService } from '../services/autoOrderBackgroundService';
 import { AuthService } from '../services/authService';
+import { normalizeTime } from '../utils/scheduleCalculator';
 import { parsePinSpeech } from '../services/pinVoiceParserService';
 import {
   matchOptionByTokens,
@@ -593,9 +594,11 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       if (isRestricted) {
         SpeechController.releaseMic(MIC_OWNER);
         onClose();
+        const safeTime = normalizeTime(schedTime);
+        const hours = parseInt(safeTime.split(':')[0], 10) || 8;
         handleNomineeRestrictedInterception(selectedItem, 'scheduled', {
-          time: schedTime,
-          slotName: `${deriveMealSlot(parseInt(schedTime.split(':')[0], 10))} Schedule`,
+          time: safeTime,
+          slotName: `${deriveMealSlot(hours)} Schedule`,
           duration: schedDuration as ScheduleDuration,
           frequency: schedDaysMode === 'all_days' ? 'daily' : 'weekly'
         });
@@ -603,14 +606,15 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       }
 
       // 2. Save ONE recurring schedule with existing scheduler
-      const hours = parseInt(schedTime.split(':')[0], 10) || 8;
+      const safeTime = normalizeTime(schedTime);
+      const hours = parseInt(safeTime.split(':')[0], 10) || 8;
       const slotIdx = deriveSlotIndex(hours);
       const slot = deriveMealSlot(hours);
       const newSchedule: AutoOrderSchedule = {
         id: `sched-${Date.now()}`,
         slotName: `${slot} Schedule`,
         slotIndex: slotIdx,
-        time: schedTime,
+        time: safeTime,
         frequency: schedDaysMode === 'all_days' ? 'daily' : 'weekly',
         selectedDays: schedDaysMode === 'all_days' ? undefined : schedDays,
         foodItemId: selectedItem.id,
@@ -788,10 +792,10 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
       );
       const filteredRestaurants = selectedItem
         ? getUniqueRestaurants(
-            matchedItems.filter(i => i.id === selectedItem.id || i.restaurant === selectedItem.restaurant),
-            userLocation.latitude,
-            userLocation.longitude
-          )
+          matchedItems.filter(i => i.id === selectedItem.id || i.restaurant === selectedItem.restaurant),
+          userLocation.latitude,
+          userLocation.longitude
+        )
         : currentRestaurants;
       const restaurantList = filteredRestaurants.length > 0 ? filteredRestaurants : currentRestaurants;
 
@@ -1032,9 +1036,9 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     } else if (step === 'schedule_days_mode') {
       const durLabel =
         schedDuration === '1_week' ? t('guided.duration1Week') :
-        schedDuration === '1_month' ? t('guided.duration1Month') :
-        schedDuration === '3_months' ? t('guided.duration3Months') :
-        (customUntilDateDisplay || `${customDaysCount} days`);
+          schedDuration === '1_month' ? t('guided.duration1Month') :
+            schedDuration === '3_months' ? t('guided.duration3Months') :
+              (customUntilDateDisplay || `${customDaysCount} days`);
       const ack = (t('guided.durationAck') || '{duration}, got it.').replace('{duration}', durLabel);
       speakAndListen(`${ack} ${t('guided.daysModeQuestion')}`);
 
@@ -1059,13 +1063,13 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
   const displayRestaurants: string[] = selectedItem
     ? (() => {
-        const rs = getUniqueRestaurants(
-          matchedItems.filter(i => i.id === selectedItem.id),
-          userLocation.latitude,
-          userLocation.longitude
-        );
-        return rs.length > 0 ? rs : (selectedItem.restaurant ? [selectedItem.restaurant] : []);
-      })()
+      const rs = getUniqueRestaurants(
+        matchedItems.filter(i => i.id === selectedItem.id),
+        userLocation.latitude,
+        userLocation.longitude
+      );
+      return rs.length > 0 ? rs : (selectedItem.restaurant ? [selectedItem.restaurant] : []);
+    })()
     : [];
 
   if (!isOpen) return null;
@@ -1108,9 +1112,8 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black ${
-              isListening ? 'bg-[#C2185B] text-white animate-pulse' : 'bg-slate-100 text-slate-400'
-            }`}>
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black ${isListening ? 'bg-[#C2185B] text-white animate-pulse' : 'bg-slate-100 text-slate-400'
+              }`}>
               {isListening ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
               {isListening ? 'Listening' : 'Tap or Speak'}
             </div>
@@ -1301,11 +1304,10 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                       minutes: m
                     });
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer ${
-                    schedTime === preset.t24
-                      ? 'bg-[#FF5A1F] text-white border-[#FF5A1F]'
-                      : 'bg-[#DAF0F7] text-[#1A1110] border-[#B2E2F0] hover:bg-[#FF5A1F] hover:text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer ${schedTime === preset.t24
+                    ? 'bg-[#FF5A1F] text-white border-[#FF5A1F]'
+                    : 'bg-[#DAF0F7] text-[#1A1110] border-[#B2E2F0] hover:bg-[#FF5A1F] hover:text-white'
+                    }`}
                 >
                   {preset.label}
                 </button>
@@ -1314,9 +1316,10 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
             <button
               type="button"
               onClick={() => {
-                const [h, m] = schedTime.split(':').map(Number);
+                const safeTime = normalizeTime(schedTime);
+                const [h, m] = safeTime.split(':').map(Number);
                 handleScheduleTimeSet({
-                  time24: schedTime,
+                  time24: safeTime,
                   displayTime: schedTimeDisplay,
                   hours: h,
                   minutes: m
@@ -1447,7 +1450,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
         {step === 'schedule_weekdays' && (
           <div className="p-5 space-y-4">
             <p className="text-xs font-bold text-slate-500">{t('guided.whichDaysQuestion')}</p>
-            
+
             <div className="flex gap-2">
               <button
                 type="button"
@@ -1474,11 +1477,10 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                     key={day}
                     type="button"
                     onClick={() => toggleDay(day)}
-                    className={`py-2 px-2 rounded-xl text-xs font-black border transition-all text-center cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#FF5A1F] text-white border-[#FF5A1F] shadow-sm'
-                        : 'bg-[#DAF0F7] text-[#1A1110] border-[#B2E2F0] hover:bg-[#FF5A1F]/20'
-                    }`}
+                    className={`py-2 px-2 rounded-xl text-xs font-black border transition-all text-center cursor-pointer ${isSelected
+                      ? 'bg-[#FF5A1F] text-white border-[#FF5A1F] shadow-sm'
+                      : 'bg-[#DAF0F7] text-[#1A1110] border-[#B2E2F0] hover:bg-[#FF5A1F]/20'
+                      }`}
                   >
                     {label}
                   </button>
@@ -1590,11 +1592,10 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
               {[0, 1, 2, 3].map(idx => (
                 <div
                   key={idx}
-                  className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all ${
-                    pinDigits[idx] !== ''
-                      ? 'border-[#FF5A1F] bg-[#FF5A1F]/10 text-[#FF5A1F]'
-                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
-                  }`}
+                  className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all ${pinDigits[idx] !== ''
+                    ? 'border-[#FF5A1F] bg-[#FF5A1F]/10 text-[#FF5A1F]'
+                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                    }`}
                 >
                   {pinDigits[idx] !== '' ? (
                     <span className="w-3.5 h-3.5 rounded-full bg-[#FF5A1F]"></span>

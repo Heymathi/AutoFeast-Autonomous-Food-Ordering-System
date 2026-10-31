@@ -107,10 +107,12 @@ export const WelcomeMessageModal: React.FC = () => {
   const handledRef = useRef(false);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const watchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSpokenKeyRef = useRef<string | null>(null);
 
   // Derive the active language synchronously from localStorage if available to prevent stale "en"
   const rawStoredLang = typeof window !== 'undefined' ? localStorage.getItem('autofeast_language_preference') : null;
   const activeLang: Language = (rawStoredLang as Language) || language || 'en';
+  const userName = currentUser?.name || 'Friend';
 
   const clearAllTimers = () => {
     if (fallbackTimerRef.current) {
@@ -146,6 +148,34 @@ export const WelcomeMessageModal: React.FC = () => {
     handleWelcomeComplete();
   }, [handleWelcomeComplete]);
 
+  const proceedRef = useRef(proceed);
+  proceedRef.current = proceed;
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  // Cleanup: cancel speech ONLY when leaving the welcome step or unmounting
+  useEffect(() => {
+    if (entryStep !== 'welcome') {
+      lastSpokenKeyRef.current = null;
+      handledRef.current = false;
+      clearAllTimers();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch (_) {}
+      }
+      SpeechController.releaseMic('welcome_modal');
+    }
+  }, [entryStep]);
+
+  useEffect(() => {
+    return () => {
+      clearAllTimers();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch (_) {}
+      }
+      SpeechController.releaseMic('welcome_modal');
+    };
+  }, []);
+
   // STT Listener: list for "proceed", "continue", "சரி", "ஆம்", "आगे बढ़ें", "हाँ"
   useEffect(() => {
     if (entryStep !== 'welcome') return;
@@ -171,15 +201,15 @@ export const WelcomeMessageModal: React.FC = () => {
 
         if (isProceed) {
           console.log('[Welcome STT]: User confirmed proceed via voice:', clean);
-          proceed();
+          proceedRef.current();
         }
       },
       onError: (errCode) => {
         console.warn('[Welcome STT onError]:', errCode);
         if (errCode === 'not-allowed' || errCode === 'permission-denied') {
-          setSttHint(t('welcome.micDenied') || (activeLang === 'ta' ? 'மைக் அணுகல் மறுக்கப்பட்டது' : activeLang === 'hi' ? 'माइक्रोफ़ोन अनुमति अस्वीकृत' : 'Microphone permission denied'));
+          setSttHint(tRef.current('welcome.micDenied') || (activeLang === 'ta' ? 'மைக் அணுகல் மறுக்கப்பட்டது' : activeLang === 'hi' ? 'माइक्रोफ़ोन अनुमति अस्वीकृत' : 'Microphone permission denied'));
         } else if (errCode === 'language-not-supported') {
-          setSttHint(t('welcome.langUnsupported') || (activeLang === 'ta' ? 'இந்த மொழிக்கு குரல் அறிதல் ஆதரிக்கப்படவில்லை' : activeLang === 'hi' ? 'इस भाषा के लिए आवाज पहचान समर्थित नहीं है' : 'Speech recognition not supported for this language'));
+          setSttHint(tRef.current('welcome.langUnsupported') || (activeLang === 'ta' ? 'இந்த மொழிக்கு குரல் அறிதல் ஆதரிக்கப்படவில்லை' : activeLang === 'hi' ? 'इस भाषा के लिए आवाज पहचान समर्थित नहीं है' : 'Speech recognition not supported for this language'));
         }
       }
     });
@@ -187,21 +217,24 @@ export const WelcomeMessageModal: React.FC = () => {
     return () => {
       SpeechController.releaseMic('welcome_modal');
     };
-  }, [entryStep, activeLang, proceed, t]);
+  }, [entryStep, activeLang]);
 
   // TTS playback & 4s Auto-continue Effect
   useEffect(() => {
-    if (entryStep !== 'welcome') {
-      handledRef.current = false;
-      clearAllTimers();
+    if (entryStep !== 'welcome') return;
+
+    const currentKey = `${userName}|${activeLang}`;
+    if (lastSpokenKeyRef.current === currentKey) {
+      // Already started or completed speaking for this user & language
       return;
     }
 
+    // Set key BEFORE starting wait/speech to prevent re-entrant or duplicate triggers
+    lastSpokenKeyRef.current = currentKey;
     handledRef.current = false;
     clearAllTimers();
 
-    const userName = currentUser?.name || 'Friend';
-    const greetingTemplate = t('welcome.greeting') || (
+    const greetingTemplate = tRef.current('welcome.greeting') || (
       activeLang === 'ta'
         ? 'AutoFeast-க்கு வரவேற்கிறோம், {name}! உங்கள் சுவையான உணவை ஆர்டர் செய்ய அல்லது அட்டவணைப்படுத்தத் தயார்.'
         : activeLang === 'hi'
@@ -215,17 +248,17 @@ export const WelcomeMessageModal: React.FC = () => {
     // 4-second safety fallback: if TTS is unavailable, blocked by autoplay, or errors out
     fallbackTimerRef.current = setTimeout(() => {
       console.warn('[Welcome]: Fallback timer (~4s) reached. Auto-continuing to location.');
-      proceed();
+      proceedRef.current();
     }, 4000);
 
-    // Cancel any previous residual speech before starting
+    // Cancel any previous residual speech before starting new speech
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try { window.speechSynthesis.cancel(); } catch (_) {}
     }
 
     // Wait for speechSynthesis voices to load (1.5s max)
     waitForVoices(1500).then((voices) => {
-      if (handledRef.current) return;
+      if (handledRef.current || lastSpokenKeyRef.current !== currentKey) return;
 
       if (typeof window === 'undefined' || !('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
         console.warn('[Welcome TTS]: SpeechSynthesis not supported in browser environment. Relying on auto-continue timer.');
@@ -247,7 +280,7 @@ export const WelcomeMessageModal: React.FC = () => {
       const watchdogMs = Math.max(3500, welcomeMsg.length * 75 + 1500);
       watchdogTimerRef.current = setTimeout(() => {
         console.warn(`[Welcome TTS]: Watchdog fired after ${watchdogMs}ms without onend.`);
-        proceed();
+        proceedRef.current();
       }, watchdogMs);
 
       utterance.onstart = () => {
@@ -257,14 +290,14 @@ export const WelcomeMessageModal: React.FC = () => {
       utterance.onend = () => {
         console.log('[Welcome] onend: Welcome TTS completed successfully. Auto-continuing...');
         // Auto-continue when welcome TTS finishes
-        proceed();
+        proceedRef.current();
       };
 
       utterance.onerror = (evt: any) => {
         const error = evt?.error || 'unknown';
         console.warn(`[Welcome TTS]: Utterance onerror (${error}). Continuing flow.`);
         if (error !== 'canceled' && error !== 'interrupted') {
-          proceed();
+          proceedRef.current();
         }
       };
 
@@ -272,21 +305,15 @@ export const WelcomeMessageModal: React.FC = () => {
         window.speechSynthesis.speak(utterance);
       } catch (err: any) {
         console.warn('[Welcome TTS]: Exception on window.speechSynthesis.speak:', err);
-        proceed();
+        proceedRef.current();
       }
     });
 
-    return () => {
-      clearAllTimers();
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        try { window.speechSynthesis.cancel(); } catch (_) {}
-      }
-    };
-  }, [entryStep, activeLang, currentUser, proceed, t]);
+    // NOTE: Effect cleanup intentionally does NOT cancel speech for the same key.
+    // Speech is only cancelled when unmounting or transitioning to another step.
+  }, [entryStep, activeLang, userName]);
 
   if (entryStep !== 'welcome') return null;
-
-  const userName = currentUser?.name || 'Friend';
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">

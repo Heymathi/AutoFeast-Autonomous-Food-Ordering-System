@@ -98,7 +98,7 @@ export const AccessibilityToolbar: React.FC = () => {
       <div className="accessibility-container w-full max-w-full mx-auto flex flex-col justify-center min-w-0">
         
         {/* DISPLAY AND ACCESSIBILITY SETTINGS ROW */}
-        <div className="flex flex-wrap items-stretch justify-between gap-2.5 sm:gap-3 font-bold min-w-0 w-full">
+        <div className="flex flex-wrap items-stretch justify-start gap-2.5 sm:gap-3 font-bold min-w-0 w-full">
           
           {/* Title Label Pill */}
           <div className={`a11y-group flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl min-h-[48px] ${pillGroupSurface}`}>
@@ -109,7 +109,7 @@ export const AccessibilityToolbar: React.FC = () => {
           </div>
 
           {/* 🌐 1. LANGUAGE SELECTION OPTIONS */}
-          <div className={`a11y-group flex flex-wrap items-center justify-evenly gap-2 p-1.5 rounded-2xl ${pillGroupSurface}`}>
+          <div className={`a11y-group flex flex-wrap items-center justify-start gap-2 p-1.5 rounded-2xl ${pillGroupSurface}`}>
             <div className="flex items-center gap-1.5 px-2 shrink-0">
               <Globe className="w-6 h-6 text-[#FF5A1F] shrink-0" />
               <span className={`a11y-label font-bold leading-tight ${labelTextClass}`}>Lang:</span>
@@ -171,7 +171,7 @@ export const AccessibilityToolbar: React.FC = () => {
           </div>
 
           {/* 🎨 2. THEME SELECTION OPTIONS */}
-          <div className={`a11y-group flex flex-wrap items-center justify-evenly gap-2 p-1.5 rounded-2xl ${pillGroupSurface}`}>
+          <div className={`a11y-group flex flex-wrap items-center justify-start gap-2 p-1.5 rounded-2xl ${pillGroupSurface}`}>
             <span className={`a11y-label font-bold px-2 leading-tight shrink-0 ${labelTextClass}`}>Theme:</span>
 
             <button
@@ -218,7 +218,7 @@ export const AccessibilityToolbar: React.FC = () => {
           </div>
 
           {/* 🔤 3. TEXT SIZE SCALE */}
-          <div className={`a11y-group flex flex-wrap items-center justify-evenly gap-2 p-1.5 rounded-2xl ${pillGroupSurface}`}>
+          <div className={`a11y-group flex flex-wrap items-center justify-start gap-2 p-1.5 rounded-2xl ${pillGroupSurface}`}>
             <div className="flex items-center gap-1.5 px-2 shrink-0">
               <Type className="w-6 h-6 text-[#FF5A1F] shrink-0" />
               <span className={`a11y-label font-bold leading-tight ${labelTextClass}`}>Size:</span>

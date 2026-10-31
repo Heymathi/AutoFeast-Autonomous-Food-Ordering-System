@@ -36,10 +36,12 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
   const [reminderCount, setReminderCount] = useState(0);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [hasPollingError, setHasPollingError] = useState(false);
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
   const handledRef = useRef(false);
+  const consecutiveErrorsRef = useRef(0);
 
   const itemName = foodItem?.nativeNames?.[language] || foodItem?.name || 'Food item';
 
@@ -60,7 +62,11 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
 
     // Notify backend cancel
     if (approvalId) {
-      fetch(`/api/approvals/${approvalId}/cancel`, { method: 'POST' }).catch(() => {});
+      const token = localStorage.getItem('autofeast_jwt_token') || '';
+      fetch(`/api/approvals/${approvalId}/cancel`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).catch(() => {});
     }
 
     onClose();
@@ -124,14 +130,31 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
   // Status check logic
   const checkStatus = useCallback(async () => {
     if (!approvalId || handledRef.current) return;
+    const token = localStorage.getItem('autofeast_jwt_token') || '';
     try {
-      const res = await fetch(`/api/approvals/${approvalId}`);
+      // 1) STATUS POLLING: Use dedicated status endpoint with main user's JWT
+      const res = await fetch(`/api/nominee/approval-requests/${approvalId}/status`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!res.ok) {
         if (res.status === 404 || res.status === 410) {
           stopPolling();
+          return;
+        }
+        consecutiveErrorsRef.current += 1;
+        if (consecutiveErrorsRef.current >= 2) {
+          stopPolling();
+          setHasPollingError(true);
         }
         return;
       }
+
+      // Successful poll: clear consecutive errors
+      consecutiveErrorsRef.current = 0;
+      setHasPollingError(false);
+
       const data = await res.json();
       if (!isMountedRef.current || handledRef.current) return;
 
@@ -141,7 +164,9 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
         SpeechController.cancelSpeech();
         SpeechController.releaseMic(MIC_OWNER);
 
-        const approvedMsg = t('nominee.approved');
+        const approvedMsg = orderType === 'scheduled'
+          ? (t('nominee.approvedSchedulingNow') || t('nominee.approved'))
+          : (t('nominee.approvedOrderNow') || t('nominee.approved'));
         showToast(approvedMsg, 'success');
         SpeechController.speak(approvedMsg, language);
 
@@ -167,15 +192,32 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
         SpeechController.speak(expiredMsg, language);
       }
     } catch (err) {
-      // transient network poll error
+      consecutiveErrorsRef.current += 1;
+      if (consecutiveErrorsRef.current >= 2) {
+        stopPolling();
+        setHasPollingError(true);
+      }
     }
   }, [approvalId, foodItem, language, onApproved, onClose, onDenied, orderType, scheduleDetails, showToast, stopPolling, t]);
+
+  const handleCheckAgain = useCallback(() => {
+    consecutiveErrorsRef.current = 0;
+    setHasPollingError(false);
+    checkStatus();
+    stopPolling();
+    pollTimerRef.current = setInterval(checkStatus, 5000);
+    setIsPolling(true);
+  }, [checkStatus, stopPolling]);
 
   const handleSendReminder = async () => {
     if (!approvalId || isSendingReminder) return;
     setIsSendingReminder(true);
     try {
-      const res = await fetch(`/api/approvals/${approvalId}/remind`, { method: 'POST' });
+      const token = localStorage.getItem('autofeast_jwt_token') || '';
+      const res = await fetch(`/api/approvals/${approvalId}/remind`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         const sentMsg = t('nominee.reminderSent');
@@ -183,6 +225,8 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
         SpeechController.speak(sentMsg, language);
         setReminderCount(prev => prev + 1);
         setIsExpired(false);
+        consecutiveErrorsRef.current = 0;
+        setHasPollingError(false);
         // Resume polling
         stopPolling();
         pollTimerRef.current = setInterval(checkStatus, 5000);
@@ -216,6 +260,8 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
     setIsExpired(false);
     setReminderCount(0);
     setLiveTranscript('');
+    consecutiveErrorsRef.current = 0;
+    setHasPollingError(false);
 
     if (isOpen && approvalId) {
       const waitingPrompt = tRef.current('nominee.waitingApproval');
@@ -315,6 +361,24 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
           </span>
         </div>
 
+        {/* 1) Polling error alert with Check Again button */}
+        {hasPollingError && (
+          <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-xs font-semibold text-rose-900 dark:text-rose-200 flex flex-col items-center gap-2">
+            <span className="flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{t('nominee.pollError')}</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleCheckAgain}
+              className="px-4 py-2 bg-[#FF5A1F] hover:bg-[#e04810] text-white font-bold rounded-xl text-xs shadow transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>{t('nominee.checkAgain')}</span>
+            </button>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="space-y-2.5 pt-2">
           {/* Send Reminder Button (Available if expired or after waiting) */}
@@ -343,4 +407,3 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
     </div>
   );
 };
-

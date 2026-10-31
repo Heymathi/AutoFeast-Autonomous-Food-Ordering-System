@@ -442,6 +442,12 @@ export const DynamicFoodSearch: React.FC = () => {
             <ShieldCheck className="w-4 h-4 inline mr-1 text-[#16A34A]" />
             {t('search.zeroFallbackNotice')}
           </div>
+          {searchResult.offlineHint && (
+            <p className="text-xs font-bold text-amber-800 bg-amber-100/80 p-2.5 rounded-xl border border-amber-300 flex items-center gap-1.5" data-testid="offline-smart-search-hint">
+              <span>🌐</span>
+              <span>{language === 'ta' ? 'ஸ்மார்ட் தேடலுக்கு இணையம் தேவை (Internet needed for smart search)' : language === 'hi' ? 'स्मार्ट खोज के लिए इंटरनेट आवश्यक है (Internet needed for smart search)' : 'Internet needed for smart search'}</span>
+            </p>
+          )}
         </div>
       )}
 
@@ -474,6 +480,11 @@ export const DynamicFoodSearch: React.FC = () => {
                   <span className="bg-[#1A1110]/80 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-black">
                     {item.cuisine}
                   </span>
+                  {item.isSmartSearch && (
+                    <span className="bg-indigo-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-md flex items-center gap-1" data-testid="smart-search-badge">
+                      ✨ Smart search
+                    </span>
+                  )}
                 </div>
 
                 <div className="absolute top-3 right-3 bg-[#FF5A1F] text-white font-black px-2.5 py-1 rounded-full text-xs shadow-md flex items-center space-x-1">
