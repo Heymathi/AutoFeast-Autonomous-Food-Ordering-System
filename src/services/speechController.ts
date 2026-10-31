@@ -1,5 +1,6 @@
 import { Language } from '../types';
 import { SpeechService } from './speechService';
+import { OfflineSpeechEngine } from './offlineSpeechEngine';
 
 export type VoiceState = 'idle' | 'speaking' | 'listening' | 'processing' | 'error';
 export type SpeechState = VoiceState;
@@ -118,6 +119,8 @@ class SpeechControllerManager {
   private isIntentionallyStopped: boolean = false;
   private isAppPausedSttForTts: boolean = false;
   private isRecognitionBlocked: boolean = false;
+  private activeSttEngine: 'none' | 'webspeech' | 'whisper' = 'none';
+  private isOfflineFallbackInFlight: boolean = false;
 
   private isTtsActive: boolean = false;
   private activeAudioElement: HTMLAudioElement | null = null;
@@ -157,6 +160,10 @@ class SpeechControllerManager {
 
   public isTtsSpeaking(): boolean {
     return this.isTtsActive || this.currentState === 'speaking';
+  }
+
+  public getActiveSttEngine(): 'none' | 'webspeech' | 'whisper' {
+    return this.activeSttEngine;
   }
 
   public isCircuitBreakerTripped(): boolean {
@@ -892,6 +899,24 @@ class SpeechControllerManager {
     this.currentState = 'listening';
     this.setTurnState('LISTENING', opt.owner);
 
+    // Stop any existing Offline Whisper session before starting Web Speech
+    OfflineSpeechEngine.stopRecording();
+    this.activeSttEngine = 'webspeech';
+
+    if (!SpeechService.isSupported()) {
+      const modelStatus = OfflineSpeechEngine.getModelStatus();
+      if (modelStatus.isDownloaded && !this.isOfflineFallbackInFlight) {
+        this.fallbackToOfflineWhisper(sessionTurnId, opt);
+        return true;
+      }
+      this.currentState = 'error';
+      this.activeSttEngine = 'none';
+      if (opt.onError) {
+        opt.onError('not-supported', this.getLocalizedSttErrorMessage('not-supported', opt.language));
+      }
+      return false;
+    }
+
     const clearSilenceTimer = () => {
       if (this.silenceTimer) clearTimeout(this.silenceTimer);
       this.silenceTimer = null;
@@ -944,18 +969,45 @@ class SpeechControllerManager {
         if (sessionTurnId !== this.currentTurnId || this.isIntentionallyStopped) return;
         const errString = (typeof errCode === 'string' ? errCode : errCode?.error || 'unknown').toLowerCase();
 
-        // Intentional or external abort must NEVER auto-restart
+        // 1. Intentional or external abort must NEVER auto-restart or fallback
         if (errString === 'aborted') {
           clearSilenceTimer();
           this.currentState = 'idle';
+          this.activeSttEngine = 'none';
           this.setTurnState('IDLE', 'aborted');
           this.notifyStateChange();
           return;
         }
 
-        // Auto-restart at most 2 times per turn on no-speech
+        // 2. Terminal non-recoverable error: Permission denied or missing mic hardware
+        // Must show localized error immediately instead of repeatedly retrying or falling back
+        if (errString === 'not-allowed' || errString === 'audio-capture') {
+          clearSilenceTimer();
+          this.isRecognitionBlocked = true;
+          this.currentState = 'error';
+          this.activeSttEngine = 'none';
+          this.setTurnState('IDLE', `error:${errString}`);
+          if (opt.onError) {
+            opt.onError(errString, this.getLocalizedSttErrorMessage(errString, opt.language));
+          }
+          this.notifyStateChange();
+          return;
+        }
+
+        // 3. Auto-restart at most 2 times per turn on no-speech
         if (errString === 'no-speech') {
           if (this.scheduleSttRestart('no-speech', 400)) {
+            return;
+          }
+        }
+
+        // 4. Recoverable errors: 'network', 'service-not-allowed'
+        // Attempt Offline Whisper if model is downloaded and available
+        if (errString === 'network' || errString === 'service-not-allowed') {
+          clearSilenceTimer();
+          const modelStatus = OfflineSpeechEngine.getModelStatus();
+          if (modelStatus.isDownloaded && !this.isOfflineFallbackInFlight) {
+            this.fallbackToOfflineWhisper(sessionTurnId, opt);
             return;
           }
         }
@@ -963,6 +1015,7 @@ class SpeechControllerManager {
         clearSilenceTimer();
         this.isRecognitionBlocked = true;
         this.currentState = 'error';
+        this.activeSttEngine = 'none';
         this.setTurnState('IDLE', `error:${errString}`);
         if (opt.onError) opt.onError(errString, this.getLocalizedSttErrorMessage(errString, opt.language));
         this.notifyStateChange();
@@ -1148,6 +1201,7 @@ class SpeechControllerManager {
 
   private stopMicInternal(isFullReset: boolean): void {
     this.isIntentionallyStopped = true;
+    this.isOfflineFallbackInFlight = false;
     if (this.restartTimer) {
       clearTimeout(this.restartTimer);
       this.restartTimer = null;
@@ -1157,6 +1211,8 @@ class SpeechControllerManager {
       this.silenceTimer = null;
     }
     SpeechService.stopListening();
+    OfflineSpeechEngine.stopRecording();
+    this.activeSttEngine = 'none';
     if (isFullReset) {
       this.currentOwner = null;
       this.activeOptions = null;
@@ -1166,6 +1222,97 @@ class SpeechControllerManager {
       this.setTurnState('IDLE', 'mic-stopped');
     }
     this.notifyStateChange();
+  }
+
+  /**
+   * Safety Transition: Fallback to Offline Whisper
+   * 1. Stops existing Web Speech API recognition session.
+   * 2. Clears timers and releases audio resources.
+   * 3. Waits until previous session has fully released the mic.
+   * 4. Verifies turn lock, owner exclusivity, and user cancellation.
+   * 5. Starts Offline Whisper without allowing concurrent mic access.
+   */
+  private async fallbackToOfflineWhisper(sessionTurnId: number, opt: SpeechControllerOptions): Promise<void> {
+    if (this.isOfflineFallbackInFlight) return;
+    this.isOfflineFallbackInFlight = true;
+
+    this.addDebugLog('STT_FALLBACK', `[Turn #${sessionTurnId}] Web Speech error; transitioning exclusively to Offline Whisper.`);
+
+    // 1. Stop Web Speech session
+    SpeechService.stopListening();
+    this.activeSttEngine = 'none';
+
+    // 2. Clear timers
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+
+    // 3. Wait for mic stream/resources to be completely released
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    // 4. Verify turn lock, intentional cancellation, and owner exclusivity
+    if (
+      sessionTurnId !== this.currentTurnId ||
+      this.isIntentionallyStopped ||
+      this.currentOwner !== opt.owner ||
+      this.circuitBreakerTripped
+    ) {
+      this.isOfflineFallbackInFlight = false;
+      return;
+    }
+
+    // 5. Ensure Web Speech is completely inactive
+    if (SpeechService.getIsListening()) {
+      SpeechService.stopListening();
+    }
+
+    // 6. Start Offline Whisper session exclusively
+    this.activeSttEngine = 'whisper';
+    this.currentState = 'listening';
+    this.notifyStateChange();
+
+    const success = await OfflineSpeechEngine.startRecording({
+      language: opt.language,
+      maxDurationMs: 6000,
+      onStateChange: (engineStatus) => {
+        if (sessionTurnId !== this.currentTurnId || this.isIntentionallyStopped) return;
+        if (engineStatus === 'transcribing') {
+          this.currentState = 'processing';
+          this.setTurnState('HANDLING', `${opt.owner}_whisper`);
+          this.notifyStateChange();
+        }
+      },
+      onResult: (transcript, isFinal, alternatives) => {
+        if (sessionTurnId !== this.currentTurnId || this.isIntentionallyStopped) return;
+        this.isOfflineFallbackInFlight = false;
+        this.activeSttEngine = 'none';
+        this.currentState = isFinal ? 'processing' : 'listening';
+        if (isFinal) {
+          this.setTurnState('HANDLING', opt.owner);
+        }
+        opt.onResult(transcript, isFinal, alternatives);
+        this.notifyStateChange();
+      },
+      onError: (errorCode, userMsg) => {
+        if (sessionTurnId !== this.currentTurnId || this.isIntentionallyStopped) return;
+        this.isOfflineFallbackInFlight = false;
+        this.activeSttEngine = 'none';
+        this.currentState = 'error';
+        this.setTurnState('IDLE', `whisper-error:${errorCode}`);
+        opt.onError?.(errorCode, userMsg);
+        this.notifyStateChange();
+      }
+    });
+
+    if (!success) {
+      this.isOfflineFallbackInFlight = false;
+      this.activeSttEngine = 'none';
+    }
   }
 
   private pauseMicForTts(): void {
