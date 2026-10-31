@@ -248,7 +248,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
       <div className={`relative w-full max-w-lg max-h-[94vh] flex flex-col rounded-3xl p-4 sm:p-6 shadow-2xl transition-all border-4 overflow-hidden ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-yellow-400'
-          : 'bg-white text-[#302720] border-[#B85C38]'
+          : 'bg-white text-[#302720] border-[#8B1E2D]'
       }`}>
 
         {/* Header (Fixed Top) Actions */}
@@ -257,7 +257,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             type="button"
             onClick={() => window.print()}
             title="Print / Save Invoice"
-            className="p-2 rounded-full bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] transition-all cursor-pointer"
+            className="p-2 rounded-full bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] transition-all cursor-pointer"
           >
             <Printer className="w-4 h-4" />
           </button>
@@ -276,11 +276,11 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
 
         {/* Header (Fixed Top) */}
         <div className="flex items-center space-x-3 mb-3 pr-20 shrink-0">
-          <div className="p-2.5 bg-[#B85C38]/10 rounded-2xl border border-[#B85C38]/30 text-[#B85C38] shrink-0">
-            <FileText className="w-6 h-6 text-[#B85C38]" />
+          <div className="p-2.5 bg-[#8B1E2D]/10 rounded-2xl border border-[#8B1E2D]/30 text-[#8B1E2D] shrink-0">
+            <FileText className="w-6 h-6 text-[#8B1E2D]" />
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#B85C38] bg-[#B85C38]/10 px-2.5 py-0.5 rounded-full inline-block truncate max-w-full">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#8B1E2D] bg-[#8B1E2D]/10 px-2.5 py-0.5 rounded-full inline-block truncate max-w-full">
               {language === 'ta' ? 'GST இன்வாய்ஸ் விவரம்' : language === 'hi' ? 'जीएसटी चालान विवरण' : 'AutoFeast AI • Official GST Tax Invoice'}
             </span>
             <h2 className="text-lg sm:text-xl font-black text-[#302720] dark:text-white mt-0.5 truncate">
@@ -293,7 +293,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
         <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 my-1 text-xs">
           
           {/* Customer & Restaurant Billed Info */}
-          <div className="p-2.5 bg-[#F7F3EB] rounded-xl border border-[#E5DDD2] flex items-center justify-between text-xs">
+          <div className="p-2.5 bg-[#F7F3EB] rounded-xl border border-[#E7D9D6] flex items-center justify-between text-xs">
             <div>
               <span className="text-[10px] text-[#786E64] block font-medium">Billed To</span>
               <span className="font-bold text-[#302720]">{currentUser?.name || 'Verified Customer'}</span>
@@ -305,9 +305,9 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
           </div>
 
           {/* Delivery Address & ETA Badge */}
-          <div className="bg-[#F3EDE4]/40 dark:bg-slate-900/60 p-3 rounded-2xl border border-[#E5DDD2] dark:border-slate-800 flex items-center justify-between text-xs gap-2">
+          <div className="bg-[#F1DEDC]/40 dark:bg-slate-900/60 p-3 rounded-2xl border border-[#E7D9D6] dark:border-slate-800 flex items-center justify-between text-xs gap-2">
             <div className="flex items-center space-x-2 text-[#786E64] dark:text-slate-300 font-bold min-w-0 truncate">
-              <MapPin className="w-4 h-4 text-[#B85C38] shrink-0" />
+              <MapPin className="w-4 h-4 text-[#8B1E2D] shrink-0" />
               <span className="truncate">{bill.deliveryAddress}</span>
             </div>
             <div className="flex items-center space-x-1 shrink-0 text-[#4F8964] font-black bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200">
@@ -324,7 +324,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             {bill.items.map((item, idx) => (
               <div key={idx} className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
                 <div className="flex items-center space-x-2.5 min-w-0">
-                  <span className="w-6 h-6 rounded-lg bg-[#B85C38] text-white font-black text-xs flex items-center justify-center shrink-0">
+                  <span className="w-6 h-6 rounded-lg bg-[#8B1E2D] text-white font-black text-xs flex items-center justify-center shrink-0">
                     {item.quantity}x
                   </span>
                   <div className="min-w-0">
@@ -365,7 +365,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
               <span>₹{bill.platformFee.toFixed(2)}</span>
             </div>
             <div className="pt-2 border-t border-slate-300 dark:border-slate-700 flex items-center justify-between text-sm sm:text-base font-black text-[#302720] dark:text-white">
-              <span className="text-[#B85C38]">{language === 'ta' ? 'மொத்தத் தொகை (GST உடன்):' : language === 'hi' ? 'कुल योग (GST सहित):' : 'Grand Total (with GST):'}</span>
+              <span className="text-[#8B1E2D]">{language === 'ta' ? 'மொத்தத் தொகை (GST உடன்):' : language === 'hi' ? 'कुल योग (GST सहित):' : 'Grand Total (with GST):'}</span>
               <span className="text-[#16A34A] text-lg sm:text-xl font-mono">₹{bill.grandTotal}</span>
             </div>
           </div>
@@ -416,8 +416,8 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             aria-busy={isChecking}
             className={`w-full sm:w-2/3 py-3 px-5 font-black rounded-2xl text-xs sm:text-sm shadow-lg transition-transform active:scale-95 flex items-center justify-center space-x-2 ${
               isChecking
-                ? 'bg-[#B85C38]/60 text-white cursor-not-allowed'
-                : 'bg-[#B85C38] hover:bg-[#302720] text-white shadow-[#B85C38]/30 cursor-pointer'
+                ? 'bg-[#8B1E2D]/60 text-white cursor-not-allowed'
+                : 'bg-[#8B1E2D] hover:bg-[#302720] text-white shadow-[#8B1E2D]/30 cursor-pointer'
             }`}
           >
             {isChecking ? (

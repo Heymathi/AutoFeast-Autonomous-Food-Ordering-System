@@ -43,15 +43,15 @@ export const NomineeSetupScreen: React.FC<NomineeSetupScreenProps> = ({
     currentTheme === 'high-contrast'
       ? 'bg-black text-white border-white'
       : currentTheme === 'dark'
-      ? 'bg-slate-900 text-white border-emerald-500/30'
-      : 'bg-white text-slate-900 border-emerald-500/30';
+      ? 'bg-slate-900 text-white border-[#8B1E2D]/30'
+      : 'bg-white text-slate-900 border-[#8B1E2D]/30';
 
   const inputBg =
     currentTheme === 'high-contrast'
       ? 'bg-black text-white border-white'
       : currentTheme === 'dark'
       ? 'bg-slate-800 text-white border-slate-700'
-      : 'bg-slate-50 text-slate-900 border-slate-300';
+      : 'bg-[#F8EBE9] text-[#302720] border-[#E7D9D6]';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,7 +97,7 @@ export const NomineeSetupScreen: React.FC<NomineeSetupScreenProps> = ({
   return (
     <div className={`max-w-md mx-auto p-6 rounded-2xl shadow-xl border ${containerBg}`}>
       <div className="flex items-center space-x-3 mb-4">
-        <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-500">
+        <div className="p-3 bg-[#8B1E2D]/10 rounded-xl border border-[#8B1E2D]/20 text-[#8B1E2D]">
           <Shield className="w-7 h-7" />
         </div>
         <div>
@@ -110,7 +110,7 @@ export const NomineeSetupScreen: React.FC<NomineeSetupScreenProps> = ({
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-[#FAF7F2]0/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm flex items-center space-x-2">
+        <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-500 text-sm flex items-center space-x-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
@@ -135,7 +135,7 @@ export const NomineeSetupScreen: React.FC<NomineeSetupScreenProps> = ({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className={`w-full px-3 py-2 rounded-lg text-sm outline-none focus:border-emerald-500 ${inputBg}`}
+              className={`w-full px-3 py-2 rounded-lg text-sm outline-none focus:border-[#8B1E2D] ${inputBg}`}
             />
           </div>
 
@@ -148,7 +148,7 @@ export const NomineeSetupScreen: React.FC<NomineeSetupScreenProps> = ({
               value={token}
               onChange={(e) => setToken(e.target.value)}
               required
-              className={`w-full px-3 py-2 rounded-lg text-sm font-mono outline-none focus:border-emerald-500 ${inputBg}`}
+              className={`w-full px-3 py-2 rounded-lg text-sm font-mono outline-none focus:border-[#8B1E2D] ${inputBg}`}
             />
           </div>
 
@@ -163,7 +163,7 @@ export const NomineeSetupScreen: React.FC<NomineeSetupScreenProps> = ({
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className={`w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none focus:border-emerald-500 ${inputBg}`}
+                className={`w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none focus:border-[#8B1E2D] ${inputBg}`}
               />
               <Lock className="w-4 h-4 absolute left-3 top-2.5 opacity-50" />
             </div>
@@ -179,7 +179,7 @@ export const NomineeSetupScreen: React.FC<NomineeSetupScreenProps> = ({
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className={`w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none focus:border-emerald-500 ${inputBg}`}
+                className={`w-full pl-9 pr-3 py-2 rounded-lg text-sm outline-none focus:border-[#8B1E2D] ${inputBg}`}
               />
               <Lock className="w-4 h-4 absolute left-3 top-2.5 opacity-50" />
             </div>
@@ -197,7 +197,7 @@ export const NomineeSetupScreen: React.FC<NomineeSetupScreenProps> = ({
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                 required
                 placeholder="••••"
-                className={`w-full pl-9 pr-3 py-2 rounded-lg text-sm font-mono tracking-widest outline-none focus:border-emerald-500 ${inputBg}`}
+                className={`w-full pl-9 pr-3 py-2 rounded-lg text-sm font-mono tracking-widest outline-none focus:border-[#8B1E2D] ${inputBg}`}
               />
               <Key className="w-4 h-4 absolute left-3 top-2.5 opacity-50" />
             </div>
@@ -214,7 +214,7 @@ export const NomineeSetupScreen: React.FC<NomineeSetupScreenProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium rounded-xl text-sm transition-colors shadow-lg shadow-emerald-900/30 cursor-pointer"
+            className="w-full py-2.5 bg-[#8B1E2D] hover:bg-[#641B29] disabled:opacity-50 text-white font-medium rounded-xl text-sm transition-colors shadow-lg shadow-[#8B1E2D]/20 cursor-pointer"
           >
             {isSubmitting ? 'Processing...' : t('nominee.submitBtn') || 'Complete Nominee Setup'}
           </button>

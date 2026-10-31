@@ -78,7 +78,7 @@ export const HowItWorksPage: React.FC = () => {
     <div className="w-full max-w-6xl mx-auto py-8 sm:py-12 px-4 sm:px-6 space-y-12 animate-fade-in">
       {/* Page Hero Header */}
       <div className="text-center space-y-4 max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F3EDE4] text-[#B85C38] text-xs font-bold tracking-wide">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold tracking-wide">
           <Sparkles className="w-3.5 h-3.5" />
           <span>Autonomous Food Platform</span>
         </div>
@@ -102,21 +102,21 @@ export const HowItWorksPage: React.FC = () => {
                   ? 'bg-black text-white border-2 border-yellow-400'
                   : currentTheme === 'dark'
                   ? 'bg-zinc-800 text-zinc-100 border-zinc-700'
-                  : 'bg-white text-[#302720] border-[#E5DDD2] shadow-xs'
+                  : 'bg-white text-[#302720] border-[#E7D9D6] shadow-xs'
               }`}
             >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="w-12 h-12 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center font-bold text-lg">
+                  <div className="w-12 h-12 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center font-bold text-lg">
                     <Icon className="w-6 h-6" />
                   </div>
-                  <span className="text-2xl font-black text-[#F3EDE4] group-hover:text-[#B85C38]">
+                  <span className="text-2xl font-black text-[#F1DEDC] group-hover:text-[#8B1E2D]">
                     {step.number}
                   </span>
                 </div>
 
                 <div>
-                  <div className="inline-block px-2.5 py-0.5 rounded-md bg-[#FAF7F2] text-[#B85C38] text-[11px] font-bold mb-2">
+                  <div className="inline-block px-2.5 py-0.5 rounded-md bg-[#F8EBE9] text-[#8B1E2D] text-[11px] font-bold mb-2">
                     {step.tag}
                   </div>
                   <h3 className="font-serif-editorial text-xl font-bold text-[#302720] mb-2">{step.title}</h3>
@@ -128,7 +128,7 @@ export const HowItWorksPage: React.FC = () => {
         })}
 
         {/* Feature Highlight CTA Box */}
-        <div className="rounded-2xl p-6 bg-gradient-to-br from-[#B85C38] to-[#302720] text-white flex flex-col justify-between shadow-lg">
+        <div className="rounded-2xl p-6 bg-gradient-to-br from-[#8B1E2D] to-[#302720] text-white flex flex-col justify-between shadow-lg">
           <div className="space-y-3">
             <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center text-white font-bold">
               <Calendar className="w-6 h-6" />
@@ -143,7 +143,7 @@ export const HowItWorksPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('home')}
-              className="w-full py-3 px-4 rounded-lg bg-white text-[#302720] font-bold text-xs sm:text-sm shadow-md hover:bg-[#F3EDE4] transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 px-4 rounded-lg bg-white text-[#302720] font-bold text-xs sm:text-sm shadow-md hover:bg-[#F1DEDC] transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Explore Food Catalog</span>
               <ArrowRight className="w-4 h-4" />
@@ -154,11 +154,11 @@ export const HowItWorksPage: React.FC = () => {
 
       {/* Safety & Nominee Assurance Section */}
       <div className={`p-6 sm:p-8 rounded-2xl border ${
-        currentTheme === 'dark' ? 'bg-zinc-800/80 border-zinc-700' : 'bg-[#FAF7F2] border-[#E5DDD2]'
+        currentTheme === 'dark' ? 'bg-zinc-800/80 border-zinc-700' : 'bg-[#F8EBE9] border-[#E7D9D6]'
       }`}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center md:text-left">
           <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#F3EDE4] text-[#B85C38] flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#F1DEDC] text-[#8B1E2D] flex items-center justify-center shrink-0">
               <Globe2 className="w-5 h-5" />
             </div>
             <div>
@@ -168,7 +168,7 @@ export const HowItWorksPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#F3EDE4] text-[#B85C38] flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#F1DEDC] text-[#8B1E2D] flex items-center justify-center shrink-0">
               <Lock className="w-5 h-5" />
             </div>
             <div>
@@ -178,7 +178,7 @@ export const HowItWorksPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#F3EDE4] text-[#B85C38] flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#F1DEDC] text-[#8B1E2D] flex items-center justify-center shrink-0">
               <Mic className="w-5 h-5" />
             </div>
             <div>

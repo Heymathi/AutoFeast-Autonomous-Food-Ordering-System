@@ -117,10 +117,10 @@ export const HomePage: React.FC = () => {
 
       {/* 3. Food Categories Section */}
       <section className="space-y-6">
-        <div className="flex items-center justify-between border-b border-[#E5DDD2] pb-3">
+        <div className="flex items-center justify-between border-b border-[#E7D9D6] pb-3">
           <div>
             <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#302720] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#B85C38]"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#8B1E2D]"></span>
               Popular Food Categories
             </h2>
             <p className="text-xs sm:text-sm text-[#786E64]">
@@ -137,8 +137,8 @@ export const HomePage: React.FC = () => {
               onClick={() => handleCategorySelect(cat.id)}
               className={`p-3.5 rounded-xl border text-center transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
                 currentTheme === 'dark'
-                  ? 'bg-zinc-800 text-zinc-100 border-zinc-700 hover:border-[#B85C38]'
-                  : 'bg-white text-[#302720] border-[#E5DDD2] hover:border-[#B85C38] hover:bg-[#FAF7F2]/50 shadow-2xs'
+                  ? 'bg-zinc-800 text-zinc-100 border-zinc-700 hover:border-[#8B1E2D]'
+                  : 'bg-white text-[#302720] border-[#E7D9D6] hover:border-[#8B1E2D] hover:bg-[#F8EBE9]/50 shadow-2xs'
               }`}
             >
               <span className="text-2xl sm:text-3xl">{cat.icon}</span>
@@ -153,10 +153,10 @@ export const HomePage: React.FC = () => {
 
       {/* 4. Nearby Restaurant Listings Section */}
       <section className="space-y-6">
-        <div className="flex items-center justify-between border-b border-[#E5DDD2] pb-3">
+        <div className="flex items-center justify-between border-b border-[#E7D9D6] pb-3">
           <div>
             <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#302720] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#B85C38]"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#8B1E2D]"></span>
               Nearby Top Rated Restaurants
             </h2>
             <p className="text-xs sm:text-sm text-[#786E64]">
@@ -170,11 +170,11 @@ export const HomePage: React.FC = () => {
             <div
               key={res.name}
               className={`rounded-2xl border overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col justify-between ${
-                currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+                currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
               }`}
             >
               <div>
-                <div className="relative h-44 overflow-hidden bg-[#FAF7F2]">
+                <div className="relative h-44 overflow-hidden bg-[#F8EBE9]">
                   <img
                     src={res.image}
                     alt={res.name}
@@ -191,7 +191,7 @@ export const HomePage: React.FC = () => {
                   </div>
 
                   <div className="absolute bottom-3 left-3 bg-white/95 text-[#302720] text-[11px] font-semibold px-2.5 py-1 rounded-md shadow-xs flex items-center gap-1">
-                    <Navigation className="w-3 h-3 text-[#B85C38]" />
+                    <Navigation className="w-3 h-3 text-[#8B1E2D]" />
                     <span>{res.distanceKm} km away</span>
                   </div>
                 </div>
@@ -203,7 +203,7 @@ export const HomePage: React.FC = () => {
                       <p className="text-xs text-[#786E64]">Featured: {res.sampleDish}</p>
                     </div>
                     {res.isVeg && (
-                      <span className="px-2 py-0.5 rounded-md bg-[#FAF7F2] text-[#B85C38] text-[10px] font-bold border border-[#F3EDE4] flex items-center gap-1 shrink-0">
+                      <span className="px-2 py-0.5 rounded-md bg-[#F8EBE9] text-[#8B1E2D] text-[10px] font-bold border border-[#F1DEDC] flex items-center gap-1 shrink-0">
                         <Leaf className="w-2.5 h-2.5" /> Pure Veg
                       </span>
                     )}
@@ -211,7 +211,7 @@ export const HomePage: React.FC = () => {
 
                   <div className="flex items-center gap-4 text-xs text-[#786E64] pt-1">
                     <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-[#B85C38]" /> {res.deliveryTime} mins delivery
+                      <Clock className="w-3.5 h-3.5 text-[#8B1E2D]" /> {res.deliveryTime} mins delivery
                     </span>
                     <span>•</span>
                     <span className="text-[#4F8964] font-semibold">Live Price Verified</span>
@@ -219,11 +219,11 @@ export const HomePage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-4 bg-[#FAF7F2] border-t border-[#E5DDD2]">
+              <div className="p-4 bg-[#F8EBE9] border-t border-[#E7D9D6]">
                 <button
                   type="button"
                   onClick={() => handleRestaurantSelect(res.name)}
-                  className="w-full py-2 px-3 rounded-lg bg-[#B85C38] hover:bg-[#302720] text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                  className="w-full py-2 px-3 rounded-lg bg-[#8B1E2D] hover:bg-[#302720] text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                 >
                   <Utensils className="w-3.5 h-3.5" />
                   <span>View Dishes from this Kitchen</span>
@@ -235,11 +235,11 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* 5. AI-Powered Food Discovery Banner */}
-      <section className="p-6 sm:p-10 rounded-2xl bg-gradient-to-r from-[#FAF7F2] via-[#FAF7F2] to-[#F3EDE4]/60 border border-[#E5DDD2] shadow-xs">
+      <section className="p-6 sm:p-10 rounded-2xl bg-gradient-to-r from-[#F8EBE9] via-[#F8EBE9] to-[#F1DEDC]/60 border border-[#E7D9D6] shadow-xs">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-8 space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-white border border-[#E5DDD2] text-[#B85C38] text-xs font-bold shadow-2xs">
-              <Sparkles className="w-3.5 h-3.5 text-[#B85C38]" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-white border border-[#E7D9D6] text-[#8B1E2D] text-xs font-bold shadow-2xs">
+              <Sparkles className="w-3.5 h-3.5 text-[#8B1E2D]" />
               <span>Voice Intelligence & Semantic Discovery</span>
             </div>
             <h2 className="font-serif-editorial text-2xl sm:text-4xl font-bold text-[#302720] tracking-tight">
@@ -252,7 +252,7 @@ export const HomePage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsVoiceModalOpen(true)}
-                className="py-2.5 px-5 rounded-lg bg-[#B85C38] hover:bg-[#302720] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                className="py-2.5 px-5 rounded-lg bg-[#8B1E2D] hover:bg-[#302720] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2 cursor-pointer"
               >
                 <Mic className="w-4 h-4" />
                 <span>Try Voice Search</span>
@@ -260,17 +260,17 @@ export const HomePage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsHealthModalOpen(true)}
-                className="py-2.5 px-4 rounded-lg bg-white hover:bg-[#FAF7F2] text-[#302720] font-semibold text-xs sm:text-sm border border-[#E5DDD2] transition-all flex items-center gap-2 cursor-pointer"
+                className="py-2.5 px-4 rounded-lg bg-white hover:bg-[#F8EBE9] text-[#302720] font-semibold text-xs sm:text-sm border border-[#E7D9D6] transition-all flex items-center gap-2 cursor-pointer"
               >
-                <HeartPulse className="w-4 h-4 text-[#B85C38]" />
+                <HeartPulse className="w-4 h-4 text-[#8B1E2D]" />
                 <span>Ask Health & Dietary AI</span>
               </button>
             </div>
           </div>
 
           <div className="lg:col-span-4 flex flex-col gap-3">
-            <div className="p-3.5 rounded-xl bg-white border border-[#E5DDD2] shadow-2xs flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center font-bold text-xs shrink-0">
+            <div className="p-3.5 rounded-xl bg-white border border-[#E7D9D6] shadow-2xs flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center font-bold text-xs shrink-0">
                 EN
               </div>
               <div>
@@ -279,8 +279,8 @@ export const HomePage: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-white border border-[#E5DDD2] shadow-2xs flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center font-bold text-xs shrink-0">
+            <div className="p-3.5 rounded-xl bg-white border border-[#E7D9D6] shadow-2xs flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center font-bold text-xs shrink-0">
                 தமிழ்
               </div>
               <div>
@@ -289,8 +289,8 @@ export const HomePage: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-white border border-[#E5DDD2] shadow-2xs flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center font-bold text-xs shrink-0">
+            <div className="p-3.5 rounded-xl bg-white border border-[#E7D9D6] shadow-2xs flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center font-bold text-xs shrink-0">
                 हिंदी
               </div>
               <div>
@@ -304,10 +304,10 @@ export const HomePage: React.FC = () => {
 
       {/* 6. Healthy Food Highlights Section */}
       <section className="space-y-6">
-        <div className="flex items-center justify-between border-b border-[#E5DDD2] pb-3">
+        <div className="flex items-center justify-between border-b border-[#E7D9D6] pb-3">
           <div>
             <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#302720] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#B85C38]"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#8B1E2D]"></span>
               Healthy Food Highlights
             </h2>
             <p className="text-xs sm:text-sm text-[#786E64]">
@@ -317,7 +317,7 @@ export const HomePage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsHealthModalOpen(true)}
-            className="text-xs font-bold text-[#B85C38] hover:text-[#302720] flex items-center gap-1 cursor-pointer"
+            className="text-xs font-bold text-[#8B1E2D] hover:text-[#302720] flex items-center gap-1 cursor-pointer"
           >
             <span>Consult Dietary AI</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -329,11 +329,11 @@ export const HomePage: React.FC = () => {
             <div
               key={item.id}
               className={`rounded-2xl border overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col justify-between ${
-                currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+                currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
               }`}
             >
               <div>
-                <div className="relative h-40 overflow-hidden bg-[#FAF7F2]">
+                <div className="relative h-40 overflow-hidden bg-[#F8EBE9]">
                   <img
                     src={item.image}
                     alt={item.name}
@@ -351,11 +351,11 @@ export const HomePage: React.FC = () => {
                 <div className="p-4 space-y-1.5">
                   <h3 className="text-sm font-bold text-[#302720] line-clamp-1">{item.name}</h3>
                   <p className="text-[11px] text-[#786E64] line-clamp-2">{item.description}</p>
-                  <p className="text-xs font-bold text-[#B85C38]">₹{item.basePrice}</p>
+                  <p className="text-xs font-bold text-[#8B1E2D]">₹{item.basePrice}</p>
                 </div>
               </div>
 
-              <div className="p-3 bg-[#FAF7F2] border-t border-[#E5DDD2]">
+              <div className="p-3 bg-[#F8EBE9] border-t border-[#E7D9D6]">
                 <button
                   type="button"
                   onClick={() => {
@@ -364,7 +364,7 @@ export const HomePage: React.FC = () => {
                     const el = document.getElementById('dynamic-food-search-section');
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
-                  className="w-full py-2 px-2.5 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                  className="w-full py-2 px-2.5 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
                 >
                   <span>Select & Order</span>
                   <ArrowRight className="w-3 h-3" />

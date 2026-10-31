@@ -189,9 +189,9 @@ export const OrderPinConfirmationModal: React.FC = () => {
   const details = getItemDetails();
 
   const summaryCard = (
-    <div className="bg-[#F3EDE4]/50 p-3 rounded-xl border border-[#E5DDD2] flex items-center justify-between gap-3 my-2">
+    <div className="bg-[#F1DEDC]/50 p-3 rounded-xl border border-[#E7D9D6] flex items-center justify-between gap-3 my-2">
       <div className="space-y-0.5">
-        <span className="text-[9px] font-black uppercase tracking-wider text-[#B85C38] bg-[#B85C38]/10 px-2 py-0.5 rounded-full border border-[#B85C38]/30">
+        <span className="text-[9px] font-black uppercase tracking-wider text-[#8B1E2D] bg-[#8B1E2D]/10 px-2 py-0.5 rounded-full border border-[#8B1E2D]/30">
           {details.typeBadge}
         </span>
         <h4 className="text-sm font-black text-[#302720] line-clamp-1">{details.title}</h4>
@@ -211,7 +211,7 @@ export const OrderPinConfirmationModal: React.FC = () => {
       <div className={`relative w-full max-w-md max-h-[94vh] flex flex-col rounded-3xl shadow-2xl transition-all border-4 overflow-y-auto p-5 ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-yellow-400'
-          : 'bg-white text-[#302720] border-[#B85C38]'
+          : 'bg-white text-[#302720] border-[#8B1E2D]'
       }`}>
         <button
           onClick={cancelPendingPinAction}

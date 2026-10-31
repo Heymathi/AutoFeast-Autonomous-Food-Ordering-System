@@ -71,7 +71,7 @@ export const AccessibilityToolbar: React.FC = () => {
       ? 'bg-black text-white border-2 border-yellow-400'
       : currentTheme === 'dark'
       ? 'bg-zinc-800 text-white border border-zinc-700 shadow-xs'
-      : 'bg-white text-zinc-900 border border-[#F3EDE4]/80 shadow-xs';
+      : 'bg-white text-zinc-900 border border-[#F1DEDC]/80 shadow-xs';
 
   const labelTextClass =
     currentTheme === 'high-contrast' || currentTheme === 'dark'
@@ -83,7 +83,7 @@ export const AccessibilityToolbar: React.FC = () => {
       ? 'bg-black text-white hover:bg-neutral-900 border border-yellow-400'
       : currentTheme === 'dark'
       ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-      : 'bg-transparent text-zinc-700 hover:bg-[#FAF7F2]/60';
+      : 'bg-transparent text-zinc-700 hover:bg-[#F8EBE9]/60';
 
   return (
     <div
@@ -92,7 +92,7 @@ export const AccessibilityToolbar: React.FC = () => {
           ? 'bg-black text-white border-yellow-400'
           : currentTheme === 'dark'
           ? 'bg-zinc-900/95 text-zinc-100 border-zinc-800 backdrop-blur-md'
-          : 'bg-white/95 text-zinc-900 border-[#F3EDE4]/70 backdrop-blur-md shadow-xs'
+          : 'bg-white/95 text-zinc-900 border-[#F1DEDC]/70 backdrop-blur-md shadow-xs'
       }`}
     >
       <div className="accessibility-container w-full max-w-7xl mx-auto flex flex-col justify-center min-w-0">
@@ -102,7 +102,7 @@ export const AccessibilityToolbar: React.FC = () => {
           
           {/* Title Label Pill */}
           <div className={`a11y-group inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full ${pillGroupSurface}`}>
-            <Sparkles className="w-4 h-4 text-[#B85C38] shrink-0" />
+            <Sparkles className="w-4 h-4 text-[#8B1E2D] shrink-0" />
             <span className={`a11y-label font-extrabold tracking-wide text-xs uppercase leading-tight ${labelTextClass}`}>
               {t('nav.accessibility')}:
             </span>
@@ -111,7 +111,7 @@ export const AccessibilityToolbar: React.FC = () => {
           {/* 🌐 1. LANGUAGE SELECTION OPTIONS */}
           <div className={`a11y-group flex flex-wrap items-center justify-start gap-1 p-1 rounded-full ${pillGroupSurface}`}>
             <div className="flex items-center gap-1.5 px-2.5 shrink-0">
-              <Globe className="w-4 h-4 text-[#B85C38] shrink-0" />
+              <Globe className="w-4 h-4 text-[#8B1E2D] shrink-0" />
               <span className={`a11y-label font-bold text-xs ${labelTextClass}`}>Lang:</span>
             </div>
             
@@ -120,7 +120,7 @@ export const AccessibilityToolbar: React.FC = () => {
               onClick={() => handleLanguageSelect('en')}
               className={`px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer flex items-center justify-center text-xs ${
                 language === 'en'
-                  ? 'bg-[#B85C38] text-white shadow-xs'
+                  ? 'bg-[#8B1E2D] text-white shadow-xs'
                   : unselectedOptionClass
               }`}
               title="Switch to English"
@@ -133,7 +133,7 @@ export const AccessibilityToolbar: React.FC = () => {
               onClick={() => handleLanguageSelect('ta')}
               className={`px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer flex items-center justify-center text-xs ${
                 language === 'ta'
-                  ? 'bg-[#B85C38] text-white shadow-xs'
+                  ? 'bg-[#8B1E2D] text-white shadow-xs'
                   : unselectedOptionClass
               }`}
               title="Switch to Tamil (தமிழ்)"
@@ -146,7 +146,7 @@ export const AccessibilityToolbar: React.FC = () => {
               onClick={() => handleLanguageSelect('hi')}
               className={`px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer flex items-center justify-center text-xs ${
                 language === 'hi'
-                  ? 'bg-[#B85C38] text-white shadow-xs'
+                  ? 'bg-[#8B1E2D] text-white shadow-xs'
                   : unselectedOptionClass
               }`}
               title="Switch to Hindi (हिन्दी)"
@@ -157,12 +157,12 @@ export const AccessibilityToolbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsLanguageModalOpen(true)}
-              className={`px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer flex items-center justify-center text-xs border border-[#E5DDD2] hover:bg-[#FAF7F2] ${
+              className={`px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer flex items-center justify-center text-xs border border-[#E7D9D6] hover:bg-[#F8EBE9] ${
                 currentTheme === 'high-contrast'
                   ? 'bg-yellow-400 text-black border-white'
                   : currentTheme === 'dark'
                   ? 'bg-zinc-800 text-zinc-100 hover:bg-zinc-700'
-                  : 'bg-[#FAF7F2] text-[#B85C38]'
+                  : 'bg-[#F8EBE9] text-[#8B1E2D]'
               }`}
               title="Open Language Selector Dialog"
             >
@@ -179,7 +179,7 @@ export const AccessibilityToolbar: React.FC = () => {
               onClick={() => handleThemeChange('light')}
               className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer text-xs ${
                 currentTheme === 'light'
-                  ? 'bg-[#B85C38] text-white shadow-xs'
+                  ? 'bg-[#8B1E2D] text-white shadow-xs'
                   : unselectedOptionClass
               }`}
               title="Light Mode Theme"
@@ -193,7 +193,7 @@ export const AccessibilityToolbar: React.FC = () => {
               onClick={() => handleThemeChange('dark')}
               className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer text-xs ${
                 currentTheme === 'dark'
-                  ? 'bg-[#B85C38] text-white shadow-xs'
+                  ? 'bg-[#8B1E2D] text-white shadow-xs'
                   : unselectedOptionClass
               }`}
               title="Dark Mode Theme"
@@ -220,7 +220,7 @@ export const AccessibilityToolbar: React.FC = () => {
           {/* 🔤 3. TEXT SIZE SCALE */}
           <div className={`a11y-group flex flex-wrap items-center justify-start gap-1 p-1 rounded-full ${pillGroupSurface}`}>
             <div className="flex items-center gap-1 px-2 shrink-0">
-              <Type className="w-3.5 h-3.5 text-[#B85C38] shrink-0" />
+              <Type className="w-3.5 h-3.5 text-[#8B1E2D] shrink-0" />
               <span className={`a11y-label font-bold text-xs ${labelTextClass}`}>Size:</span>
             </div>
             {(['sm', 'md', 'lg', 'xl'] as const).map(size => (
@@ -230,7 +230,7 @@ export const AccessibilityToolbar: React.FC = () => {
                 onClick={() => handleTextSizeChange(size)}
                 className={`px-2.5 py-1 rounded-full uppercase font-bold transition-all flex items-center justify-center cursor-pointer text-xs ${
                   accessibilitySettings.textSize === size
-                    ? 'bg-[#B85C38] text-white shadow-xs'
+                    ? 'bg-[#8B1E2D] text-white shadow-xs'
                     : unselectedOptionClass
                 }`}
               >

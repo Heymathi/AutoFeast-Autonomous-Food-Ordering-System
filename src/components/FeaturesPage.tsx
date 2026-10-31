@@ -74,7 +74,7 @@ export const FeaturesPage: React.FC = () => {
     <div className="w-full max-w-6xl mx-auto py-8 sm:py-12 px-4 sm:px-6 space-y-12 animate-fade-in">
       {/* Page Header */}
       <div className="text-center space-y-3 max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F3EDE4] text-[#B85C38] text-xs font-bold tracking-wide">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold tracking-wide">
           <Sparkles className="w-3.5 h-3.5" />
           <span>Complete Platform Capabilities</span>
         </div>
@@ -90,10 +90,10 @@ export const FeaturesPage: React.FC = () => {
           SECTION A – PERSONALIZATION AND ACCESSIBILITY
           ========================================================================= */}
       <section className="space-y-6">
-        <div className="border-b border-[#E5DDD2] pb-3 flex items-center justify-between">
+        <div className="border-b border-[#E7D9D6] pb-3 flex items-center justify-between">
           <div>
             <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#302720] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#B85C38]"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#8B1E2D]"></span>
               {t('features.personalization') || 'Personalization & Accessibility'}
             </h2>
             <p className="text-xs sm:text-sm text-[#786E64]">
@@ -105,10 +105,10 @@ export const FeaturesPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* 1. Language Selection */}
           <div className={`p-6 rounded-2xl border shadow-xs space-y-4 ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <Globe2 className="w-5 h-5" />
               </div>
               <div>
@@ -125,10 +125,10 @@ export const FeaturesPage: React.FC = () => {
                   onClick={() => setLanguage(lang.code)}
                   className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                     language === lang.code
-                      ? 'bg-[#B85C38] text-white border-[#B85C38] shadow-xs'
+                      ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-xs'
                       : currentTheme === 'dark'
                       ? 'bg-zinc-700 text-zinc-200 border-zinc-600 hover:bg-zinc-600'
-                      : 'bg-[#FAF7F2] text-[#302720] border-[#E5DDD2] hover:bg-[#F3EDE4]/50'
+                      : 'bg-[#F8EBE9] text-[#302720] border-[#E7D9D6] hover:bg-[#F1DEDC]/50'
                   }`}
                 >
                   <span className="text-xs">{lang.native}</span>
@@ -142,10 +142,10 @@ export const FeaturesPage: React.FC = () => {
 
           {/* 2. Address & Location Management */}
           <div className={`p-6 rounded-2xl border shadow-xs space-y-4 ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <MapPin className="w-5 h-5" />
               </div>
               <div>
@@ -154,7 +154,7 @@ export const FeaturesPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-between">
+            <div className="p-3.5 rounded-xl bg-[#F8EBE9] border border-[#E7D9D6] flex items-center justify-between">
               <div className="min-w-0 flex-1 pr-3">
                 <span className="text-[11px] text-[#786E64] block font-medium">Saved Location</span>
                 <p className="text-xs sm:text-sm font-bold text-[#302720] truncate">
@@ -168,14 +168,14 @@ export const FeaturesPage: React.FC = () => {
                   type="button"
                   onClick={fetchLiveGpsLocation}
                   title="Detect GPS"
-                  className="p-2 rounded-lg bg-white border border-[#E5DDD2] text-[#B85C38] hover:bg-[#F3EDE4] transition-colors cursor-pointer"
+                  className="p-2 rounded-lg bg-white border border-[#E7D9D6] text-[#8B1E2D] hover:bg-[#F1DEDC] transition-colors cursor-pointer"
                 >
                   <Navigation className="w-4 h-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsLocationModalOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-[#B85C38] hover:bg-[#302720] text-white text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-[#8B1E2D] hover:bg-[#302720] text-white text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                   <span>Change</span>
@@ -186,10 +186,10 @@ export const FeaturesPage: React.FC = () => {
 
           {/* 3. Website Font Size */}
           <div className={`p-6 rounded-2xl border shadow-xs space-y-4 ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <Type className="w-5 h-5" />
               </div>
               <div>
@@ -206,10 +206,10 @@ export const FeaturesPage: React.FC = () => {
                   onClick={() => setTextSize(f.size)}
                   className={`py-2 px-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                     accessibilitySettings.textSize === f.size
-                      ? 'bg-[#B85C38] text-white border-[#B85C38] shadow-xs'
+                      ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-xs'
                       : currentTheme === 'dark'
                       ? 'bg-zinc-700 text-zinc-200 border-zinc-600 hover:bg-zinc-600'
-                      : 'bg-[#FAF7F2] text-[#302720] border-[#E5DDD2] hover:bg-[#F3EDE4]/50'
+                      : 'bg-[#F8EBE9] text-[#302720] border-[#E7D9D6] hover:bg-[#F1DEDC]/50'
                   }`}
                 >
                   {f.label}
@@ -220,10 +220,10 @@ export const FeaturesPage: React.FC = () => {
 
           {/* 4. Website Theme */}
           <div className={`p-6 rounded-2xl border shadow-xs space-y-4 ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <SunMoon className="w-5 h-5" />
               </div>
               <div>
@@ -248,10 +248,10 @@ export const FeaturesPage: React.FC = () => {
                   }}
                   className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                     currentTheme === th.mode
-                      ? 'bg-[#B85C38] text-white border-[#B85C38] shadow-xs'
+                      ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-xs'
                       : currentTheme === 'dark'
                       ? 'bg-zinc-700 text-zinc-200 border-zinc-600 hover:bg-zinc-600'
-                      : 'bg-[#FAF7F2] text-[#302720] border-[#E5DDD2] hover:bg-[#F3EDE4]/50'
+                      : 'bg-[#F8EBE9] text-[#302720] border-[#E7D9D6] hover:bg-[#F1DEDC]/50'
                   }`}
                 >
                   {th.label}
@@ -266,10 +266,10 @@ export const FeaturesPage: React.FC = () => {
           SECTION B – FOOD AND AI FEATURES
           ========================================================================= */}
       <section className="space-y-6">
-        <div className="border-b border-[#E5DDD2] pb-3 flex items-center justify-between">
+        <div className="border-b border-[#E7D9D6] pb-3 flex items-center justify-between">
           <div>
             <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#302720] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#B85C38]"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#8B1E2D]"></span>
               {t('features.foodAi') || 'Food & AI Features'}
             </h2>
             <p className="text-xs sm:text-sm text-[#786E64]">
@@ -281,10 +281,10 @@ export const FeaturesPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Feature 1: Voice Search */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <Mic className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[#302720]">Voice Search</h3>
@@ -295,7 +295,7 @@ export const FeaturesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsVoiceModalOpen(true)}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <span>Launch Voice Assistant</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -304,10 +304,10 @@ export const FeaturesPage: React.FC = () => {
 
           {/* Feature 2: Auto Scheduler */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <Calendar className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[#302720]">Auto Scheduler</h3>
@@ -318,7 +318,7 @@ export const FeaturesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('scheduler')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <span>Open Auto Scheduler</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -327,10 +327,10 @@ export const FeaturesPage: React.FC = () => {
 
           {/* Feature 3: Healthy Foods */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <HeartPulse className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[#302720]">Healthy Foods</h3>
@@ -341,7 +341,7 @@ export const FeaturesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsHealthModalOpen(true)}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <span>Explore Healthy Diet Guide</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -350,10 +350,10 @@ export const FeaturesPage: React.FC = () => {
 
           {/* Feature 4: Dynamic Food Search */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <Search className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[#302720]">Dynamic Food Search</h3>
@@ -364,7 +364,7 @@ export const FeaturesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('home')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <span>Go to Dynamic Search</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -373,10 +373,10 @@ export const FeaturesPage: React.FC = () => {
 
           {/* Feature 5: AI Food Assistance */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow sm:col-span-2 lg:col-span-2 ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <Sparkles className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[#302720]">AI Food Assistance & Fallback</h3>
@@ -388,7 +388,7 @@ export const FeaturesPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsVoiceModalOpen(true)}
-                className="py-2.5 px-4 rounded-lg bg-[#B85C38] hover:bg-[#302720] text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="py-2.5 px-4 rounded-lg bg-[#8B1E2D] hover:bg-[#302720] text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <span>Try Voice AI Assistance</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -402,10 +402,10 @@ export const FeaturesPage: React.FC = () => {
           SECTION C – ACCOUNT AND ORDER FEATURES
           ========================================================================= */}
       <section className="space-y-6">
-        <div className="border-b border-[#E5DDD2] pb-3 flex items-center justify-between">
+        <div className="border-b border-[#E7D9D6] pb-3 flex items-center justify-between">
           <div>
             <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#302720] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#B85C38]"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-[#8B1E2D]"></span>
               {t('features.accountOrders') || 'Account & Order Features'}
             </h2>
             <p className="text-xs sm:text-sm text-[#786E64]">
@@ -417,14 +417,14 @@ export const FeaturesPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* 1. Limit Details */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                   <PackageCheck className="w-5 h-5" />
                 </div>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-[#F3EDE4] text-[#B85C38]">
+                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-[#F1DEDC] text-[#8B1E2D]">
                   {dailyOrderCount} / 6 Orders
                 </span>
               </div>
@@ -436,7 +436,7 @@ export const FeaturesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsLimitRenewalModalOpen(true)}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
             >
               <span>View & Renew Limit</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -445,14 +445,14 @@ export const FeaturesPage: React.FC = () => {
 
           {/* 2. Amount Details (Wallet) */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                   <Wallet className="w-5 h-5" />
                 </div>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-[#F3EDE4] text-[#B85C38]">
+                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-[#F1DEDC] text-[#8B1E2D]">
                   Balance: ₹{walletBalance.toFixed(0)}
                 </span>
               </div>
@@ -464,7 +464,7 @@ export const FeaturesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('wallet')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
             >
               <span>Manage Wallet</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -473,10 +473,10 @@ export const FeaturesPage: React.FC = () => {
 
           {/* 3. Order Tracking */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-2">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <Bike className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[#302720]">Live Order Tracking</h3>
@@ -487,7 +487,7 @@ export const FeaturesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('tracking')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
             >
               <span>View Tracking</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -496,10 +496,10 @@ export const FeaturesPage: React.FC = () => {
 
           {/* 4. Order History */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-2">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <History className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[#302720]">Order History & Bills</h3>
@@ -510,7 +510,7 @@ export const FeaturesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('orders')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
             >
               <span>Open History</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -519,15 +519,15 @@ export const FeaturesPage: React.FC = () => {
 
           {/* 5. My Cart */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                   <ShoppingCart className="w-5 h-5" />
                 </div>
                 {scheduleCart.length > 0 && (
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-[#F3EDE4] text-[#B85C38]">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-[#F1DEDC] text-[#8B1E2D]">
                     {scheduleCart.length} Items
                   </span>
                 )}
@@ -540,7 +540,7 @@ export const FeaturesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsScheduleCartModalOpen(true)}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
             >
               <span>View Cart</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -549,10 +549,10 @@ export const FeaturesPage: React.FC = () => {
 
           {/* 6. Nominee Management */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-2">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <ShieldAlert className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[#302720]">Nominee Guardianship</h3>
@@ -563,7 +563,7 @@ export const FeaturesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsNomineeModalOpen(true)}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
             >
               <span>Nominee Portal</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -572,10 +572,10 @@ export const FeaturesPage: React.FC = () => {
 
           {/* 7. Linked Bank Account */}
           <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
+            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
           }`}>
             <div className="space-y-2">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
                 <Building2 className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-[#302720]">Linked Bank Account</h3>
@@ -586,7 +586,7 @@ export const FeaturesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('wallet')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
             >
               <span>View Bank Settings</span>
               <ChevronRight className="w-3.5 h-3.5" />

@@ -1581,7 +1581,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             </div>
 
             {pinError && (
-              <p className="text-xs text-center font-black text-[#B85C38] dark:text-rose-400 animate-bounce">
+              <p className="text-xs text-center font-black text-[#8B1E2D] dark:text-rose-400 animate-bounce">
                 {pinError}
               </p>
             )}
@@ -1626,7 +1626,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   setPinDigits(['', '', '', '']);
                   setPinError(null);
                 }}
-                className="p-3 bg-[#F3EDE4] dark:bg-rose-950 text-[#B85C38] font-black text-xs rounded-2xl shadow cursor-pointer"
+                className="p-3 bg-[#F1DEDC] dark:bg-rose-950 text-[#8B1E2D] font-black text-xs rounded-2xl shadow cursor-pointer"
               >
                 Clear
               </button>
