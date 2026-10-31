@@ -1,14 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --color-primary-coral: #C82346;   /* Main Coral / Berry Red Accent */
-  --color-primary-hover: #B31D3D;   /* Darker hover state */
-  --color-primary-light: #FFF5F6;   /* Subtle soft blush backdrop */
-  --color-primary-border: #FCE7EB;  /* Light subtle rose-gray border */
-  --color-pure-white: #FFFFFF;      /* Clean White Card Surfaces */
-  --color-espresso-black: #1E1A1C;  /* Deep Charcoal Headings & Titles */
-  --color-charcoal-slate: #52525B;  /* Secondary text & descriptions */
-  --color-guacamole-green: #16A34A; /* Veg, Available, Order Delivered */
+  --color-primary-emerald: #087F5B;  /* Primary Emerald Accent */
+  --color-forest-green: #064E3B;     /* Deep Forest Green */
+  --color-dark-green: #12372A;       /* Dark Green */
+  --color-soft-mint: #DFF3E8;        /* Soft Mint Backgrounds */
+  --color-pale-green: #EFF7F1;       /* Pale Green Surface */
+  --color-page-bg: #FFFFFF;          /* Pure White Page Background */
+  --color-secondary-bg: #F7FAF8;     /* Clean Secondary Off-White/Green */
+  --color-card-bg: #FFFFFF;          /* Pure White Card Background */
+  --color-primary-text: #242B27;     /* Primary Charcoal / Dark Slate Text */
+  --color-secondary-text: #707B73;   /* Secondary Muted Text */
+  --color-border: #E4EBE5;           /* Fine Subtle Border */
+  --color-success: #16845B;          /* Success State */
+  --color-warning: #D9A441;          /* Warning State */
+  --color-error: #CF5353;            /* Error State */
 }
 
 @layer base {
@@ -25,48 +31,73 @@
   }
 
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    background-color: #FCF9F9;
-    color: #1E1A1C;
+    font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
+    background-color: #FFFFFF;
+    color: #242B27;
     -webkit-font-smoothing: antialiased;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    color: #1E1A1C;
+    color: #064E3B;
+    font-family: 'Inter', 'Manrope', system-ui, sans-serif;
   }
 }
 
 /* Typography Helpers */
 .font-display {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
 }
 
-/* Custom Design System Utility Classes (Harmonized with Coral & Off-White Palette) */
-.bg-brand-orange { background-color: #C82346 !important; }
-.hover\:bg-brand-orange-hover:hover { background-color: #B31D3D !important; }
-.text-brand-orange { color: #C82346 !important; }
-.border-brand-orange { border-color: #C82346 !important; }
-.shadow-brand-orange { box-shadow: 0 10px 25px -5px rgba(200, 35, 70, 0.25) !important; }
+/* Emerald Green Design System Utility Classes */
+.bg-emerald-primary { background-color: #087F5B !important; }
+.hover\:bg-emerald-primary-hover:hover { background-color: #064E3B !important; }
+.text-emerald-primary { color: #087F5B !important; }
+.border-emerald-primary { border-color: #087F5B !important; }
 
-.bg-crimson-red { background-color: #C82346 !important; }
-.text-crimson-red { color: #C82346 !important; }
-.border-crimson-red { border-color: #C82346 !important; }
+.bg-forest-green { background-color: #064E3B !important; }
+.text-forest-green { color: #064E3B !important; }
 
-.bg-light-blue { background-color: #FFF5F6 !important; }
-.text-light-blue { color: #FFF5F6 !important; }
-.border-light-blue { border-color: #FCE7EB !important; }
+.bg-dark-green { background-color: #12372A !important; }
+.text-dark-green { color: #12372A !important; }
+
+.bg-soft-mint { background-color: #DFF3E8 !important; }
+.text-soft-mint { color: #087F5B !important; }
+.border-soft-mint { border-color: #DFF3E8 !important; }
+
+.bg-pale-green { background-color: #EFF7F1 !important; }
+
+.bg-app-card { background-color: #FFFFFF !important; }
+.border-app { border-color: #E4EBE5 !important; }
+
+.text-charcoal-primary { color: #242B27 !important; }
+.text-charcoal-secondary { color: #707B73 !important; }
+
+/* Backward-compatible utility remappings for Emerald Theme */
+.bg-brand-orange { background-color: #087F5B !important; }
+.hover\:bg-brand-orange-hover:hover { background-color: #064E3B !important; }
+.text-brand-orange { color: #087F5B !important; }
+.border-brand-orange { border-color: #087F5B !important; }
+.shadow-brand-orange { box-shadow: 0 10px 25px -5px rgba(8, 127, 91, 0.25) !important; }
+
+.bg-crimson-red { background-color: #087F5B !important; }
+.text-crimson-red { color: #087F5B !important; }
+.border-crimson-red { border-color: #087F5B !important; }
+
+.bg-light-blue { background-color: #DFF3E8 !important; }
+.text-light-blue { color: #087F5B !important; }
+.border-light-blue { border-color: #E4EBE5 !important; }
 
 .bg-pure-white { background-color: #FFFFFF !important; }
 
-.text-espresso-black { color: #1E1A1C !important; }
-.bg-espresso-black { background-color: #1E1A1C !important; }
+.text-espresso-black { color: #242B27 !important; }
+.bg-espresso-black { background-color: #242B27 !important; }
 
-.text-charcoal-slate { color: #52525B !important; }
-.bg-charcoal-slate { background-color: #52525B !important; }
+.text-charcoal-slate { color: #707B73 !important; }
+.bg-charcoal-slate { background-color: #707B73 !important; }
 
-.bg-guacamole-green { background-color: #16A34A !important; }
-.text-guacamole-green { color: #16A34A !important; }
-.border-guacamole-green { border-color: #16A34A !important; }
+.bg-guacamole-green { background-color: #16845B !important; }
+.text-guacamole-green { color: #16845B !important; }
+.border-guacamole-green { border-color: #16845B !important; }
 
 /* Real font size scaling applied to root & body */
 .text-scale-sm { font-size: 14px !important; }

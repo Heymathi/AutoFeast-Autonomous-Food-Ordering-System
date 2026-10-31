@@ -129,7 +129,7 @@ export interface AccessibilitySettings {
   readAloud: boolean;
 }
 
-export type AppView = 'search' | 'scheduler' | 'wallet' | 'orders' | 'tracking';
+export type AppView = 'home' | 'search' | 'how-it-works' | 'features' | 'about' | 'scheduler' | 'wallet' | 'orders' | 'tracking';
 
 export type EntryStep = 'auth' | 'language' | 'welcome' | 'location_permission' | 'dashboard';
 

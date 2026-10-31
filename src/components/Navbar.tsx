@@ -1,3 +1,4 @@
+import { UserProfileDropdown } from './UserProfileDropdown';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import {
@@ -79,6 +80,7 @@ export const Navbar: React.FC = () => {
   const [hasSearchedLocation, setHasSearchedLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isDetectingGps, setIsDetectingGps] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const locationContainerRef = useRef<HTMLDivElement>(null);
   const locationChipRef = useRef<HTMLButtonElement>(null);
@@ -709,40 +711,102 @@ export const Navbar: React.FC = () => {
           ? 'bg-black text-white border-b-2 border-yellow-400'
           : currentTheme === 'dark'
           ? 'bg-zinc-900/95 text-zinc-100 border-b border-zinc-800 backdrop-blur-md shadow-xs'
-          : 'bg-white/95 text-zinc-900 border-b border-rose-100/80 backdrop-blur-md shadow-[0_2px_15px_rgba(200,35,70,0.03)]'
+          : 'bg-white/95 text-[#242B27] border-b border-[#E4EBE5] backdrop-blur-md shadow-xs'
       }`}
     >
-      <div className="header-container w-full max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-2.5">
+      <div className="header-container w-full max-w-7xl mx-auto px-4 sm:px-6 py-2.5 sm:py-3">
         {/* MAIN TOP BAR */}
-        <div className="flex flex-wrap items-center justify-between gap-3 w-full min-w-0">
+        <div className="flex items-center justify-between gap-4 w-full min-w-0">
           
-          {/* LOGO, TITLE & GPS LOCATION BADGE (BRAND GROUP) */}
-          <div className="header-brand-group flex items-center gap-3 min-w-0">
-            <div className="flex items-center gap-2.5 shrink-0">
-              <div
-                className="bg-[#C82346] min-h-[42px] min-w-[42px] p-2 rounded-2xl shadow-sm flex items-center justify-center cursor-pointer hover:bg-[#B31D3D] transition-all hover:scale-105 shrink-0"
-                onClick={() => setActiveView('search')}
-                title="Go to AutoFeast Home"
-                tabIndex={0}
-                role="button"
-                aria-label="AutoFeast Home"
-              >
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-
-              <h1
-                className={`font-black tracking-tight text-lg sm:text-xl cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                  currentTheme === 'dark' || currentTheme === 'high-contrast' ? 'text-white' : 'text-[#1E1A1C]'
-                }`}
-                onClick={() => setActiveView('search')}
-              >
-                <span>AutoFeast</span>
-                <span className="text-[#C82346] font-serif italic text-base">AI</span>
-              </h1>
+          {/* LEFT SECTION – BRANDING */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div
+              className="bg-[#087F5B] min-h-[38px] min-w-[38px] p-2 rounded-xl shadow-xs flex items-center justify-center cursor-pointer hover:bg-[#064E3B] transition-all hover:scale-105 shrink-0"
+              onClick={() => setActiveView('home')}
+              title="AutoFeast AI Home"
+              tabIndex={0}
+              role="button"
+              aria-label="AutoFeast AI Home"
+            >
+              <Sparkles className="w-5 h-5 text-white" />
             </div>
 
-            {/* GPS Live Location Button + Inline Popover */}
-            <div ref={locationContainerRef} className="relative flex items-center flex-1 min-w-0">
+            <div
+              onClick={() => setActiveView('home')}
+              className="cursor-pointer select-none"
+            >
+              <h1 className="font-extrabold tracking-tight text-lg sm:text-xl flex items-center gap-1 leading-none text-[#064E3B]">
+                <span>AutoFeast</span>
+                <span className="text-[#087F5B] font-black">AI</span>
+              </h1>
+              <p className="text-[10px] text-[#707B73] font-medium hidden sm:block leading-tight mt-0.5">
+                AI Autonomous Food Platform
+              </p>
+            </div>
+          </div>
+
+          {/* CENTER SECTION – MAIN NAVIGATION (Exact order: Home, How It Works, Features, About) */}
+          <nav
+            aria-label="Main Navigation"
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F7FAF8] border border-[#E4EBE5]"
+          >
+            {/* 1. Home */}
+            <button
+              type="button"
+              onClick={() => setActiveView('home')}
+              className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer ${
+                activeView === 'home' || activeView === 'search'
+                  ? 'bg-[#087F5B] text-white shadow-xs'
+                  : 'text-[#707B73] hover:text-[#064E3B] hover:bg-white'
+              }`}
+            >
+              {t('nav.home') || 'Home'}
+            </button>
+
+            {/* 2. How It Works */}
+            <button
+              type="button"
+              onClick={() => setActiveView('how-it-works')}
+              className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer ${
+                activeView === 'how-it-works'
+                  ? 'bg-[#087F5B] text-white shadow-xs'
+                  : 'text-[#707B73] hover:text-[#064E3B] hover:bg-white'
+              }`}
+            >
+              {t('nav.howItWorks') || 'How It Works'}
+            </button>
+
+            {/* 3. Features */}
+            <button
+              type="button"
+              onClick={() => setActiveView('features')}
+              className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer ${
+                activeView === 'features'
+                  ? 'bg-[#087F5B] text-white shadow-xs'
+                  : 'text-[#707B73] hover:text-[#064E3B] hover:bg-white'
+              }`}
+            >
+              {t('nav.features') || 'Features'}
+            </button>
+
+            {/* 4. About */}
+            <button
+              type="button"
+              onClick={() => setActiveView('about')}
+              className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer ${
+                activeView === 'about'
+                  ? 'bg-[#087F5B] text-white shadow-xs'
+                  : 'text-[#707B73] hover:text-[#064E3B] hover:bg-white'
+              }`}
+            >
+              {t('nav.about') || 'About'}
+            </button>
+          </nav>
+
+          {/* RIGHT SECTION – USER PROFILE, LOCATION, CART & MOBILE TOGGLE */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Delivery Location Chip with Inline Popover */}
+            <div ref={locationContainerRef} className="relative hidden lg:block">
               <button
                 ref={locationChipRef}
                 type="button"
@@ -759,53 +823,16 @@ export const Navbar: React.FC = () => {
                     openLocationPopover();
                   }
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (isLocationPopoverOpen) {
-                      closeLocationPopover();
-                    } else {
-                      openLocationPopover();
-                    }
-                  } else if (e.key === 'Escape' && isLocationPopoverOpen) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    closeLocationPopover();
-                  }
-                }}
-                className={`header-location-chip min-h-[40px] flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-full font-bold text-xs sm:text-sm leading-snug transition-all border shadow-2xs cursor-pointer min-w-0 ${
-                  userLocation.area === 'Location not set' || userLocation.city === 'Not set'
-                    ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
-                    : currentTheme === 'high-contrast'
-                    ? 'bg-black text-white border-2 border-yellow-400'
-                    : currentTheme === 'dark'
-                    ? 'bg-zinc-800 text-zinc-100 border-zinc-700 hover:bg-zinc-700'
-                    : 'bg-white text-zinc-800 border-rose-200/70 hover:bg-rose-50/50'
-                }`}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4EBE5] bg-[#F7FAF8] hover:bg-[#EFF7F1] text-xs font-semibold text-[#242B27] transition-colors cursor-pointer max-w-[180px]"
                 title={t('location.changeAddress')}
-                aria-label={t('location.changeAddress')}
               >
-                {userLocation.area === 'Location not set' || userLocation.city === 'Not set' ? (
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                ) : userLocation.isManualOverride ? (
-                  <Edit3 className="w-4 h-4 text-blue-600 shrink-0" />
-                ) : userLocation.isApproximate ? (
-                  <AlertTriangle className="w-4 h-4 text-[#C82346] shrink-0" />
-                ) : (
-                  <MapPin className="w-4 h-4 text-[#C82346] shrink-0" />
-                )}
-
-                <span className="truncate leading-tight font-bold text-xs sm:text-sm">
-                  {userLocation.area === 'Location not set' || userLocation.city === 'Not set'
-                    ? `📍 ${t('location.notSet')}`
-                    : userLocation.isManualOverride
-                    ? `✏️ ${userLocation.area}`
-                    : userLocation.isApproximate
-                    ? `⚠️ ${userLocation.area && userLocation.area !== userLocation.city ? `${userLocation.area}, ${userLocation.city}` : (userLocation.area || userLocation.city)}`
-                    : `📍 ${userLocation.area}, ${userLocation.city}`}
+                <MapPin className="w-3.5 h-3.5 text-[#087F5B] shrink-0" />
+                <span className="truncate">
+                  {userLocation.area === 'Location not set' ? 'Set Address' : `${userLocation.area}, ${userLocation.city}`}
                 </span>
               </button>
+
+              {/* Location Popover Dialog */}
               {isLocationPopoverOpen && (
                 <div
                   id="header-location-popover"
@@ -813,522 +840,179 @@ export const Navbar: React.FC = () => {
                   aria-modal="false"
                   aria-label={t('location.popoverTitle')}
                   onClick={(e) => e.stopPropagation()}
-                  className={`fixed left-2 right-2 top-[76px] sm:absolute sm:left-0 sm:right-auto sm:top-[calc(100%+8px)] sm:w-[400px] sm:max-w-[calc(100vw-24px)] max-h-[calc(100vh-92px)] overflow-y-auto z-50 rounded-2xl p-4 shadow-2xl transition-all ${
-                    currentTheme === 'high-contrast'
-                      ? 'bg-black text-white border-2 border-yellow-400'
-                      : currentTheme === 'dark'
-                      ? 'bg-slate-900 text-white border-2 border-slate-600'
-                      : 'bg-[#FFFFFF] text-[#111827] border-2 border-[#D1D5DB]'
-                  }`}
+                  className="absolute right-0 top-[calc(100%+8px)] w-[360px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-92px)] overflow-y-auto z-50 rounded-2xl p-4 shadow-2xl transition-all border border-[#E4EBE5] bg-white text-[#242B27]"
                 >
-                  <form onSubmit={handleSaveLocation} className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <label
-                        htmlFor="header-location-input"
-                        className="text-[18px] font-extrabold flex items-center gap-2 leading-snug"
-                      >
-                        <MapPin className="w-5 h-5 text-[#C82346] shrink-0" />
-                        <span>{t('location.popoverTitle')}</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={closeLocationPopover}
-                        aria-label={t('location.cancelBtn')}
-                        className={`min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl transition-colors cursor-pointer ${
-                          currentTheme === 'high-contrast'
-                            ? 'text-white border border-yellow-400 hover:bg-neutral-900'
-                            : currentTheme === 'dark'
-                            ? 'text-slate-300 hover:bg-slate-800'
-                            : 'text-[#111827] hover:bg-slate-100'
-                        }`}
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
+                  <div className="flex items-center justify-between pb-2 border-b border-[#E4EBE5]">
+                    <div className="flex items-center space-x-2">
+                      <MapPin className="w-4 h-4 text-[#087F5B]" />
+                      <h3 className="font-bold text-sm text-[#064E3B]">{t('location.popoverTitle')}</h3>
                     </div>
-
-                    {/* Voice feedback / status strip */}
-                    {voiceStatusText && (
-                      <div
-                        role="status"
-                        aria-live="polite"
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[16px] font-bold border ${
-                          isVoiceListening
-                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500 animate-pulse'
-                            : isVoiceSpeaking
-                            ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                        }`}
-                      >
-                        <Mic className={`w-4 h-4 shrink-0 ${isVoiceListening ? 'text-[#C82346] animate-pulse' : 'text-blue-600'}`} />
-                        <span className="truncate">{voiceStatusText}</span>
-                      </div>
-                    )}
-
-                    {/* 1. Text Input (pre-filled & auto-focused) + Mic Button */}
-                    <div className="flex items-center gap-2">
-                      <input
-                        ref={locationInputRef}
-                        id="header-location-input"
-                        type="text"
-                        value={locationInput}
-                        onChange={handleLocationInputChange}
-                        placeholder={t('location.popoverPlaceholder')}
-                        aria-label={t('location.popoverInputLabel')}
-                        autoComplete="off"
-                        autoFocus
-                        className={`flex-1 min-h-[48px] px-3.5 py-2.5 rounded-xl text-[18px] font-bold leading-snug focus:outline-none focus:ring-2 focus:ring-[#C82346] transition-colors ${
-                          currentTheme === 'high-contrast'
-                            ? 'bg-black text-white placeholder-neutral-400 border-2 border-yellow-400'
-                            : currentTheme === 'dark'
-                            ? 'bg-slate-800 text-white placeholder-slate-400 border border-slate-600'
-                            : 'bg-[#FFFFFF] text-[#111827] placeholder-slate-500 border-2 border-[#9CA3AF]'
-                        }`}
-                      />
-                      <button
-                        type="button"
-                        id="popover-voice-location-btn"
-                        onClick={handleToggleVoice}
-                        aria-label={t('location.voiceMicAria')}
-                        title={t('location.voiceMicAria')}
-                        className={`min-h-[48px] px-3 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border shrink-0 ${
-                          isVoiceListening
-                            ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse border-red-700 shadow-sm'
-                            : isVoiceSpeaking
-                            ? 'bg-amber-500 text-white animate-bounce border-amber-600'
-                            : currentTheme === 'high-contrast'
-                            ? 'bg-black hover:bg-neutral-900 text-yellow-300 border-2 border-yellow-400'
-                            : currentTheme === 'dark'
-                            ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-600'
-                            : 'bg-[#C82346] hover:bg-[#B31D3D] text-white border-[#C82346]'
-                        }`}
-                      >
-                        <Mic className="w-5 h-5 shrink-0" />
-                        <span className="text-[16px]">{isVoiceListening ? t('location.listening') : t('search.voice')}</span>
-                      </button>
-                    </div>
-
-                    {/* 5. Loading, Error & "No results" states */}
-                    {isSearchingLocation && (
-                      <div
-                        role="status"
-                        aria-live="polite"
-                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[18px] font-bold ${
-                          currentTheme === 'high-contrast'
-                            ? 'bg-neutral-900 text-yellow-300 border border-yellow-400'
-                            : currentTheme === 'dark'
-                            ? 'bg-slate-800 text-slate-200'
-                            : 'bg-slate-100 text-[#111827]'
-                        }`}
-                      >
-                        <Loader2 className="w-5 h-5 animate-spin text-[#C82346] shrink-0" />
-                        <span>{t('location.searching')}</span>
-                      </div>
-                    )}
-
-                    {locationError && (
-                      <div
-                        role="alert"
-                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[18px] font-bold border ${
-                          currentTheme === 'high-contrast'
-                            ? 'bg-black text-yellow-300 border-2 border-yellow-400'
-                            : currentTheme === 'dark'
-                            ? 'bg-red-950/80 text-red-200 border-red-600'
-                            : 'bg-red-50 text-[#991B1B] border-red-400'
-                        }`}
-                      >
-                        <AlertTriangle className="w-5 h-5 shrink-0" />
-                        <span>{locationError}</span>
-                      </div>
-                    )}
-
-                    {!isSearchingLocation &&
-                      hasSearchedLocation &&
-                      !locationError &&
-                      suggestions.length === 0 &&
-                      locationInput.trim().length >= 2 && (
-                        <div
-                          role="status"
-                          aria-live="polite"
-                          className={`px-3 py-2.5 rounded-xl text-[18px] font-bold border ${
-                            currentTheme === 'high-contrast'
-                              ? 'bg-black text-white border border-yellow-400'
-                              : currentTheme === 'dark'
-                              ? 'bg-slate-800 text-slate-200 border-slate-700'
-                              : 'bg-slate-50 text-[#111827] border-[#D1D5DB]'
-                          }`}
-                        >
-                          {t('location.noResults')}
-                        </div>
-                      )}
-
-                    {/* 2. Up to 5 Suggestions */}
-                    {!isSearchingLocation && suggestions.length > 0 && (
-                      <div
-                        role="listbox"
-                        aria-label={t('location.suggestionsAria')}
-                        className="space-y-1.5 max-h-56 overflow-y-auto"
-                      >
-                        {suggestions.slice(0, 5).map((place, idx) => {
-                          const isSelected =
-                            selectedSuggestion?.area === place.area &&
-                            selectedSuggestion?.city === place.city &&
-                            selectedSuggestion?.addressName === place.addressName;
-                          const label =
-                            place.area && place.city && place.area.toLowerCase() !== place.city.toLowerCase()
-                              ? `${place.area}, ${place.city}`
-                              : place.addressName || place.area || place.city;
-
-                          return (
-                            <button
-                              key={`${place.area}-${place.city}-${idx}`}
-                              type="button"
-                              role="option"
-                              aria-selected={isSelected}
-                              onClick={() => handleSelectSuggestion(place)}
-                              className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl text-left text-[18px] font-bold flex items-center justify-between gap-2 transition-colors cursor-pointer border ${
-                                isSelected
-                                  ? 'bg-[#C82346] text-white border-[#C82346]'
-                                  : currentTheme === 'high-contrast'
-                                  ? 'bg-black hover:bg-neutral-900 text-white border-yellow-400'
-                                  : currentTheme === 'dark'
-                                  ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-600'
-                                  : 'bg-[#FFFFFF] hover:bg-slate-100 text-[#111827] border-[#D1D5DB]'
-                              }`}
-                            >
-                              <span className="flex items-center gap-2 min-w-0">
-                                <MapPin className={`w-5 h-5 shrink-0 ${isSelected ? 'text-white' : 'text-[#C82346]'}`} />
-                                <span className="truncate">{label}</span>
-                              </span>
-                              {isSelected && <Check className="w-5 h-5 text-white shrink-0" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* 3. Use my current location (GPS) button */}
                     <button
                       type="button"
-                      id="popover-use-gps-btn"
+                      onClick={closeLocationPopover}
+                      className="p-1 rounded-md text-[#707B73] hover:text-[#242B27]"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleManualSubmitLocation} className="mt-3 space-y-3">
+                    <div className="relative">
+                      <input
+                        ref={locationInputRef}
+                        type="text"
+                        value={locationInput}
+                        onChange={(e) => {
+                          setLocationInput(e.target.value);
+                          triggerDebouncedGeocode(e.target.value);
+                        }}
+                        placeholder={t('location.popoverPlaceholder')}
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-[#E4EBE5] focus:outline-none focus:ring-2 focus:ring-[#087F5B]"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleDetectGpsClick}
                       disabled={isDetectingGps}
-                      onClick={handleUseCurrentGPS}
-                      className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl text-[18px] font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer border ${
-                        currentTheme === 'high-contrast'
-                          ? 'bg-black hover:bg-neutral-900 text-yellow-300 border-2 border-yellow-400'
-                          : currentTheme === 'dark'
-                          ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-500'
-                          : 'bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#111827] border-[#9CA3AF]'
-                      }`}
+                      className="w-full py-2 px-3 rounded-lg border border-[#E4EBE5] bg-[#EFF7F1] hover:bg-[#DFF3E8] text-[#087F5B] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       {isDetectingGps ? (
-                        <Loader2 className="w-5 h-5 animate-spin text-[#C82346] shrink-0" />
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
-                        <Navigation className="w-5 h-5 text-[#C82346] shrink-0" />
+                        <Navigation className="w-3.5 h-3.5" />
                       )}
                       <span>{t('location.useCurrentGPS')}</span>
                     </button>
 
-                    {/* 4. Save and Cancel buttons */}
-                    <div className="flex items-center gap-2.5 pt-1">
-                      <button
-                        type="submit"
-                        id="popover-save-location-btn"
-                        className="flex-1 min-h-[48px] px-4 py-2.5 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white text-[18px] font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
-                      >
-                        <Check className="w-5 h-5 text-white shrink-0" />
-                        <span>{t('location.saveBtn')}</span>
-                      </button>
-
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4EBE5]">
                       <button
                         type="button"
-                        id="popover-cancel-location-btn"
                         onClick={closeLocationPopover}
-                        className={`flex-1 min-h-[48px] px-4 py-2.5 rounded-xl text-[18px] font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer border ${
-                          currentTheme === 'high-contrast'
-                            ? 'bg-black hover:bg-neutral-900 text-white border-2 border-yellow-400'
-                            : currentTheme === 'dark'
-                            ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-600'
-                            : 'bg-[#FFFFFF] hover:bg-slate-100 text-[#111827] border-2 border-[#9CA3AF]'
-                        }`}
+                        className="px-3 py-1.5 rounded-lg border border-[#E4EBE5] text-xs font-semibold text-[#707B73] hover:bg-[#F7FAF8]"
                       >
-                        <X className="w-5 h-5 shrink-0" />
-                        <span>{t('location.cancelBtn')}</span>
+                        {t('location.cancelBtn')}
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-1.5 rounded-lg bg-[#087F5B] hover:bg-[#064E3B] text-white text-xs font-semibold shadow-xs"
+                      >
+                        {t('location.saveBtn')}
                       </button>
                     </div>
                   </form>
                 </div>
               )}
             </div>
-          </div>
 
-          {/* NAVIGATION PILLS GROUP */}
-          <nav
-            className={`header-nav-group flex flex-wrap items-center justify-start sm:justify-between gap-1.5 p-1 rounded-full min-w-0 ${pillGroupSurface}`}
-          >
-            {/* Search */}
+            {/* Cart Icon with Live Badge */}
             <button
               type="button"
-              onClick={() => setActiveView('search')}
-              className={`header-btn flex items-center justify-center gap-2 px-4 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer ${
-                activeView === 'search'
-                  ? 'bg-[#C82346] text-white shadow-xs'
-                  : unselectedBtnClass
-              }`}
-              title={t('nav.search')}
-              aria-label={t('nav.search')}
+              onClick={() => setIsScheduleCartModalOpen(true)}
+              className="p-2 rounded-lg text-[#707B73] hover:text-[#087F5B] hover:bg-[#EFF7F1] relative border border-[#E4EBE5] transition-colors cursor-pointer"
+              title="View Schedule Cart"
+              aria-label="View Schedule Cart"
             >
-              <Search className="w-4 h-4 shrink-0" />
-              <span className="header-label-responsive text-xs sm:text-sm">{t('nav.search')}</span>
-            </button>
-
-            {/* Track Live Order */}
-            {activeLiveOrder && (
-              <button
-                type="button"
-                onClick={() => setActiveView('tracking')}
-                className={`header-btn flex items-center justify-center gap-2 px-4 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer ${
-                  activeView === 'tracking'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
-                }`}
-                title="Track Order"
-                aria-label="Track Order"
-              >
-                <Bike className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="header-label-responsive text-xs sm:text-sm">Track Order</span>
-              </button>
-            )}
-
-            {/* Auto Scheduler */}
-            <button
-              type="button"
-              onClick={() => setActiveView('scheduler')}
-              className={`header-btn flex items-center justify-center gap-2 px-4 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer ${
-                activeView === 'scheduler'
-                  ? 'bg-[#C82346] text-white shadow-xs'
-                  : unselectedBtnClass
-              }`}
-              title={t('nav.schedule')}
-              aria-label={t('nav.schedule')}
-            >
-              <Calendar className="w-4 h-4 shrink-0" />
-              <span className="header-label-responsive text-xs sm:text-sm">{t('nav.schedule')}</span>
-            </button>
-
-            {/* Wallet Balance */}
-            <button
-              type="button"
-              onClick={() => {
-                if (isWalletRevealed) {
-                  setActiveView('wallet');
-                } else {
-                  requestWalletBalanceReveal();
-                }
-              }}
-              className={`header-btn flex items-center justify-center gap-2 px-4 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer ${
-                activeView === 'wallet'
-                  ? 'bg-[#C82346] text-white shadow-xs'
-                  : unselectedBtnClass
-              }`}
-              title={isWalletRevealed ? `Wallet Balance: ₹${walletBalance.toFixed(0)}` : t('wallet.maskedLabel')}
-              aria-label={isWalletRevealed ? `Wallet Balance: ₹${walletBalance.toFixed(0)}` : t('wallet.maskedLabel')}
-            >
-              {isWalletRevealed ? (
-                <>
-                  <Eye className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="font-bold text-xs sm:text-sm">₹{walletBalance.toFixed(0)}</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span className="font-bold text-xs sm:text-sm">{t('wallet.maskedLabel')}</span>
-                </>
-              )}
-            </button>
-
-            {/* Limit */}
-            <button
-              type="button"
-              onClick={() => setIsLimitRenewalModalOpen(true)}
-              className={`header-btn flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-bold leading-tight transition-all border cursor-pointer text-xs ${
-                dailyOrderCount >= 6
-                  ? 'bg-rose-600 text-white border-rose-600'
-                  : currentTheme === 'high-contrast'
-                  ? 'bg-black hover:bg-neutral-900 text-white border-yellow-400'
-                  : currentTheme === 'dark'
-                  ? 'bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700'
-                  : 'bg-white hover:bg-rose-50 text-zinc-700 border-rose-200/70'
-              }`}
-              title={`Daily Limit: ${dailyOrderCount}/6`}
-              aria-label={`Daily Limit: ${dailyOrderCount}/6`}
-            >
-              <PackageCheck className={`w-3.5 h-3.5 shrink-0 ${dailyOrderCount >= 6 ? 'text-white' : 'text-[#C82346]'}`} />
-              <span className="font-bold"><span className="header-label-responsive">Limit: </span>{dailyOrderCount}/6</span>
-            </button>
-
-            {/* Nominee Control Portal */}
-            <button
-              type="button"
-              onClick={() => {
-                try {
-                  sessionStorage.setItem('nominee_return_to', window.location.pathname);
-                } catch {}
-                setIsNomineeModalOpen(true);
-              }}
-              className={`header-btn flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-full font-bold leading-tight transition-all border cursor-pointer text-xs relative ${
-                currentTheme === 'high-contrast'
-                  ? 'bg-black hover:bg-neutral-900 text-white border-yellow-400'
-                  : currentTheme === 'dark'
-                  ? 'bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700'
-                  : 'bg-white hover:bg-rose-50 text-zinc-800 border-rose-200/70'
-              }`}
-              title="Nominee Control Portal"
-              aria-label="Nominee Control Portal"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-amber-600" />
-              <span className="header-label-responsive">Nominee</span>
-              {pendingNomineeApprovals.filter(r => r.status === 'pending').length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                  {pendingNomineeApprovals.filter(r => r.status === 'pending').length}
+              <ShoppingBag className="w-4 h-4" />
+              {scheduleCart.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#087F5B] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {scheduleCart.length}
                 </span>
               )}
             </button>
 
-            {/* Order History */}
+            {/* User Profile Dropdown (Top-Right) */}
+            <UserProfileDropdown onNavigateFeatures={() => setActiveView('features')} />
+
+            {/* Mobile Hamburger Toggle Button */}
             <button
               type="button"
-              onClick={() => setActiveView('orders')}
-              className={`header-btn flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer ${
-                activeView === 'orders'
-                  ? 'bg-[#C82346] text-white shadow-xs'
-                  : unselectedBtnClass
-              }`}
-              title={t('nav.orders')}
-              aria-label={t('nav.orders')}
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden p-2 rounded-lg text-[#242B27] hover:bg-[#EFF7F1] border border-[#E4EBE5] transition-colors cursor-pointer"
+              aria-label="Toggle navigation menu"
             >
-              <History className="w-4 h-4 shrink-0" />
-              <span className="header-label-responsive text-xs sm:text-sm">{t('nav.orders')}</span>
+              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-
-            {/* Shared Cart */}
-            {(() => {
-              const totalCartCount = cart.reduce((sum, i) => sum + (i.qty || (i as any).quantity || 1), 0);
-              return (
-                <button
-                  type="button"
-                  onClick={() => setIsScheduleCartModalOpen(true)}
-                  className={`header-btn flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer border relative ${
-                    currentTheme === 'high-contrast'
-                      ? 'bg-black hover:bg-neutral-900 text-white border-yellow-400'
-                      : currentTheme === 'dark'
-                      ? 'bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700'
-                      : 'bg-white hover:bg-rose-50 text-zinc-800 border-rose-200/70'
-                  }`}
-                  title={t('cartTitle')}
-                  aria-label={t('cartTitle')}
-                >
-                  <ShoppingBag className="w-4 h-4 shrink-0 text-[#C82346]" />
-                  <span className="header-label-responsive text-xs sm:text-sm">{t('cartTitle')}</span>
-                  {totalCartCount > 0 && (
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#C82346] text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                      {totalCartCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })()}
-          </nav>
-
-          {/* ACTION BUTTONS (USER PROFILE, VOICE SEARCH, HEALTHY FOOD, THEME, LOGOUT) */}
-          <div className="header-actions-group flex items-center gap-2 min-w-0">
-            
-            {/* User Profile / Sign In */}
-            {currentUser ? (
-              <div
-                className={`header-chip flex items-center justify-center gap-2 px-3 py-1.5 rounded-full border min-w-0 text-xs sm:text-sm ${
-                  currentTheme === 'high-contrast'
-                    ? 'bg-black text-white border-yellow-400'
-                    : currentTheme === 'dark'
-                    ? 'bg-zinc-800 text-white border-zinc-700'
-                    : 'bg-white text-zinc-800 border-rose-200/70 shadow-2xs'
-                }`}
-                title={`Signed in as ${currentUser.name}`}
-              >
-                <div className="p-1 bg-[#C82346] rounded-full text-white shrink-0">
-                  <ShieldCheck className="w-3.5 h-3.5 text-white" />
-                </div>
-                <span className="header-label-responsive font-bold leading-tight">
-                  {currentUser.name}
-                </span>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const res = await registerFaceIDOnDevice();
-                    if (res.success) {
-                      showToast('Face ID registered!');
-                      speakText('Face ID registered!');
-                    }
-                  }}
-                  className="p-1 hover:bg-rose-50 rounded-full text-[#C82346] transition-colors cursor-pointer shrink-0"
-                  title="Link Face ID (WebAuthn)"
-                  aria-label="Link Face ID"
-                >
-                  <Scan className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsAuthGateOpen(true)}
-                className="header-btn flex items-center justify-center gap-2 bg-[#C82346] hover:bg-[#B31D3D] text-white font-bold px-5 py-2 rounded-full shadow-xs cursor-pointer text-xs sm:text-sm"
-                title="Sign In"
-                aria-label="Sign In"
-              >
-                <LogIn className="w-4 h-4 shrink-0" />
-                <span className="header-label-responsive">Sign In</span>
-              </button>
-            )}
-
-            {/* Voice Assistant Mic Button */}
-            <button
-              type="button"
-              onClick={() => setIsVoiceModalOpen(true)}
-              className="header-btn flex items-center justify-center gap-1.5 bg-rose-50 hover:bg-rose-100/80 text-[#C82346] font-bold px-3.5 py-2 rounded-full border border-rose-200/80 shadow-2xs transition-all cursor-pointer text-xs sm:text-sm"
-              title={t('search.voice')}
-              aria-label={t('search.voice')}
-            >
-              <Mic className="w-4 h-4 text-[#C82346] shrink-0" />
-              <span className="header-label-responsive leading-tight">{t('search.voice')}</span>
-            </button>
-
-            {/* Healthy Food Guide */}
-            <button
-              type="button"
-              onClick={() => setIsHealthModalOpen(true)}
-              className="header-btn flex items-center justify-center gap-1.5 bg-white hover:bg-rose-50 text-zinc-700 font-bold px-3.5 py-2 rounded-full border border-rose-200/70 shadow-2xs transition-all cursor-pointer text-xs sm:text-sm"
-              title={t('nav.healthyFood')}
-              aria-label={t('nav.healthyFood')}
-            >
-              <HeartPulse className="w-4 h-4 text-[#C82346] shrink-0" />
-              <span className="header-label-responsive leading-tight">{t('nav.healthyFood')}</span>
-            </button>
-
-            {/* Logout */}
-            {currentUser && (
-              <button
-                type="button"
-                onClick={logout}
-                className="header-btn p-2 rounded-full text-zinc-500 hover:text-[#C82346] hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
-                title="Logout"
-                aria-label="Logout"
-              >
-                <LogOut className="w-4 h-4 shrink-0" />
-              </button>
-            )}
-
           </div>
 
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden pt-3 pb-2 border-t border-[#E4EBE5] mt-2 space-y-1.5 animate-fade-in">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveView('home');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full text-left px-3.5 py-2 rounded-lg text-xs font-semibold ${
+                activeView === 'home' || activeView === 'search'
+                  ? 'bg-[#087F5B] text-white'
+                  : 'text-[#242B27] hover:bg-[#EFF7F1]'
+              }`}
+            >
+              {t('nav.home') || 'Home'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveView('how-it-works');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full text-left px-3.5 py-2 rounded-lg text-xs font-semibold ${
+                activeView === 'how-it-works'
+                  ? 'bg-[#087F5B] text-white'
+                  : 'text-[#242B27] hover:bg-[#EFF7F1]'
+              }`}
+            >
+              {t('nav.howItWorks') || 'How It Works'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveView('features');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full text-left px-3.5 py-2 rounded-lg text-xs font-semibold ${
+                activeView === 'features'
+                  ? 'bg-[#087F5B] text-white'
+                  : 'text-[#242B27] hover:bg-[#EFF7F1]'
+              }`}
+            >
+              {t('nav.features') || 'Features'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveView('about');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full text-left px-3.5 py-2 rounded-lg text-xs font-semibold ${
+                activeView === 'about'
+                  ? 'bg-[#087F5B] text-white'
+                  : 'text-[#242B27] hover:bg-[#EFF7F1]'
+              }`}
+            >
+              {t('nav.about') || 'About'}
+            </button>
+
+            {/* Mobile Location Action */}
+            <div className="pt-1.5 border-t border-[#E4EBE5]">
+              <button
+                type="button"
+                onClick={() => {
+                  openLocationPopover();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold bg-[#F7FAF8] border border-[#E4EBE5] text-[#242B27] flex items-center justify-between"
+              >
+                <span className="truncate">📍 {userLocation.area === 'Location not set' ? 'Set Delivery Address' : `${userLocation.area}, ${userLocation.city}`}</span>
+                <Edit3 className="w-3.5 h-3.5 text-[#087F5B] shrink-0" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );
