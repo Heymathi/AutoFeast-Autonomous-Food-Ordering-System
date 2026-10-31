@@ -113,8 +113,10 @@ export class OfflineSpeechEngine {
 
       const hasModelConfig = urls.some(u => u.includes('whisper-tiny') && u.includes('config.json'));
       const hasOnnxWeights = urls.some(u => u.includes('whisper-tiny') && (u.includes('.onnx') || u.includes('encoder') || u.includes('decoder')));
+      const hasWasmMjs = urls.some(u => u.includes('ort-wasm-simd-threaded.asyncify.mjs'));
+      const hasWasmBin = urls.some(u => u.includes('ort-wasm-simd-threaded.asyncify.wasm'));
 
-      const isComplete = hasModelConfig && hasOnnxWeights;
+      const isComplete = hasModelConfig && hasOnnxWeights && hasWasmMjs && hasWasmBin;
       this.cachedModelVerified = isComplete;
 
       if (!isComplete && typeof localStorage !== 'undefined') {
@@ -174,6 +176,68 @@ export class OfflineSpeechEngine {
         mjs: `${wasmPrefix}ort-wasm-simd-threaded${wasmSuffix}.mjs`,
         wasm: `${wasmPrefix}ort-wasm-simd-threaded${wasmSuffix}.wasm`
       };
+      // Single thread prevents SharedArrayBuffer cross-origin-isolation errors
+      env.backends.onnx.wasm.numThreads = 1;
+      env.backends.onnx.wasm.proxy = false;
+    }
+  }
+
+  /**
+   * Pre-fetches and caches all ONNX runtime WASM assets into both
+   * transformers-cache and autofeast-offline-v3 Cache API stores.
+   */
+  public static async prefetchAndCacheWasmAssets(): Promise<void> {
+    if (typeof window === 'undefined' || !('caches' in window)) return;
+
+    const origin = window.location.origin;
+    const wasmFiles = [
+      'ort-wasm-simd-threaded.asyncify.mjs',
+      'ort-wasm-simd-threaded.asyncify.wasm',
+      'ort-wasm-simd-threaded.jsep.mjs',
+      'ort-wasm-simd-threaded.jsep.wasm',
+      'ort-wasm-simd-threaded.jspi.mjs',
+      'ort-wasm-simd-threaded.jspi.wasm',
+      'ort-wasm-simd-threaded.mjs',
+      'ort-wasm-simd-threaded.wasm'
+    ];
+
+    console.log('[STT Diagnostic] Precaching ONNX WASM runtime assets for offline speech...');
+    let tfCache: Cache | null = null;
+    let swCache: Cache | null = null;
+    try {
+      [tfCache, swCache] = await Promise.all([
+        caches.open('transformers-cache'),
+        caches.open('autofeast-offline-v3')
+      ]);
+    } catch (e) {
+      console.warn('[OfflineSpeechEngine]: Could not open Cache API:', e);
+      return;
+    }
+
+    for (const file of wasmFiles) {
+      const relativeUrl = `/wasm/${file}`;
+      const absoluteUrl = `${origin}/wasm/${file}`;
+
+      try {
+        let response = (await tfCache.match(absoluteUrl)) || (await tfCache.match(relativeUrl));
+        if (!response) {
+          response = await fetch(relativeUrl);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status} fetching ${relativeUrl}`);
+          }
+        }
+
+        await Promise.all([
+          tfCache.put(relativeUrl, response.clone()),
+          tfCache.put(absoluteUrl, response.clone()),
+          swCache.put(relativeUrl, response.clone()),
+          swCache.put(absoluteUrl, response.clone())
+        ]);
+        console.log(`[STT Diagnostic] Successfully precached ONNX asset: ${file}`);
+      } catch (err: any) {
+        console.error(`[STT Diagnostic] Failed to prefetch ONNX WASM asset ${file} (${absoluteUrl}):`, err?.message || err);
+        throw new Error(`Failed to cache ONNX WASM asset ${file} (${absoluteUrl}): ${err?.message || err}`);
+      }
     }
   }
 
@@ -207,6 +271,7 @@ export class OfflineSpeechEngine {
   /**
    * Explicitly download the Whisper model with user consent.
    * Model is NOT downloaded automatically to respect user data and mobile bandwidth.
+   * Verifies ONNX WASM session initialization before declaring readiness.
    */
   public static async downloadModelWithConsent(
     onProgress?: (progressPercent: number) => void
@@ -216,13 +281,44 @@ export class OfflineSpeechEngine {
     this.status = 'downloading';
 
     try {
-      onProgress?.(10);
+      onProgress?.(5);
+
+      // 1. Explicitly precache ONNX WASM assets into both Cache API stores
+      await this.prefetchAndCacheWasmAssets();
+      onProgress?.(25);
+
+      // 2. Wait for Service Worker controller to be ready
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        try {
+          await navigator.serviceWorker.ready;
+          console.log('[STT Diagnostic] Service worker ready and active');
+        } catch (swErr) {
+          console.warn('[STT Diagnostic] Service worker ready check warning:', swErr);
+        }
+      }
+      onProgress?.(35);
+
+      // 3. Load Transformers.js pipeline and download model weights into cache
+      console.log('[STT Diagnostic] Whisper fallback started: loading pipeline');
       const pipe = await this.getPipeline(onProgress);
 
       if (!pipe || typeof pipe !== 'function') {
         throw new Error('Pipeline instantiation failed: recognizer is invalid or null');
       }
+      console.log('[STT Diagnostic] Whisper model pipeline loaded');
 
+      // 4. Validate ONNX WASM session initialization via test dry-run inference
+      onProgress?.(85);
+      console.log('[STT Diagnostic] Validating ONNX WASM session initialization via test inference...');
+      const dummyAudio = new Float32Array(8000); // 0.5s silence at 16kHz
+      const testResult = await pipe(dummyAudio, {
+        language: 'en',
+        task: 'transcribe',
+        chunk_length_s: 30
+      });
+      console.log('[STT Diagnostic] ONNX WASM session verified successfully. Test transcript:', testResult?.text ?? '');
+
+      // 5. Readiness verification succeeded: mark ready and persist state
       this.pipelineInstance = pipe;
       this.cachedModelVerified = true;
 
@@ -235,7 +331,7 @@ export class OfflineSpeechEngine {
       onProgress?.(100);
       return true;
     } catch (err: any) {
-      console.warn('[OfflineSpeechEngine]: Model download or engine initialization failed:', err?.message || err);
+      console.error('[STT Diagnostic] Whisper model download or ONNX WASM initialization failed:', err?.message || err);
       this.pipelineInstance = null;
       this.cachedModelVerified = false;
       if (typeof localStorage !== 'undefined') {

@@ -199,4 +199,48 @@ describe('OfflineSpeechEngine - Step 1 Verification', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalledWith('transcription-failed', expect.anything());
   });
+
+  it('strictly does not display Downloaded / Ready if ONNX WASM pipeline warmup initialization fails', async () => {
+    // Mock the recognizer pipeline to throw during warmup
+    mockPipelineInstance.mockRejectedValueOnce(new Error('no available backend found'));
+
+    const progressSpy = vi.fn();
+    const result = await OfflineSpeechEngine.downloadModelWithConsent(progressSpy);
+
+    expect(result).toBe(false);
+    expect(OfflineSpeechEngine.getStatus()).toBe('error');
+    expect(OfflineSpeechEngine.getModelStatus().isDownloaded).toBe(false);
+    expect(localStorage.getItem('autofeast_offline_whisper_ready')).toBeNull();
+  });
+
+  it('initializes pipeline and transcribes offline after page reload simulation with zero network calls', async () => {
+    // Step 1: Online prep & download
+    await OfflineSpeechEngine.downloadModelWithConsent();
+    expect(OfflineSpeechEngine.getStatus()).toBe('ready');
+
+    // Step 2: Simulate page reload by resetting in-memory pipeline instance while preserving localStorage
+    (OfflineSpeechEngine as any).pipelineInstance = null;
+    (OfflineSpeechEngine as any).status = 'idle';
+
+    // Step 3: Disable network
+    const fetchMock = vi.fn().mockImplementation(() => {
+      return Promise.reject(new TypeError('Failed to fetch net::ERR_INTERNET_DISCONNECTED'));
+    });
+    globalThis.fetch = fetchMock;
+
+    const onResult = vi.fn();
+    const onError = vi.fn();
+
+    const started = await OfflineSpeechEngine.startRecording({
+      language: 'en',
+      onError,
+      onResult
+    });
+
+    expect(started).toBe(true);
+    expect(OfflineSpeechEngine.getStatus()).toBe('recording');
+    OfflineSpeechEngine.stopRecording();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
