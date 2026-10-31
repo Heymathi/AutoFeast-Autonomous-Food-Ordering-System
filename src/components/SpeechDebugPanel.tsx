@@ -39,7 +39,7 @@ export const SpeechDebugPanel: React.FC<{ activeLanguage: string }> = ({ activeL
       {/* Small Floating Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#242B27] text-yellow-300 border border-yellow-500/40 shadow-xl hover:bg-slate-900 transition-all cursor-pointer"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#302720] text-yellow-300 border border-yellow-500/40 shadow-xl hover:bg-slate-900 transition-all cursor-pointer"
       >
         <Activity className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />
         <span className="font-bold uppercase tracking-wider text-[10px]">Speech Engine</span>
@@ -51,7 +51,7 @@ export const SpeechDebugPanel: React.FC<{ activeLanguage: string }> = ({ activeL
 
       {/* Expanded Debug Dashboard Panel */}
       {isOpen && (
-        <div className="mt-2 w-80 sm:w-96 p-4 rounded-2xl bg-[#242B27] text-slate-100 border-2 border-yellow-500/50 shadow-2xl space-y-3 animate-fade-in max-h-[80vh] overflow-y-auto">
+        <div className="mt-2 w-80 sm:w-96 p-4 rounded-2xl bg-[#302720] text-slate-100 border-2 border-yellow-500/50 shadow-2xl space-y-3 animate-fade-in max-h-[80vh] overflow-y-auto">
           
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
             <span className="font-black text-yellow-400 text-xs flex items-center gap-1.5">

@@ -98,7 +98,7 @@ const MainLayout: React.FC = () => {
         ? 'high-contrast-mode bg-black text-white'
         : currentTheme === 'dark'
         ? 'bg-zinc-900 text-zinc-100'
-        : 'bg-[#FFFFFF] text-[#242B27]'
+        : 'bg-[#F7F3EB] text-[#302720]'
     }`}>
 
       {/* Dev Debug Speech Controller Panel */}
@@ -118,7 +118,7 @@ const MainLayout: React.FC = () => {
         <div className="fixed bottom-6 right-6 z-40 animate-bounce">
           <button
             onClick={() => setIsScheduleCartModalOpen(true)}
-            className="px-6 py-3.5 bg-[#087F5B] hover:bg-[#064E3B] text-white font-bold rounded-lg shadow-xl border border-white flex items-center space-x-3 cursor-pointer hover:scale-105 transition-all"
+            className="px-6 py-3.5 bg-[#B85C38] hover:bg-[#A34F2F] text-white font-bold rounded-lg shadow-xl border border-white flex items-center space-x-3 cursor-pointer hover:scale-105 transition-all"
           >
             <ShoppingBag className="w-5 h-5 text-white" />
             <span className="text-xs sm:text-sm">Checkout Schedule Cart ({scheduleCart.length} items)</span>
@@ -237,13 +237,13 @@ const MainLayout: React.FC = () => {
 
 
       {/* Footer */}
-      <footer className="bg-[#12372A] text-emerald-100/70 border-t border-[#064E3B] py-8 text-center text-xs">
+      <footer className="bg-[#241C16] text-[#E9DFD0]/70 border-t border-[#302720] py-8 text-center text-xs">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 font-semibold">
           <div className="flex items-center space-x-2">
-            <Sparkles className="w-4 h-4 text-[#087F5B]" />
+            <Sparkles className="w-4 h-4 text-[#B85C38]" />
             <span className="font-extrabold text-white text-sm">AutoFeast AI • Smart Autonomous Food Scheduling</span>
           </div>
-          <p className="text-emerald-200/60">© 2026 Accessibility-First Food Ordering Platform • English | தமிழ் | हिन्दी</p>
+          <p className="text-[#E9DFD0]/80">© 2026 Accessibility-First Food Ordering Platform • English | தமிழ் | हिन्दी</p>
         </div>
       </footer>
 

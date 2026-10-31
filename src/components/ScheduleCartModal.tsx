@@ -213,19 +213,19 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
   return (
     <>
       <div className="fixed inset-0 z-[9980] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-        <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border-2 border-[#087F5B] relative max-h-[90vh] flex flex-col text-[#242B27]">
+        <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border-2 border-[#B85C38] relative max-h-[90vh] flex flex-col text-[#302720]">
           
           {/* Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-[#DFF3E8]">
+          <div className="flex items-center justify-between pb-4 border-b border-[#F3EDE4]">
             <div className="flex items-center space-x-3">
-              <div className="p-3 bg-[#087F5B]/10 text-[#087F5B] rounded-2xl">
+              <div className="p-3 bg-[#B85C38]/10 text-[#B85C38] rounded-2xl">
                 <ShoppingBag className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-xl font-black text-[#242B27] flex items-center gap-2">
+                <h2 className="text-xl font-black text-[#302720] flex items-center gap-2">
                   {t('cartTitle')}
                   {totalItemCount > 0 && (
-                    <span className="text-xs bg-[#087F5B] text-white px-2.5 py-0.5 rounded-full font-black">
+                    <span className="text-xs bg-[#B85C38] text-white px-2.5 py-0.5 rounded-full font-black">
                       {totalItemCount}
                     </span>
                   )}
@@ -242,7 +242,7 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
                   <button
                     type="button"
                     onClick={readCartTTS}
-                    className="p-2 bg-[#DFF3E8] hover:bg-[#E4EBE5] text-[#087F5B] rounded-xl transition-colors cursor-pointer"
+                    className="p-2 bg-[#F3EDE4] hover:bg-[#E5DDD2] text-[#B85C38] rounded-xl transition-colors cursor-pointer"
                     title="Read Cart Aloud"
                   >
                     <Volume2 className="w-4 h-4" />
@@ -251,7 +251,7 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
                   <button
                     type="button"
                     onClick={() => setShowClearConfirm(true)}
-                    className="px-3 py-1.5 bg-[#EFF7F1] hover:bg-[#DFF3E8] text-[#087F5B] rounded-xl text-xs font-black border border-[#E4EBE5] transition-colors cursor-pointer flex items-center space-x-1"
+                    className="px-3 py-1.5 bg-[#FAF7F2] hover:bg-[#F3EDE4] text-[#B85C38] rounded-xl text-xs font-black border border-[#E5DDD2] transition-colors cursor-pointer flex items-center space-x-1"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>{t('clearCart')}</span>
@@ -270,22 +270,22 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
 
           {/* Confirm Clear Modal Overlay */}
           {showClearConfirm && (
-            <div className="p-4 my-3 bg-[#EFF7F1] border-2 border-[#087F5B] rounded-2xl text-center space-y-3 animate-fade-in">
-              <p className="text-xs font-black text-[#087F5B]">
+            <div className="p-4 my-3 bg-[#FAF7F2] border-2 border-[#B85C38] rounded-2xl text-center space-y-3 animate-fade-in">
+              <p className="text-xs font-black text-[#B85C38]">
                 ⚠️ {t('clearCartAsk')}
               </p>
               <div className="flex justify-center space-x-3">
                 <button
                   type="button"
                   onClick={handleClearCart}
-                  className="px-4 py-2 bg-[#087F5B] hover:bg-[#064E3B] text-white font-black text-xs rounded-xl shadow-md cursor-pointer"
+                  className="px-4 py-2 bg-[#B85C38] hover:bg-[#302720] text-white font-black text-xs rounded-xl shadow-md cursor-pointer"
                 >
                   Yes, Clear Cart
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowClearConfirm(false)}
-                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-[#242B27] font-black text-xs rounded-xl cursor-pointer"
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-[#302720] font-black text-xs rounded-xl cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -297,10 +297,10 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
           <div className="flex-1 overflow-y-auto py-4 space-y-5">
             {cart.length === 0 ? (
               <div className="text-center py-12 space-y-3">
-                <div className="w-16 h-16 bg-[#DFF3E8] text-[#087F5B] rounded-full flex items-center justify-center mx-auto">
+                <div className="w-16 h-16 bg-[#F3EDE4] text-[#B85C38] rounded-full flex items-center justify-center mx-auto">
                   <ShoppingBag className="w-8 h-8" />
                 </div>
-                <h4 className="text-lg font-black text-[#242B27]">{t('cartEmpty')}</h4>
+                <h4 className="text-lg font-black text-[#302720]">{t('cartEmpty')}</h4>
                 <p className="text-xs text-[#4A5568] font-bold max-w-xs mx-auto">
                   Add items from Food Search, Healthy Food, or Auto Scheduler to build your unified cart!
                 </p>
@@ -309,13 +309,13 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
               Object.entries(groupedCartItems).map(([restaurant, items]) => {
                 const restaurantSubtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
                 return (
-                  <div key={restaurant} className="bg-slate-50 p-4 rounded-2xl border border-[#DFF3E8] space-y-3">
-                    <div className="flex items-center justify-between border-b border-[#E4EBE5] pb-2">
+                  <div key={restaurant} className="bg-slate-50 p-4 rounded-2xl border border-[#F3EDE4] space-y-3">
+                    <div className="flex items-center justify-between border-b border-[#E5DDD2] pb-2">
                       <div className="flex items-center space-x-2">
-                        <Utensils className="w-4 h-4 text-[#087F5B]" />
-                        <h4 className="text-xs font-black text-[#242B27] uppercase tracking-wider">{restaurant}</h4>
+                        <Utensils className="w-4 h-4 text-[#B85C38]" />
+                        <h4 className="text-xs font-black text-[#302720] uppercase tracking-wider">{restaurant}</h4>
                       </div>
-                      <span className="text-xs font-black text-[#087F5B]">Subtotal: ₹{restaurantSubtotal}</span>
+                      <span className="text-xs font-black text-[#B85C38]">Subtotal: ₹{restaurantSubtotal}</span>
                     </div>
 
                     <div className="space-y-2">
@@ -324,7 +324,7 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
                         return (
                           <div
                             key={`${item.itemId}-${item.restaurantName}`}
-                            className="bg-white p-3 rounded-xl border border-[#E4EBE5] flex items-center justify-between shadow-xs"
+                            className="bg-white p-3 rounded-xl border border-[#E5DDD2] flex items-center justify-between shadow-xs"
                           >
                             <div className="flex items-center space-x-3 min-w-0">
                               {item.image ? (
@@ -339,16 +339,16 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <h5 className="text-xs font-black text-[#242B27] truncate">
+                                <h5 className="text-xs font-black text-[#302720] truncate">
                                   {item.foodItem?.nativeNames?.[language] || item.name}
                                 </h5>
                                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                  <span className="text-xs font-bold text-[#087F5B]">
+                                  <span className="text-xs font-bold text-[#B85C38]">
                                     ₹{item.price} each
                                   </span>
                                   {isRestricted && (
-                                    <span className="text-[10px] font-black bg-[#DFF3E8] text-[#064E3B] px-2 py-0.5 rounded-md flex items-center gap-1">
-                                      <ShieldAlert className="w-3 h-3 text-[#087F5B]" />
+                                    <span className="text-[10px] font-black bg-[#F3EDE4] text-[#302720] px-2 py-0.5 rounded-md flex items-center gap-1">
+                                      <ShieldAlert className="w-3 h-3 text-[#B85C38]" />
                                       Needs helper approval
                                     </span>
                                   )}
@@ -362,7 +362,7 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
                                 <button
                                   type="button"
                                   onClick={() => updateCartQuantity(item.itemId, item.restaurantName, item.qty - 1)}
-                                  className="p-1 rounded-lg hover:bg-slate-200 text-[#242B27] cursor-pointer"
+                                  className="p-1 rounded-lg hover:bg-slate-200 text-[#302720] cursor-pointer"
                                 >
                                   <Minus className="w-3.5 h-3.5" />
                                 </button>
@@ -370,7 +370,7 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
                                 <button
                                   type="button"
                                   onClick={() => updateCartQuantity(item.itemId, item.restaurantName, item.qty + 1)}
-                                  className="p-1 rounded-lg hover:bg-slate-200 text-[#242B27] cursor-pointer"
+                                  className="p-1 rounded-lg hover:bg-slate-200 text-[#302720] cursor-pointer"
                                 >
                                   <Plus className="w-3.5 h-3.5" />
                                 </button>
@@ -379,7 +379,7 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
                               <button
                                 type="button"
                                 onClick={() => removeFromCart(item.itemId, item.restaurantName)}
-                                className="p-2 text-[#087F5B] hover:bg-[#EFF7F1] rounded-xl transition-colors cursor-pointer"
+                                className="p-2 text-[#B85C38] hover:bg-[#FAF7F2] rounded-xl transition-colors cursor-pointer"
                                 title={t('removeFromCart')}
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -397,17 +397,17 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
 
           {/* Footer Subtotal & Action Buttons: [Order Now] [Schedule] */}
           {cart.length > 0 && (
-            <div className="pt-4 border-t border-[#DFF3E8] space-y-3">
+            <div className="pt-4 border-t border-[#F3EDE4] space-y-3">
               <div className="flex items-center justify-between text-sm font-black">
                 <span className="text-[#4A5568]">{t('cartTotal')}:</span>
-                <span className="text-xl text-[#087F5B]">₹{cartTotal}</span>
+                <span className="text-xl text-[#B85C38]">₹{cartTotal}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={handleProceedToOrderNow}
-                  className="py-3.5 bg-[#087F5B] hover:bg-[#064E3B] text-white font-black rounded-2xl shadow-xl flex items-center justify-center space-x-2 transition-transform active:scale-98 cursor-pointer text-xs sm:text-sm"
+                  className="py-3.5 bg-[#B85C38] hover:bg-[#302720] text-white font-black rounded-2xl shadow-xl flex items-center justify-center space-x-2 transition-transform active:scale-98 cursor-pointer text-xs sm:text-sm"
                 >
                   <Zap className="w-4 h-4 text-white" />
                   <span>{t('orderNow')}</span>
@@ -416,9 +416,9 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
                 <button
                   type="button"
                   onClick={handleProceedToSchedule}
-                  className="py-3.5 bg-[#DFF3E8] hover:bg-[#E4EBE5] text-[#242B27] font-black rounded-2xl border border-[#E4EBE5] shadow-sm flex items-center justify-center space-x-2 transition-transform active:scale-98 cursor-pointer text-xs sm:text-sm"
+                  className="py-3.5 bg-[#F3EDE4] hover:bg-[#E5DDD2] text-[#302720] font-black rounded-2xl border border-[#E5DDD2] shadow-sm flex items-center justify-center space-x-2 transition-transform active:scale-98 cursor-pointer text-xs sm:text-sm"
                 >
-                  <Clock className="w-4 h-4 text-[#087F5B]" />
+                  <Clock className="w-4 h-4 text-[#B85C38]" />
                   <span>{t('scheduleCart')}</span>
                 </button>
               </div>

@@ -53,7 +53,7 @@ export const WeekdaySelector: React.FC<WeekdaySelectorProps> = ({
       {/* Header & Quick Presets */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <label className="text-xs font-black uppercase tracking-wider text-[#4A5568] flex items-center gap-1.5">
-          <Calendar className="w-3.5 h-3.5 text-[#087F5B]" />
+          <Calendar className="w-3.5 h-3.5 text-[#B85C38]" />
           <span>{t('chooseDays')}</span>
         </label>
 
@@ -63,8 +63,8 @@ export const WeekdaySelector: React.FC<WeekdaySelectorProps> = ({
             onClick={() => selectPreset('weekdays')}
             className={`px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer ${
               selectedDays.length === 5 && !selectedDays.includes('Sat') && !selectedDays.includes('Sun')
-                ? 'bg-[#087F5B] text-white shadow-sm'
-                : 'bg-[#DFF3E8] hover:bg-[#E4EBE5] text-[#242B27]'
+                ? 'bg-[#B85C38] text-white shadow-sm'
+                : 'bg-[#F3EDE4] hover:bg-[#E5DDD2] text-[#302720]'
             }`}
           >
             {t('presetWeekdays')}
@@ -74,8 +74,8 @@ export const WeekdaySelector: React.FC<WeekdaySelectorProps> = ({
             onClick={() => selectPreset('weekends')}
             className={`px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer ${
               selectedDays.length === 2 && selectedDays.includes('Sat') && selectedDays.includes('Sun')
-                ? 'bg-[#087F5B] text-white shadow-sm'
-                : 'bg-[#DFF3E8] hover:bg-[#E4EBE5] text-[#242B27]'
+                ? 'bg-[#B85C38] text-white shadow-sm'
+                : 'bg-[#F3EDE4] hover:bg-[#E5DDD2] text-[#302720]'
             }`}
           >
             {t('presetWeekends')}
@@ -85,8 +85,8 @@ export const WeekdaySelector: React.FC<WeekdaySelectorProps> = ({
             onClick={() => selectPreset('all')}
             className={`px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer ${
               selectedDays.length === 7
-                ? 'bg-[#087F5B] text-white shadow-sm'
-                : 'bg-[#DFF3E8] hover:bg-[#E4EBE5] text-[#242B27]'
+                ? 'bg-[#B85C38] text-white shadow-sm'
+                : 'bg-[#F3EDE4] hover:bg-[#E5DDD2] text-[#302720]'
             }`}
           >
             {t('presetAllDays')}
@@ -107,8 +107,8 @@ export const WeekdaySelector: React.FC<WeekdaySelectorProps> = ({
               onClick={() => toggleDay(day)}
               className={`py-2 px-1 rounded-2xl text-xs font-black flex flex-col items-center justify-center transition-all cursor-pointer border-2 ${
                 isSelected
-                  ? 'bg-[#087F5B] text-white border-[#087F5B] shadow-md scale-[1.02]'
-                  : 'bg-white text-[#242B27] border-slate-200 hover:border-[#087F5B]/40'
+                  ? 'bg-[#B85C38] text-white border-[#B85C38] shadow-md scale-[1.02]'
+                  : 'bg-white text-[#302720] border-slate-200 hover:border-[#B85C38]/40'
               }`}
             >
               <span>{label}</span>
@@ -120,13 +120,13 @@ export const WeekdaySelector: React.FC<WeekdaySelectorProps> = ({
 
       {/* Minimum 1 Day Validation Warning */}
       {selectedDays.length === 0 && (
-        <p className="text-xs font-bold text-[#087F5B] bg-[#087F5B]/10 p-2 rounded-xl border border-[#087F5B]/20 flex items-center gap-1">
+        <p className="text-xs font-bold text-[#B85C38] bg-[#B85C38]/10 p-2 rounded-xl border border-[#B85C38]/20 flex items-center gap-1">
           ⚠️ {t('pickOneDay')}
         </p>
       )}
 
       {error && (
-        <p className="text-xs font-bold text-[#087F5B]">{error}</p>
+        <p className="text-xs font-bold text-[#B85C38]">{error}</p>
       )}
     </div>
   );

@@ -533,7 +533,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border-2 border-[#087F5B] relative max-h-[92vh] overflow-y-auto text-[#242B27]">
+      <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border-2 border-[#B85C38] relative max-h-[92vh] overflow-y-auto text-[#302720]">
         
         {/* Close Button */}
         <button
@@ -544,9 +544,9 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
         </button>
 
         {/* Modal Header & Progress Indicator */}
-        <div className="space-y-3 pb-4 border-b border-[#DFF3E8]">
+        <div className="space-y-3 pb-4 border-b border-[#F3EDE4]">
           <div className="flex items-center space-x-2">
-            <span className="text-xs font-black uppercase text-[#087F5B] bg-[#087F5B]/10 px-3 py-1 rounded-full border border-[#087F5B]/20">
+            <span className="text-xs font-black uppercase text-[#B85C38] bg-[#B85C38]/10 px-3 py-1 rounded-full border border-[#B85C38]/20">
               Schedule Checkout Flow
             </span>
             <span className="text-xs font-bold text-[#4A5568]">
@@ -560,14 +560,14 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
               <div
                 key={idx}
                 className={`h-2 rounded-full transition-all ${
-                  idx + 1 <= step ? 'bg-[#087F5B]' : 'bg-slate-200'
+                  idx + 1 <= step ? 'bg-[#B85C38]' : 'bg-slate-200'
                 }`}
               />
             ))}
           </div>
 
-          <h3 className="text-2xl font-black text-[#242B27] flex items-center gap-2 mt-2">
-            <Clock className="w-6 h-6 text-[#087F5B]" />
+          <h3 className="text-2xl font-black text-[#302720] flex items-center gap-2 mt-2">
+            <Clock className="w-6 h-6 text-[#B85C38]" />
             {step === 1 && 'Configure Schedule Time & Duration'}
             {step === 2 && 'Schedule Bill & GST Summary'}
             {step === 3 && 'Security PIN Verification'}
@@ -580,22 +580,22 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
           <div className="space-y-6 pt-4">
             
             {/* Items Summary Header */}
-            <div className="bg-[#DFF3E8]/40 p-4 rounded-2xl border border-[#E4EBE5] space-y-2">
-              <span className="text-xs font-black uppercase text-[#087F5B] tracking-wider block">
+            <div className="bg-[#F3EDE4]/40 p-4 rounded-2xl border border-[#E5DDD2] space-y-2">
+              <span className="text-xs font-black uppercase text-[#B85C38] tracking-wider block">
                 Selected Food Items ({items.length})
               </span>
               <div className="space-y-2 max-h-36 overflow-y-auto">
                 {items.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs font-bold bg-white p-2.5 rounded-xl border border-[#E4EBE5]">
+                  <div key={i} className="flex items-center justify-between text-xs font-bold bg-white p-2.5 rounded-xl border border-[#E5DDD2]">
                     <div className="flex items-center space-x-2">
                       <img src={item.foodItem.image} alt={item.foodItem.name} className="w-8 h-8 rounded-lg object-cover" />
                       <div>
-                        <span className="font-black text-[#242B27]">{item.foodItem.name}</span>
+                        <span className="font-black text-[#302720]">{item.foodItem.name}</span>
                         <span className="text-[10px] text-[#4A5568] block">{item.foodItem.restaurant}</span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-[#087F5B] font-black">₹{item.foodItem.basePrice} × {item.quantity}</span>
+                      <span className="text-[#B85C38] font-black">₹{item.foodItem.basePrice} × {item.quantity}</span>
                     </div>
                   </div>
                 ))}
@@ -603,10 +603,10 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
             </div>
 
             {/* Time & Fuzzy Parsing Prompt */}
-            <div className="space-y-3 bg-white p-4 rounded-2xl border border-[#DFF3E8]">
+            <div className="space-y-3 bg-white p-4 rounded-2xl border border-[#F3EDE4]">
               <label className="text-xs font-black uppercase text-[#4A5568] flex items-center justify-between">
                 <span>Set Delivery Time</span>
-                <span className="text-[11px] text-[#087F5B] font-extrabold">Fuzzy Parser Enabled</span>
+                <span className="text-[11px] text-[#B85C38] font-extrabold">Fuzzy Parser Enabled</span>
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -614,7 +614,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
                   type="time"
                   value={timeInput}
                   onChange={e => handleTimeBlurOrChange(e.target.value)}
-                  className="w-full p-3.5 rounded-2xl border border-[#E4EBE5] bg-slate-50 text-[#242B27] font-black text-lg text-center focus:outline-none focus:border-[#087F5B]"
+                  className="w-full p-3.5 rounded-2xl border border-[#E5DDD2] bg-slate-50 text-[#302720] font-black text-lg text-center focus:outline-none focus:border-[#B85C38]"
                 />
 
                 <div className="flex gap-2">
@@ -622,7 +622,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
                     type="text"
                     placeholder='Try "8 AM", "night 8", "evening 7:30"'
                     onBlur={e => handleTimeBlurOrChange(e.target.value)}
-                    className="flex-1 p-3.5 rounded-2xl border border-[#E4EBE5] bg-slate-50 text-xs font-bold text-[#242B27]"
+                    className="flex-1 p-3.5 rounded-2xl border border-[#E5DDD2] bg-slate-50 text-xs font-bold text-[#302720]"
                   />
 
                   <button
@@ -631,7 +631,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
                     className={`px-3 py-2 rounded-2xl border flex items-center justify-center cursor-pointer transition-all ${
                       isListeningStep1
                         ? 'bg-red-600 text-white animate-pulse border-red-700'
-                        : 'bg-[#087F5B] hover:bg-[#064E3B] text-white border-[#064E3B]'
+                        : 'bg-[#B85C38] hover:bg-[#302720] text-white border-[#302720]'
                     }`}
                     title="Speak time, daily or weekly"
                   >
@@ -671,7 +671,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
                 <select
                   value={frequency}
                   onChange={e => setFrequency(e.target.value as any)}
-                  className="w-full p-3 rounded-xl border border-[#E4EBE5] bg-slate-50 font-black text-xs"
+                  className="w-full p-3 rounded-xl border border-[#E5DDD2] bg-slate-50 font-black text-xs"
                 >
                   <option value="daily">Every Day (Daily)</option>
                   <option value="weekly">Every Week (Weekly)</option>
@@ -684,7 +684,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
                 <select
                   value={duration}
                   onChange={e => setDuration(e.target.value as ScheduleDuration)}
-                  className="w-full p-3 rounded-xl border border-[#E4EBE5] bg-slate-50 font-black text-xs"
+                  className="w-full p-3 rounded-xl border border-[#E5DDD2] bg-slate-50 font-black text-xs"
                 >
                   <option value="today_only">Today Only</option>
                   <option value="1_week">1 Week</option>
@@ -698,7 +698,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
 
             {/* 🚀 FREE WEEKDAY SELECTION CHIPS */}
             {(frequency === 'weekly' || frequency === 'custom') && (
-              <div className="bg-[#DFF3E8]/20 p-4 rounded-2xl border border-[#E4EBE5]">
+              <div className="bg-[#F3EDE4]/20 p-4 rounded-2xl border border-[#E5DDD2]">
                 <WeekdaySelector
                   selectedDays={selectedDays}
                   onChange={setSelectedDays}
@@ -707,16 +707,16 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
             )}
 
             {/* Start Date & End Date Preview */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#DFF3E8]/30 p-4 rounded-2xl border border-[#E4EBE5]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#F3EDE4]/30 p-4 rounded-2xl border border-[#E5DDD2]">
               <div className="space-y-1">
                 <label className="text-xs font-black uppercase text-[#4A5568] flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-[#087F5B]" /> Start Date
+                  <Calendar className="w-3.5 h-3.5 text-[#B85C38]" /> Start Date
                 </label>
                 <input
                   type="date"
                   value={startDate}
                   onChange={e => setStartDate(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-[#E4EBE5] bg-white font-bold text-xs"
+                  className="w-full p-2.5 rounded-xl border border-[#E5DDD2] bg-white font-bold text-xs"
                 />
               </div>
 
@@ -728,13 +728,13 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
                     value={customEndDate}
                     min={startDate}
                     onChange={e => setCustomEndDate(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[#E4EBE5] bg-white font-bold text-xs"
+                    className="w-full p-2.5 rounded-xl border border-[#E5DDD2] bg-white font-bold text-xs"
                   />
                 </div>
               ) : (
                 <div className="flex flex-col justify-center space-y-1">
                   <span className="text-[10px] uppercase font-black text-[#4A5568]">Calculated End Date</span>
-                  <span className="text-xs font-black text-[#16A34A] bg-white p-2 rounded-xl border border-[#E4EBE5]">
+                  <span className="text-xs font-black text-[#16A34A] bg-white p-2 rounded-xl border border-[#E5DDD2]">
                     {computedEndDate || 'Runs Indefinitely'}
                   </span>
                 </div>
@@ -764,15 +764,15 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between text-xs font-black text-[#242B27]">
+                  <div className="flex items-center justify-between text-xs font-black text-[#302720]">
                     <span className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4 text-[#087F5B]" />
+                      <Calendar className="w-4 h-4 text-[#B85C38]" />
                       <span>{t('confirmDates')} ({deliveryDates.length} delivery dates)</span>
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pt-1">
                     {deliveryDates.slice(0, 15).map((d, i) => (
-                      <span key={i} className="text-[11px] font-bold bg-white text-[#242B27] px-2.5 py-1 rounded-lg border border-slate-300">
+                      <span key={i} className="text-[11px] font-bold bg-white text-[#302720] px-2.5 py-1 rounded-lg border border-slate-300">
                         {d}
                       </span>
                     ))}
@@ -788,14 +788,14 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
 
             {/* Inline Validation Error & 2 One-Tap Options */}
             {validationError && (
-              <div className="p-4 bg-[#EFF7F1] rounded-2xl border-2 border-rose-300 space-y-3 animate-fade-in">
+              <div className="p-4 bg-[#FAF7F2] rounded-2xl border-2 border-rose-300 space-y-3 animate-fade-in">
                 <div className="flex items-center space-x-2 text-rose-800 font-black text-xs">
-                  <AlertTriangle className="w-5 h-5 text-[#087F5B] shrink-0" />
+                  <AlertTriangle className="w-5 h-5 text-[#B85C38] shrink-0" />
                   <span>{validationError}</span>
                 </div>
 
                 {pastTimeSuggestion && (
-                  <div className="pt-2 border-t border-[#E4EBE5] flex flex-col sm:flex-row items-stretch sm:items-center justify-start gap-2 text-xs font-black">
+                  <div className="pt-2 border-t border-[#E5DDD2] flex flex-col sm:flex-row items-stretch sm:items-center justify-start gap-2 text-xs font-black">
                     {/* Option 1: Start Tomorrow at {time} */}
                     <button
                       type="button"
@@ -828,7 +828,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
                         setPastTimeSuggestion(null);
                         lastSpokenMsgRef.current = '';
                       }}
-                      className="px-3.5 py-2 bg-[#087F5B] hover:bg-[#064E3B] text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center justify-center space-x-1.5 transition-colors"
+                      className="px-3.5 py-2 bg-[#B85C38] hover:bg-[#302720] text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center justify-center space-x-1.5 transition-colors"
                     >
                       <Clock className="w-4 h-4 shrink-0" />
                       <span>
@@ -847,12 +847,12 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
             )}
 
             {/* Sticky Action Footer Button */}
-            <div className="sticky bottom-0 bg-white/95 backdrop-blur-md pt-4 pb-2 border-t border-[#DFF3E8] flex justify-end z-10">
+            <div className="sticky bottom-0 bg-white/95 backdrop-blur-md pt-4 pb-2 border-t border-[#F3EDE4] flex justify-end z-10">
               <button
                 type="button"
                 onClick={handleProceedToBill}
                 disabled={isValidating}
-                className={`px-8 py-3 bg-[#087F5B] hover:bg-[#064E3B] text-white font-black rounded-2xl shadow-lg shadow-[#087F5B]/30 flex items-center space-x-2 cursor-pointer transition-all ${
+                className={`px-8 py-3 bg-[#B85C38] hover:bg-[#302720] text-white font-black rounded-2xl shadow-lg shadow-[#B85C38]/30 flex items-center space-x-2 cursor-pointer transition-all ${
                   isValidating ? 'opacity-60 cursor-not-allowed scale-95' : 'active:scale-95'
                 }`}
               >
@@ -888,7 +888,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
             />
 
             {/* Navigation Buttons */}
-            <div className="flex justify-between pt-4 border-t border-[#DFF3E8]">
+            <div className="flex justify-between pt-4 border-t border-[#F3EDE4]">
               <button
                 onClick={() => setStep(1)}
                 className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-[#4A5568] font-black rounded-xl text-xs cursor-pointer"
@@ -923,12 +923,12 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
               errorMessage={pinError}
               setErrorMessage={setPinError}
               summaryCard={
-                <div className="p-3 bg-[#DFF3E8]/50 rounded-2xl border border-[#E4EBE5] flex items-center justify-between gap-3 my-2">
+                <div className="p-3 bg-[#F3EDE4]/50 rounded-2xl border border-[#E5DDD2] flex items-center justify-between gap-3 my-2">
                   <div className="text-left">
-                    <span className="text-[9px] font-black uppercase tracking-wider text-[#087F5B] bg-[#087F5B]/10 px-2 py-0.5 rounded-full border border-[#087F5B]/30">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-[#B85C38] bg-[#B85C38]/10 px-2 py-0.5 rounded-full border border-[#B85C38]/30">
                       Multi-Item Schedule
                     </span>
-                    <h4 className="text-sm font-black text-[#242B27] line-clamp-1">{slotTitle}</h4>
+                    <h4 className="text-sm font-black text-[#302720] line-clamp-1">{slotTitle}</h4>
                     <p className="text-[11px] font-semibold text-[#4A5568] line-clamp-1">{items.length} items • {frequency} ({timeInput})</p>
                   </div>
                   <div className="text-right shrink-0">
@@ -956,14 +956,14 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
             </div>
 
             {/* Receipt Details */}
-            <div className="bg-slate-50 p-4 rounded-2xl border border-[#DFF3E8] text-left space-y-2 text-xs font-bold text-[#242B27]">
+            <div className="bg-slate-50 p-4 rounded-2xl border border-[#F3EDE4] text-left space-y-2 text-xs font-bold text-[#302720]">
               <div className="flex justify-between">
                 <span className="text-[#4A5568]">Slot Title:</span>
                 <span className="font-black">{slotTitle}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#4A5568]">Delivery Time:</span>
-                <span className="font-mono text-[#087F5B]">{timeInput}</span>
+                <span className="font-mono text-[#B85C38]">{timeInput}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#4A5568]">Range:</span>
@@ -977,7 +977,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
 
             <button
               onClick={onClose}
-              className="w-full py-3.5 bg-[#087F5B] hover:bg-[#064E3B] text-white font-black rounded-2xl shadow-lg cursor-pointer"
+              className="w-full py-3.5 bg-[#B85C38] hover:bg-[#302720] text-white font-black rounded-2xl shadow-lg cursor-pointer"
             >
               Done & Return to App
             </button>

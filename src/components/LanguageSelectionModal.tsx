@@ -416,17 +416,17 @@ export const LanguageSelectionModal: React.FC = () => {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl bg-white text-[#242B27] rounded-3xl shadow-2xl overflow-hidden border-4 border-[#087F5B] transition-all transform scale-100"
+        className="w-full max-w-xl bg-white text-[#302720] rounded-3xl shadow-2xl overflow-hidden border-4 border-[#B85C38] transition-all transform scale-100"
       >
 
         {/* Top Branding Banner */}
-        <div className="bg-[#DFF3E8] p-6 text-center border-b border-[#E4EBE5]">
-          <div className="inline-flex items-center justify-center p-3.5 bg-white rounded-2xl mb-3 shadow-md border border-[#E4EBE5]">
-            <Sparkles className="w-8 h-8 text-[#087F5B] mr-2 animate-pulse" />
-            <h1 className="text-3xl font-black text-[#242B27] tracking-tight">AutoFeast AI</h1>
+        <div className="bg-[#F3EDE4] p-6 text-center border-b border-[#E5DDD2]">
+          <div className="inline-flex items-center justify-center p-3.5 bg-white rounded-2xl mb-3 shadow-md border border-[#E5DDD2]">
+            <Sparkles className="w-8 h-8 text-[#B85C38] mr-2 animate-pulse" />
+            <h1 className="text-3xl font-black text-[#302720] tracking-tight">AutoFeast AI</h1>
           </div>
 
-          <p className="text-xs font-black text-[#087F5B] uppercase tracking-widest flex items-center justify-center gap-1">
+          <p className="text-xs font-black text-[#B85C38] uppercase tracking-widest flex items-center justify-center gap-1">
             <Globe className="w-4 h-4" />
             <span>Select Your Preferred Language / மொழியைத் தேர்ந்தெடுக்கவும்</span>
           </p>
@@ -446,7 +446,7 @@ export const LanguageSelectionModal: React.FC = () => {
               type="button"
               data-testid="btn-tap-start-voice"
               onClick={startSequentialPromptSequence}
-              className="w-full p-4 bg-[#087F5B] hover:bg-[#064E3B] text-white rounded-2xl font-black text-sm sm:text-base shadow-lg flex items-center justify-center space-x-2 cursor-pointer transition-transform active:scale-95 animate-pulse"
+              className="w-full p-4 bg-[#B85C38] hover:bg-[#302720] text-white rounded-2xl font-black text-sm sm:text-base shadow-lg flex items-center justify-center space-x-2 cursor-pointer transition-transform active:scale-95 animate-pulse"
             >
               <Mic className="w-5 h-5 text-yellow-300" />
               <span>{t('langModal.tapToStart') || 'Tap to start voice prompt'}</span>
@@ -472,12 +472,12 @@ export const LanguageSelectionModal: React.FC = () => {
 
           {/* Displayed Sentences / Spoken Prompts */}
           {displayedSentences.length > 0 && (
-            <div className="p-3 bg-[#DFF3E8]/50 rounded-2xl border border-[#E4EBE5] space-y-1">
-              <span className="text-[10px] font-black uppercase text-[#087F5B] flex items-center gap-1">
+            <div className="p-3 bg-[#F3EDE4]/50 rounded-2xl border border-[#E5DDD2] space-y-1">
+              <span className="text-[10px] font-black uppercase text-[#B85C38] flex items-center gap-1">
                 <Volume2 className="w-3.5 h-3.5" /> Spoken Prompts:
               </span>
               {displayedSentences.map((sent, idx) => (
-                <p key={idx} className="text-xs font-bold text-[#242B27]">{sent}</p>
+                <p key={idx} className="text-xs font-bold text-[#302720]">{sent}</p>
               ))}
             </div>
           )}
@@ -486,7 +486,7 @@ export const LanguageSelectionModal: React.FC = () => {
           {mediumConfidencePrompt && (
             <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-2xl space-y-3 shadow-md animate-fade-in text-center">
               <div className="flex items-center justify-center space-x-2 text-amber-900 font-black text-sm">
-                <HelpCircle className="w-5 h-5 text-[#087F5B]" />
+                <HelpCircle className="w-5 h-5 text-[#B85C38]" />
                 <span>Did you mean {mediumConfidencePrompt.label}?</span>
               </div>
               <p className="text-xs text-amber-800 font-bold">Say "Yes" or "No", or tap below:</p>
@@ -519,8 +519,8 @@ export const LanguageSelectionModal: React.FC = () => {
           <div className="flex items-center justify-between p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs shadow-xs">
             <div className="flex items-center space-x-2">
               <div className={`w-3 h-3 rounded-full shrink-0 ${isListening ? 'bg-emerald-500 animate-ping' : 'bg-slate-300'}`} />
-              <Volume2 className="w-5 h-5 text-[#087F5B] animate-bounce shrink-0" />
-              <span className="font-extrabold text-[#242B27]">
+              <Volume2 className="w-5 h-5 text-[#B85C38] animate-bounce shrink-0" />
+              <span className="font-extrabold text-[#302720]">
                 {liveTranscript
                   ? `🎙️ Spoken: "${liveTranscript}"`
                   : isListening
@@ -531,7 +531,7 @@ export const LanguageSelectionModal: React.FC = () => {
             <button
               type="button"
               onClick={startSequentialPromptSequence}
-              className="px-3 py-1.5 bg-[#087F5B] text-white rounded-xl font-bold flex items-center space-x-1 shadow-xs hover:bg-[#064E3B] cursor-pointer shrink-0"
+              className="px-3 py-1.5 bg-[#B85C38] text-white rounded-xl font-bold flex items-center space-x-1 shadow-xs hover:bg-[#302720] cursor-pointer shrink-0"
             >
               <Mic className="w-3.5 h-3.5" />
               <span>Voice</span>
@@ -548,19 +548,19 @@ export const LanguageSelectionModal: React.FC = () => {
               onClick={() => handleChooseLanguage('ta')}
               className={`p-4 rounded-2xl border-3 flex items-center justify-between transition-all cursor-pointer text-left ${
                 selectedTemp === 'ta' || currentLanguage === 'ta'
-                  ? 'border-[#087F5B] bg-[#087F5B]/10 shadow-lg scale-102'
-                  : 'border-[#DFF3E8] bg-slate-50 hover:bg-[#DFF3E8]/40 hover:border-[#E4EBE5]'
+                  ? 'border-[#B85C38] bg-[#B85C38]/10 shadow-lg scale-102'
+                  : 'border-[#F3EDE4] bg-slate-50 hover:bg-[#F3EDE4]/40 hover:border-[#E5DDD2]'
               }`}
             >
               <div className="flex items-center space-x-4">
                 <span className="text-3xl">🇮🇳</span>
                 <div>
-                  <h3 className="text-lg font-black text-[#242B27]">தமிழ் (Tamil)</h3>
+                  <h3 className="text-lg font-black text-[#302720]">தமிழ் (Tamil)</h3>
                   <p className="text-xs font-bold text-[#4A5568]">முழுமையான குரல் வழி வழிகாட்டுதலுடன் தமிழ்</p>
                 </div>
               </div>
               <div className="p-2 bg-white rounded-full border border-slate-200">
-                <CheckCircle2 className={`w-5 h-5 ${selectedTemp === 'ta' ? 'text-[#087F5B]' : 'text-slate-300'}`} />
+                <CheckCircle2 className={`w-5 h-5 ${selectedTemp === 'ta' ? 'text-[#B85C38]' : 'text-slate-300'}`} />
               </div>
             </button>
 
@@ -571,19 +571,19 @@ export const LanguageSelectionModal: React.FC = () => {
               onClick={() => handleChooseLanguage('en')}
               className={`p-4 rounded-2xl border-3 flex items-center justify-between transition-all cursor-pointer text-left ${
                 selectedTemp === 'en' || currentLanguage === 'en'
-                  ? 'border-[#087F5B] bg-[#087F5B]/10 shadow-lg scale-102'
-                  : 'border-[#DFF3E8] bg-slate-50 hover:bg-[#DFF3E8]/40 hover:border-[#E4EBE5]'
+                  ? 'border-[#B85C38] bg-[#B85C38]/10 shadow-lg scale-102'
+                  : 'border-[#F3EDE4] bg-slate-50 hover:bg-[#F3EDE4]/40 hover:border-[#E5DDD2]'
               }`}
             >
               <div className="flex items-center space-x-4">
                 <span className="text-3xl">🇬🇧</span>
                 <div>
-                  <h3 className="text-lg font-black text-[#242B27]">English</h3>
+                  <h3 className="text-lg font-black text-[#302720]">English</h3>
                   <p className="text-xs font-bold text-[#4A5568]">Full English voice assistance & natural interaction</p>
                 </div>
               </div>
               <div className="p-2 bg-white rounded-full border border-slate-200">
-                <CheckCircle2 className={`w-5 h-5 ${selectedTemp === 'en' ? 'text-[#087F5B]' : 'text-slate-300'}`} />
+                <CheckCircle2 className={`w-5 h-5 ${selectedTemp === 'en' ? 'text-[#B85C38]' : 'text-slate-300'}`} />
               </div>
             </button>
 
@@ -594,19 +594,19 @@ export const LanguageSelectionModal: React.FC = () => {
               onClick={() => handleChooseLanguage('hi')}
               className={`p-4 rounded-2xl border-3 flex items-center justify-between transition-all cursor-pointer text-left ${
                 selectedTemp === 'hi' || currentLanguage === 'hi'
-                  ? 'border-[#087F5B] bg-[#087F5B]/10 shadow-lg scale-102'
-                  : 'border-[#DFF3E8] bg-slate-50 hover:bg-[#DFF3E8]/40 hover:border-[#E4EBE5]'
+                  ? 'border-[#B85C38] bg-[#B85C38]/10 shadow-lg scale-102'
+                  : 'border-[#F3EDE4] bg-slate-50 hover:bg-[#F3EDE4]/40 hover:border-[#E5DDD2]'
               }`}
             >
               <div className="flex items-center space-x-4">
                 <span className="text-3xl">🇮🇳</span>
                 <div>
-                  <h3 className="text-lg font-black text-[#242B27]">हिन्दी (Hindi)</h3>
+                  <h3 className="text-lg font-black text-[#302720]">हिन्दी (Hindi)</h3>
                   <p className="text-xs font-bold text-[#4A5568]">पूर्ण आवाज सहायता के साथ हिंदी भाषा</p>
                 </div>
               </div>
               <div className="p-2 bg-white rounded-full border border-slate-200">
-                <CheckCircle2 className={`w-5 h-5 ${selectedTemp === 'hi' ? 'text-[#087F5B]' : 'text-slate-300'}`} />
+                <CheckCircle2 className={`w-5 h-5 ${selectedTemp === 'hi' ? 'text-[#B85C38]' : 'text-slate-300'}`} />
               </div>
             </button>
 

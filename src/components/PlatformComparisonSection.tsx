@@ -108,7 +108,7 @@ export const PlatformComparisonSection: React.FC<PlatformComparisonSectionProps>
       <div className="flex items-center justify-between text-xs font-black uppercase text-[#4A5568] dark:text-slate-400 tracking-wider">
         <span>{label}</span>
         {!loading && rows.length > 0 && (
-          <span className="text-[#087F5B] font-black bg-[#087F5B]/10 px-2 py-0.5 rounded-full normal-case tracking-normal">
+          <span className="text-[#B85C38] font-black bg-[#B85C38]/10 px-2 py-0.5 rounded-full normal-case tracking-normal">
             {saveLabel} ₹{max - min}
           </span>
         )}
@@ -134,7 +134,7 @@ export const PlatformComparisonSection: React.FC<PlatformComparisonSectionProps>
                 className={`relative p-2.5 rounded-[14px] border-2 flex flex-col justify-between min-w-0 ${
                   isBest
                     ? 'bg-[#16A34A]/10 border-[#16A34A]'
-                    : 'bg-[#DFF3E8]/40 dark:bg-slate-800 border-[#E4EBE5] dark:border-slate-700'
+                    : 'bg-[#F3EDE4]/40 dark:bg-slate-800 border-[#E5DDD2] dark:border-slate-700'
                 }`}
               >
                 {isBest && (
@@ -142,12 +142,12 @@ export const PlatformComparisonSection: React.FC<PlatformComparisonSectionProps>
                     {bestLabel}
                   </span>
                 )}
-                <div className="flex items-center justify-between gap-1 font-black text-[#242B27] dark:text-white">
+                <div className="flex items-center justify-between gap-1 font-black text-[#302720] dark:text-white">
                   <span className="truncate">{r.name}</span>
                   <span className="text-[11px] text-[#4A5568] dark:text-slate-300 font-bold shrink-0">★ {r.rating}</span>
                 </div>
                 <div className="flex items-baseline justify-between mt-1.5">
-                  <span className="text-sm font-black text-[#087F5B]">₹{r.price}</span>
+                  <span className="text-sm font-black text-[#B85C38]">₹{r.price}</span>
                   <span className="text-[10px] text-[#4A5568] dark:text-slate-400 line-through">₹{r.original}</span>
                 </div>
               </div>

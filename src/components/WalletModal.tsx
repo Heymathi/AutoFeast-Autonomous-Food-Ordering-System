@@ -41,18 +41,18 @@ export const WalletModal: React.FC = () => {
       {/* Wallet Balance & Linked Bank Hero Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
-        {/* Wallet Balance Card (Light Blue Base #DFF3E8) */}
+        {/* Wallet Balance Card (Light Blue Base #F3EDE4) */}
         <div className={`p-8 rounded-3xl shadow-lg transition-all flex flex-col justify-between ${
           accessibilitySettings.highContrast
             ? 'bg-black text-white border-4 border-yellow-400'
-            : 'bg-[#DFF3E8] text-[#242B27] border-2 border-[#E4EBE5]'
+            : 'bg-[#F3EDE4] text-[#302720] border-2 border-[#E5DDD2]'
         }`}>
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
-              <Wallet className="w-8 h-8 text-[#087F5B]" />
-              <h2 className="text-xl font-black uppercase tracking-wider text-[#242B27]">{t('wallet.balance')}</h2>
+              <Wallet className="w-8 h-8 text-[#B85C38]" />
+              <h2 className="text-xl font-black uppercase tracking-wider text-[#302720]">{t('wallet.balance')}</h2>
             </div>
-            <div className="text-4xl sm:text-5xl font-black text-[#087F5B]">
+            <div className="text-4xl sm:text-5xl font-black text-[#B85C38]">
               ₹{walletBalance.toFixed(2)}
             </div>
             <p className="text-xs text-[#4A5568] flex items-center gap-1 font-semibold">
@@ -62,14 +62,14 @@ export const WalletModal: React.FC = () => {
           </div>
 
           {/* Quick Recharge Preset Buttons */}
-          <div className="mt-6 bg-white p-4 rounded-2xl border border-[#E4EBE5] space-y-2 shadow-sm">
-            <span className="text-xs font-black uppercase tracking-wider block text-[#242B27]">{t('wallet.quickRecharge')}</span>
+          <div className="mt-6 bg-white p-4 rounded-2xl border border-[#E5DDD2] space-y-2 shadow-sm">
+            <span className="text-xs font-black uppercase tracking-wider block text-[#302720]">{t('wallet.quickRecharge')}</span>
             <div className="grid grid-cols-4 gap-2">
               {presetAmounts.map(amt => (
                 <button
                   key={amt}
                   onClick={() => rechargeWallet(amt)}
-                  className="px-3 py-2 bg-[#087F5B] text-white hover:bg-[#064E3B] font-black rounded-xl text-xs shadow-md transition-transform active:scale-95 cursor-pointer"
+                  className="px-3 py-2 bg-[#B85C38] text-white hover:bg-[#302720] font-black rounded-xl text-xs shadow-md transition-transform active:scale-95 cursor-pointer"
                 >
                   +₹{amt}
                 </button>
@@ -79,14 +79,14 @@ export const WalletModal: React.FC = () => {
         </div>
 
         {/* 🏦 LINKED BANK ACCOUNT CARD (Pure White Surface) */}
-        <div className="bg-white text-[#242B27] p-8 rounded-3xl shadow-lg border-2 border-[#DFF3E8] flex flex-col justify-between space-y-4 relative overflow-hidden">
+        <div className="bg-white text-[#302720] p-8 rounded-3xl shadow-lg border-2 border-[#F3EDE4] flex flex-col justify-between space-y-4 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10 text-9xl">🏦</div>
 
           <div className="space-y-3 z-10">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Building2 className="w-6 h-6 text-[#087F5B]" />
-                <span className="text-xs font-black uppercase tracking-wider text-[#087F5B]">Linked Bank Account</span>
+                <Building2 className="w-6 h-6 text-[#B85C38]" />
+                <span className="text-xs font-black uppercase tracking-wider text-[#B85C38]">Linked Bank Account</span>
               </div>
               <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-[#16A34A]/10 text-[#16A34A] border border-[#16A34A]/30 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Auto Refill Active
@@ -94,8 +94,8 @@ export const WalletModal: React.FC = () => {
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-2xl font-black text-[#242B27]">{linkedBank.bankName}</h3>
-              <p className="text-sm font-mono font-extrabold text-[#087F5B] tracking-widest">{linkedBank.accountNumber}</p>
+              <h3 className="text-2xl font-black text-[#302720]">{linkedBank.bankName}</h3>
+              <p className="text-sm font-mono font-extrabold text-[#B85C38] tracking-widest">{linkedBank.accountNumber}</p>
               <div className="flex items-center space-x-3 text-xs text-[#4A5568] font-bold pt-1">
                 <span>IFSC: {linkedBank.ifscCode}</span>
                 <span>•</span>
@@ -105,7 +105,7 @@ export const WalletModal: React.FC = () => {
           </div>
 
           {/* Switch Linked Bank Account Selector */}
-          <div className="space-y-2 z-10 border-t border-[#DFF3E8] pt-3">
+          <div className="space-y-2 z-10 border-t border-[#F3EDE4] pt-3">
             <span className="text-xs font-black text-[#4A5568] uppercase tracking-wider block">Switch Linked Bank Account:</span>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {availableBanks.map(b => (
@@ -114,8 +114,8 @@ export const WalletModal: React.FC = () => {
                   onClick={() => handleBankSwitch(b)}
                   className={`p-2 rounded-xl text-left text-xs font-black border transition-all ${
                     linkedBank.bankName === b.name
-                      ? 'bg-[#087F5B] text-white border-[#087F5B] shadow-md scale-105'
-                      : 'bg-[#DFF3E8]/50 text-[#242B27] border-[#E4EBE5] hover:bg-[#DFF3E8]'
+                      ? 'bg-[#B85C38] text-white border-[#B85C38] shadow-md scale-105'
+                      : 'bg-[#F3EDE4]/50 text-[#302720] border-[#E5DDD2] hover:bg-[#F3EDE4]'
                   }`}
                 >
                   <span className="block truncate">{b.name}</span>
@@ -129,17 +129,17 @@ export const WalletModal: React.FC = () => {
 
       </div>
 
-      {/* Low Balance Warning (Deep Crimson Red #087F5B) */}
+      {/* Low Balance Warning (Deep Crimson Red #B85C38) */}
       {walletBalance < 300 && (
-        <div className="p-4 bg-[#087F5B]/10 border-2 border-[#087F5B] rounded-2xl flex items-center space-x-3 text-[#087F5B]">
-          <AlertTriangle className="w-6 h-6 text-[#087F5B] flex-shrink-0" />
+        <div className="p-4 bg-[#B85C38]/10 border-2 border-[#B85C38] rounded-2xl flex items-center space-x-3 text-[#B85C38]">
+          <AlertTriangle className="w-6 h-6 text-[#B85C38] flex-shrink-0" />
           <p className="text-xs sm:text-sm font-black">{t('wallet.lowBalance')}</p>
         </div>
       )}
 
       {/* Custom Amount Recharge Form */}
-      <form onSubmit={handleRechargeSubmit} className="bg-white p-6 rounded-3xl border-2 border-[#DFF3E8] shadow-lg space-y-4 text-[#242B27]">
-        <h3 className="text-lg font-black text-[#242B27] flex items-center gap-2">
+      <form onSubmit={handleRechargeSubmit} className="bg-white p-6 rounded-3xl border-2 border-[#F3EDE4] shadow-lg space-y-4 text-[#302720]">
+        <h3 className="text-lg font-black text-[#302720] flex items-center gap-2">
           <CreditCard className="w-5 h-5 text-[#16A34A]" />
           Custom Wallet Recharge (Auto-Debited from {linkedBank.bankName})
         </h3>
@@ -153,13 +153,13 @@ export const WalletModal: React.FC = () => {
               value={customAmount}
               onChange={e => setCustomAmount(e.target.value)}
               placeholder="Enter recharge amount"
-              className="w-full pl-9 pr-4 py-3 rounded-2xl border border-[#E4EBE5] bg-slate-50 text-[#242B27] font-black text-base focus:outline-none focus:border-[#087F5B]"
+              className="w-full pl-9 pr-4 py-3 rounded-2xl border border-[#E5DDD2] bg-slate-50 text-[#302720] font-black text-base focus:outline-none focus:border-[#B85C38]"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full sm:w-auto px-8 py-3 bg-[#087F5B] hover:bg-[#064E3B] text-white font-black rounded-2xl shadow-lg shadow-[#087F5B]/30 transition-transform active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
+            className="w-full sm:w-auto px-8 py-3 bg-[#B85C38] hover:bg-[#302720] text-white font-black rounded-2xl shadow-lg shadow-[#B85C38]/30 transition-transform active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
           >
             <Plus className="w-5 h-5 text-white" />
             <span>Recharge from {linkedBank.bankName}</span>
@@ -168,30 +168,30 @@ export const WalletModal: React.FC = () => {
       </form>
 
       {/* Transaction History Table */}
-      <div className="bg-white rounded-3xl border-2 border-[#DFF3E8] p-6 shadow-lg space-y-4 text-[#242B27]">
-        <h3 className="text-lg font-black text-[#242B27] flex items-center gap-2">
-          <History className="w-5 h-5 text-[#087F5B]" />
+      <div className="bg-white rounded-3xl border-2 border-[#F3EDE4] p-6 shadow-lg space-y-4 text-[#302720]">
+        <h3 className="text-lg font-black text-[#302720] flex items-center gap-2">
+          <History className="w-5 h-5 text-[#B85C38]" />
           {t('wallet.history')}
         </h3>
 
-        <div className="divide-y divide-[#DFF3E8]">
+        <div className="divide-y divide-[#F3EDE4]">
           {walletTransactions.map(tx => (
             <div key={tx.id} className="py-3.5 flex items-center justify-between text-xs sm:text-sm">
               <div className="flex items-center space-x-3">
                 <div className={`p-2.5 rounded-2xl ${
-                  tx.type === 'recharge' ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#087F5B]/10 text-[#087F5B]'
+                  tx.type === 'recharge' ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#B85C38]/10 text-[#B85C38]'
                 }`}>
                   {tx.type === 'recharge' ? <ArrowDownRight className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
                 </div>
                 <div>
-                  <h4 className="font-black text-[#242B27]">{tx.description}</h4>
+                  <h4 className="font-black text-[#302720]">{tx.description}</h4>
                   <span className="text-[11px] text-[#4A5568] font-bold">{new Date(tx.timestamp).toLocaleString()}</span>
                 </div>
               </div>
 
               <div className="text-right">
                 <span className={`text-sm font-black ${
-                  tx.type === 'recharge' ? 'text-[#16A34A]' : 'text-[#242B27]'
+                  tx.type === 'recharge' ? 'text-[#16A34A]' : 'text-[#302720]'
                 }`}>
                   {tx.type === 'recharge' ? '+' : '-'}₹{tx.amount.toFixed(2)}
                 </span>

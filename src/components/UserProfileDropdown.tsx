@@ -114,11 +114,11 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
             ? 'bg-black text-white border-2 border-yellow-400'
             : currentTheme === 'dark'
             ? 'bg-zinc-800 text-zinc-100 border-zinc-700 hover:bg-zinc-700'
-            : 'bg-[#F7FAF8] hover:bg-[#DFF3E8]/60 text-[#242B27] border-[#E4EBE5]'
+            : 'bg-[#FAF7F2] hover:bg-[#F3EDE4]/60 text-[#302720] border-[#E5DDD2]'
         }`}
       >
         {/* User Initials Avatar with Emerald Accent */}
-        <div className="w-7 h-7 rounded-full bg-[#087F5B] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+        <div className="w-7 h-7 rounded-full bg-[#B85C38] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
           {displayInitial}
         </div>
 
@@ -127,7 +127,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
         </span>
 
         <ChevronDown
-          className={`w-4 h-4 text-[#707B73] transition-transform duration-200 shrink-0 ${
+          className={`w-4 h-4 text-[#786E64] transition-transform duration-200 shrink-0 ${
             isOpen ? 'rotate-180' : ''
           }`}
         />
@@ -144,19 +144,19 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
               ? 'bg-black text-white border-2 border-yellow-400'
               : currentTheme === 'dark'
               ? 'bg-zinc-900 text-zinc-100 border-zinc-800'
-              : 'bg-white text-[#242B27] border-[#E4EBE5]'
+              : 'bg-white text-[#302720] border-[#E5DDD2]'
           }`}
         >
           {/* Dropdown Header: User info summary */}
-          <div className="p-4 bg-[#F7FAF8] border-b border-[#E4EBE5]">
+          <div className="p-4 bg-[#FAF7F2] border-b border-[#E5DDD2]">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-[#087F5B] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+              <div className="w-10 h-10 rounded-full bg-[#B85C38] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
                 {displayInitial}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-[#064E3B] truncate">{displayName}</p>
-                <p className="text-xs text-[#707B73] truncate">{currentUser?.email || 'user@autofeast.ai'}</p>
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#16845B] mt-0.5">
+                <p className="text-sm font-bold text-[#302720] truncate">{displayName}</p>
+                <p className="text-xs text-[#786E64] truncate">{currentUser?.email || 'user@autofeast.ai'}</p>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#4F8964] mt-0.5">
                   <CheckCircle2 className="w-3 h-3" /> Verified Member
                 </span>
               </div>
@@ -164,22 +164,22 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
           </div>
 
           {/* Menu Items List */}
-          <div className="py-1 text-xs sm:text-sm divide-y divide-[#E4EBE5]/60">
+          <div className="py-1 text-xs sm:text-sm divide-y divide-[#E5DDD2]/60">
             {/* 1. User Details */}
             <button
               type="button"
               role="menuitem"
               onClick={handleOpenUserDetails}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#F7FAF8] transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FAF7F2] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#EFF7F1] group-hover:bg-[#DFF3E8] text-[#087F5B] flex items-center justify-center mr-3 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#FAF7F2] group-hover:bg-[#F3EDE4] text-[#B85C38] flex items-center justify-center mr-3 shrink-0">
                 <User className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[#242B27] group-hover:text-[#087F5B]">
+                <p className="font-semibold text-[#302720] group-hover:text-[#B85C38]">
                   {t('profile.userDetails')}
                 </p>
-                <p className="text-[11px] text-[#707B73] truncate">Personal information, address & phone</p>
+                <p className="text-[11px] text-[#786E64] truncate">Personal information, address & phone</p>
               </div>
             </button>
 
@@ -188,16 +188,16 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
               type="button"
               role="menuitem"
               onClick={handleOpenPreferences}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#F7FAF8] transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FAF7F2] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#EFF7F1] group-hover:bg-[#DFF3E8] text-[#087F5B] flex items-center justify-center mr-3 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#FAF7F2] group-hover:bg-[#F3EDE4] text-[#B85C38] flex items-center justify-center mr-3 shrink-0">
                 <Sliders className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[#242B27] group-hover:text-[#087F5B]">
+                <p className="font-semibold text-[#302720] group-hover:text-[#B85C38]">
                   {t('profile.preferences')}
                 </p>
-                <p className="text-[11px] text-[#707B73] truncate">Language, Theme, Font size & Controls</p>
+                <p className="text-[11px] text-[#786E64] truncate">Language, Theme, Font size & Controls</p>
               </div>
             </button>
 
@@ -206,21 +206,21 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
               type="button"
               role="menuitem"
               onClick={handleOpenBankDetails}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#F7FAF8] transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FAF7F2] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#EFF7F1] group-hover:bg-[#DFF3E8] text-[#087F5B] flex items-center justify-center mr-3 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#FAF7F2] group-hover:bg-[#F3EDE4] text-[#B85C38] flex items-center justify-center mr-3 shrink-0">
                 <Building2 className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <p className="font-semibold text-[#242B27] group-hover:text-[#087F5B]">
+                  <p className="font-semibold text-[#302720] group-hover:text-[#B85C38]">
                     {t('profile.bankAccount')}
                   </p>
-                  <span className="text-[11px] font-bold text-[#087F5B] bg-[#DFF3E8] px-1.5 py-0.5 rounded-sm">
+                  <span className="text-[11px] font-bold text-[#B85C38] bg-[#F3EDE4] px-1.5 py-0.5 rounded-sm">
                     ₹{walletBalance.toFixed(0)}
                   </span>
                 </div>
-                <p className="text-[11px] text-[#707B73] truncate">
+                <p className="text-[11px] text-[#786E64] truncate">
                   {linkedBank?.bankName || 'HDFC Bank'} • {linkedBank?.accountNumber ? `•••• ${linkedBank.accountNumber.slice(-4)}` : '•••• 4821'}
                 </p>
               </div>
@@ -231,16 +231,16 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
               type="button"
               role="menuitem"
               onClick={handleOpenHealthConditions}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#F7FAF8] transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FAF7F2] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#EFF7F1] group-hover:bg-[#DFF3E8] text-[#087F5B] flex items-center justify-center mr-3 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#FAF7F2] group-hover:bg-[#F3EDE4] text-[#B85C38] flex items-center justify-center mr-3 shrink-0">
                 <HeartPulse className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[#242B27] group-hover:text-[#087F5B]">
+                <p className="font-semibold text-[#302720] group-hover:text-[#B85C38]">
                   {t('profile.healthConditions')}
                 </p>
-                <p className="text-[11px] text-[#707B73] truncate">Dietary restrictions, allergies & wellness guide</p>
+                <p className="text-[11px] text-[#786E64] truncate">Dietary restrictions, allergies & wellness guide</p>
               </div>
             </button>
 
@@ -249,16 +249,16 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
               type="button"
               role="menuitem"
               onClick={handleOpenNominee}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#F7FAF8] transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FAF7F2] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#EFF7F1] group-hover:bg-[#DFF3E8] text-[#087F5B] flex items-center justify-center mr-3 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#FAF7F2] group-hover:bg-[#F3EDE4] text-[#B85C38] flex items-center justify-center mr-3 shrink-0">
                 <ShieldAlert className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[#242B27] group-hover:text-[#087F5B]">
+                <p className="font-semibold text-[#302720] group-hover:text-[#B85C38]">
                   {t('profile.nomineeDetails')}
                 </p>
-                <p className="text-[11px] text-[#707B73] truncate">
+                <p className="text-[11px] text-[#786E64] truncate">
                   {currentUser?.nomineeName ? `Guardian: ${currentUser.nomineeName}` : 'Approval & food safety restrictions'}
                 </p>
               </div>
@@ -269,9 +269,9 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
               type="button"
               role="menuitem"
               onClick={handleLogout}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#EFF7F1] text-[#064E3B] transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FAF7F2] text-[#302720] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#DFF3E8] group-hover:bg-[#DFF3E8] text-[#064E3B] flex items-center justify-center mr-3 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#F3EDE4] group-hover:bg-[#F3EDE4] text-[#302720] flex items-center justify-center mr-3 shrink-0">
                 <LogOut className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">

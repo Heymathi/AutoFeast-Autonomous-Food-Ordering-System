@@ -46,14 +46,14 @@ export const AboutPage: React.FC = () => {
     <div className="w-full max-w-5xl mx-auto py-8 sm:py-12 px-4 sm:px-6 space-y-12 animate-fade-in">
       {/* Header */}
       <div className="text-center space-y-4 max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#DFF3E8] text-[#087F5B] text-xs font-bold tracking-wide">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F3EDE4] text-[#B85C38] text-xs font-bold tracking-wide">
           <Sparkles className="w-3.5 h-3.5" />
           <span>About The Platform</span>
         </div>
-        <h1 className="text-3xl sm:text-5xl font-black text-[#064E3B] tracking-tight">
+        <h1 className="font-serif-editorial text-3xl sm:text-5xl font-bold text-[#302720] tracking-tight">
           {t('about.title') || 'About AutoFeast AI'}
         </h1>
-        <p className="text-sm sm:text-base text-[#707B73] leading-relaxed">
+        <p className="text-sm sm:text-base text-[#786E64] leading-relaxed">
           {t('about.subtitle') || 'Autonomous Food Ordering & Smart Scheduling Platform'}
         </p>
       </div>
@@ -61,25 +61,25 @@ export const AboutPage: React.FC = () => {
       {/* Mission & Purpose Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
         <div className={`p-6 sm:p-8 rounded-2xl border shadow-xs space-y-4 ${
-          currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E4EBE5]'
+          currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
         }`}>
-          <div className="w-12 h-12 rounded-xl bg-[#EFF7F1] text-[#087F5B] flex items-center justify-center font-bold">
+          <div className="w-12 h-12 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center font-bold">
             <Target className="w-6 h-6" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#064E3B]">Our Mission</h2>
-          <p className="text-xs sm:text-sm text-[#707B73] leading-relaxed">
+          <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#302720]">Our Mission</h2>
+          <p className="text-xs sm:text-sm text-[#786E64] leading-relaxed">
             AutoFeast AI was created to make food discovery and ordering radically accessible, autonomous, and transparent. We bridge language barriers through native speech recognition in English, தமிழ் (Tamil), and हिन्दी (Hindi), enabling every individual to order their favorite meals effortlessly.
           </p>
         </div>
 
         <div className={`p-6 sm:p-8 rounded-2xl border shadow-xs space-y-4 ${
-          currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E4EBE5]'
+          currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
         }`}>
-          <div className="w-12 h-12 rounded-xl bg-[#EFF7F1] text-[#087F5B] flex items-center justify-center font-bold">
+          <div className="w-12 h-12 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center font-bold">
             <Utensils className="w-6 h-6" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#064E3B]">Project Purpose</h2>
-          <p className="text-xs sm:text-sm text-[#707B73] leading-relaxed">
+          <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#302720]">Project Purpose</h2>
+          <p className="text-xs sm:text-sm text-[#786E64] leading-relaxed">
             Many traditional delivery applications are complex, text-heavy, and difficult for elderly family members to navigate independently. AutoFeast AI introduces nominee protection, automated weekly meal scheduling, and natural speech-driven ordering so anyone can arrange meals safely with full guardian visibility.
           </p>
         </div>
@@ -87,40 +87,40 @@ export const AboutPage: React.FC = () => {
 
       {/* AI Food Discovery Concept */}
       <div className={`p-6 sm:p-8 rounded-2xl border ${
-        currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-[#F7FAF8] border-[#E4EBE5]'
+        currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-[#FAF7F2] border-[#E5DDD2]'
       } space-y-4`}>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#DFF3E8] text-[#087F5B] text-xs font-bold">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#F3EDE4] text-[#B85C38] text-xs font-bold">
           <Sparkles className="w-3.5 h-3.5" />
           <span>Core Concept</span>
         </div>
-        <h2 className="text-xl sm:text-2xl font-bold text-[#064E3B]">
+        <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#302720]">
           AI-Powered Food Discovery & Semantics
         </h2>
-        <p className="text-xs sm:text-sm text-[#707B73] leading-relaxed">
+        <p className="text-xs sm:text-sm text-[#786E64] leading-relaxed">
           When users search for dishes like &quot;dosa&quot;, &quot;தோசை&quot;, &quot;इडली&quot;, or &quot;biryani&quot;, AutoFeast AI leverages an intelligent tri-layer query pipeline:
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div className="p-4 rounded-xl bg-white border border-[#E4EBE5] space-y-2">
-            <span className="text-xs font-black text-[#087F5B]">Layer 1</span>
-            <h4 className="text-sm font-bold text-[#242B27]">Phonetic & Cross-Script Match</h4>
-            <p className="text-xs text-[#707B73]">Matches spoken Tamil and Hindi sounds to catalog dishes accurately.</p>
+          <div className="p-4 rounded-xl bg-white border border-[#E5DDD2] space-y-2">
+            <span className="text-xs font-black text-[#B85C38]">Layer 1</span>
+            <h4 className="text-sm font-bold text-[#302720]">Phonetic & Cross-Script Match</h4>
+            <p className="text-xs text-[#786E64]">Matches spoken Tamil and Hindi sounds to catalog dishes accurately.</p>
           </div>
-          <div className="p-4 rounded-xl bg-white border border-[#E4EBE5] space-y-2">
-            <span className="text-xs font-black text-[#087F5B]">Layer 2</span>
-            <h4 className="text-sm font-bold text-[#242B27]">Gemini AI Semantic NLU</h4>
-            <p className="text-xs text-[#707B73]">Extracts dietary intent, quantities, and restaurant preferences when online.</p>
+          <div className="p-4 rounded-xl bg-white border border-[#E5DDD2] space-y-2">
+            <span className="text-xs font-black text-[#B85C38]">Layer 2</span>
+            <h4 className="text-sm font-bold text-[#302720]">Gemini AI Semantic NLU</h4>
+            <p className="text-xs text-[#786E64]">Extracts dietary intent, quantities, and restaurant preferences when online.</p>
           </div>
-          <div className="p-4 rounded-xl bg-white border border-[#E4EBE5] space-y-2">
-            <span className="text-xs font-black text-[#087F5B]">Layer 3</span>
-            <h4 className="text-sm font-bold text-[#242B27]">Local Whisper Offline Engine</h4>
-            <p className="text-xs text-[#707B73]">Processes speech locally inside the browser even when internet disconnects.</p>
+          <div className="p-4 rounded-xl bg-white border border-[#E5DDD2] space-y-2">
+            <span className="text-xs font-black text-[#B85C38]">Layer 3</span>
+            <h4 className="text-sm font-bold text-[#302720]">Local Whisper Offline Engine</h4>
+            <p className="text-xs text-[#786E64]">Processes speech locally inside the browser even when internet disconnects.</p>
           </div>
         </div>
       </div>
 
       {/* Main Capabilities */}
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-[#064E3B] text-center">
+        <h2 className="text-2xl font-bold text-[#302720] text-center">
           Key Platform Capabilities
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -130,15 +130,15 @@ export const AboutPage: React.FC = () => {
               <div
                 key={cap.title}
                 className={`p-6 rounded-2xl border shadow-xs flex items-start space-x-4 ${
-                  currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E4EBE5]'
+                  currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E5DDD2]'
                 }`}
               >
-                <div className="w-10 h-10 rounded-xl bg-[#EFF7F1] text-[#087F5B] flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#B85C38] flex items-center justify-center shrink-0">
                   <Icon className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[#064E3B] mb-1">{cap.title}</h3>
-                  <p className="text-xs sm:text-sm text-[#707B73] leading-relaxed">{cap.desc}</p>
+                  <h3 className="text-base font-bold text-[#302720] mb-1">{cap.title}</h3>
+                  <p className="text-xs sm:text-sm text-[#786E64] leading-relaxed">{cap.desc}</p>
                 </div>
               </div>
             );
@@ -147,7 +147,7 @@ export const AboutPage: React.FC = () => {
       </div>
 
       {/* CTA Box */}
-      <div className="text-center p-8 rounded-2xl bg-gradient-to-r from-[#087F5B] to-[#064E3B] text-white space-y-4 shadow-xl">
+      <div className="text-center p-8 rounded-2xl bg-gradient-to-r from-[#B85C38] to-[#302720] text-white space-y-4 shadow-xl">
         <h2 className="text-2xl sm:text-3xl font-black">Ready to explore intelligent food ordering?</h2>
         <p className="text-xs sm:text-sm text-emerald-100 max-w-xl mx-auto leading-relaxed">
           Experience real-time price comparisons, hands-free voice search, and seamless autonomous scheduling.
@@ -156,7 +156,7 @@ export const AboutPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveView('home')}
-            className="px-6 py-3 rounded-lg bg-white text-[#064E3B] font-bold text-xs sm:text-sm shadow-md hover:bg-[#DFF3E8] transition-colors inline-flex items-center gap-2 cursor-pointer"
+            className="px-6 py-3 rounded-lg bg-white text-[#302720] font-bold text-xs sm:text-sm shadow-md hover:bg-[#F3EDE4] transition-colors inline-flex items-center gap-2 cursor-pointer"
           >
             <span>Start Exploring Now</span>
             <ArrowRight className="w-4 h-4" />
