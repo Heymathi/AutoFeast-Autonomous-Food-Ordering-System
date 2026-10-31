@@ -157,10 +157,11 @@ export class NomineeNotificationService {
     userId: string,
     foodItemId: string,
     foodItemName?: string,
-    category?: string
+    category?: string,
+    nomineeToken?: string
   ): Promise<string[]> {
     try {
-      const token = localStorage.getItem('autofeast_jwt_token') || '';
+      const token = nomineeToken || localStorage.getItem('autofeast_jwt_token') || '';
       const res = await fetch('/api/nominee/restricted-items', {
         method: 'POST',
         headers: {

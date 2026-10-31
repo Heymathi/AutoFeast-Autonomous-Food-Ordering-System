@@ -70,6 +70,13 @@ describe('NomineeControlModal authentication flow', () => {
     nomineeMocks.language = 'en';
     nomineeMocks.t = key => TRANSLATIONS[nomineeMocks.language][key] || key;
     window.localStorage.clear();
+    window.sessionStorage.clear();
+    if (typeof (globalThis as any).SpeechSynthesisUtterance === 'undefined') {
+      (globalThis as any).SpeechSynthesisUtterance = class {
+        text: string = '';
+        lang: string = 'en';
+      };
+    }
   });
 
   test('requires nominee email and password before keypad PIN verification and passes the in-memory token', async () => {

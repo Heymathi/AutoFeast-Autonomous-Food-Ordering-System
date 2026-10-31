@@ -785,12 +785,13 @@ export const Navbar: React.FC = () => {
             </button>
 
             {/* Nominee Control Portal */}
-            <a
-              href="/nominee"
-              onClick={(e) => {
-                e.preventDefault();
-                window.history.pushState(null, '', '/nominee');
-                window.dispatchEvent(new PopStateEvent('popstate'));
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  sessionStorage.setItem('nominee_return_to', window.location.pathname);
+                } catch {}
+                setIsNomineeModalOpen(true);
               }}
               className={`header-btn flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all border cursor-pointer relative ${
                 currentTheme === 'high-contrast'
@@ -809,7 +810,7 @@ export const Navbar: React.FC = () => {
                   {pendingNomineeApprovals.filter(r => r.status === 'pending').length}
                 </span>
               )}
-            </a>
+            </button>
 
             {/* Order History */}
             <button

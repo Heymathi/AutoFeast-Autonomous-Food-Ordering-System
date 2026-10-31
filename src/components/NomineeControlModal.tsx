@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShieldCheck, Lock, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, Mail, ShieldAlert, KeyRound, Clock, Mic } from 'lucide-react';
+import { ShieldCheck, Lock, CheckCircle2, XCircle, AlertCircle, Plus, Trash2, Mail, ShieldAlert, KeyRound, Clock, Mic, LogOut } from 'lucide-react';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { FoodItem } from '../types';
 import { AuthService } from '../services/authService';
@@ -33,7 +33,16 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
   const [newNomineePin, setNewNomineePin] = useState('');
   const [nomineeEmail, setNomineeEmail] = useState(currentUser?.nomineeEmail || '');
   const [nomineePassword, setNomineePassword] = useState('');
-  const [nomineeToken, setNomineeToken] = useState<string | null>(null);
+  const [nomineeToken, setNomineeToken] = useState<string | null>(() => {
+    try {
+      const stored =
+        sessionStorage.getItem('nomineeToken') ||
+        sessionStorage.getItem('autofeast_nominee_token');
+      return stored && stored !== 'undefined' ? stored : null;
+    } catch {
+      return null;
+    }
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lockCountdown, setLockCountdown] = useState<number | null>(null);
   const [pinPromptKey, setPinPromptKey] = useState(0);
@@ -62,6 +71,25 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
     return `http://localhost:5000${path}`;
   };
 
+  const handleLogout = () => {
+    setNomineeToken(null);
+    setIsPinVerified(false);
+    setEnteredPin('');
+    setNewNomineePin('');
+    setPinError(null);
+    setLockCountdown(null);
+    setPinPromptKey(0);
+    setItemPins({});
+    setItemFeedback({});
+    setServerApprovals([]);
+    try {
+      sessionStorage.removeItem('nomineeToken');
+      sessionStorage.removeItem('nomineeSession');
+      sessionStorage.removeItem('autofeast_nominee_token');
+      sessionStorage.removeItem('autofeast_nominee_name');
+    } catch {}
+  };
+
   const fetchApprovals = async (token?: string | null) => {
     const tkn = token || nomineeToken;
     if (!tkn) return;
@@ -74,6 +102,9 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
         if (data.success && Array.isArray(data.approvals)) {
           setServerApprovals(data.approvals);
         }
+      } else if (res.status === 401 || res.status === 403) {
+        handleLogout();
+        setPinError(getLocalizedAuthError(res.status));
       }
     } catch (err) {
       console.warn('[NomineeControlModal] Failed to fetch approvals:', err);
@@ -88,19 +119,13 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
 
   useEffect(() => {
     if (!isModalVisible) {
-      setNomineeToken(null);
+      handleLogout();
       setNomineePassword('');
-      setEnteredPin('');
-      setNewNomineePin('');
-      setIsPinVerified(false);
-      setPinError(null);
-      setLockCountdown(null);
-      setPinPromptKey(0);
       setNomineeEmail(currentUser?.nomineeEmail || '');
-      setItemPins({});
-      setItemFeedback({});
-      setServerApprovals([]);
     }
+    return () => {
+      handleLogout();
+    };
   }, [isModalVisible, currentUser]);
 
   useEffect(() => {
@@ -112,6 +137,17 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
     }
     return () => clearInterval(timer);
   }, [lockCountdown]);
+
+  useEffect(() => {
+    if (!isModalVisible) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isModalVisible]);
 
   if (!isModalVisible) return null;
 
@@ -139,6 +175,11 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
       const token = await AuthService.loginNominee(nomineeEmail, nomineePassword);
       setNomineeToken(token);
       setNomineePassword('');
+      try {
+        sessionStorage.setItem('nomineeToken', token);
+        sessionStorage.setItem('nomineeSession', JSON.stringify({ token, email: nomineeEmail.trim(), timestamp: Date.now() }));
+        sessionStorage.setItem('autofeast_nominee_token', token);
+      } catch {}
     } catch (err) {
       const status = err instanceof Error && 'status' in err && typeof err.status === 'number'
         ? err.status
@@ -225,6 +266,9 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
       speakText(successMsg);
     } else {
       if (res.status === 401 || res.status === 403 || res.status === 503) {
+        if (res.status === 401 || res.status === 403) {
+          handleLogout();
+        }
         setPinError(getLocalizedAuthError(res.status));
       } else if (res.status === 429 || res.locked) {
         setLockCountdown(15 * 60);
@@ -268,6 +312,9 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
       const status = err instanceof Error && 'status' in err && typeof err.status === 'number'
         ? err.status
         : 503;
+      if (status === 401 || status === 403) {
+        handleLogout();
+      }
       setPinError(status === 400 ? t('nominee.pinCannotMatch') : getLocalizedAuthError(status));
     } finally {
       setIsSubmitting(false);
@@ -298,7 +345,8 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
         currentUser.id,
         foodId,
         itemObj?.name || foodId,
-        itemObj?.category || 'Food Item'
+        itemObj?.category || 'Food Item',
+        nomineeToken || undefined
       );
     }
 
@@ -309,8 +357,21 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
   };
 
   const handleClose = () => {
+    handleLogout();
     if (isNomineeRoute) {
-      window.location.href = '/';
+      const returnTo =
+        (typeof window !== 'undefined' &&
+          (window.history.state?.returnTo || sessionStorage.getItem('nominee_return_to'))) ||
+        '/';
+      try {
+        sessionStorage.removeItem('nominee_return_to');
+      } catch {}
+      if (typeof window !== 'undefined' && window.history.length > 1 && window.history.state?.returnTo) {
+        window.history.back();
+      } else {
+        window.history.pushState(null, '', returnTo);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
     } else {
       onClose();
     }
@@ -386,10 +447,11 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
           }));
         }
         await fetchApprovals(nomineeToken);
-      } else if (res.status === 403) {
+      } else if (res.status === 401 || res.status === 403) {
+        handleLogout();
         setItemFeedback(prev => ({
           ...prev,
-          [approvalId]: { type: 'error', message: 'Nominee token required (403)' }
+          [approvalId]: { type: 'error', message: getLocalizedAuthError(res.status) }
         }));
       } else if (res.status === 429) {
         setItemFeedback(prev => ({
@@ -516,7 +578,14 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
   );
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
+    <div
+      className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto"
+      onClick={e => {
+        if (e.target === e.currentTarget) {
+          handleClose();
+        }
+      }}
+    >
       <div className="w-full max-w-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-amber-500 my-8 space-y-6 max-h-[90vh] overflow-y-auto">
         
         {/* Header */}
@@ -535,13 +604,27 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleClose}
-            className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl font-bold cursor-pointer"
-          >
-            ✕
-          </button>
+          <div className="flex items-center space-x-2">
+            {nomineeToken && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer"
+                title="Nominee Logout"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Logout</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleClose}
+              className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl font-bold cursor-pointer"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {!nomineeToken ? (

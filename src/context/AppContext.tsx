@@ -211,13 +211,20 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // App Entry Sequence State (Auth -> Language -> Welcome -> Location -> Dashboard)
-  const [entryStep, setEntryStep] = useState<EntryStep>('auth');
-
   // User Authentication & WebAuthn Face ID State
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => AuthService.getCurrentUser());
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [isAuthGateOpen, setIsAuthGateOpen] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return Boolean(AuthService.getCurrentUser() && AuthService.getAuthToken());
+  });
+  const [isAuthGateOpen, setIsAuthGateOpen] = useState<boolean>(() => {
+    return !Boolean(AuthService.getCurrentUser() && AuthService.getAuthToken());
+  });
+
+  // App Entry Sequence State (Auth -> Language -> Welcome -> Location -> Dashboard)
+  const [entryStep, setEntryStep] = useState<EntryStep>(() => {
+    const hasUser = Boolean(AuthService.getCurrentUser() && AuthService.getAuthToken());
+    return hasUser ? 'dashboard' : 'auth';
+  });
   const [isFaceIdSupported, setIsFaceIdSupported] = useState<boolean>(false);
   const [isLimitRenewalModalOpen, setIsLimitRenewalModalOpen] = useState<boolean>(false);
   const [isScheduleCartModalOpen, setIsScheduleCartModalOpen] = useState<boolean>(false);

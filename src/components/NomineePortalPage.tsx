@@ -35,7 +35,9 @@ export const NomineePortalPage: React.FC = () => {
   const [nomineePassword, setNomineePassword] = useState('');
   const [nomineeToken, setNomineeToken] = useState<string | null>(() => {
     try {
-      const stored = sessionStorage.getItem('autofeast_nominee_token');
+      const stored =
+        sessionStorage.getItem('nomineeToken') ||
+        sessionStorage.getItem('autofeast_nominee_token');
       return stored && stored !== 'undefined' ? stored : null;
     } catch {
       return null;
@@ -164,6 +166,8 @@ export const NomineePortalPage: React.FC = () => {
         setNomineeName(data.nomineeName || 'Nominee');
         setNomineePassword('');
         try {
+          sessionStorage.setItem('nomineeToken', data.nomineeToken);
+          sessionStorage.setItem('nomineeSession', JSON.stringify({ token: data.nomineeToken, name: data.nomineeName, email: nomineeEmail }));
           sessionStorage.setItem('autofeast_nominee_token', data.nomineeToken);
           if (data.nomineeName) sessionStorage.setItem('autofeast_nominee_name', data.nomineeName);
         } catch {}
@@ -295,6 +299,8 @@ export const NomineePortalPage: React.FC = () => {
     setIsPinVerified(false);
     setEnteredPin('');
     try {
+      sessionStorage.removeItem('nomineeToken');
+      sessionStorage.removeItem('nomineeSession');
       sessionStorage.removeItem('autofeast_nominee_token');
       sessionStorage.removeItem('autofeast_nominee_name');
     } catch {}
@@ -523,16 +529,41 @@ export const NomineePortalPage: React.FC = () => {
             </div>
           </div>
 
-          {nomineeToken && (
+          <div className="flex items-center space-x-2">
+            {nomineeToken && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Logout</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleLogout}
-              className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-colors cursor-pointer"
+              onClick={() => {
+                const returnTo =
+                  (typeof window !== 'undefined' &&
+                    (window.history.state?.returnTo || sessionStorage.getItem('nominee_return_to'))) ||
+                  '/';
+                try {
+                  sessionStorage.removeItem('nominee_return_to');
+                } catch {}
+                if (typeof window !== 'undefined' && window.history.length > 1 && window.history.state?.returnTo) {
+                  window.history.back();
+                } else {
+                  window.history.pushState(null, '', returnTo);
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }
+              }}
+              className="p-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-black flex items-center justify-center transition-colors cursor-pointer"
+              title="Return to App"
+              aria-label="Return to App"
             >
-              <LogOut className="w-4 h-4" />
-              <span>Logout</span>
+              ✕
             </button>
-          )}
+          </div>
         </div>
 
         {/* Content Body */}
