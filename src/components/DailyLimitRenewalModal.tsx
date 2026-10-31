@@ -322,10 +322,10 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-lg bg-white text-[#1A1110] border-2 border-[#DAF0F7] rounded-3xl shadow-2xl overflow-hidden my-8 max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-white text-[#1A1110] border-2 border-[#FFF5F6] rounded-3xl shadow-2xl overflow-hidden my-8 max-h-[90vh] overflow-y-auto">
 
         {/* Modal Header */}
-        <div className="bg-[#DAF0F7] p-6 text-[#1A1110] text-center relative border-b border-[#B2E2F0]">
+        <div className="bg-[#FFF5F6] p-6 text-[#1A1110] text-center relative border-b border-[#FCE7EB]">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 bg-white/80 hover:bg-white rounded-full text-[#1A1110] transition-colors cursor-pointer"
@@ -333,23 +333,23 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
             <X className="w-5 h-5" />
           </button>
 
-          <div className="inline-flex items-center justify-center p-3 bg-white rounded-2xl mb-3 shadow-sm border border-[#B2E2F0]">
-            <ShieldAlert className="w-8 h-8 text-[#C2185B] animate-pulse" />
+          <div className="inline-flex items-center justify-center p-3 bg-white rounded-2xl mb-3 shadow-sm border border-[#FCE7EB]">
+            <ShieldAlert className="w-8 h-8 text-[#C82346] animate-pulse" />
           </div>
 
-          <h2 className="text-xl sm:text-2xl font-black text-[#C2185B]">{t('limit.title')}</h2>
+          <h2 className="text-xl sm:text-2xl font-black text-[#C82346]">{t('limit.title')}</h2>
           <p className="text-xs text-[#4A5568] mt-1 max-w-md mx-auto leading-relaxed font-bold">
             Verify 4-digit PIN (Typed/Spoken), Face ID, or Nominee Fallback to reset daily limit to 0/6.
           </p>
         </div>
 
         {/* Method Selector Tabs */}
-        <div className="grid grid-cols-4 border-b border-[#DAF0F7] bg-[#DAF0F7]/40 p-2 gap-1.5 text-center">
+        <div className="grid grid-cols-4 border-b border-[#FFF5F6] bg-[#FFF5F6]/40 p-2 gap-1.5 text-center">
           <button
             onClick={() => setRenewalMethod('pin')}
             className={`py-2.5 px-1 rounded-xl text-xs font-black flex items-center justify-center space-x-1 transition-all cursor-pointer ${
               renewalMethod === 'pin'
-                ? 'bg-[#FF5A1F] text-white shadow-md'
+                ? 'bg-[#C82346] text-white shadow-md'
                 : 'text-[#4A5568] hover:text-[#1A1110] hover:bg-white'
             }`}
           >
@@ -361,7 +361,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
             onClick={() => setRenewalMethod('faceid')}
             className={`py-2.5 px-1 rounded-xl text-xs font-black flex items-center justify-center space-x-1 transition-all cursor-pointer ${
               renewalMethod === 'faceid'
-                ? 'bg-[#FF5A1F] text-white shadow-md'
+                ? 'bg-[#C82346] text-white shadow-md'
                 : 'text-[#4A5568] hover:text-[#1A1110] hover:bg-white'
             }`}
           >
@@ -373,7 +373,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
             onClick={() => setRenewalMethod('nominee')}
             className={`py-2.5 px-1 rounded-xl text-xs font-black flex items-center justify-center space-x-1 transition-all cursor-pointer ${
               renewalMethod === 'nominee'
-                ? 'bg-[#FF5A1F] text-white shadow-md'
+                ? 'bg-[#C82346] text-white shadow-md'
                 : 'text-[#4A5568] hover:text-[#1A1110] hover:bg-white'
             }`}
           >
@@ -385,7 +385,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
             onClick={() => setRenewalMethod('password')}
             className={`py-2.5 px-1 rounded-xl text-xs font-black flex items-center justify-center space-x-1 transition-all cursor-pointer ${
               renewalMethod === 'password'
-                ? 'bg-[#FF5A1F] text-white shadow-md'
+                ? 'bg-[#C82346] text-white shadow-md'
                 : 'text-[#4A5568] hover:text-[#1A1110] hover:bg-white'
             }`}
           >
@@ -396,8 +396,8 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
 
         {/* Status Alerts (when not already shown inside SecurityPinEntryView) */}
         {errorMessage && renewalMethod !== 'pin' && (
-          <div className="mx-6 mt-4 p-4 bg-[#C2185B]/10 border border-[#C2185B] rounded-2xl flex items-start space-x-3 text-[#C2185B] text-xs sm:text-sm">
-            <AlertCircle className="w-5 h-5 text-[#C2185B] shrink-0 mt-0.5" />
+          <div className="mx-6 mt-4 p-4 bg-[#C82346]/10 border border-[#C82346] rounded-2xl flex items-start space-x-3 text-[#C82346] text-xs sm:text-sm">
+            <AlertCircle className="w-5 h-5 text-[#C82346] shrink-0 mt-0.5" />
             <div>
               <p className="font-bold">{errorMessage}</p>
             </div>
@@ -425,13 +425,13 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
             />
 
             {/* Forgot PIN / Nominee Notification Fallback Trigger */}
-            <div className="pt-4 border-t border-[#DAF0F7] mt-4">
+            <div className="pt-4 border-t border-[#FFF5F6] mt-4">
               <button
                 type="button"
                 onClick={() => triggerNomineeNotification('User requested Nominee approval')}
-                className="text-xs text-[#C2185B] hover:underline font-extrabold flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+                className="text-xs text-[#C82346] hover:underline font-extrabold flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
               >
-                <Send className="w-3.5 h-3.5 text-[#C2185B]" />
+                <Send className="w-3.5 h-3.5 text-[#C82346]" />
                 <span>Forgot PIN? Send Notification Alert to Nominee to Approve</span>
               </button>
             </div>
@@ -441,8 +441,8 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
         {/* Method 2: Face ID Renewal */}
         {renewalMethod === 'faceid' && (
           <div className="p-6 sm:p-8 text-center space-y-6">
-            <div className="relative inline-flex items-center justify-center p-6 bg-[#DAF0F7] rounded-full border-4 border-[#FF5A1F] shadow-lg">
-              <Scan className="w-16 h-16 text-[#FF5A1F]" />
+            <div className="relative inline-flex items-center justify-center p-6 bg-[#FFF5F6] rounded-full border-4 border-[#C82346] shadow-lg">
+              <Scan className="w-16 h-16 text-[#C82346]" />
             </div>
 
             <div>
@@ -455,7 +455,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
             <button
               onClick={handleRenewWithFaceID}
               disabled={isProcessing}
-              className="w-full py-4 px-6 bg-[#FF5A1F] hover:bg-[#E04812] disabled:opacity-50 text-white font-black rounded-2xl shadow-xl flex items-center justify-center space-x-3 text-sm transition-all cursor-pointer"
+              className="w-full py-4 px-6 bg-[#C82346] hover:bg-[#B31D3D] disabled:opacity-50 text-white font-black rounded-2xl shadow-xl flex items-center justify-center space-x-3 text-sm transition-all cursor-pointer"
             >
               {isProcessing ? (
                 <>
@@ -477,13 +477,13 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
           <form onSubmit={handleNomineeSubmit} className="p-6 sm:p-8 space-y-4">
             
             {/* Nominee Alert Card */}
-            <div className="p-4 bg-[#DAF0F7] border-2 border-[#B2E2F0] rounded-2xl space-y-2 text-left">
-              <div className="flex items-center space-x-2 text-[#FF5A1F] font-black text-xs uppercase tracking-wider">
-                <Mail className="w-4 h-4 text-[#FF5A1F]" />
+            <div className="p-4 bg-[#FFF5F6] border-2 border-[#FCE7EB] rounded-2xl space-y-2 text-left">
+              <div className="flex items-center space-x-2 text-[#C82346] font-black text-xs uppercase tracking-wider">
+                <Mail className="w-4 h-4 text-[#C82346]" />
                 <span>Nominee Notification Alert Status</span>
               </div>
               <p className="text-xs font-bold text-[#1A1110]">
-                📧 Notification sent to registered nominee: <span className="text-[#FF5A1F] font-black">{nomineeName}</span> ({nomineePhone})
+                📧 Notification sent to registered nominee: <span className="text-[#C82346] font-black">{nomineeName}</span> ({nomineePhone})
               </p>
               <p className="text-[11px] text-[#4A5568] font-semibold">
                 Nominee can verify their details below to approve the daily limit reset from 6/6 to 0/6 on behalf of {currentUser?.name || 'User'}.
@@ -492,7 +492,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
 
             <div>
               <label className="block text-xs font-black text-[#1A1110] uppercase tracking-wider mb-1 flex items-center gap-1">
-                <UserCheck className="w-3.5 h-3.5 text-[#FF5A1F]" />
+                <UserCheck className="w-3.5 h-3.5 text-[#C82346]" />
                 <span>Registered Nominee Name *</span>
               </label>
               <input
@@ -500,14 +500,14 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
                 value={nomineeName}
                 onChange={e => setNomineeName(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-slate-50 border border-[#B2E2F0] rounded-2xl text-[#1A1110] font-bold text-sm focus:outline-none focus:border-[#FF5A1F]"
+                className="w-full px-4 py-3 bg-slate-50 border border-[#FCE7EB] rounded-2xl text-[#1A1110] font-bold text-sm focus:outline-none focus:border-[#C82346]"
                 placeholder="Priya Raja"
               />
             </div>
 
             <div>
               <label className="block text-xs font-black text-[#1A1110] uppercase tracking-wider mb-1 flex items-center gap-1">
-                <Phone className="w-3.5 h-3.5 text-[#FF5A1F]" />
+                <Phone className="w-3.5 h-3.5 text-[#C82346]" />
                 <span>Nominee Phone Number *</span>
               </label>
               <input
@@ -515,7 +515,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
                 value={nomineePhone}
                 onChange={e => setNomineePhone(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-slate-50 border border-[#B2E2F0] rounded-2xl text-[#1A1110] font-bold text-sm focus:outline-none focus:border-[#FF5A1F]"
+                className="w-full px-4 py-3 bg-slate-50 border border-[#FCE7EB] rounded-2xl text-[#1A1110] font-bold text-sm focus:outline-none focus:border-[#C82346]"
                 placeholder="+91 98765 43210"
               />
             </div>
@@ -523,7 +523,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
             <button
               type="submit"
               disabled={isProcessing}
-              className="w-full py-4 px-6 bg-[#FF5A1F] hover:bg-[#E04812] disabled:opacity-50 text-white font-black rounded-2xl shadow-xl flex items-center justify-center space-x-2 text-sm transition-all cursor-pointer"
+              className="w-full py-4 px-6 bg-[#C82346] hover:bg-[#B31D3D] disabled:opacity-50 text-white font-black rounded-2xl shadow-xl flex items-center justify-center space-x-2 text-sm transition-all cursor-pointer"
             >
               <UserCheck className="w-5 h-5 text-white" />
               <span>Approve Renewal as Nominee</span>
@@ -543,7 +543,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-slate-50 border border-[#B2E2F0] rounded-2xl text-[#1A1110] text-sm focus:outline-none focus:border-[#FF5A1F]"
+                className="w-full px-4 py-3 bg-slate-50 border border-[#FCE7EB] rounded-2xl text-[#1A1110] text-sm focus:outline-none focus:border-[#C82346]"
                 placeholder="••••••••"
               />
             </div>
@@ -551,7 +551,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
             <button
               type="submit"
               disabled={isProcessing}
-              className="w-full py-4 px-6 bg-[#FF5A1F] hover:bg-[#E04812] disabled:opacity-50 text-white font-black rounded-2xl shadow-xl flex items-center justify-center space-x-2 text-sm transition-all cursor-pointer"
+              className="w-full py-4 px-6 bg-[#C82346] hover:bg-[#B31D3D] disabled:opacity-50 text-white font-black rounded-2xl shadow-xl flex items-center justify-center space-x-2 text-sm transition-all cursor-pointer"
             >
               <KeyRound className="w-5 h-5 text-white" />
               <span>Verify Password & Reset Limit</span>

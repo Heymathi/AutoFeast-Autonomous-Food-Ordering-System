@@ -200,7 +200,7 @@ export const VoicePinInput: React.FC<VoicePinInputProps> = ({
             startListening();
           }
         }}
-        className="inline-flex items-center gap-2 rounded-lg border border-[#FF5A1F]/50 px-3 py-2 text-xs font-bold text-[#C2410C] hover:bg-[#FF5A1F]/10 disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-lg border border-[#C82346]/50 px-3 py-2 text-xs font-bold text-[#C2410C] hover:bg-[#C82346]/10 disabled:opacity-50"
       >
         {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
         {buttonLabel}

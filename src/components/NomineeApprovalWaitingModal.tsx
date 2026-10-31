@@ -298,7 +298,7 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-      <div className="relative w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border-4 border-[#FF5A1F] shadow-2xl p-6 text-center space-y-5">
+      <div className="relative w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border-4 border-[#C82346] shadow-2xl p-6 text-center space-y-5">
         
         {/* Close Button */}
         <button
@@ -312,18 +312,18 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
 
         {/* Pulsing Icon */}
         <div className="flex justify-center pt-2">
-          <div className="relative flex items-center justify-center w-20 h-20 rounded-full bg-orange-100 dark:bg-orange-950/60 border-2 border-[#FF5A1F]/30">
-            <Mail className="w-10 h-10 text-[#FF5A1F] animate-bounce" />
+          <div className="relative flex items-center justify-center w-20 h-20 rounded-full bg-orange-100 dark:bg-orange-950/60 border-2 border-[#C82346]/30">
+            <Mail className="w-10 h-10 text-[#C82346] animate-bounce" />
             <span className="absolute top-1 right-1 flex h-4 w-4">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF5A1F] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-[#FF5A1F]"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#C82346] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-[#C82346]"></span>
             </span>
           </div>
         </div>
 
         {/* Title & Message */}
         <div className="space-y-2">
-          <span className="text-[11px] font-black uppercase text-[#FF5A1F] bg-[#FF5A1F]/10 px-3 py-1 rounded-full border border-[#FF5A1F]/20">
+          <span className="text-[11px] font-black uppercase text-[#C82346] bg-[#C82346]/10 px-3 py-1 rounded-full border border-[#C82346]/20">
             {t('nominee.approvalRequiredBadge')}
           </span>
 
@@ -338,8 +338,8 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
 
         {/* Live Mic Feedback */}
         {isListening && (
-          <div className="p-2.5 rounded-2xl bg-[#DAF0F7]/40 border border-[#B2E2F0] text-xs flex items-center justify-between text-slate-700 dark:text-slate-300">
-            <span className="flex items-center gap-1.5 font-bold text-[#FF5A1F]">
+          <div className="p-2.5 rounded-2xl bg-[#FFF5F6]/40 border border-[#FCE7EB] text-xs flex items-center justify-between text-slate-700 dark:text-slate-300">
+            <span className="flex items-center gap-1.5 font-bold text-[#C82346]">
               <Mic className="w-3.5 h-3.5 animate-pulse" />
               <span>Say "cancel" to abort</span>
             </span>
@@ -371,7 +371,7 @@ export const NomineeApprovalWaitingModal: React.FC<NomineeApprovalWaitingModalPr
             <button
               type="button"
               onClick={handleCheckAgain}
-              className="px-4 py-2 bg-[#FF5A1F] hover:bg-[#e04810] text-white font-bold rounded-xl text-xs shadow transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-4 py-2 bg-[#C82346] hover:bg-[#e04810] text-white font-bold rounded-xl text-xs shadow transition-all cursor-pointer flex items-center gap-1.5"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>{t('nominee.checkAgain')}</span>

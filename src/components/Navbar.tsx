@@ -692,51 +692,52 @@ export const Navbar: React.FC = () => {
     currentTheme === 'high-contrast'
       ? 'bg-black text-white border-2 border-yellow-400'
       : currentTheme === 'dark'
-      ? 'bg-slate-800 text-slate-100 border border-slate-600 shadow-sm'
-      : 'bg-[#FFFFFF] text-[#111827] border border-[#D1D5DB] shadow-sm';
+      ? 'bg-zinc-800 text-zinc-100 border border-zinc-700 shadow-xs'
+      : 'bg-rose-50/40 text-zinc-900 border border-rose-100/70 shadow-xs';
 
   const unselectedBtnClass =
     currentTheme === 'high-contrast'
       ? 'bg-black hover:bg-neutral-900 text-white border border-yellow-400'
       : currentTheme === 'dark'
-      ? 'bg-slate-800 hover:bg-slate-700 text-white'
-      : 'bg-[#FFFFFF] hover:bg-slate-100 text-[#111827]';
+      ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+      : 'bg-transparent hover:bg-rose-100/60 text-zinc-700';
 
   return (
     <header
-      className={`app-header sticky top-0 z-40 shadow-md transition-colors duration-200 w-full ${
+      className={`app-header sticky top-0 z-40 transition-colors duration-200 w-full ${
         currentTheme === 'high-contrast'
-          ? 'bg-black text-white border-b-4 border-yellow-400'
+          ? 'bg-black text-white border-b-2 border-yellow-400'
           : currentTheme === 'dark'
-          ? 'bg-slate-900 text-slate-100 border-b border-slate-700'
-          : 'bg-[#DAF0F7] text-[#111827] border-b border-[#B2E2F0]'
+          ? 'bg-zinc-900/95 text-zinc-100 border-b border-zinc-800 backdrop-blur-md shadow-xs'
+          : 'bg-white/95 text-zinc-900 border-b border-rose-100/80 backdrop-blur-md shadow-[0_2px_15px_rgba(200,35,70,0.03)]'
       }`}
     >
-      <div className="header-container w-full max-w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 sm:py-2.5">
+      <div className="header-container w-full max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-2.5">
         {/* MAIN TOP BAR */}
-        <div className="flex flex-wrap items-stretch justify-start gap-2 sm:gap-2.5 w-full min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full min-w-0">
           
           {/* LOGO, TITLE & GPS LOCATION BADGE (BRAND GROUP) */}
-          <div className={`header-brand-group flex flex-wrap items-center justify-start sm:justify-between gap-2.5 px-3 py-1.5 rounded-2xl min-w-0 ${pillGroupSurface}`}>
+          <div className="header-brand-group flex items-center gap-3 min-w-0">
             <div className="flex items-center gap-2.5 shrink-0">
               <div
-                className="bg-[#FF5A1F] min-h-[48px] min-w-[48px] p-2.5 rounded-xl shadow-md flex items-center justify-center cursor-pointer hover:bg-[#E04812] transition-colors shrink-0"
+                className="bg-[#C82346] min-h-[42px] min-w-[42px] p-2 rounded-2xl shadow-sm flex items-center justify-center cursor-pointer hover:bg-[#B31D3D] transition-all hover:scale-105 shrink-0"
                 onClick={() => setActiveView('search')}
                 title="Go to AutoFeast Home"
                 tabIndex={0}
                 role="button"
                 aria-label="AutoFeast Home"
               >
-                <Sparkles className="w-6 h-6 text-white animate-pulse" />
+                <Sparkles className="w-5 h-5 text-white" />
               </div>
 
               <h1
-                className={`font-black tracking-tight leading-tight cursor-pointer flex items-center gap-1 shrink-0 ${
-                  currentTheme === 'dark' || currentTheme === 'high-contrast' ? 'text-white' : 'text-[#111827]'
+                className={`font-black tracking-tight text-lg sm:text-xl cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  currentTheme === 'dark' || currentTheme === 'high-contrast' ? 'text-white' : 'text-[#1E1A1C]'
                 }`}
                 onClick={() => setActiveView('search')}
               >
-                AutoFeast AI
+                <span>AutoFeast</span>
+                <span className="text-[#C82346] font-serif italic text-base">AI</span>
               </h1>
             </div>
 
@@ -773,29 +774,29 @@ export const Navbar: React.FC = () => {
                     closeLocationPopover();
                   }
                 }}
-                className={`header-location-chip min-h-[48px] w-full flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl font-bold leading-snug transition-all border shadow-xs cursor-pointer min-w-0 flex-1 ${
+                className={`header-location-chip min-h-[40px] flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-full font-bold text-xs sm:text-sm leading-snug transition-all border shadow-2xs cursor-pointer min-w-0 ${
                   userLocation.area === 'Location not set' || userLocation.city === 'Not set'
-                    ? 'bg-amber-100 text-[#111827] border-amber-500 hover:bg-amber-200'
+                    ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
                     : currentTheme === 'high-contrast'
                     ? 'bg-black text-white border-2 border-yellow-400'
                     : currentTheme === 'dark'
-                    ? 'bg-slate-900 text-white border-slate-600 hover:bg-slate-700'
-                    : 'bg-[#FFFFFF] text-[#111827] border-[#D1D5DB] hover:bg-slate-100'
+                    ? 'bg-zinc-800 text-zinc-100 border-zinc-700 hover:bg-zinc-700'
+                    : 'bg-white text-zinc-800 border-rose-200/70 hover:bg-rose-50/50'
                 }`}
                 title={t('location.changeAddress')}
                 aria-label={t('location.changeAddress')}
               >
                 {userLocation.area === 'Location not set' || userLocation.city === 'Not set' ? (
-                  <AlertTriangle className="w-6 h-6 text-amber-700 shrink-0" />
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                 ) : userLocation.isManualOverride ? (
-                  <Edit3 className="w-6 h-6 text-blue-700 shrink-0" />
+                  <Edit3 className="w-4 h-4 text-blue-600 shrink-0" />
                 ) : userLocation.isApproximate ? (
-                  <AlertTriangle className="w-6 h-6 text-[#C2185B] shrink-0" />
+                  <AlertTriangle className="w-4 h-4 text-[#C82346] shrink-0" />
                 ) : (
-                  <Navigation className="w-6 h-6 text-[#FF5A1F] animate-spin shrink-0" style={{ animationDuration: '6s' }} />
+                  <MapPin className="w-4 h-4 text-[#C82346] shrink-0" />
                 )}
 
-                <span className="truncate leading-tight font-bold">
+                <span className="truncate leading-tight font-bold text-xs sm:text-sm">
                   {userLocation.area === 'Location not set' || userLocation.city === 'Not set'
                     ? `📍 ${t('location.notSet')}`
                     : userLocation.isManualOverride
@@ -805,7 +806,6 @@ export const Navbar: React.FC = () => {
                     : `📍 ${userLocation.area}, ${userLocation.city}`}
                 </span>
               </button>
-
               {isLocationPopoverOpen && (
                 <div
                   id="header-location-popover"
@@ -827,7 +827,7 @@ export const Navbar: React.FC = () => {
                         htmlFor="header-location-input"
                         className="text-[18px] font-extrabold flex items-center gap-2 leading-snug"
                       >
-                        <MapPin className="w-5 h-5 text-[#FF5A1F] shrink-0" />
+                        <MapPin className="w-5 h-5 text-[#C82346] shrink-0" />
                         <span>{t('location.popoverTitle')}</span>
                       </label>
                       <button
@@ -859,7 +859,7 @@ export const Navbar: React.FC = () => {
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
                         }`}
                       >
-                        <Mic className={`w-4 h-4 shrink-0 ${isVoiceListening ? 'text-[#FF5A1F] animate-pulse' : 'text-blue-600'}`} />
+                        <Mic className={`w-4 h-4 shrink-0 ${isVoiceListening ? 'text-[#C82346] animate-pulse' : 'text-blue-600'}`} />
                         <span className="truncate">{voiceStatusText}</span>
                       </div>
                     )}
@@ -876,7 +876,7 @@ export const Navbar: React.FC = () => {
                         aria-label={t('location.popoverInputLabel')}
                         autoComplete="off"
                         autoFocus
-                        className={`flex-1 min-h-[48px] px-3.5 py-2.5 rounded-xl text-[18px] font-bold leading-snug focus:outline-none focus:ring-2 focus:ring-[#FF5A1F] transition-colors ${
+                        className={`flex-1 min-h-[48px] px-3.5 py-2.5 rounded-xl text-[18px] font-bold leading-snug focus:outline-none focus:ring-2 focus:ring-[#C82346] transition-colors ${
                           currentTheme === 'high-contrast'
                             ? 'bg-black text-white placeholder-neutral-400 border-2 border-yellow-400'
                             : currentTheme === 'dark'
@@ -899,7 +899,7 @@ export const Navbar: React.FC = () => {
                             ? 'bg-black hover:bg-neutral-900 text-yellow-300 border-2 border-yellow-400'
                             : currentTheme === 'dark'
                             ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-600'
-                            : 'bg-[#FF5A1F] hover:bg-[#E04812] text-white border-[#FF5A1F]'
+                            : 'bg-[#C82346] hover:bg-[#B31D3D] text-white border-[#C82346]'
                         }`}
                       >
                         <Mic className="w-5 h-5 shrink-0" />
@@ -920,7 +920,7 @@ export const Navbar: React.FC = () => {
                             : 'bg-slate-100 text-[#111827]'
                         }`}
                       >
-                        <Loader2 className="w-5 h-5 animate-spin text-[#FF5A1F] shrink-0" />
+                        <Loader2 className="w-5 h-5 animate-spin text-[#C82346] shrink-0" />
                         <span>{t('location.searching')}</span>
                       </div>
                     )}
@@ -987,7 +987,7 @@ export const Navbar: React.FC = () => {
                               onClick={() => handleSelectSuggestion(place)}
                               className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl text-left text-[18px] font-bold flex items-center justify-between gap-2 transition-colors cursor-pointer border ${
                                 isSelected
-                                  ? 'bg-[#FF5A1F] text-white border-[#FF5A1F]'
+                                  ? 'bg-[#C82346] text-white border-[#C82346]'
                                   : currentTheme === 'high-contrast'
                                   ? 'bg-black hover:bg-neutral-900 text-white border-yellow-400'
                                   : currentTheme === 'dark'
@@ -996,7 +996,7 @@ export const Navbar: React.FC = () => {
                               }`}
                             >
                               <span className="flex items-center gap-2 min-w-0">
-                                <MapPin className={`w-5 h-5 shrink-0 ${isSelected ? 'text-white' : 'text-[#FF5A1F]'}`} />
+                                <MapPin className={`w-5 h-5 shrink-0 ${isSelected ? 'text-white' : 'text-[#C82346]'}`} />
                                 <span className="truncate">{label}</span>
                               </span>
                               {isSelected && <Check className="w-5 h-5 text-white shrink-0" />}
@@ -1021,9 +1021,9 @@ export const Navbar: React.FC = () => {
                       }`}
                     >
                       {isDetectingGps ? (
-                        <Loader2 className="w-5 h-5 animate-spin text-[#FF5A1F] shrink-0" />
+                        <Loader2 className="w-5 h-5 animate-spin text-[#C82346] shrink-0" />
                       ) : (
-                        <Navigation className="w-5 h-5 text-[#FF5A1F] shrink-0" />
+                        <Navigation className="w-5 h-5 text-[#C82346] shrink-0" />
                       )}
                       <span>{t('location.useCurrentGPS')}</span>
                     </button>
@@ -1063,22 +1063,22 @@ export const Navbar: React.FC = () => {
 
           {/* NAVIGATION PILLS GROUP */}
           <nav
-            className={`header-nav-group flex flex-wrap items-center justify-start sm:justify-between gap-2 p-1.5 rounded-2xl min-w-0 ${pillGroupSurface}`}
+            className={`header-nav-group flex flex-wrap items-center justify-start sm:justify-between gap-1.5 p-1 rounded-full min-w-0 ${pillGroupSurface}`}
           >
             {/* Search */}
             <button
               type="button"
               onClick={() => setActiveView('search')}
-              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
+              className={`header-btn flex items-center justify-center gap-2 px-4 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer ${
                 activeView === 'search'
-                  ? 'bg-[#FF5A1F] text-white shadow-sm'
+                  ? 'bg-[#C82346] text-white shadow-xs'
                   : unselectedBtnClass
               }`}
               title={t('nav.search')}
               aria-label={t('nav.search')}
             >
-              <Search className="w-6 h-6 shrink-0" />
-              <span className="header-label-responsive">{t('nav.search')}</span>
+              <Search className="w-4 h-4 shrink-0" />
+              <span className="header-label-responsive text-xs sm:text-sm">{t('nav.search')}</span>
             </button>
 
             {/* Track Live Order */}
@@ -1086,16 +1086,16 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveView('tracking')}
-                className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
+                className={`header-btn flex items-center justify-center gap-2 px-4 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer ${
                   activeView === 'tracking'
-                    ? 'bg-[#16A34A] text-white shadow-md'
-                    : 'bg-[#16A34A] hover:bg-[#15803D] text-white'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
                 }`}
                 title="Track Order"
                 aria-label="Track Order"
               >
-                <Bike className="w-6 h-6 text-yellow-300 shrink-0" />
-                <span className="header-label-responsive">Track Order</span>
+                <Bike className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="header-label-responsive text-xs sm:text-sm">Track Order</span>
               </button>
             )}
 
@@ -1103,16 +1103,16 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('scheduler')}
-              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
+              className={`header-btn flex items-center justify-center gap-2 px-4 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer ${
                 activeView === 'scheduler'
-                  ? 'bg-[#FF5A1F] text-white shadow-sm'
+                  ? 'bg-[#C82346] text-white shadow-xs'
                   : unselectedBtnClass
               }`}
               title={t('nav.schedule')}
               aria-label={t('nav.schedule')}
             >
-              <Calendar className="w-6 h-6 shrink-0" />
-              <span className="header-label-responsive">{t('nav.schedule')}</span>
+              <Calendar className="w-4 h-4 shrink-0" />
+              <span className="header-label-responsive text-xs sm:text-sm">{t('nav.schedule')}</span>
             </button>
 
             {/* Wallet Balance */}
@@ -1125,9 +1125,9 @@ export const Navbar: React.FC = () => {
                   requestWalletBalanceReveal();
                 }
               }}
-              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
+              className={`header-btn flex items-center justify-center gap-2 px-4 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer ${
                 activeView === 'wallet'
-                  ? 'bg-[#FF5A1F] text-white shadow-sm'
+                  ? 'bg-[#C82346] text-white shadow-xs'
                   : unselectedBtnClass
               }`}
               title={isWalletRevealed ? `Wallet Balance: ₹${walletBalance.toFixed(0)}` : t('wallet.maskedLabel')}
@@ -1135,13 +1135,13 @@ export const Navbar: React.FC = () => {
             >
               {isWalletRevealed ? (
                 <>
-                  <Eye className="w-6 h-6 text-[#16A34A] shrink-0" />
-                  <span className="font-bold">₹{walletBalance.toFixed(0)}</span>
+                  <Eye className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-bold text-xs sm:text-sm">₹{walletBalance.toFixed(0)}</span>
                 </>
               ) : (
                 <>
-                  <Lock className="w-6 h-6 text-amber-600 shrink-0" />
-                  <span className="font-bold">{t('wallet.maskedLabel')}</span>
+                  <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="font-bold text-xs sm:text-sm">{t('wallet.maskedLabel')}</span>
                 </>
               )}
             </button>
@@ -1150,19 +1150,19 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsLimitRenewalModalOpen(true)}
-              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all border cursor-pointer ${
+              className={`header-btn flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-bold leading-tight transition-all border cursor-pointer text-xs ${
                 dailyOrderCount >= 6
-                  ? 'bg-[#C2185B] text-white border-[#C2185B]'
+                  ? 'bg-rose-600 text-white border-rose-600'
                   : currentTheme === 'high-contrast'
                   ? 'bg-black hover:bg-neutral-900 text-white border-yellow-400'
                   : currentTheme === 'dark'
-                  ? 'bg-slate-800 hover:bg-slate-700 text-white border-slate-600'
-                  : 'bg-[#FFFFFF] hover:bg-slate-100 text-[#111827] border-[#D1D5DB]'
+                  ? 'bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700'
+                  : 'bg-white hover:bg-rose-50 text-zinc-700 border-rose-200/70'
               }`}
               title={`Daily Limit: ${dailyOrderCount}/6`}
               aria-label={`Daily Limit: ${dailyOrderCount}/6`}
             >
-              <PackageCheck className={`w-6 h-6 shrink-0 ${dailyOrderCount >= 6 ? 'text-white' : 'text-[#FF5A1F]'}`} />
+              <PackageCheck className={`w-3.5 h-3.5 shrink-0 ${dailyOrderCount >= 6 ? 'text-white' : 'text-[#C82346]'}`} />
               <span className="font-bold"><span className="header-label-responsive">Limit: </span>{dailyOrderCount}/6</span>
             </button>
 
@@ -1175,20 +1175,20 @@ export const Navbar: React.FC = () => {
                 } catch {}
                 setIsNomineeModalOpen(true);
               }}
-              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all border cursor-pointer relative ${
+              className={`header-btn flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-full font-bold leading-tight transition-all border cursor-pointer text-xs relative ${
                 currentTheme === 'high-contrast'
                   ? 'bg-black hover:bg-neutral-900 text-white border-yellow-400'
                   : currentTheme === 'dark'
-                  ? 'bg-slate-800 hover:bg-slate-700 text-white border-amber-400'
-                  : 'bg-[#FFFFFF] hover:bg-amber-50 text-[#111827] border-amber-500'
+                  ? 'bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700'
+                  : 'bg-white hover:bg-rose-50 text-zinc-800 border-rose-200/70'
               }`}
               title="Nominee Control Portal"
               aria-label="Nominee Control Portal"
             >
-              <ShieldCheck className="w-6 h-6 shrink-0 text-amber-600" />
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-amber-600" />
               <span className="header-label-responsive">Nominee</span>
               {pendingNomineeApprovals.filter(r => r.status === 'pending').length > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                <span className="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
                   {pendingNomineeApprovals.filter(r => r.status === 'pending').length}
                 </span>
               )}
@@ -1198,16 +1198,16 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('orders')}
-              className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer ${
+              className={`header-btn flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer ${
                 activeView === 'orders'
-                  ? 'bg-[#FF5A1F] text-white shadow-sm'
+                  ? 'bg-[#C82346] text-white shadow-xs'
                   : unselectedBtnClass
               }`}
               title={t('nav.orders')}
               aria-label={t('nav.orders')}
             >
-              <History className="w-6 h-6 shrink-0" />
-              <span className="header-label-responsive">{t('nav.orders')}</span>
+              <History className="w-4 h-4 shrink-0" />
+              <span className="header-label-responsive text-xs sm:text-sm">{t('nav.orders')}</span>
             </button>
 
             {/* Shared Cart */}
@@ -1217,20 +1217,20 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsScheduleCartModalOpen(true)}
-                  className={`header-btn flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold leading-tight transition-all cursor-pointer border relative ${
+                  className={`header-btn flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-full font-bold leading-tight transition-all cursor-pointer border relative ${
                     currentTheme === 'high-contrast'
                       ? 'bg-black hover:bg-neutral-900 text-white border-yellow-400'
                       : currentTheme === 'dark'
-                      ? 'bg-slate-800 hover:bg-slate-700 text-white border-amber-400'
-                      : 'bg-[#FFFFFF] hover:bg-amber-50 text-[#111827] border-amber-500'
+                      ? 'bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700'
+                      : 'bg-white hover:bg-rose-50 text-zinc-800 border-rose-200/70'
                   }`}
                   title={t('cartTitle')}
                   aria-label={t('cartTitle')}
                 >
-                  <ShoppingBag className="w-6 h-6 shrink-0 text-[#FF5A1F]" />
-                  <span className="header-label-responsive">{t('cartTitle')}</span>
+                  <ShoppingBag className="w-4 h-4 shrink-0 text-[#C82346]" />
+                  <span className="header-label-responsive text-xs sm:text-sm">{t('cartTitle')}</span>
                   {totalCartCount > 0 && (
-                    <span className="px-2 py-0.5 rounded-full bg-[#FF5A1F] text-white text-xs font-bold flex items-center justify-center shrink-0 min-w-[1.5rem] min-h-[1.5rem]">
+                    <span className="px-1.5 py-0.5 rounded-full bg-[#C82346] text-white text-[10px] font-bold flex items-center justify-center shrink-0">
                       {totalCartCount}
                     </span>
                   )}
@@ -1240,22 +1240,22 @@ export const Navbar: React.FC = () => {
           </nav>
 
           {/* ACTION BUTTONS (USER PROFILE, VOICE SEARCH, HEALTHY FOOD, THEME, LOGOUT) */}
-          <div className={`header-actions-group flex flex-wrap items-center justify-start sm:justify-between gap-2 p-1.5 rounded-2xl min-w-0 ${pillGroupSurface}`}>
+          <div className="header-actions-group flex items-center gap-2 min-w-0">
             
             {/* User Profile / Sign In */}
             {currentUser ? (
               <div
-                className={`header-chip flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border min-w-0 ${
+                className={`header-chip flex items-center justify-center gap-2 px-3 py-1.5 rounded-full border min-w-0 text-xs sm:text-sm ${
                   currentTheme === 'high-contrast'
                     ? 'bg-black text-white border-yellow-400'
                     : currentTheme === 'dark'
-                    ? 'bg-slate-900 text-white border-slate-600'
-                    : 'bg-[#FFFFFF] text-[#111827] border-[#D1D5DB]'
+                    ? 'bg-zinc-800 text-white border-zinc-700'
+                    : 'bg-white text-zinc-800 border-rose-200/70 shadow-2xs'
                 }`}
                 title={`Signed in as ${currentUser.name}`}
               >
-                <div className="p-1.5 bg-[#FF5A1F] rounded-lg text-white shrink-0">
-                  <ShieldCheck className="w-5 h-5 text-white" />
+                <div className="p-1 bg-[#C82346] rounded-full text-white shrink-0">
+                  <ShieldCheck className="w-3.5 h-3.5 text-white" />
                 </div>
                 <span className="header-label-responsive font-bold leading-tight">
                   {currentUser.name}
@@ -1269,22 +1269,22 @@ export const Navbar: React.FC = () => {
                       speakText('Face ID registered!');
                     }
                   }}
-                  className="p-1.5 hover:bg-slate-100 rounded-lg text-[#FF5A1F] transition-colors cursor-pointer shrink-0"
+                  className="p-1 hover:bg-rose-50 rounded-full text-[#C82346] transition-colors cursor-pointer shrink-0"
                   title="Link Face ID (WebAuthn)"
                   aria-label="Link Face ID"
                 >
-                  <Scan className="w-5 h-5" />
+                  <Scan className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => setIsAuthGateOpen(true)}
-                className="header-btn flex items-center justify-center gap-2 bg-[#FF5A1F] text-white font-bold px-3.5 py-2.5 rounded-xl shadow-sm hover:bg-[#E04812] cursor-pointer"
+                className="header-btn flex items-center justify-center gap-2 bg-[#C82346] hover:bg-[#B31D3D] text-white font-bold px-5 py-2 rounded-full shadow-xs cursor-pointer text-xs sm:text-sm"
                 title="Sign In"
                 aria-label="Sign In"
               >
-                <LogIn className="w-6 h-6 shrink-0" />
+                <LogIn className="w-4 h-4 shrink-0" />
                 <span className="header-label-responsive">Sign In</span>
               </button>
             )}
@@ -1293,11 +1293,11 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsVoiceModalOpen(true)}
-              className="header-btn flex items-center justify-center gap-2 bg-[#FF5A1F] hover:bg-[#E04812] text-white font-bold px-3.5 py-2.5 rounded-xl shadow-sm transition-colors cursor-pointer"
+              className="header-btn flex items-center justify-center gap-1.5 bg-rose-50 hover:bg-rose-100/80 text-[#C82346] font-bold px-3.5 py-2 rounded-full border border-rose-200/80 shadow-2xs transition-all cursor-pointer text-xs sm:text-sm"
               title={t('search.voice')}
               aria-label={t('search.voice')}
             >
-              <Mic className="w-6 h-6 text-white shrink-0" />
+              <Mic className="w-4 h-4 text-[#C82346] shrink-0" />
               <span className="header-label-responsive leading-tight">{t('search.voice')}</span>
             </button>
 
@@ -1305,67 +1305,26 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsHealthModalOpen(true)}
-              className="header-btn flex items-center justify-center gap-2 bg-[#C2185B] hover:bg-[#A3134C] text-white font-bold px-3.5 py-2.5 rounded-xl shadow-sm transition-colors cursor-pointer border border-[#C2185B]"
+              className="header-btn flex items-center justify-center gap-1.5 bg-white hover:bg-rose-50 text-zinc-700 font-bold px-3.5 py-2 rounded-full border border-rose-200/70 shadow-2xs transition-all cursor-pointer text-xs sm:text-sm"
               title={t('nav.healthyFood')}
               aria-label={t('nav.healthyFood')}
             >
-              <HeartPulse className="w-6 h-6 text-yellow-300 shrink-0" />
+              <HeartPulse className="w-4 h-4 text-[#C82346] shrink-0" />
               <span className="header-label-responsive leading-tight">{t('nav.healthyFood')}</span>
             </button>
 
-            {/* Theme Selector */}
-            <div
-              className={`flex items-center gap-1.5 p-1 rounded-xl border shrink-0 ${
-                currentTheme === 'high-contrast'
-                  ? 'bg-black border-yellow-400'
-                  : currentTheme === 'dark'
-                  ? 'bg-slate-900 border-slate-600'
-                  : 'bg-[#FFFFFF] border-[#D1D5DB]'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => handleThemeChange('light')}
-                className={`header-btn px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-                  currentTheme === 'light'
-                    ? 'bg-[#FF5A1F] text-white shadow-xs'
-                    : currentTheme === 'dark'
-                    ? 'text-slate-200 hover:bg-slate-800'
-                    : 'text-white hover:bg-neutral-900'
-                }`}
-                title="Light Theme"
-                aria-label="Light Theme"
-              >
-                <Sun className="w-6 h-6" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleThemeChange('dark')}
-                className={`header-btn px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center shrink-0 ${
-                  currentTheme === 'dark'
-                    ? 'bg-[#FF5A1F] text-white shadow-xs'
-                    : currentTheme === 'light'
-                    ? 'text-[#111827] hover:bg-slate-100'
-                    : 'text-white hover:bg-neutral-900'
-                }`}
-                title="Dark Theme"
-                aria-label="Dark Theme"
-              >
-                <Moon className="w-6 h-6" />
-              </button>
-            </div>
-
             {/* Logout */}
-            <button
-              type="button"
-              onClick={logout}
-              className="header-btn px-3.5 py-2.5 bg-[#C2185B] hover:bg-[#A3134C] text-white font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0"
-              title="Logout"
-              aria-label="Logout"
-            >
-              <LogOut className="w-6 h-6 text-white shrink-0" />
-              <span className="header-label-responsive">Logout</span>
-            </button>
+            {currentUser && (
+              <button
+                type="button"
+                onClick={logout}
+                className="header-btn p-2 rounded-full text-zinc-500 hover:text-[#C82346] hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                title="Logout"
+                aria-label="Logout"
+              >
+                <LogOut className="w-4 h-4 shrink-0" />
+              </button>
+            )}
 
           </div>
 

@@ -1,13 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --color-tomato-orange: #FF5A1F;   /* Main CTA & Conversion */
-  --color-crimson-red: #C2185B;    /* Discount badges, Hot deals, Alerts */
-  --color-light-blue: #DAF0F7;     /* Structure, Header, Card backdrops */
-  --color-pure-white: #FFFFFF;     /* Listing grids & Body */
-  --color-espresso-black: #1A1110; /* Headings & Titles */
-  --color-charcoal-slate: #4A5568; /* Secondary text & descriptions */
-  --color-guacamole-green: #16A34A;/* Veg, Available, Order Delivered */
+  --color-primary-coral: #C82346;   /* Main Coral / Berry Red Accent */
+  --color-primary-hover: #B31D3D;   /* Darker hover state */
+  --color-primary-light: #FFF5F6;   /* Subtle soft blush backdrop */
+  --color-primary-border: #FCE7EB;  /* Light subtle rose-gray border */
+  --color-pure-white: #FFFFFF;      /* Clean White Card Surfaces */
+  --color-espresso-black: #1E1A1C;  /* Deep Charcoal Headings & Titles */
+  --color-charcoal-slate: #52525B;  /* Secondary text & descriptions */
+  --color-guacamole-green: #16A34A; /* Veg, Available, Order Delivered */
 }
 
 @layer base {
@@ -24,38 +25,44 @@
   }
 
   body {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    background-color: #FFFFFF;
-    color: #1A1110;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #FCF9F9;
+    color: #1E1A1C;
+    -webkit-font-smoothing: antialiased;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    color: #1A1110;
+    color: #1E1A1C;
   }
 }
 
-/* Custom Design System Utility Classes */
-.bg-brand-orange { background-color: #FF5A1F !important; }
-.hover\:bg-brand-orange-hover:hover { background-color: #E04812 !important; }
-.text-brand-orange { color: #FF5A1F !important; }
-.border-brand-orange { border-color: #FF5A1F !important; }
-.shadow-brand-orange { box-shadow: 0 10px 25px -5px rgba(255, 90, 31, 0.4) !important; }
+/* Typography Helpers */
+.font-display {
+  font-family: 'Playfair Display', Georgia, serif;
+}
 
-.bg-crimson-red { background-color: #C2185B !important; }
-.text-crimson-red { color: #C2185B !important; }
-.border-crimson-red { border-color: #C2185B !important; }
+/* Custom Design System Utility Classes (Harmonized with Coral & Off-White Palette) */
+.bg-brand-orange { background-color: #C82346 !important; }
+.hover\:bg-brand-orange-hover:hover { background-color: #B31D3D !important; }
+.text-brand-orange { color: #C82346 !important; }
+.border-brand-orange { border-color: #C82346 !important; }
+.shadow-brand-orange { box-shadow: 0 10px 25px -5px rgba(200, 35, 70, 0.25) !important; }
 
-.bg-light-blue { background-color: #DAF0F7 !important; }
-.text-light-blue { color: #DAF0F7 !important; }
-.border-light-blue { border-color: #B2E2F0 !important; }
+.bg-crimson-red { background-color: #C82346 !important; }
+.text-crimson-red { color: #C82346 !important; }
+.border-crimson-red { border-color: #C82346 !important; }
+
+.bg-light-blue { background-color: #FFF5F6 !important; }
+.text-light-blue { color: #FFF5F6 !important; }
+.border-light-blue { border-color: #FCE7EB !important; }
 
 .bg-pure-white { background-color: #FFFFFF !important; }
 
-.text-espresso-black { color: #1A1110 !important; }
-.bg-espresso-black { background-color: #1A1110 !important; }
+.text-espresso-black { color: #1E1A1C !important; }
+.bg-espresso-black { background-color: #1E1A1C !important; }
 
-.text-charcoal-slate { color: #4A5568 !important; }
-.bg-charcoal-slate { background-color: #4A5568 !important; }
+.text-charcoal-slate { color: #52525B !important; }
+.bg-charcoal-slate { background-color: #52525B !important; }
 
 .bg-guacamole-green { background-color: #16A34A !important; }
 .text-guacamole-green { color: #16A34A !important; }

@@ -70,99 +70,99 @@ export const AccessibilityToolbar: React.FC = () => {
     currentTheme === 'high-contrast'
       ? 'bg-black text-white border-2 border-yellow-400'
       : currentTheme === 'dark'
-      ? 'bg-slate-800 text-white border border-slate-600 shadow-sm'
-      : 'bg-[#FFFFFF] text-[#111827] border border-[#D1D5DB] shadow-sm';
+      ? 'bg-zinc-800 text-white border border-zinc-700 shadow-xs'
+      : 'bg-white text-zinc-900 border border-rose-100/80 shadow-xs';
 
   const labelTextClass =
     currentTheme === 'high-contrast' || currentTheme === 'dark'
       ? 'text-white'
-      : 'text-[#111827]';
+      : 'text-zinc-700';
 
   const unselectedOptionClass =
     currentTheme === 'high-contrast'
       ? 'bg-black text-white hover:bg-neutral-900 border border-yellow-400'
       : currentTheme === 'dark'
-      ? 'bg-slate-800 text-white hover:bg-slate-700'
-      : 'bg-[#FFFFFF] text-[#111827] hover:bg-slate-100';
+      ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+      : 'bg-transparent text-zinc-700 hover:bg-rose-50/60';
 
   return (
     <div
-      className={`accessibility-bar py-2.5 px-2 sm:px-4 lg:px-6 shadow-xs w-full transition-colors duration-200 ${
+      className={`accessibility-bar py-2 px-3 sm:px-6 w-full transition-colors duration-200 border-b ${
         currentTheme === 'high-contrast'
-          ? 'bg-black text-white border-b-2 border-yellow-400'
+          ? 'bg-black text-white border-yellow-400'
           : currentTheme === 'dark'
-          ? 'bg-slate-900 text-slate-100 border-b border-slate-800'
-          : 'bg-[#DAF0F7] text-[#111827] border-b border-[#B2E2F0]'
+          ? 'bg-zinc-900/95 text-zinc-100 border-zinc-800 backdrop-blur-md'
+          : 'bg-white/95 text-zinc-900 border-rose-100/70 backdrop-blur-md shadow-xs'
       }`}
     >
-      <div className="accessibility-container w-full max-w-full mx-auto flex flex-col justify-center min-w-0">
+      <div className="accessibility-container w-full max-w-7xl mx-auto flex flex-col justify-center min-w-0">
         
         {/* DISPLAY AND ACCESSIBILITY SETTINGS ROW */}
-        <div className="flex flex-wrap items-stretch justify-start gap-2.5 sm:gap-3 font-bold min-w-0 w-full">
+        <div className="flex flex-wrap items-center justify-start sm:justify-between gap-2.5 font-bold min-w-0 w-full text-xs sm:text-sm">
           
           {/* Title Label Pill */}
-          <div className={`a11y-group flex items-center justify-center gap-2 px-3.5 py-2 rounded-2xl min-h-[48px] ${pillGroupSurface}`}>
-            <Sparkles className="w-6 h-6 text-[#FF5A1F] shrink-0" />
-            <span className={`a11y-label font-bold tracking-wide uppercase leading-tight ${labelTextClass}`}>
+          <div className={`a11y-group inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full ${pillGroupSurface}`}>
+            <Sparkles className="w-4 h-4 text-[#C82346] shrink-0" />
+            <span className={`a11y-label font-extrabold tracking-wide text-xs uppercase leading-tight ${labelTextClass}`}>
               {t('nav.accessibility')}:
             </span>
           </div>
 
           {/* 🌐 1. LANGUAGE SELECTION OPTIONS */}
-          <div className={`a11y-group flex flex-wrap items-center justify-start gap-2 p-1.5 rounded-2xl ${pillGroupSurface}`}>
-            <div className="flex items-center gap-1.5 px-2 shrink-0">
-              <Globe className="w-6 h-6 text-[#FF5A1F] shrink-0" />
-              <span className={`a11y-label font-bold leading-tight ${labelTextClass}`}>Lang:</span>
+          <div className={`a11y-group flex flex-wrap items-center justify-start gap-1 p-1 rounded-full ${pillGroupSurface}`}>
+            <div className="flex items-center gap-1.5 px-2.5 shrink-0">
+              <Globe className="w-4 h-4 text-[#C82346] shrink-0" />
+              <span className={`a11y-label font-bold text-xs ${labelTextClass}`}>Lang:</span>
             </div>
             
             <button
               type="button"
               onClick={() => handleLanguageSelect('en')}
-              className={`flex-1 px-3.5 py-2.5 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center ${
+              className={`px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer flex items-center justify-center text-xs ${
                 language === 'en'
-                  ? 'bg-[#FF5A1F] text-white shadow-sm'
+                  ? 'bg-[#C82346] text-white shadow-xs'
                   : unselectedOptionClass
               }`}
               title="Switch to English"
             >
-              🇬🇧 English
+              EN
             </button>
 
             <button
               type="button"
               onClick={() => handleLanguageSelect('ta')}
-              className={`flex-1 px-3.5 py-2.5 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center ${
+              className={`px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer flex items-center justify-center text-xs ${
                 language === 'ta'
-                  ? 'bg-[#FF5A1F] text-white shadow-sm'
+                  ? 'bg-[#C82346] text-white shadow-xs'
                   : unselectedOptionClass
               }`}
               title="Switch to Tamil (தமிழ்)"
             >
-              🇮🇳 தமிழ்
+              தமிழ்
             </button>
 
             <button
               type="button"
               onClick={() => handleLanguageSelect('hi')}
-              className={`flex-1 px-3.5 py-2.5 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center ${
+              className={`px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer flex items-center justify-center text-xs ${
                 language === 'hi'
-                  ? 'bg-[#FF5A1F] text-white shadow-sm'
+                  ? 'bg-[#C82346] text-white shadow-xs'
                   : unselectedOptionClass
               }`}
               title="Switch to Hindi (हिन्दी)"
             >
-              🇮🇳 हिन्दी
+              हिन्दी
             </button>
 
             <button
               type="button"
               onClick={() => setIsLanguageModalOpen(true)}
-              className={`flex-1 px-3.5 py-2.5 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center border ${
+              className={`px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer flex items-center justify-center text-xs border border-rose-200 hover:bg-rose-50 ${
                 currentTheme === 'high-contrast'
                   ? 'bg-yellow-400 text-black border-white'
                   : currentTheme === 'dark'
-                  ? 'bg-amber-500 text-slate-950 border-amber-400 hover:bg-amber-400'
-                  : 'bg-amber-100 text-[#111827] border-amber-400 hover:bg-amber-200'
+                  ? 'bg-zinc-800 text-zinc-100 hover:bg-zinc-700'
+                  : 'bg-rose-50 text-[#C82346]'
               }`}
               title="Open Language Selector Dialog"
             >
@@ -171,66 +171,66 @@ export const AccessibilityToolbar: React.FC = () => {
           </div>
 
           {/* 🎨 2. THEME SELECTION OPTIONS */}
-          <div className={`a11y-group flex flex-wrap items-center justify-start gap-2 p-1.5 rounded-2xl ${pillGroupSurface}`}>
-            <span className={`a11y-label font-bold px-2 leading-tight shrink-0 ${labelTextClass}`}>Theme:</span>
+          <div className={`a11y-group flex flex-wrap items-center justify-start gap-1 p-1 rounded-full ${pillGroupSurface}`}>
+            <span className={`a11y-label font-bold px-2.5 text-xs shrink-0 ${labelTextClass}`}>Theme:</span>
 
             <button
               type="button"
               onClick={() => handleThemeChange('light')}
-              className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer text-xs ${
                 currentTheme === 'light'
-                  ? 'bg-[#FF5A1F] text-white shadow-sm'
+                  ? 'bg-[#C82346] text-white shadow-xs'
                   : unselectedOptionClass
               }`}
               title="Light Mode Theme"
             >
-              <Sun className="w-6 h-6 shrink-0" />
+              <Sun className="w-3.5 h-3.5 shrink-0" />
               <span>Light</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleThemeChange('dark')}
-              className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer text-xs ${
                 currentTheme === 'dark'
-                  ? 'bg-[#FF5A1F] text-white shadow-sm'
+                  ? 'bg-[#C82346] text-white shadow-xs'
                   : unselectedOptionClass
               }`}
               title="Dark Mode Theme"
             >
-              <Moon className="w-6 h-6 shrink-0" />
+              <Moon className="w-3.5 h-3.5 shrink-0" />
               <span>Dark</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleThemeChange('high-contrast')}
-              className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-bold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer text-xs ${
                 currentTheme === 'high-contrast'
-                  ? 'bg-yellow-400 text-black shadow-sm border-2 border-white'
+                  ? 'bg-yellow-400 text-black shadow-xs border border-white'
                   : unselectedOptionClass
               }`}
               title="High Contrast Accessibility Theme"
             >
-              <Eye className="w-6 h-6 shrink-0" />
+              <Eye className="w-3.5 h-3.5 shrink-0" />
               <span>High Contrast</span>
             </button>
           </div>
 
           {/* 🔤 3. TEXT SIZE SCALE */}
-          <div className={`a11y-group flex flex-wrap items-center justify-start gap-2 p-1.5 rounded-2xl ${pillGroupSurface}`}>
-            <div className="flex items-center gap-1.5 px-2 shrink-0">
-              <Type className="w-6 h-6 text-[#FF5A1F] shrink-0" />
-              <span className={`a11y-label font-bold leading-tight ${labelTextClass}`}>Size:</span>
+          <div className={`a11y-group flex flex-wrap items-center justify-start gap-1 p-1 rounded-full ${pillGroupSurface}`}>
+            <div className="flex items-center gap-1 px-2 shrink-0">
+              <Type className="w-3.5 h-3.5 text-[#C82346] shrink-0" />
+              <span className={`a11y-label font-bold text-xs ${labelTextClass}`}>Size:</span>
             </div>
             {(['sm', 'md', 'lg', 'xl'] as const).map(size => (
               <button
                 key={size}
                 type="button"
                 onClick={() => handleTextSizeChange(size)}
-                className={`flex-1 min-w-[48px] px-3.5 py-2.5 rounded-xl uppercase font-bold transition-all flex items-center justify-center cursor-pointer ${
+                className={`px-2.5 py-1 rounded-full uppercase font-bold transition-all flex items-center justify-center cursor-pointer text-xs ${
                   accessibilitySettings.textSize === size
-                    ? 'bg-[#FF5A1F] text-white shadow-sm'
+                    ? 'bg-[#C82346] text-white shadow-xs'
                     : unselectedOptionClass
                 }`}
               >
@@ -243,19 +243,19 @@ export const AccessibilityToolbar: React.FC = () => {
           <button
             type="button"
             onClick={handleAutoVoiceToggle}
-            className={`a11y-group flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl font-bold transition-all cursor-pointer ${
+            className={`a11y-group inline-flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-full font-bold transition-all cursor-pointer text-xs ${
               autoVoicePromptEnabled
-                ? 'bg-[#16A34A] text-white border border-[#15803D] shadow-sm'
+                ? 'bg-emerald-600 text-white shadow-xs'
                 : pillGroupSurface
             }`}
             title="Toggle Automatic Voice Prompt on Search"
           >
             {autoVoicePromptEnabled ? (
-              <Volume2 className="w-6 h-6 text-yellow-200 shrink-0" />
+              <Volume2 className="w-4 h-4 text-emerald-100 shrink-0" />
             ) : (
-              <VolumeX className="w-6 h-6 shrink-0" />
+              <VolumeX className="w-4 h-4 shrink-0 text-zinc-400" />
             )}
-            <span className="leading-tight">Auto Voice: {autoVoicePromptEnabled ? 'ON' : 'OFF'}</span>
+            <span className="leading-tight">Voice: {autoVoicePromptEnabled ? 'ON' : 'OFF'}</span>
           </button>
 
         </div>

@@ -546,7 +546,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                 className="p-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-400 rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
                 title={t('addToCart')}
               >
-                <ShoppingBag className="w-5 h-5 text-[#FF5A1F]" />
+                <ShoppingBag className="w-5 h-5 text-[#C82346]" />
                 <span>{t('addToCart')}</span>
                 <span className="text-[10px] opacity-90">+ Shared Cart</span>
               </button>

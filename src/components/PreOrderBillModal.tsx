@@ -248,7 +248,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
       <div className={`relative w-full max-w-lg max-h-[94vh] flex flex-col rounded-3xl p-4 sm:p-6 shadow-2xl transition-all border-4 overflow-hidden ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-yellow-400'
-          : 'bg-white text-[#1A1110] border-[#FF5A1F]'
+          : 'bg-white text-[#1A1110] border-[#C82346]'
       }`}>
 
         {/* Close Button */}
@@ -266,11 +266,11 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
 
         {/* Header (Fixed Top) */}
         <div className="flex items-center space-x-3 mb-3 pr-8 shrink-0">
-          <div className="p-2.5 bg-[#FF5A1F]/10 rounded-2xl border border-[#FF5A1F]/30 text-[#FF5A1F] shrink-0">
-            <FileText className="w-6 h-6 text-[#FF5A1F]" />
+          <div className="p-2.5 bg-[#C82346]/10 rounded-2xl border border-[#C82346]/30 text-[#C82346] shrink-0">
+            <FileText className="w-6 h-6 text-[#C82346]" />
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#FF5A1F] bg-[#FF5A1F]/10 px-2.5 py-0.5 rounded-full inline-block truncate max-w-full">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#C82346] bg-[#C82346]/10 px-2.5 py-0.5 rounded-full inline-block truncate max-w-full">
               {language === 'ta' ? 'GST இன்வாய்ஸ் விவரம்' : language === 'hi' ? 'जीएसटी चालान विवरण' : 'Official GST Tax Invoice Preview'}
             </span>
             <h2 className="text-lg sm:text-xl font-black text-[#1A1110] dark:text-white mt-0.5 truncate">
@@ -283,9 +283,9 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
         <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 my-1 text-xs">
           
           {/* Delivery Address & ETA Badge */}
-          <div className="bg-[#DAF0F7]/40 dark:bg-slate-900/60 p-3 rounded-2xl border border-[#B2E2F0] dark:border-slate-800 flex items-center justify-between text-xs gap-2">
+          <div className="bg-[#FFF5F6]/40 dark:bg-slate-900/60 p-3 rounded-2xl border border-[#FCE7EB] dark:border-slate-800 flex items-center justify-between text-xs gap-2">
             <div className="flex items-center space-x-2 text-[#4A5568] dark:text-slate-300 font-bold min-w-0 truncate">
-              <MapPin className="w-4 h-4 text-[#FF5A1F] shrink-0" />
+              <MapPin className="w-4 h-4 text-[#C82346] shrink-0" />
               <span className="truncate">{bill.deliveryAddress}</span>
             </div>
             <div className="flex items-center space-x-1 shrink-0 text-[#16A34A] font-black bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200">
@@ -302,7 +302,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             {bill.items.map((item, idx) => (
               <div key={idx} className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
                 <div className="flex items-center space-x-2.5 min-w-0">
-                  <span className="w-6 h-6 rounded-lg bg-[#FF5A1F] text-white font-black text-xs flex items-center justify-center shrink-0">
+                  <span className="w-6 h-6 rounded-lg bg-[#C82346] text-white font-black text-xs flex items-center justify-center shrink-0">
                     {item.quantity}x
                   </span>
                   <div className="min-w-0">
@@ -343,7 +343,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
               <span>₹{bill.platformFee.toFixed(2)}</span>
             </div>
             <div className="pt-2 border-t border-slate-300 dark:border-slate-700 flex items-center justify-between text-sm sm:text-base font-black text-[#1A1110] dark:text-white">
-              <span className="text-[#FF5A1F]">{language === 'ta' ? 'மொத்தத் தொகை (GST உடன்):' : language === 'hi' ? 'कुल योग (GST सहित):' : 'Grand Total (with GST):'}</span>
+              <span className="text-[#C82346]">{language === 'ta' ? 'மொத்தத் தொகை (GST உடன்):' : language === 'hi' ? 'कुल योग (GST सहित):' : 'Grand Total (with GST):'}</span>
               <span className="text-[#16A34A] text-lg sm:text-xl font-mono">₹{bill.grandTotal}</span>
             </div>
           </div>
@@ -394,8 +394,8 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             aria-busy={isChecking}
             className={`w-full sm:w-2/3 py-3 px-5 font-black rounded-2xl text-xs sm:text-sm shadow-lg transition-transform active:scale-95 flex items-center justify-center space-x-2 ${
               isChecking
-                ? 'bg-[#FF5A1F]/60 text-white cursor-not-allowed'
-                : 'bg-[#FF5A1F] hover:bg-[#E04812] text-white shadow-[#FF5A1F]/30 cursor-pointer'
+                ? 'bg-[#C82346]/60 text-white cursor-not-allowed'
+                : 'bg-[#C82346] hover:bg-[#B31D3D] text-white shadow-[#C82346]/30 cursor-pointer'
             }`}
           >
             {isChecking ? (

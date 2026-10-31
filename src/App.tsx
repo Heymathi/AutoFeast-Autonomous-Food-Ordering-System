@@ -27,6 +27,7 @@ import { ScheduleCartModal } from './components/ScheduleCartModal';
 import { SpeechDebugPanel } from './components/SpeechDebugPanel';
 import { NomineeSetupScreen } from './components/NomineeSetupScreen';
 import { NomineePortalPage } from './components/NomineePortalPage';
+import { HeroSection } from './components/HeroSection';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Volume2, Sparkles, Clock, ShoppingBag } from 'lucide-react';
 
@@ -92,8 +93,8 @@ const MainLayout: React.FC = () => {
       currentTheme === 'high-contrast'
         ? 'high-contrast-mode bg-black text-white'
         : currentTheme === 'dark'
-        ? 'bg-slate-900 text-slate-100'
-        : 'bg-[#FFFFFF] text-[#1A1110]'
+        ? 'bg-zinc-900 text-zinc-100'
+        : 'bg-[#FCF9F9] text-[#1E1A1C]'
     }`}>
 
       {/* Dev Debug Speech Controller Panel */}
@@ -113,7 +114,7 @@ const MainLayout: React.FC = () => {
         <div className="fixed bottom-6 right-6 z-40 animate-bounce">
           <button
             onClick={() => setIsScheduleCartModalOpen(true)}
-            className="px-5 py-3.5 bg-[#FF5A1F] hover:bg-[#E04812] text-white font-black rounded-full shadow-2xl border-2 border-white flex items-center space-x-3 cursor-pointer"
+            className="px-6 py-3.5 bg-[#C82346] hover:bg-[#B31D3D] text-white font-black rounded-full shadow-2xl border-2 border-white flex items-center space-x-3 cursor-pointer hover:scale-105 transition-all"
           >
             <ShoppingBag className="w-5 h-5 text-white" />
             <span className="text-xs sm:text-sm">Checkout Schedule Cart ({scheduleCart.length} items)</span>
@@ -133,7 +134,12 @@ const MainLayout: React.FC = () => {
           </ErrorBoundary>
         ) : (
           <>
-            {activeView === 'search' && <DynamicFoodSearch />}
+            {activeView === 'search' && (
+              <>
+                <HeroSection />
+                <DynamicFoodSearch />
+              </>
+            )}
             {activeView === 'scheduler' && <AutoOrderScheduler />}
             {activeView === 'wallet' && <WalletModal />}
             {activeView === 'orders' && <OrderHistoryModal />}
@@ -229,13 +235,13 @@ const MainLayout: React.FC = () => {
 
 
       {/* Footer */}
-      <footer className="bg-[#1A1110] text-slate-300 border-t border-[#DAF0F7]/20 py-6 text-center text-xs">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 font-bold">
+      <footer className="bg-[#181516] text-zinc-400 border-t border-rose-900/20 py-8 text-center text-xs">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 font-semibold">
           <div className="flex items-center space-x-2">
-            <Sparkles className="w-4 h-4 text-[#FF5A1F]" />
-            <span className="font-extrabold text-white">AI-Powered Smart Food Scheduling System</span>
+            <Sparkles className="w-4 h-4 text-[#C82346]" />
+            <span className="font-extrabold text-white text-sm">AutoFeast AI • Smart Autonomous Food Scheduling</span>
           </div>
-          <p>© 2026 Accessibility-First Food Ordering Platform • English | Tamil | Hindi</p>
+          <p className="text-zinc-400">© 2026 Accessibility-First Food Ordering Platform • English | தமிழ் | हिन्दी</p>
         </div>
       </footer>
 

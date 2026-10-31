@@ -108,7 +108,7 @@ export const PlatformComparisonSection: React.FC<PlatformComparisonSectionProps>
       <div className="flex items-center justify-between text-xs font-black uppercase text-[#4A5568] dark:text-slate-400 tracking-wider">
         <span>{label}</span>
         {!loading && rows.length > 0 && (
-          <span className="text-[#C2185B] font-black bg-[#C2185B]/10 px-2 py-0.5 rounded-full normal-case tracking-normal">
+          <span className="text-[#C82346] font-black bg-[#C82346]/10 px-2 py-0.5 rounded-full normal-case tracking-normal">
             {saveLabel} ₹{max - min}
           </span>
         )}
@@ -134,7 +134,7 @@ export const PlatformComparisonSection: React.FC<PlatformComparisonSectionProps>
                 className={`relative p-2.5 rounded-[14px] border-2 flex flex-col justify-between min-w-0 ${
                   isBest
                     ? 'bg-[#16A34A]/10 border-[#16A34A]'
-                    : 'bg-[#DAF0F7]/40 dark:bg-slate-800 border-[#B2E2F0] dark:border-slate-700'
+                    : 'bg-[#FFF5F6]/40 dark:bg-slate-800 border-[#FCE7EB] dark:border-slate-700'
                 }`}
               >
                 {isBest && (
@@ -147,7 +147,7 @@ export const PlatformComparisonSection: React.FC<PlatformComparisonSectionProps>
                   <span className="text-[11px] text-[#4A5568] dark:text-slate-300 font-bold shrink-0">★ {r.rating}</span>
                 </div>
                 <div className="flex items-baseline justify-between mt-1.5">
-                  <span className="text-sm font-black text-[#FF5A1F]">₹{r.price}</span>
+                  <span className="text-sm font-black text-[#C82346]">₹{r.price}</span>
                   <span className="text-[10px] text-[#4A5568] dark:text-slate-400 line-through">₹{r.original}</span>
                 </div>
               </div>
