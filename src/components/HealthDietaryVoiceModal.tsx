@@ -266,12 +266,12 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
 
         {/* Modal Header */}
         <div className="flex items-center space-x-3">
-          <div className="p-3 bg-[#F1DEDC] dark:bg-rose-950 text-[#8B1E2D] rounded-2xl">
-            <HeartPulse className="w-7 h-7 text-[#8B1E2D] animate-pulse" />
+          <div className="p-3 bg-[#FBE9E5] dark:bg-rose-950 text-[#D93636] rounded-2xl">
+            <HeartPulse className="w-7 h-7 text-[#D93636] animate-pulse" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-black uppercase text-[#8B1E2D] tracking-wider">
+              <span className="text-xs font-black uppercase text-[#D93636] tracking-wider">
                 {language === 'ta' ? 'உடல்நல & உணவு வழிகாட்டி' : language === 'hi' ? 'स्वास्थ्य और आहार सलाहकार' : 'Health & Dietary AI Guide'}
               </span>
               <span className="bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full border border-emerald-400 flex items-center gap-1">
@@ -300,7 +300,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         {/* STEP 1: Speak Condition */}
         {step === 'speak_condition' && (
           <div className="space-y-4">
-            <div className="bg-[#F8EBE9] dark:bg-slate-800/80 p-5 rounded-2xl border border-[#E7D9D6] text-center space-y-2">
+            <div className="bg-[#FBE9E5] dark:bg-slate-800/80 p-5 rounded-2xl border border-[#F0E5DC] text-center space-y-2">
               <p className="text-base font-black text-slate-900 dark:text-white leading-relaxed">
                 {language === 'ta'
                   ? 'உங்களுக்கு அல்லது உங்கள் குடும்பத்தினருக்கு (அப்பா/அம்மா/தாத்தா/பாட்டி) என்ன உடல்நல சவால்கள் உள்ளன? பேசவும்!'
@@ -329,7 +329,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
               </button>
 
               {liveTranscript && (
-                <p className="text-xs text-center text-[#8B1E2D] dark:text-rose-400 font-black bg-[#F8EBE9] dark:bg-slate-800 p-2 rounded-xl w-full border border-[#E7D9D6]">
+                <p className="text-xs text-center text-[#D93636] dark:text-rose-400 font-black bg-[#FBE9E5] dark:bg-slate-800 p-2 rounded-xl w-full border border-[#F0E5DC]">
                   Detected Speech: "{liveTranscript}"
                 </p>
               )}
@@ -350,7 +350,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                   <button
                     key={idx}
                     onClick={() => handleAnalyzeHealthText(language === 'ta' ? ex.labelTa : ex.labelEn)}
-                    className="p-2.5 bg-slate-100 hover:bg-[#F1DEDC] dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-left cursor-pointer transition-all border border-slate-200 dark:border-slate-700"
+                    className="p-2.5 bg-slate-100 hover:bg-[#FBE9E5] dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-left cursor-pointer transition-all border border-slate-200 dark:border-slate-700"
                   >
                     {language === 'ta' ? ex.labelTa : ex.labelEn}
                   </button>
@@ -363,8 +363,8 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         {/* STEP 2: Analyzing */}
         {step === 'analyzing' && (
           <div className="py-12 flex flex-col items-center justify-center space-y-4 text-center">
-            <div className="p-4 bg-[#F1DEDC] dark:bg-slate-800 rounded-full animate-bounce">
-              <Sparkles className="w-10 h-10 text-[#8B1E2D] dark:text-rose-400" />
+            <div className="p-4 bg-[#FBE9E5] dark:bg-slate-800 rounded-full animate-bounce">
+              <Sparkles className="w-10 h-10 text-[#D93636] dark:text-rose-400" />
             </div>
             <p className="text-lg font-black text-slate-900 dark:text-white">
               {language === 'ta'
@@ -470,7 +470,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                     startListeningForItemSelection(analysisResult.suggestions.map(s => s.foodItem));
                   }
                 }}
-                className="text-xs font-bold text-[#8B1E2D] underline cursor-pointer"
+                className="text-xs font-bold text-[#D93636] underline cursor-pointer"
               >
                 {language === 'ta' ? 'மாற்று' : 'Change Item'}
               </button>
@@ -546,7 +546,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                 className="p-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-400 rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
                 title={t('addToCart')}
               >
-                <ShoppingBag className="w-5 h-5 text-[#8B1E2D]" />
+                <ShoppingBag className="w-5 h-5 text-[#D93636]" />
                 <span>{t('addToCart')}</span>
                 <span className="text-[10px] opacity-90">+ Shared Cart</span>
               </button>

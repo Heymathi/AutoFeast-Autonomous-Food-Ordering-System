@@ -1,26 +1,24 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import {
-  Globe2,
-  MapPin,
-  Type,
-  SunMoon,
   Mic,
-  Calendar,
-  HeartPulse,
-  Search,
   Sparkles,
-  PackageCheck,
+  HeartPulse,
+  Calendar,
+  Receipt,
+  BarChart3,
   Wallet,
-  Bike,
-  History,
-  ShoppingCart,
-  ShieldAlert,
+  ShieldCheck,
+  Lock,
+  Users,
   Building2,
-  ChevronRight,
-  Navigation,
-  Check,
-  Edit3
+  Bike,
+  ShoppingBag,
+  Globe2,
+  Type,
+  Sun,
+  Moon,
+  ArrowRight
 } from 'lucide-react';
 import { Language } from '../types';
 
@@ -28,9 +26,6 @@ export const FeaturesPage: React.FC = () => {
   const {
     language,
     setLanguage,
-    userLocation,
-    setIsLocationModalOpen,
-    fetchLiveGpsLocation,
     accessibilitySettings,
     setTextSize,
     setThemeMode,
@@ -41,9 +36,6 @@ export const FeaturesPage: React.FC = () => {
     setIsNomineeModalOpen,
     setIsLimitRenewalModalOpen,
     setIsScheduleCartModalOpen,
-    walletBalance,
-    dailyOrderCount,
-    scheduleCart,
     t
   } = useApp();
 
@@ -51,347 +43,124 @@ export const FeaturesPage: React.FC = () => {
     accessibilitySettings.themeMode ||
     (accessibilitySettings.highContrast ? 'high-contrast' : 'light');
 
-  const languages: { code: Language; name: string; native: string }[] = [
-    { code: 'en', name: 'English', native: 'English' },
-    { code: 'ta', name: 'Tamil', native: 'தமிழ்' },
-    { code: 'hi', name: 'Hindi', native: 'हिन्दी' }
-  ];
-
-  const fontSizes: { size: 'sm' | 'md' | 'lg' | 'xl'; label: string }[] = [
-    { size: 'sm', label: 'Small' },
-    { size: 'md', label: 'Medium' },
-    { size: 'lg', label: 'Large' },
-    { size: 'xl', label: 'Extra Large' }
-  ];
-
-  const themes: { mode: 'light' | 'dark' | 'high-contrast'; label: string }[] = [
-    { mode: 'light', label: 'Light' },
-    { mode: 'dark', label: 'Dark' },
-    { mode: 'high-contrast', label: 'High Contrast' }
-  ];
-
   return (
-    <div className="w-full max-w-6xl mx-auto py-8 sm:py-12 px-4 sm:px-6 space-y-12 animate-fade-in">
-      {/* Page Header */}
+    <div className="w-full max-w-6xl mx-auto py-8 sm:py-12 px-4 sm:px-6 space-y-12 sm:space-y-16 animate-fade-in pb-16">
+      {/* Page Header matching PDF Page 2 */}
       <div className="text-center space-y-3 max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold tracking-wide">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Complete Platform Capabilities</span>
-        </div>
-        <h1 className="font-serif-editorial text-3xl sm:text-5xl font-bold text-[#302720] tracking-tight">
-          {t('features.title') || 'Application Features & Settings'}
+        <h1 className="font-serif-editorial text-3xl sm:text-5xl font-bold text-[#33251F] tracking-tight leading-tight">
+          Everything you need to{' '}
+          <span className="text-[#D93636]">order smarter</span>
         </h1>
-        <p className="text-sm sm:text-base text-[#786E64] leading-relaxed">
-          Configure language, accessibility, address, food features, and manage your account settings in one central hub.
+        <p className="text-sm sm:text-base text-[#8A817A] leading-relaxed">
+          AutoFeast AI brings together voice, intelligence, and safety to make every meal effortless.
         </p>
       </div>
 
       {/* =========================================================================
-          SECTION A – PERSONALIZATION AND ACCESSIBILITY
+          GROUP 1 – DISCOVER & RECOMMEND
           ========================================================================= */}
-      <section className="space-y-6">
-        <div className="border-b border-[#E7D9D6] pb-3 flex items-center justify-between">
-          <div>
-            <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#302720] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#8B1E2D]"></span>
-              {t('features.personalization') || 'Personalization & Accessibility'}
-            </h2>
-            <p className="text-xs sm:text-sm text-[#786E64]">
-              Configure language, address, typography scale, and theme preferences.
-            </p>
-          </div>
+      <section className="space-y-5">
+        <div className="border-b border-[#F0E5DC] pb-2.5">
+          <h2 className="font-bold text-lg sm:text-xl text-[#33251F]">
+            Discover & Recommend
+          </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* 1. Language Selection */}
-          <div className={`p-6 rounded-2xl border shadow-xs space-y-4 ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <Globe2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-[#302720]">Application Language</h3>
-                <p className="text-xs text-[#786E64]">English, Tamil, and Hindi with full feature parity</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5 pt-2">
-              {languages.map((lang) => (
-                <button
-                  key={lang.code}
-                  type="button"
-                  onClick={() => setLanguage(lang.code)}
-                  className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
-                    language === lang.code
-                      ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-xs'
-                      : currentTheme === 'dark'
-                      ? 'bg-zinc-700 text-zinc-200 border-zinc-600 hover:bg-zinc-600'
-                      : 'bg-[#F8EBE9] text-[#302720] border-[#E7D9D6] hover:bg-[#F1DEDC]/50'
-                  }`}
-                >
-                  <span className="text-xs">{lang.native}</span>
-                  <span className={`text-[10px] ${language === lang.code ? 'text-white/80' : 'text-[#786E64]'}`}>
-                    {lang.name}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 2. Address & Location Management */}
-          <div className={`p-6 rounded-2xl border shadow-xs space-y-4 ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <MapPin className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-[#302720]">Delivery Location</h3>
-                <p className="text-xs text-[#786E64]">Current delivery address & GPS position</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-[#F8EBE9] border border-[#E7D9D6] flex items-center justify-between">
-              <div className="min-w-0 flex-1 pr-3">
-                <span className="text-[11px] text-[#786E64] block font-medium">Saved Location</span>
-                <p className="text-xs sm:text-sm font-bold text-[#302720] truncate">
-                  {userLocation.area === 'Location not set'
-                    ? 'Location not set'
-                    : `📍 ${userLocation.area}, ${userLocation.city}`}
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={fetchLiveGpsLocation}
-                  title="Detect GPS"
-                  className="p-2 rounded-lg bg-white border border-[#E7D9D6] text-[#8B1E2D] hover:bg-[#F1DEDC] transition-colors cursor-pointer"
-                >
-                  <Navigation className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsLocationModalOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-[#8B1E2D] hover:bg-[#302720] text-white text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Change</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Website Font Size */}
-          <div className={`p-6 rounded-2xl border shadow-xs space-y-4 ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <Type className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-[#302720]">Website Font Size</h3>
-                <p className="text-xs text-[#786E64]">Accessibility text scaling (Small to XL)</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 gap-2 pt-2">
-              {fontSizes.map((f) => (
-                <button
-                  key={f.size}
-                  type="button"
-                  onClick={() => setTextSize(f.size)}
-                  className={`py-2 px-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                    accessibilitySettings.textSize === f.size
-                      ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-xs'
-                      : currentTheme === 'dark'
-                      ? 'bg-zinc-700 text-zinc-200 border-zinc-600 hover:bg-zinc-600'
-                      : 'bg-[#F8EBE9] text-[#302720] border-[#E7D9D6] hover:bg-[#F1DEDC]/50'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 4. Website Theme */}
-          <div className={`p-6 rounded-2xl border shadow-xs space-y-4 ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <SunMoon className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-[#302720]">Theme Appearance</h3>
-                <p className="text-xs text-[#786E64]">Light, Dark, and High-Contrast Accessibility</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5 pt-2">
-              {themes.map((th) => (
-                <button
-                  key={th.mode}
-                  type="button"
-                  onClick={() => {
-                    if (th.mode === 'high-contrast') {
-                      setHighContrast(true);
-                      setThemeMode('high-contrast');
-                    } else {
-                      setHighContrast(false);
-                      setThemeMode(th.mode);
-                    }
-                  }}
-                  className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                    currentTheme === th.mode
-                      ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-xs'
-                      : currentTheme === 'dark'
-                      ? 'bg-zinc-700 text-zinc-200 border-zinc-600 hover:bg-zinc-600'
-                      : 'bg-[#F8EBE9] text-[#302720] border-[#E7D9D6] hover:bg-[#F1DEDC]/50'
-                  }`}
-                >
-                  {th.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* =========================================================================
-          SECTION B – FOOD AND AI FEATURES
-          ========================================================================= */}
-      <section className="space-y-6">
-        <div className="border-b border-[#E7D9D6] pb-3 flex items-center justify-between">
-          <div>
-            <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#302720] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#8B1E2D]"></span>
-              {t('features.foodAi') || 'Food & AI Features'}
-            </h2>
-            <p className="text-xs sm:text-sm text-[#786E64]">
-              Voice NLU, smart scheduling, healthy food filters, and catalog intelligence.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Feature 1: Voice Search */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {/* 1. Voice Search */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
             <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <Mic className="w-5 h-5" />
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <Mic className="w-6 h-6 text-[#D93636]" />
               </div>
-              <h3 className="text-base font-bold text-[#302720]">Voice Search</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                Order by speaking naturally in Tamil, Hindi, or English. Supports offline local Whisper AI inference when offline.
+              <h3 className="font-bold text-base text-[#33251F]">Voice Search</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Order hands-free in Tamil, Hindi, or English with local Whisper fallback.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsVoiceModalOpen(true)}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <span>Launch Voice Assistant</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Feature 2: Auto Scheduler */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <Calendar className="w-5 h-5" />
-              </div>
-              <h3 className="text-base font-bold text-[#302720]">Auto Scheduler</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                Configure automated recurring meal deliveries for Monday through Sunday with customizable time slots.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveView('scheduler')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <span>Open Auto Scheduler</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Feature 3: Healthy Foods */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <HeartPulse className="w-5 h-5" />
-              </div>
-              <h3 className="text-base font-bold text-[#302720]">Healthy Foods</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                Health & dietary AI assistant to discover diabetic-friendly, low-oil, high-protein, and nutrient-dense dishes.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsHealthModalOpen(true)}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <span>Explore Healthy Diet Guide</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Feature 4: Dynamic Food Search */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <Search className="w-5 h-5" />
-              </div>
-              <h3 className="text-base font-bold text-[#302720]">Dynamic Food Search</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                Fuzzy and cross-script phonetic matching identifies dishes across multiple regional Indian cuisines instantly.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveView('home')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <span>Go to Dynamic Search</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Feature 5: AI Food Assistance */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow sm:col-span-2 lg:col-span-2 ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <h3 className="text-base font-bold text-[#302720]">AI Food Assistance & Fallback</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                Dual fallback engine powered by Gemini AI when online, automatically transitioning to local phonetic dictionary matching when quota or connectivity expires.
-              </p>
-            </div>
-            <div className="pt-2">
+            <div className="pt-4">
               <button
                 type="button"
                 onClick={() => setIsVoiceModalOpen(true)}
-                className="py-2.5 px-4 rounded-lg bg-[#8B1E2D] hover:bg-[#302720] text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
               >
-                <span>Try Voice AI Assistance</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Recommendation System */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-[#D93636]" />
+              </div>
+              <h3 className="font-bold text-base text-[#33251F]">Recommendation System</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Personalized dietary and taste suggestions based on past orders and nutrition.
+              </p>
+            </div>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => setIsHealthModalOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 3. Healthy Food Recommendations */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <HeartPulse className="w-6 h-6 text-[#D93636]" />
+              </div>
+              <h3 className="font-bold text-base text-[#33251F]">Healthy Food Recommendations</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Nutrient-balanced vegetarian dishes vetted against personal health guidelines.
+              </p>
+            </div>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveView('home');
+                  setTimeout(() => {
+                    const el = document.getElementById('recommended-dishes-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 100);
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 4. Auto Scheduler */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-[#D93636]" />
+              </div>
+              <h3 className="font-bold text-base text-[#33251F]">Auto Scheduler</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Set weekly automated meal deliveries with weekday customization and auto-checkout.
+              </p>
+            </div>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => setActiveView('schedule')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
               </button>
             </div>
           </div>
@@ -399,202 +168,364 @@ export const FeaturesPage: React.FC = () => {
       </section>
 
       {/* =========================================================================
-          SECTION C – ACCOUNT AND ORDER FEATURES
+          GROUP 2 – BILLS & PAYMENTS
           ========================================================================= */}
-      <section className="space-y-6">
-        <div className="border-b border-[#E7D9D6] pb-3 flex items-center justify-between">
-          <div>
-            <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#302720] flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#8B1E2D]"></span>
-              {t('features.accountOrders') || 'Account & Order Features'}
-            </h2>
-            <p className="text-xs sm:text-sm text-[#786E64]">
-              Daily order caps, wallet balances, live tracking, order history, carts, and nominee security.
-            </p>
-          </div>
+      <section className="space-y-5">
+        <div className="border-b border-[#F0E5DC] pb-2.5">
+          <h2 className="font-bold text-lg sm:text-xl text-[#33251F]">
+            Bills & Payments
+          </h2>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* 1. Limit Details */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                  <PackageCheck className="w-5 h-5" />
-                </div>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-[#F1DEDC] text-[#8B1E2D]">
-                  {dailyOrderCount} / 6 Orders
-                </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {/* 1. Bill Generation */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <Receipt className="w-6 h-6 text-[#D93636]" />
               </div>
-              <h3 className="text-base font-bold text-[#302720]">Daily Limit Details</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                6 orders per day budget protection. Face ID & Nominee consent required to renew limits after exhaustion.
+              <h3 className="font-bold text-base text-[#33251F]">Bill Generation</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Transparent breakdown of item rates, packaging charges, GST, and savings.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsLimitRenewalModalOpen(true)}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <span>View & Renew Limit</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => setActiveView('schedule')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
           </div>
 
-          {/* 2. Amount Details (Wallet) */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                  <Wallet className="w-5 h-5" />
-                </div>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-[#F1DEDC] text-[#8B1E2D]">
-                  Balance: ₹{walletBalance.toFixed(0)}
-                </span>
+          {/* 2. Live App Price Comparison */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <BarChart3 className="w-6 h-6 text-[#D93636]" />
               </div>
-              <h3 className="text-base font-bold text-[#302720]">Wallet & Amount Details</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                Instant digital wallet with automated recharge protection and one-tap order deduction.
+              <h3 className="font-bold text-base text-[#33251F]">Live App Price Comparison</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Real-time price comparisons between Swiggy, Zomato, and direct platform.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveView('wallet')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <span>Manage Wallet</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveView('home');
+                  setTimeout(() => {
+                    const el = document.getElementById('dynamic-food-search-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 100);
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
           </div>
 
-          {/* 3. Order Tracking */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="space-y-2">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <Bike className="w-5 h-5" />
+          {/* 3. Amount Details */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <Wallet className="w-6 h-6 text-[#D93636]" />
               </div>
-              <h3 className="text-base font-bold text-[#302720]">Live Order Tracking</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                Interactive OpenStreetMap live rider dispatch tracker with real-time ETA and status updates.
+              <h3 className="font-bold text-base text-[#33251F]">Amount Details</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Comprehensive ledger of spent amounts, remaining daily allowance, and linked wallet.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveView('tracking')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <span>View Tracking</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => setActiveView('wallet')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
           </div>
 
-          {/* 4. Order History */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="space-y-2">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <History className="w-5 h-5" />
+          {/* 4. Daily Limit */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6 text-[#D93636]" />
               </div>
-              <h3 className="text-base font-bold text-[#302720]">Order History & Bills</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                Review past instant orders, recurring scheduled meal logs, and generate monthly GST summary invoices.
+              <h3 className="font-bold text-base text-[#33251F]">Daily Limit</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Configurable daily spending limit safeguards to prevent budget overruns.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveView('orders')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <span>Open History</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => setIsLimitRenewalModalOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================================
+          GROUP 3 – SAFETY & FAMILY
+          ========================================================================= */}
+      <section className="space-y-5">
+        <div className="border-b border-[#F0E5DC] pb-2.5">
+          <h2 className="font-bold text-lg sm:text-xl text-[#33251F]">
+            Safety & Family
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {/* 1. Security PIN Verification */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <Lock className="w-6 h-6 text-[#D93636]" />
+              </div>
+              <h3 className="font-bold text-base text-[#33251F]">Security PIN Verification</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Mandatory 4-digit security PIN verification for order authorization and protection.
+              </p>
+            </div>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => setActiveView('wallet')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
           </div>
 
-          {/* 5. My Cart */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                  <ShoppingCart className="w-5 h-5" />
-                </div>
-                {scheduleCart.length > 0 && (
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-[#F1DEDC] text-[#8B1E2D]">
-                    {scheduleCart.length} Items
-                  </span>
-                )}
+          {/* 2. Nominee Management */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <Users className="w-6 h-6 text-[#D93636]" />
               </div>
-              <h3 className="text-base font-bold text-[#302720]">My Cart (Schedule Cart)</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                Manage dishes queued for batch schedule checkout, weekday meal allocations, and recurring orders.
+              <h3 className="font-bold text-base text-[#33251F]">Nominee Management</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Assign trusted family members to review and approve orders exceeding your limit.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsScheduleCartModalOpen(true)}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <span>View Cart</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => setIsNomineeModalOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
           </div>
 
-          {/* 6. Nominee Management */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="space-y-2">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <ShieldAlert className="w-5 h-5" />
+          {/* 3. Linked Bank Account */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <Building2 className="w-6 h-6 text-[#D93636]" />
               </div>
-              <h3 className="text-base font-bold text-[#302720]">Nominee Guardianship</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                Manage restricted food catalog items, approval requests, guardian email alerts, and PIN security.
+              <h3 className="font-bold text-base text-[#33251F]">Linked Bank Account</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Direct bank integration for zero-fee payments, balance checks, and instant refunds.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsNomineeModalOpen(true)}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <span>Nominee Portal</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => setActiveView('wallet')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================================
+          GROUP 4 – ORDERS
+          ========================================================================= */}
+      <section className="space-y-5">
+        <div className="border-b border-[#F0E5DC] pb-2.5">
+          <h2 className="font-bold text-lg sm:text-xl text-[#33251F]">
+            Orders
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          {/* 1. Order Tracking */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <Bike className="w-6 h-6 text-[#D93636]" />
+              </div>
+              <h3 className="font-bold text-base text-[#33251F]">Order Tracking</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Live OpenStreetMap GPS rider tracking with real-time ETA and status.
+              </p>
+            </div>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => setActiveView('live-tracker')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
           </div>
 
-          {/* 7. Linked Bank Account */}
-          <div className={`p-6 rounded-2xl border shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow ${
-            currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#E7D9D6]'
-          }`}>
-            <div className="space-y-2">
-              <div className="w-10 h-10 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center">
-                <Building2 className="w-5 h-5" />
+          {/* 2. Cart & Order History */}
+          <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                <ShoppingBag className="w-6 h-6 text-[#D93636]" />
               </div>
-              <h3 className="text-base font-bold text-[#302720]">Linked Bank Account</h3>
-              <p className="text-xs text-[#786E64] leading-relaxed">
-                Securely review authorized linked payment accounts, IFSC routing, and auto-debit thresholds.
+              <h3 className="font-bold text-base text-[#33251F]">Cart & Order History</h3>
+              <p className="text-xs text-[#8A817A] leading-relaxed">
+                Instant cart, schedule weekly orders, and past transaction receipts.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveView('wallet')}
-              className="w-full py-2.5 px-3 rounded-lg bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <span>View Bank Settings</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="pt-4">
+              <button
+                type="button"
+                onClick={() => setIsScheduleCartModalOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+              >
+                <span>Open</span>
+                <span className="transition-transform group-hover:translate-x-1">→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================================
+          INTERACTIVE SETTINGS SECTION (Preserves Display, Theme & Language toggles)
+          ========================================================================= */}
+      <section className="p-6 sm:p-8 rounded-2xl border border-[#F0E5DC] bg-white space-y-6">
+        <div>
+          <h2 className="font-bold text-lg sm:text-xl text-[#33251F]">
+            Display & Language Controls
+          </h2>
+          <p className="text-xs text-[#8A817A]">
+            Customize visual theme, font size, and interface language.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Language Selection */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Globe2 className="w-4 h-4 text-[#D93636]" />
+              <span className="text-xs font-bold text-[#33251F]">Interface Language</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { code: 'en' as Language, label: 'English' },
+                { code: 'ta' as Language, label: 'தமிழ்' },
+                { code: 'hi' as Language, label: 'हिन्दी' }
+              ].map((l) => (
+                <button
+                  key={l.code}
+                  type="button"
+                  onClick={() => setLanguage(l.code)}
+                  className={`py-2 px-2.5 rounded-lg text-xs font-bold border text-center transition-all cursor-pointer ${
+                    language === l.code
+                      ? 'bg-[#FBE9E5] text-[#D93636] border-[#D93636]'
+                      : 'bg-white text-[#33251F] border-[#F0E5DC] hover:bg-[#FFF8F0]'
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Font Size */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Type className="w-4 h-4 text-[#D93636]" />
+              <span className="text-xs font-bold text-[#33251F]">Typography Scale</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {(['sm', 'md', 'lg', 'xl'] as const).map((sz) => (
+                <button
+                  key={sz}
+                  type="button"
+                  onClick={() => setTextSize(sz)}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                    accessibilitySettings.textSize === sz
+                      ? 'bg-[#D93636] text-white border-[#D93636]'
+                      : 'bg-white text-[#33251F] border-[#F0E5DC] hover:bg-[#FBE9E5]'
+                  }`}
+                >
+                  {sz === 'sm' ? 'A-' : sz === 'md' ? 'A' : sz === 'lg' ? 'A+' : 'A++'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Theme */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Sun className="w-4 h-4 text-[#D93636]" />
+              <span className="text-xs font-bold text-[#33251F]">Theme Mode</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setThemeMode('light');
+                  setHighContrast(false);
+                }}
+                className={`py-2 px-3 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 cursor-pointer ${
+                  currentTheme === 'light'
+                    ? 'bg-[#D93636] text-white border-[#D93636]'
+                    : 'bg-white text-[#33251F] border-[#F0E5DC] hover:bg-[#FBE9E5]'
+                }`}
+              >
+                <Sun className="w-3.5 h-3.5" />
+                <span>Light</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setThemeMode('dark');
+                  setHighContrast(false);
+                }}
+                className={`py-2 px-3 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 cursor-pointer ${
+                  currentTheme === 'dark'
+                    ? 'bg-[#D93636] text-white border-[#D93636]'
+                    : 'bg-white text-[#33251F] border-[#F0E5DC] hover:bg-[#FBE9E5]'
+                }`}
+              >
+                <Moon className="w-3.5 h-3.5" />
+                <span>Dark</span>
+              </button>
+            </div>
           </div>
         </div>
       </section>
     </div>
   );
 };
-

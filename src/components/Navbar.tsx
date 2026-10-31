@@ -697,14 +697,14 @@ export const Navbar: React.FC = () => {
       ? 'bg-black text-white border-2 border-yellow-400'
       : currentTheme === 'dark'
       ? 'bg-zinc-800 text-zinc-100 border border-zinc-700 shadow-xs'
-      : 'bg-[#F8EBE9] text-zinc-900 border border-[#E7D9D6] shadow-xs';
+      : 'bg-[#FBE9E5] text-zinc-900 border border-[#F0E5DC] shadow-xs';
 
   const unselectedBtnClass =
     currentTheme === 'high-contrast'
       ? 'bg-black hover:bg-neutral-900 text-white border border-yellow-400'
       : currentTheme === 'dark'
       ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
-      : 'bg-transparent hover:bg-[#F1DEDC]/60 text-zinc-700';
+      : 'bg-transparent hover:bg-[#FBE9E5]/60 text-zinc-700';
 
   return (
     <header
@@ -713,7 +713,7 @@ export const Navbar: React.FC = () => {
           ? 'bg-black text-white border-b-2 border-yellow-400'
           : currentTheme === 'dark'
           ? 'bg-zinc-900/95 text-zinc-100 border-b border-zinc-800 backdrop-blur-md shadow-xs'
-          : 'bg-white/95 text-[#302720] border-b border-[#E7D9D6] backdrop-blur-md shadow-xs'
+          : 'bg-white/95 text-[#33251F] border-b border-[#F0E5DC] backdrop-blur-md shadow-xs'
       }`}
     >
       <div className="header-container w-full max-w-7xl mx-auto px-4 sm:px-6 py-2.5 sm:py-3">
@@ -723,7 +723,7 @@ export const Navbar: React.FC = () => {
           {/* LEFT SECTION – BRANDING */}
           <div className="flex items-center gap-3 shrink-0">
             <div
-              className="bg-[#8B1E2D] min-h-[38px] min-w-[38px] p-2 rounded-xl shadow-xs flex items-center justify-center cursor-pointer hover:bg-[#302720] transition-all hover:scale-105 shrink-0"
+              className="bg-[#D93636] min-h-[38px] min-w-[38px] p-2 rounded-xl shadow-xs flex items-center justify-center cursor-pointer hover:bg-[#33251F] transition-all hover:scale-105 shrink-0"
               onClick={() => setActiveView('home')}
               title="AutoFeast AI Home"
               tabIndex={0}
@@ -737,11 +737,11 @@ export const Navbar: React.FC = () => {
               onClick={() => setActiveView('home')}
               className="cursor-pointer select-none"
             >
-              <h1 className="font-serif-editorial font-bold tracking-tight text-xl sm:text-2xl flex items-center gap-1.5 leading-none text-[#302720]">
+              <h1 className="font-serif-editorial font-bold tracking-tight text-xl sm:text-2xl flex items-center gap-1.5 leading-none text-[#33251F]">
                 <span>AutoFeast</span>
-                <span className="font-sans text-[#8B1E2D] font-black text-sm tracking-wider uppercase px-1.5 py-0.5 rounded-sm bg-[#F1DEDC] border border-[#E7D9D6]">AI</span>
+                <span className="font-sans text-[#D93636] font-black text-sm tracking-wider uppercase px-1.5 py-0.5 rounded-sm bg-[#FBE9E5] border border-[#F0E5DC]">AI</span>
               </h1>
-              <p className="text-[10px] text-[#786E64] font-medium hidden sm:block leading-tight mt-0.5">
+              <p className="text-[10px] text-[#8A817A] font-medium hidden sm:block leading-tight mt-0.5">
                 AI Autonomous Food Platform
               </p>
             </div>
@@ -750,7 +750,7 @@ export const Navbar: React.FC = () => {
           {/* CENTER SECTION – MAIN NAVIGATION (Exact order: Home, How It Works, Features, About) */}
           <nav
             aria-label="Main Navigation"
-            className="header-nav-group hidden md:flex flex-wrap items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F8EBE9] border border-[#E7D9D6]"
+            className="header-nav-group hidden md:flex flex-wrap items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FBE9E5] border border-[#F0E5DC]"
           >
             {/* 1. Home */}
             <button
@@ -758,8 +758,8 @@ export const Navbar: React.FC = () => {
               onClick={() => setActiveView('home')}
               className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer ${
                 activeView === 'home' || activeView === 'search'
-                  ? 'bg-[#8B1E2D] text-white shadow-xs'
-                  : 'text-[#786E64] hover:text-[#302720] hover:bg-white'
+                  ? 'bg-[#D93636] text-white shadow-xs'
+                  : 'text-[#8A817A] hover:text-[#33251F] hover:bg-white'
               }`}
             >
               {t('nav.home') || 'Home'}
@@ -771,8 +771,8 @@ export const Navbar: React.FC = () => {
               onClick={() => setActiveView('how-it-works')}
               className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer ${
                 activeView === 'how-it-works'
-                  ? 'bg-[#8B1E2D] text-white shadow-xs'
-                  : 'text-[#786E64] hover:text-[#302720] hover:bg-white'
+                  ? 'bg-[#D93636] text-white shadow-xs'
+                  : 'text-[#8A817A] hover:text-[#33251F] hover:bg-white'
               }`}
             >
               {t('nav.howItWorks') || 'How It Works'}
@@ -784,8 +784,8 @@ export const Navbar: React.FC = () => {
               onClick={() => setActiveView('features')}
               className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer ${
                 activeView === 'features'
-                  ? 'bg-[#8B1E2D] text-white shadow-xs'
-                  : 'text-[#786E64] hover:text-[#302720] hover:bg-white'
+                  ? 'bg-[#D93636] text-white shadow-xs'
+                  : 'text-[#8A817A] hover:text-[#33251F] hover:bg-white'
               }`}
             >
               {t('nav.features') || 'Features'}
@@ -797,8 +797,8 @@ export const Navbar: React.FC = () => {
               onClick={() => setActiveView('about')}
               className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer ${
                 activeView === 'about'
-                  ? 'bg-[#8B1E2D] text-white shadow-xs'
-                  : 'text-[#786E64] hover:text-[#302720] hover:bg-white'
+                  ? 'bg-[#D93636] text-white shadow-xs'
+                  : 'text-[#8A817A] hover:text-[#33251F] hover:bg-white'
               }`}
             >
               {t('nav.about') || 'About'}
@@ -826,10 +826,10 @@ export const Navbar: React.FC = () => {
                     openLocationPopover();
                   }
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E7D9D6] bg-[#F8EBE9] hover:bg-[#F8EBE9] text-xs font-semibold text-[#302720] transition-colors cursor-pointer max-w-[180px]"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#F0E5DC] bg-[#FBE9E5] hover:bg-[#FBE9E5] text-xs font-semibold text-[#33251F] transition-colors cursor-pointer max-w-[180px]"
                 title={t('location.changeAddress')}
               >
-                <MapPin className="w-3.5 h-3.5 text-[#8B1E2D] shrink-0" />
+                <MapPin className="w-3.5 h-3.5 text-[#D93636] shrink-0" />
                 <span className="truncate">
                   {userLocation.area === 'Location not set' ? 'Set Address' : `${userLocation.area}, ${userLocation.city}`}
                 </span>
@@ -843,17 +843,17 @@ export const Navbar: React.FC = () => {
                   aria-modal="false"
                   aria-label={t('location.popoverTitle')}
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 top-[calc(100%+8px)] w-[360px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-92px)] overflow-y-auto z-50 rounded-2xl p-4 shadow-2xl transition-all border border-[#E7D9D6] bg-white text-[#302720]"
+                  className="absolute right-0 top-[calc(100%+8px)] w-[360px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-92px)] overflow-y-auto z-50 rounded-2xl p-4 shadow-2xl transition-all border border-[#F0E5DC] bg-white text-[#33251F]"
                 >
-                  <div className="flex items-center justify-between pb-2 border-b border-[#E7D9D6]">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#F0E5DC]">
                     <div className="flex items-center space-x-2">
-                      <MapPin className="w-4 h-4 text-[#8B1E2D]" />
-                      <h3 className="font-bold text-sm text-[#302720]">{t('location.popoverTitle')}</h3>
+                      <MapPin className="w-4 h-4 text-[#D93636]" />
+                      <h3 className="font-bold text-sm text-[#33251F]">{t('location.popoverTitle')}</h3>
                     </div>
                     <button
                       type="button"
                       onClick={closeLocationPopover}
-                      className="p-1 rounded-md text-[#786E64] hover:text-[#302720]"
+                      className="p-1 rounded-md text-[#8A817A] hover:text-[#33251F]"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -871,7 +871,7 @@ export const Navbar: React.FC = () => {
                         }}
                         placeholder={t('location.popoverPlaceholder')}
                         aria-label={t('location.popoverInputLabel') || 'Enter delivery address or landmark'}
-                        className="flex-1 px-3 py-2 text-xs rounded-lg border border-[#E7D9D6] focus:outline-none focus:ring-2 focus:ring-[#8B1E2D]"
+                        className="flex-1 px-3 py-2 text-xs rounded-lg border border-[#F0E5DC] focus:outline-none focus:ring-2 focus:ring-[#D93636]"
                       />
                       <button
                         type="button"
@@ -884,7 +884,7 @@ export const Navbar: React.FC = () => {
                             ? 'bg-red-500 text-white animate-pulse border-red-600'
                             : isVoiceSpeaking
                             ? 'bg-amber-500 text-white animate-bounce border-amber-600'
-                            : 'bg-[#F8EBE9] text-[#8B1E2D] hover:bg-[#F1DEDC] border-[#E7D9D6]'
+                            : 'bg-[#FBE9E5] text-[#D93636] hover:bg-[#FBE9E5] border-[#F0E5DC]'
                         }`}
                       >
                         <Mic className="w-4 h-4" />
@@ -895,7 +895,7 @@ export const Navbar: React.FC = () => {
                       type="button"
                       onClick={handleUseCurrentGPS}
                       disabled={isDetectingGps}
-                      className="w-full py-2 px-3 rounded-lg border border-[#E7D9D6] bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full py-2 px-3 rounded-lg border border-[#F0E5DC] bg-[#FBE9E5] hover:bg-[#FBE9E5] text-[#D93636] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       {isDetectingGps ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -905,18 +905,18 @@ export const Navbar: React.FC = () => {
                       <span>{t('location.useCurrentGPS')}</span>
                     </button>
 
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E7D9D6]">
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#F0E5DC]">
                       <button
                         type="button"
                         id="popover-cancel-location-btn"
                         onClick={closeLocationPopover}
-                        className="px-3 py-1.5 rounded-lg border border-[#E7D9D6] text-xs font-semibold text-[#786E64] hover:bg-[#F8EBE9]"
+                        className="px-3 py-1.5 rounded-lg border border-[#F0E5DC] text-xs font-semibold text-[#8A817A] hover:bg-[#FBE9E5]"
                       >
                         {t('location.cancelBtn')}
                       </button>
                       <button
                         type="submit"
-                        className="px-4 py-1.5 rounded-lg bg-[#8B1E2D] hover:bg-[#302720] text-white text-xs font-semibold shadow-xs"
+                        className="px-4 py-1.5 rounded-lg bg-[#D93636] hover:bg-[#33251F] text-white text-xs font-semibold shadow-xs"
                       >
                         {t('location.saveBtn')}
                       </button>
@@ -930,13 +930,13 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsScheduleCartModalOpen(true)}
-              className="p-2 rounded-lg text-[#786E64] hover:text-[#8B1E2D] hover:bg-[#F8EBE9] relative border border-[#E7D9D6] transition-colors cursor-pointer"
+              className="p-2 rounded-lg text-[#8A817A] hover:text-[#D93636] hover:bg-[#FBE9E5] relative border border-[#F0E5DC] transition-colors cursor-pointer"
               title="View Schedule Cart"
               aria-label="View Schedule Cart"
             >
               <ShoppingBag className="w-4 h-4" />
               {scheduleCart.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-[#8B1E2D] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 bg-[#D93636] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                   {scheduleCart.length}
                 </span>
               )}
@@ -949,7 +949,7 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-[#302720] hover:bg-[#F8EBE9] border border-[#E7D9D6] transition-colors cursor-pointer"
+              className="md:hidden p-2 rounded-lg text-[#33251F] hover:bg-[#FBE9E5] border border-[#F0E5DC] transition-colors cursor-pointer"
               aria-label="Toggle navigation menu"
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -960,7 +960,7 @@ export const Navbar: React.FC = () => {
 
         {/* Mobile Navigation Drawer */}
         {isMobileMenuOpen && (
-          <div className="md:hidden pt-3 pb-2 border-t border-[#E7D9D6] mt-2 space-y-1.5 animate-fade-in">
+          <div className="md:hidden pt-3 pb-2 border-t border-[#F0E5DC] mt-2 space-y-1.5 animate-fade-in">
             <button
               type="button"
               onClick={() => {
@@ -969,8 +969,8 @@ export const Navbar: React.FC = () => {
               }}
               className={`w-full text-left px-3.5 py-2 rounded-lg text-xs font-semibold ${
                 activeView === 'home' || activeView === 'search'
-                  ? 'bg-[#8B1E2D] text-white'
-                  : 'text-[#302720] hover:bg-[#F8EBE9]'
+                  ? 'bg-[#D93636] text-white'
+                  : 'text-[#33251F] hover:bg-[#FBE9E5]'
               }`}
             >
               {t('nav.home') || 'Home'}
@@ -983,8 +983,8 @@ export const Navbar: React.FC = () => {
               }}
               className={`w-full text-left px-3.5 py-2 rounded-lg text-xs font-semibold ${
                 activeView === 'how-it-works'
-                  ? 'bg-[#8B1E2D] text-white'
-                  : 'text-[#302720] hover:bg-[#F8EBE9]'
+                  ? 'bg-[#D93636] text-white'
+                  : 'text-[#33251F] hover:bg-[#FBE9E5]'
               }`}
             >
               {t('nav.howItWorks') || 'How It Works'}
@@ -997,8 +997,8 @@ export const Navbar: React.FC = () => {
               }}
               className={`w-full text-left px-3.5 py-2 rounded-lg text-xs font-semibold ${
                 activeView === 'features'
-                  ? 'bg-[#8B1E2D] text-white'
-                  : 'text-[#302720] hover:bg-[#F8EBE9]'
+                  ? 'bg-[#D93636] text-white'
+                  : 'text-[#33251F] hover:bg-[#FBE9E5]'
               }`}
             >
               {t('nav.features') || 'Features'}
@@ -1011,25 +1011,25 @@ export const Navbar: React.FC = () => {
               }}
               className={`w-full text-left px-3.5 py-2 rounded-lg text-xs font-semibold ${
                 activeView === 'about'
-                  ? 'bg-[#8B1E2D] text-white'
-                  : 'text-[#302720] hover:bg-[#F8EBE9]'
+                  ? 'bg-[#D93636] text-white'
+                  : 'text-[#33251F] hover:bg-[#FBE9E5]'
               }`}
             >
               {t('nav.about') || 'About'}
             </button>
 
             {/* Mobile Location Action */}
-            <div className="pt-1.5 border-t border-[#E7D9D6]">
+            <div className="pt-1.5 border-t border-[#F0E5DC]">
               <button
                 type="button"
                 onClick={() => {
                   openLocationPopover();
                   setIsMobileMenuOpen(false);
                 }}
-                className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold bg-[#F8EBE9] border border-[#E7D9D6] text-[#302720] flex items-center justify-between"
+                className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold bg-[#FBE9E5] border border-[#F0E5DC] text-[#33251F] flex items-center justify-between"
               >
                 <span className="truncate">📍 {userLocation.area === 'Location not set' ? 'Set Delivery Address' : `${userLocation.area}, ${userLocation.city}`}</span>
-                <Edit3 className="w-3.5 h-3.5 text-[#8B1E2D] shrink-0" />
+                <Edit3 className="w-3.5 h-3.5 text-[#D93636] shrink-0" />
               </button>
             </div>
           </div>

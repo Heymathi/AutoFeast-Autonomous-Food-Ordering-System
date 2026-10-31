@@ -102,35 +102,24 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
 
   return (
     <div ref={dropdownRef} className="relative inline-block text-left">
-      {/* Profile Toggle Button (Navbar Right Side) */}
+      {/* Profile Toggle Button (Navbar Right Side - Circular Person Icon matching PDF) */}
       <button
         type="button"
         id="user-profile-menu-button"
         aria-expanded={isOpen}
         aria-haspopup="true"
+        aria-label="User Profile and Account Menu"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+        className={`flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full border transition-all cursor-pointer shadow-xs hover:scale-105 ${
           currentTheme === 'high-contrast'
             ? 'bg-black text-white border-2 border-yellow-400'
             : currentTheme === 'dark'
             ? 'bg-zinc-800 text-zinc-100 border-zinc-700 hover:bg-zinc-700'
-            : 'bg-[#F8EBE9] hover:bg-[#F1DEDC]/60 text-[#302720] border-[#E7D9D6]'
+            : 'bg-[#FBE9E5] text-[#D93636] border-[#F0E5DC] hover:bg-[#FBE9E5]/80'
         }`}
+        title={displayName}
       >
-        {/* User Initials Avatar with Emerald Accent */}
-        <div className="w-7 h-7 rounded-full bg-[#8B1E2D] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-          {displayInitial}
-        </div>
-
-        <span className="max-w-[110px] sm:max-w-[140px] truncate leading-tight font-medium">
-          {displayName}
-        </span>
-
-        <ChevronDown
-          className={`w-4 h-4 text-[#786E64] transition-transform duration-200 shrink-0 ${
-            isOpen ? 'rotate-180' : ''
-          }`}
-        />
+        <User className="w-5 h-5 text-[#D93636]" />
       </button>
 
       {/* Dropdown Menu Panel */}
@@ -139,24 +128,24 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
           role="menu"
           aria-orientation="vertical"
           aria-labelledby="user-profile-menu-button"
-          className={`absolute right-0 mt-2 w-72 sm:w-80 rounded-xl shadow-xl border z-50 overflow-hidden transition-all animate-fade-in ${
+          className={`absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl shadow-xl border z-50 overflow-hidden transition-all animate-fade-in ${
             currentTheme === 'high-contrast'
               ? 'bg-black text-white border-2 border-yellow-400'
               : currentTheme === 'dark'
               ? 'bg-zinc-900 text-zinc-100 border-zinc-800'
-              : 'bg-white text-[#302720] border-[#E7D9D6]'
+              : 'bg-white text-[#33251F] border-[#F0E5DC]'
           }`}
         >
           {/* Dropdown Header: User info summary */}
-          <div className="p-4 bg-[#F8EBE9] border-b border-[#E7D9D6]">
+          <div className="p-4 bg-[#FFF8F0] border-b border-[#F0E5DC]">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-[#8B1E2D] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+              <div className="w-10 h-10 rounded-full bg-[#D93636] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
                 {displayInitial}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-[#302720] truncate">{displayName}</p>
-                <p className="text-xs text-[#786E64] truncate">{currentUser?.email || 'user@autofeast.ai'}</p>
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#4F8964] mt-0.5">
+                <p className="text-sm font-bold text-[#33251F] truncate">{displayName}</p>
+                <p className="text-xs text-[#8A817A] truncate">{currentUser?.email || 'user@autofeast.ai'}</p>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#16A34A] mt-0.5">
                   <CheckCircle2 className="w-3 h-3" /> Verified Member
                 </span>
               </div>
@@ -164,103 +153,103 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
           </div>
 
           {/* Menu Items List */}
-          <div className="py-1 text-xs sm:text-sm divide-y divide-[#E7D9D6]/60">
+          <div className="py-1 text-xs sm:text-sm divide-y divide-[#F0E5DC]/60">
             {/* 1. User Details */}
             <button
               type="button"
               role="menuitem"
               onClick={handleOpenUserDetails}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#F8EBE9] transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FFF8F0] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#F8EBE9] group-hover:bg-[#F1DEDC] text-[#8B1E2D] flex items-center justify-center mr-3 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#FBE9E5] text-[#D93636] flex items-center justify-center mr-3 shrink-0">
                 <User className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[#302720] group-hover:text-[#8B1E2D]">
-                  {t('profile.userDetails')}
+                <p className="font-semibold text-[#33251F] group-hover:text-[#D93636]">
+                  {t('profile.userDetails') || 'User Details'}
                 </p>
-                <p className="text-[11px] text-[#786E64] truncate">Personal information, address & phone</p>
+                <p className="text-[11px] text-[#8A817A] truncate">Personal information, address & phone</p>
               </div>
             </button>
 
-            {/* 2. Features / Preferences */}
-            <button
-              type="button"
-              role="menuitem"
-              onClick={handleOpenPreferences}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#F8EBE9] transition-colors group cursor-pointer"
-            >
-              <div className="w-8 h-8 rounded-lg bg-[#F8EBE9] group-hover:bg-[#F1DEDC] text-[#8B1E2D] flex items-center justify-center mr-3 shrink-0">
-                <Sliders className="w-4 h-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[#302720] group-hover:text-[#8B1E2D]">
-                  {t('profile.preferences')}
-                </p>
-                <p className="text-[11px] text-[#786E64] truncate">Language, Theme, Font size & Controls</p>
-              </div>
-            </button>
-
-            {/* 3. Linked Bank Account Details */}
+            {/* 2. Linked Bank Account Details */}
             <button
               type="button"
               role="menuitem"
               onClick={handleOpenBankDetails}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#F8EBE9] transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FFF8F0] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#F8EBE9] group-hover:bg-[#F1DEDC] text-[#8B1E2D] flex items-center justify-center mr-3 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#FBE9E5] text-[#D93636] flex items-center justify-center mr-3 shrink-0">
                 <Building2 className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <p className="font-semibold text-[#302720] group-hover:text-[#8B1E2D]">
-                    {t('profile.bankAccount')}
+                  <p className="font-semibold text-[#33251F] group-hover:text-[#D93636]">
+                    {t('profile.bankAccount') || 'Linked Bank Account Details'}
                   </p>
-                  <span className="text-[11px] font-bold text-[#8B1E2D] bg-[#F1DEDC] px-1.5 py-0.5 rounded-sm">
+                  <span className="text-[11px] font-bold text-[#D93636] bg-[#FBE9E5] px-1.5 py-0.5 rounded-sm">
                     ₹{walletBalance.toFixed(0)}
                   </span>
                 </div>
-                <p className="text-[11px] text-[#786E64] truncate">
+                <p className="text-[11px] text-[#8A817A] truncate">
                   {linkedBank?.bankName || 'HDFC Bank'} • {linkedBank?.accountNumber ? `•••• ${linkedBank.accountNumber.slice(-4)}` : '•••• 4821'}
                 </p>
               </div>
             </button>
 
-            {/* 4. Health Condition Details */}
+            {/* 3. Health Condition Details */}
             <button
               type="button"
               role="menuitem"
               onClick={handleOpenHealthConditions}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#F8EBE9] transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FFF8F0] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#F8EBE9] group-hover:bg-[#F1DEDC] text-[#8B1E2D] flex items-center justify-center mr-3 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#FBE9E5] text-[#D93636] flex items-center justify-center mr-3 shrink-0">
                 <HeartPulse className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[#302720] group-hover:text-[#8B1E2D]">
-                  {t('profile.healthConditions')}
+                <p className="font-semibold text-[#33251F] group-hover:text-[#D93636]">
+                  {t('profile.healthConditions') || 'Health Condition Details'}
                 </p>
-                <p className="text-[11px] text-[#786E64] truncate">Dietary restrictions, allergies & wellness guide</p>
+                <p className="text-[11px] text-[#8A817A] truncate">Dietary restrictions, allergies & wellness guide</p>
               </div>
             </button>
 
-            {/* 5. Nominee Details */}
+            {/* 4. Nominee Details */}
             <button
               type="button"
               role="menuitem"
               onClick={handleOpenNominee}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#F8EBE9] transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FFF8F0] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#F8EBE9] group-hover:bg-[#F1DEDC] text-[#8B1E2D] flex items-center justify-center mr-3 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#FBE9E5] text-[#D93636] flex items-center justify-center mr-3 shrink-0">
                 <ShieldAlert className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[#302720] group-hover:text-[#8B1E2D]">
-                  {t('profile.nomineeDetails')}
+                <p className="font-semibold text-[#33251F] group-hover:text-[#D93636]">
+                  {t('profile.nomineeDetails') || 'Nominee Details'}
                 </p>
-                <p className="text-[11px] text-[#786E64] truncate">
+                <p className="text-[11px] text-[#8A817A] truncate">
                   {currentUser?.nomineeName ? `Guardian: ${currentUser.nomineeName}` : 'Approval & food safety restrictions'}
                 </p>
+              </div>
+            </button>
+
+            {/* 5. Accessibility & Preferences */}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleOpenPreferences}
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FFF8F0] transition-colors group cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-lg bg-[#FBE9E5] text-[#D93636] flex items-center justify-center mr-3 shrink-0">
+                <Sliders className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-[#33251F] group-hover:text-[#D93636]">
+                  {t('profile.preferences') || 'Accessibility & Preferences'}
+                </p>
+                <p className="text-[11px] text-[#8A817A] truncate">Display settings, language & theme</p>
               </div>
             </button>
 
@@ -269,14 +258,14 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
               type="button"
               role="menuitem"
               onClick={handleLogout}
-              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#F8EBE9] text-[#302720] transition-colors group cursor-pointer"
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FFF8F0] text-[#33251F] transition-colors group cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#F1DEDC] group-hover:bg-[#F1DEDC] text-[#302720] flex items-center justify-center mr-3 shrink-0">
-                <LogOut className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-lg bg-[#FBE9E5] text-[#33251F] flex items-center justify-center mr-3 shrink-0">
+                <LogOut className="w-4 h-4 text-[#D93636]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold">{t('profile.logout')}</p>
-                <p className="text-[11px] text-rose-500 truncate">Sign out of your session</p>
+                <p className="font-semibold text-[#D93636]">{t('profile.logout') || 'Logout'}</p>
+                <p className="text-[11px] text-[#8A817A] truncate">Sign out of your session</p>
               </div>
             </button>
           </div>
@@ -291,4 +280,3 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
     </div>
   );
 };
-

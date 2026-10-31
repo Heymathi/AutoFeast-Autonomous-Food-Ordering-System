@@ -317,19 +317,19 @@ export const WelcomeMessageModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-lg bg-white text-[#302720] rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-[#8B1E2D] text-center space-y-6 transform scale-100">
+      <div className="w-full max-w-lg bg-white text-[#33251F] rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-[#D93636] text-center space-y-6 transform scale-100">
         
         {/* Celebration Icon Header */}
-        <div className="inline-flex p-4 bg-[#8B1E2D]/10 rounded-full border-2 border-[#8B1E2D] text-[#8B1E2D]">
+        <div className="inline-flex p-4 bg-[#D93636]/10 rounded-full border-2 border-[#D93636] text-[#D93636]">
           <Sparkles className="w-10 h-10 animate-bounce" />
         </div>
 
         <div className="space-y-2">
-          <span className="text-xs font-black uppercase tracking-widest text-[#8B1E2D] bg-[#8B1E2D]/10 px-3 py-1 rounded-full border border-[#8B1E2D]/30">
+          <span className="text-xs font-black uppercase tracking-widest text-[#D93636] bg-[#D93636]/10 px-3 py-1 rounded-full border border-[#D93636]/30">
             {t('welcome.badge') || (activeLang === 'ta' ? 'வரவேற்புச் செய்தி' : activeLang === 'hi' ? 'स्वागत संदेश' : 'Welcome to AutoFeast')}
           </span>
 
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-[#302720]">
+          <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-[#33251F]">
             {(t('welcome.title') || 'Welcome to AutoFeast, {name}! 🎉').replace('{name}', userName)}
           </h2>
 
@@ -342,8 +342,8 @@ export const WelcomeMessageModal: React.FC = () => {
           </p>
         </div>
 
-        <div className="p-4 bg-[#F1DEDC]/40 rounded-2xl border border-[#E7D9D6] flex items-center justify-center space-x-2 text-xs font-black text-[#302720]">
-          <Heart className="w-4 h-4 text-[#8B1E2D] fill-[#8B1E2D] animate-pulse" />
+        <div className="p-4 bg-[#FBE9E5]/40 rounded-2xl border border-[#F0E5DC] flex items-center justify-center space-x-2 text-xs font-black text-[#33251F]">
+          <Heart className="w-4 h-4 text-[#D93636] fill-[#D93636] animate-pulse" />
           <span>
             {t('welcome.langSet') || (activeLang === 'ta'
               ? 'மொழி வெற்றிகரமாகப் பயன்படுத்தப்பட்டது!'
@@ -365,7 +365,7 @@ export const WelcomeMessageModal: React.FC = () => {
         <button
           type="button"
           onClick={proceed}
-          className="w-full py-4 px-6 bg-[#8B1E2D] hover:bg-[#302720] text-white font-black rounded-2xl text-base shadow-lg shadow-[#8B1E2D]/30 transition-transform active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
+          className="w-full py-4 px-6 bg-[#D93636] hover:bg-[#33251F] text-white font-black rounded-2xl text-base shadow-lg shadow-[#D93636]/30 transition-transform active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
         >
           <span>
             {t('welcome.proceedBtn') || (activeLang === 'ta'

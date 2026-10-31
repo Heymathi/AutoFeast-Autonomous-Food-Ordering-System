@@ -83,7 +83,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border-2 border-[#8B1E2D] relative max-h-[90vh] overflow-y-auto text-[#302720]">
+      <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border-2 border-[#D93636] relative max-h-[90vh] overflow-y-auto text-[#33251F]">
         
         {/* Close button */}
         <button
@@ -94,15 +94,15 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
         </button>
 
         {/* Modal Header */}
-        <div className="space-y-1 pr-8 border-b border-[#F1DEDC] pb-4">
+        <div className="space-y-1 pr-8 border-b border-[#FBE9E5] pb-4">
           <div className="flex items-center space-x-2">
-            <span className="text-xs font-black uppercase text-[#8B1E2D] bg-[#8B1E2D]/10 px-2.5 py-0.5 rounded-full border border-[#8B1E2D]/20">
+            <span className="text-xs font-black uppercase text-[#D93636] bg-[#D93636]/10 px-2.5 py-0.5 rounded-full border border-[#D93636]/20">
               {t('override.badge')}
             </span>
             <span className="text-xs font-bold text-[#4A5568]">Slot: {schedule.slotName}</span>
           </div>
-          <h3 className="text-2xl font-black text-[#302720] flex items-center gap-2 mt-1">
-            <Settings2 className="w-6 h-6 text-[#8B1E2D]" />
+          <h3 className="text-2xl font-black text-[#33251F] flex items-center gap-2 mt-1">
+            <Settings2 className="w-6 h-6 text-[#D93636]" />
             {t('override.title')}
           </h3>
           <p className="text-xs text-[#4A5568] font-bold">
@@ -113,10 +113,10 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
         {/* Date Selection & Existing Overrides */}
         <div className="space-y-6 pt-4">
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#F1DEDC]/40 p-4 rounded-2xl border border-[#E7D9D6]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#FBE9E5]/40 p-4 rounded-2xl border border-[#F0E5DC]">
             <div className="space-y-2">
               <label className="text-xs font-black uppercase text-[#4A5568] flex items-center gap-1">
-                <Calendar className="w-4 h-4 text-[#8B1E2D]" /> {t('override.selectDate')}
+                <Calendar className="w-4 h-4 text-[#D93636]" /> {t('override.selectDate')}
               </label>
               <input
                 type="date"
@@ -137,7 +137,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                     if (existing.notes) setNotes(existing.notes);
                   }
                 }}
-                className="w-full p-3 rounded-xl border border-[#E7D9D6] bg-white font-black text-sm text-[#302720]"
+                className="w-full p-3 rounded-xl border border-[#F0E5DC] bg-white font-black text-sm text-[#33251F]"
               />
             </div>
 
@@ -151,8 +151,8 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                   onClick={() => setActionType('modify')}
                   className={`p-2.5 rounded-xl font-black text-xs border flex items-center justify-center space-x-1 ${
                     actionType === 'modify'
-                      ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-sm'
-                      : 'bg-white text-[#302720] border-[#F1DEDC] hover:bg-slate-50'
+                      ? 'bg-[#D93636] text-white border-[#D93636] shadow-sm'
+                      : 'bg-white text-[#33251F] border-[#FBE9E5] hover:bg-slate-50'
                   }`}
                 >
                   <Edit className="w-3.5 h-3.5" />
@@ -163,8 +163,8 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                   onClick={() => setActionType('skip')}
                   className={`p-2.5 rounded-xl font-black text-xs border flex items-center justify-center space-x-1 ${
                     actionType === 'skip'
-                      ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-sm'
-                      : 'bg-white text-[#302720] border-[#F1DEDC] hover:bg-slate-50'
+                      ? 'bg-[#D93636] text-white border-[#D93636] shadow-sm'
+                      : 'bg-white text-[#33251F] border-[#FBE9E5] hover:bg-slate-50'
                   }`}
                 >
                   <Ban className="w-3.5 h-3.5" />
@@ -176,7 +176,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
 
           {/* Form Controls for Modify Action */}
           {actionType === 'modify' ? (
-            <div className="space-y-5 bg-white p-4 rounded-2xl border border-[#F1DEDC]">
+            <div className="space-y-5 bg-white p-4 rounded-2xl border border-[#FBE9E5]">
               
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1">
@@ -185,7 +185,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                     type="time"
                     value={overrideTime}
                     onChange={e => setOverrideTime(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-[#E7D9D6] font-black text-sm bg-slate-50 text-center"
+                    className="w-full p-2.5 rounded-xl border border-[#F0E5DC] font-black text-sm bg-slate-50 text-center"
                   />
                 </div>
 
@@ -197,7 +197,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                     max="10"
                     value={quantity}
                     onChange={e => setQuantity(parseInt(e.target.value, 10) || 1)}
-                    className="w-full p-2.5 rounded-xl border border-[#E7D9D6] font-black text-sm bg-slate-50 text-center"
+                    className="w-full p-2.5 rounded-xl border border-[#F0E5DC] font-black text-sm bg-slate-50 text-center"
                   />
                 </div>
 
@@ -206,7 +206,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                   <select
                     value={strategy}
                     onChange={e => setStrategy(e.target.value as OrderStrategy)}
-                    className="w-full p-2.5 rounded-xl border border-[#E7D9D6] font-black text-xs bg-slate-50"
+                    className="w-full p-2.5 rounded-xl border border-[#F0E5DC] font-black text-xs bg-slate-50"
                   >
                     <option value="best_value">{t('strategy.best_value')}</option>
                     <option value="cheapest">{t('strategy.cheapest')}</option>
@@ -220,7 +220,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
               <div className="space-y-2">
                 <label className="text-xs font-black uppercase text-[#4A5568] flex items-center justify-between">
                   <span>{t('override.chooseFood').replace('{date}', targetDate)}</span>
-                  <span className="text-xs font-bold text-[#8B1E2D]">Current: {selectedItem.nativeNames?.[language] || selectedItem.name}</span>
+                  <span className="text-xs font-bold text-[#D93636]">Current: {selectedItem.nativeNames?.[language] || selectedItem.name}</span>
                 </label>
 
                 <div className="relative">
@@ -230,7 +230,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     placeholder={t('override.searchPlaceholder')}
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#E7D9D6] bg-slate-50 text-xs font-bold"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#F0E5DC] bg-slate-50 text-xs font-bold"
                   />
                 </div>
 
@@ -241,15 +241,15 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                       onClick={() => setSelectedItem(item)}
                       className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-center space-x-2 ${
                         selectedItem.id === item.id
-                          ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-sm'
-                          : 'bg-slate-50 border-[#F1DEDC] hover:bg-[#F1DEDC]/40 text-[#302720]'
+                          ? 'bg-[#D93636] text-white border-[#D93636] shadow-sm'
+                          : 'bg-slate-50 border-[#FBE9E5] hover:bg-[#FBE9E5]/40 text-[#33251F]'
                       }`}
                     >
                       <img src={item.image} alt={item.name} className="w-10 h-10 rounded-lg object-cover" />
                       <div className="overflow-hidden">
                         <h5 className="text-xs font-black truncate">{item.nativeNames?.[language] || item.name}</h5>
                         <p className="text-[10px] opacity-80 truncate">{item.restaurant}</p>
-                        <span className={`text-xs font-black ${selectedItem.id === item.id ? 'text-yellow-200' : 'text-[#8B1E2D]'}`}>₹{item.basePrice}</span>
+                        <span className={`text-xs font-black ${selectedItem.id === item.id ? 'text-yellow-200' : 'text-[#D93636]'}`}>₹{item.basePrice}</span>
                       </div>
                     </div>
                   ))}
@@ -263,15 +263,15 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="e.g. Birthday special, Guest arriving, etc."
-                  className="w-full p-2.5 rounded-xl border border-[#E7D9D6] bg-slate-50 text-xs font-semibold"
+                  className="w-full p-2.5 rounded-xl border border-[#F0E5DC] bg-slate-50 text-xs font-semibold"
                 />
               </div>
 
             </div>
           ) : (
-            <div className="p-6 bg-[#F8EBE9] rounded-2xl border border-[#E7D9D6] text-center space-y-2">
-              <Ban className="w-8 h-8 text-[#8B1E2D] mx-auto animate-bounce" />
-              <h4 className="text-base font-black text-[#8B1E2D]">
+            <div className="p-6 bg-[#FBE9E5] rounded-2xl border border-[#F0E5DC] text-center space-y-2">
+              <Ban className="w-8 h-8 text-[#D93636] mx-auto animate-bounce" />
+              <h4 className="text-base font-black text-[#D93636]">
                 {t('override.skipTitle').replace('{date}', targetDate)}
               </h4>
               <p className="text-xs text-[#4A5568] font-semibold max-w-md mx-auto">
@@ -296,7 +296,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
           </div>
 
           {/* List of Configured Overrides for this Schedule Slot */}
-          <div className="space-y-3 pt-4 border-t border-[#F1DEDC]">
+          <div className="space-y-3 pt-4 border-t border-[#FBE9E5]">
             <h4 className="text-xs font-black uppercase text-[#4A5568] tracking-wider">
               {t('override.activeTitle').replace('{n}', String(existingOverrides.length))}
             </h4>
@@ -310,13 +310,13 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                     key={o.id}
                     className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
                       o.isSkipped
-                        ? 'bg-[#F8EBE9] border-[#E7D9D6] text-rose-900'
+                        ? 'bg-[#FBE9E5] border-[#F0E5DC] text-rose-900'
                         : 'bg-emerald-50 border-emerald-200 text-emerald-900'
                     }`}
                   >
                     <div>
                       <div className="flex items-center space-x-2 font-black">
-                        <span className="font-mono text-[#8B1E2D]">{o.date}</span>
+                        <span className="font-mono text-[#D93636]">{o.date}</span>
                         <span>{o.isSkipped ? `🚫 ${t('override.skippedDay')}` : `🍔 ${o.foodItemName} (${o.restaurant})`}</span>
                       </div>
                       <p className="text-[11px] font-semibold opacity-90 mt-0.5">
@@ -334,7 +334,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
                       </button>
                       <button
                         onClick={() => deleteOverride(o.id)}
-                        className="p-1 text-[#8B1E2D] hover:bg-[#F1DEDC]/50 rounded-lg"
+                        className="p-1 text-[#D93636] hover:bg-[#FBE9E5]/50 rounded-lg"
                         title="Delete Override"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -571,12 +571,12 @@ export const AutoOrderScheduler: React.FC = () => {
       <div className={`p-8 rounded-3xl shadow-lg transition-all ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-4 border-yellow-400'
-          : 'bg-[#F1DEDC] text-[#302720] border-2 border-[#E7D9D6]'
+          : 'bg-[#FBE9E5] text-[#33251F] border-2 border-[#F0E5DC]'
       }`}>
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <h2 className="text-2xl sm:text-3xl font-black flex items-center gap-2 text-[#302720]">
-              <Clock className="w-8 h-8 text-[#8B1E2D] animate-pulse" />
+            <h2 className="text-2xl sm:text-3xl font-black flex items-center gap-2 text-[#33251F]">
+              <Clock className="w-8 h-8 text-[#D93636] animate-pulse" />
               {t('scheduler.title')}
             </h2>
             <p className="text-sm font-semibold text-[#4A5568] max-w-xl">
@@ -585,26 +585,26 @@ export const AutoOrderScheduler: React.FC = () => {
           </div>
 
           {/* Wallet Balance Badge */}
-          <div className="bg-white text-[#302720] p-4 rounded-2xl border border-[#E7D9D6] flex items-center space-x-3 shadow-sm">
+          <div className="bg-white text-[#33251F] p-4 rounded-2xl border border-[#F0E5DC] flex items-center space-x-3 shadow-sm">
             <Wallet className="w-6 h-6 text-[#16A34A]" />
             <div>
               <span className="text-[10px] text-[#4A5568] uppercase font-black tracking-wider block">{t('wallet.balance')}</span>
-              <span className="text-xl font-black text-[#8B1E2D]">₹{walletBalance.toFixed(0)}</span>
+              <span className="text-xl font-black text-[#D93636]">₹{walletBalance.toFixed(0)}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* 🚀 VOICE SCHEDULER BAR */}
-      <div className="bg-[#F1DEDC] p-4 rounded-2xl border-2 border-[#E7D9D6] flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+      <div className="bg-[#FBE9E5] p-4 rounded-2xl border-2 border-[#F0E5DC] flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center space-x-3 w-full sm:w-auto">
           <button
             type="button"
             onClick={startListeningForScheduler}
             className={`p-3.5 rounded-2xl flex items-center space-x-2 font-black text-xs shadow-md transition-all cursor-pointer ${
               isListening
-                ? 'bg-slate-900 text-white ring-2 ring-[#8B1E2D] animate-pulse'
-                : 'bg-[#8B1E2D] hover:bg-[#302720] text-white'
+                ? 'bg-slate-900 text-white ring-2 ring-[#D93636] animate-pulse'
+                : 'bg-[#D93636] hover:bg-[#33251F] text-white'
             }`}
           >
             <Mic className={`w-5 h-5 ${isListening ? 'text-yellow-300 animate-spin' : 'text-white'}`} />
@@ -615,7 +615,7 @@ export const AutoOrderScheduler: React.FC = () => {
             </span>
           </button>
           {liveTranscript && (
-            <span className="text-xs font-black text-[#8B1E2D] bg-white px-3 py-1.5 rounded-xl border border-[#E7D9D6]">
+            <span className="text-xs font-black text-[#D93636] bg-white px-3 py-1.5 rounded-xl border border-[#F0E5DC]">
               "{liveTranscript}"
             </span>
           )}
@@ -630,7 +630,7 @@ export const AutoOrderScheduler: React.FC = () => {
         <div className="bg-amber-50 p-4 rounded-2xl border-2 border-amber-400 space-y-3 shadow-md animate-fade-in">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black uppercase text-amber-900 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-[#8B1E2D]" />
+              <Sparkles className="w-4 h-4 text-[#D93636]" />
               {language === 'ta' ? `எந்த ${genericVariants.term}? தேர்ந்தெடுக்கவும்:` : `Which ${genericVariants.term}? Please select a variant:`}
             </span>
             <button
@@ -653,8 +653,8 @@ export const AutoOrderScheduler: React.FC = () => {
               >
                 <img src={varItem.image} alt={varItem.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
                 <div className="overflow-hidden">
-                  <span className="block truncate text-[#302720]">{varItem.nativeNames?.[language] || varItem.name}</span>
-                  <span className="text-[10px] text-[#8B1E2D] font-bold">₹{varItem.basePrice}</span>
+                  <span className="block truncate text-[#33251F]">{varItem.nativeNames?.[language] || varItem.name}</span>
+                  <span className="text-[10px] text-[#D93636] font-bold">₹{varItem.basePrice}</span>
                 </div>
               </button>
             ))}
@@ -700,12 +700,12 @@ export const AutoOrderScheduler: React.FC = () => {
               onClick={() => handleSelectSlot(slot)}
               className={`p-4 rounded-2xl font-black text-left transition-all border flex flex-col justify-between ${
                 activeSlotIndex === slot.index
-                  ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-lg scale-105'
-                  : 'bg-white text-[#302720] border-[#F1DEDC] hover:border-[#8B1E2D]/50 shadow-sm'
+                  ? 'bg-[#D93636] text-white border-[#D93636] shadow-lg scale-105'
+                  : 'bg-white text-[#33251F] border-[#FBE9E5] hover:border-[#D93636]/50 shadow-sm'
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className={`text-xs uppercase font-extrabold ${activeSlotIndex === slot.index ? 'text-yellow-200' : 'text-[#8B1E2D]'}`}>Slot {slot.index}</span>
+                <span className={`text-xs uppercase font-extrabold ${activeSlotIndex === slot.index ? 'text-yellow-200' : 'text-[#D93636]'}`}>Slot {slot.index}</span>
                 <Clock className="w-4 h-4 opacity-80" />
               </div>
               <span className="text-base font-black mt-2">{slot.name}</span>
@@ -716,11 +716,11 @@ export const AutoOrderScheduler: React.FC = () => {
       </div>
 
       {/* TIME-BASED AUTO-SUGGESTIONS FOR ACTIVE SLOT */}
-      <div className="bg-[#F1DEDC]/50 p-5 rounded-3xl border-2 border-[#E7D9D6] space-y-3">
+      <div className="bg-[#FBE9E5]/50 p-5 rounded-3xl border-2 border-[#F0E5DC] space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Sparkles className="w-5 h-5 text-[#8B1E2D] animate-bounce" />
-            <h4 className="text-sm font-black text-[#302720] uppercase tracking-wider">
+            <Sparkles className="w-5 h-5 text-[#D93636] animate-bounce" />
+            <h4 className="text-sm font-black text-[#33251F] uppercase tracking-wider">
               {language === 'ta'
                 ? `நேரம் ${activeSlotIndex} க்கான பரிந்துரைகள் (${presetSlots[activeSlotIndex - 1].name}):`
                 : language === 'hi'
@@ -728,7 +728,7 @@ export const AutoOrderScheduler: React.FC = () => {
                 : `Recommended Suggestions for Slot ${activeSlotIndex} (${presetSlots[activeSlotIndex - 1].name}):`}
             </h4>
           </div>
-          <span className="text-xs text-[#8B1E2D] font-extrabold bg-[#8B1E2D]/10 px-2.5 py-1 rounded-full">
+          <span className="text-xs text-[#D93636] font-extrabold bg-[#D93636]/10 px-2.5 py-1 rounded-full">
             {t('scheduler.timeSensitive')}
           </span>
         </div>
@@ -743,15 +743,15 @@ export const AutoOrderScheduler: React.FC = () => {
               }}
               className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-center space-x-3 ${
                 selectedFoodItem.id === sug.id
-                  ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-md scale-105'
-                  : 'bg-white text-[#302720] border-[#F1DEDC] hover:bg-slate-50 shadow-sm'
+                  ? 'bg-[#D93636] text-white border-[#D93636] shadow-md scale-105'
+                  : 'bg-white text-[#33251F] border-[#FBE9E5] hover:bg-slate-50 shadow-sm'
               }`}
             >
               <img src={sug.image} alt={sug.name} className="w-12 h-12 rounded-xl object-cover" />
               <div className="overflow-hidden">
                 <h5 className="text-xs font-black truncate">{sug.name}</h5>
                 <p className="text-[10px] opacity-80 truncate">{sug.restaurant}</p>
-                <span className={`text-xs font-black ${selectedFoodItem.id === sug.id ? 'text-yellow-200' : 'text-[#8B1E2D]'}`}>₹{sug.basePrice}</span>
+                <span className={`text-xs font-black ${selectedFoodItem.id === sug.id ? 'text-yellow-200' : 'text-[#D93636]'}`}>₹{sug.basePrice}</span>
               </div>
             </div>
           ))}
@@ -759,11 +759,11 @@ export const AutoOrderScheduler: React.FC = () => {
       </div>
 
       {/* SCHEDULE BUILDER FORM */}
-      <div className="bg-white p-6 sm:p-8 rounded-3xl border-2 border-[#F1DEDC] shadow-xl space-y-6 text-[#302720]">
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border-2 border-[#FBE9E5] shadow-xl space-y-6 text-[#33251F]">
         
-        <div className="flex items-center justify-between border-b border-[#F1DEDC] pb-4">
-          <h3 className="text-xl font-black text-[#302720] flex items-center gap-2">
-            <Utensils className="w-5 h-5 text-[#8B1E2D]" />
+        <div className="flex items-center justify-between border-b border-[#FBE9E5] pb-4">
+          <h3 className="text-xl font-black text-[#33251F] flex items-center gap-2">
+            <Utensils className="w-5 h-5 text-[#D93636]" />
             {t('scheduler.configureSlot')} {presetSlots[activeSlotIndex - 1].name}
           </h3>
           <span className="text-xs font-black text-[#16A34A] bg-[#16A34A]/10 px-3 py-1 rounded-full border border-[#16A34A]/30">
@@ -783,7 +783,7 @@ export const AutoOrderScheduler: React.FC = () => {
               type="time"
               value={scheduleTime}
               onChange={e => setScheduleTime(e.target.value)}
-              className="w-full p-3.5 rounded-2xl border border-[#E7D9D6] bg-slate-50 text-[#302720] font-black text-lg text-center focus:outline-none focus:border-[#8B1E2D]"
+              className="w-full p-3.5 rounded-2xl border border-[#F0E5DC] bg-slate-50 text-[#33251F] font-black text-lg text-center focus:outline-none focus:border-[#D93636]"
             />
           </div>
 
@@ -795,7 +795,7 @@ export const AutoOrderScheduler: React.FC = () => {
             <select
               value={frequency}
               onChange={e => setFrequency(e.target.value as any)}
-              className="w-full p-3.5 rounded-2xl border border-[#E7D9D6] bg-slate-50 text-[#302720] font-black text-sm focus:outline-none focus:border-[#8B1E2D]"
+              className="w-full p-3.5 rounded-2xl border border-[#F0E5DC] bg-slate-50 text-[#33251F] font-black text-sm focus:outline-none focus:border-[#D93636]"
             >
               <option value="daily">{t('scheduler.daily')}</option>
               <option value="weekly">{t('scheduler.weekly')}</option>
@@ -807,12 +807,12 @@ export const AutoOrderScheduler: React.FC = () => {
           <div className="space-y-2">
             <label className="text-xs font-black uppercase text-[#4A5568] flex items-center justify-between">
               <span>{t('scheduler.recurrenceDuration')}</span>
-              <span className="text-[#8B1E2D] font-bold text-[11px]">{t('scheduler.extendedRange')}</span>
+              <span className="text-[#D93636] font-bold text-[11px]">{t('scheduler.extendedRange')}</span>
             </label>
             <select
               value={duration}
               onChange={e => setDuration(e.target.value as ScheduleDuration)}
-              className="w-full p-3.5 rounded-2xl border border-[#E7D9D6] bg-slate-50 text-[#302720] font-black text-sm focus:outline-none focus:border-[#8B1E2D]"
+              className="w-full p-3.5 rounded-2xl border border-[#F0E5DC] bg-slate-50 text-[#33251F] font-black text-sm focus:outline-none focus:border-[#D93636]"
             >
               <option value="today_only">{t('scheduler.durationTodayAlone')}</option>
               <option value="1_week">{t('scheduler.duration1Week')}</option>
@@ -827,7 +827,7 @@ export const AutoOrderScheduler: React.FC = () => {
 
         {/* 🚀 FREE WEEKDAY SELECTION CHIPS */}
         {(frequency === 'weekly' || frequency === 'custom') && (
-          <div className="bg-[#F1DEDC]/20 p-4 rounded-2xl border border-[#E7D9D6]">
+          <div className="bg-[#FBE9E5]/20 p-4 rounded-2xl border border-[#F0E5DC]">
             <WeekdaySelector
               selectedDays={selectedDays}
               onChange={setSelectedDays}
@@ -836,36 +836,36 @@ export const AutoOrderScheduler: React.FC = () => {
         )}
 
         {/* Start Date & Custom End Date Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#F1DEDC]/30 p-4 rounded-2xl border border-[#E7D9D6]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#FBE9E5]/30 p-4 rounded-2xl border border-[#F0E5DC]">
           <div className="space-y-1">
             <label className="text-xs font-black uppercase text-[#4A5568] flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-[#8B1E2D]" /> {t('scheduler.startDate')}
+              <Calendar className="w-3.5 h-3.5 text-[#D93636]" /> {t('scheduler.startDate')}
             </label>
             <input
               type="date"
               value={startDate}
               onChange={e => setStartDate(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-[#E7D9D6] bg-white font-bold text-xs"
+              className="w-full p-2.5 rounded-xl border border-[#F0E5DC] bg-white font-bold text-xs"
             />
           </div>
 
           {duration === 'custom' ? (
             <div className="space-y-1">
               <label className="text-xs font-black uppercase text-[#4A5568] flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-[#8B1E2D]" /> {t('scheduler.customEndDate')}
+                <Calendar className="w-3.5 h-3.5 text-[#D93636]" /> {t('scheduler.customEndDate')}
               </label>
               <input
                 type="date"
                 value={customEndDate}
                 min={startDate}
                 onChange={e => setCustomEndDate(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-[#E7D9D6] bg-white font-bold text-xs"
+                className="w-full p-2.5 rounded-xl border border-[#F0E5DC] bg-white font-bold text-xs"
               />
             </div>
           ) : (
             <div className="space-y-1 flex flex-col justify-center">
               <span className="text-[10px] uppercase font-black text-[#4A5568]">{t('scheduler.calculatedRange')}</span>
-              <div className="p-2.5 bg-white rounded-xl border border-[#E7D9D6] text-xs font-black text-[#16A34A] flex items-center gap-1.5">
+              <div className="p-2.5 bg-white rounded-xl border border-[#F0E5DC] text-xs font-black text-[#16A34A] flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-[#16A34A]" />
                 <span>
                   {duration === 'indefinite'
@@ -889,7 +889,7 @@ export const AutoOrderScheduler: React.FC = () => {
         <div className="space-y-3 pt-2">
           <label className="text-xs font-black uppercase text-[#4A5568] flex items-center justify-between">
             <span>{t('scheduler.searchCatalogLabel')}</span>
-            <span className="text-xs text-[#8B1E2D] font-extrabold">{filteredCatalog.length} {t('scheduler.itemsAvailable')}</span>
+            <span className="text-xs text-[#D93636] font-extrabold">{filteredCatalog.length} {t('scheduler.itemsAvailable')}</span>
           </label>
 
           <div className="relative">
@@ -899,7 +899,7 @@ export const AutoOrderScheduler: React.FC = () => {
               value={slotSearchQuery}
               onChange={e => setSlotSearchQuery(e.target.value)}
               placeholder={t('scheduler.searchPlaceholder')}
-              className="w-full pl-10 pr-4 py-3 rounded-2xl border border-[#E7D9D6] bg-slate-50 text-[#302720] font-bold text-sm focus:outline-none focus:border-[#8B1E2D]"
+              className="w-full pl-10 pr-4 py-3 rounded-2xl border border-[#F0E5DC] bg-slate-50 text-[#33251F] font-bold text-sm focus:outline-none focus:border-[#D93636]"
             />
           </div>
 
@@ -920,8 +920,8 @@ export const AutoOrderScheduler: React.FC = () => {
                 }}
                 className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-center space-x-3 ${
                   selectedFoodItem.id === item.id
-                    ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-md'
-                    : 'bg-slate-50 border-[#F1DEDC] hover:bg-[#F1DEDC]/50 text-[#302720]'
+                    ? 'bg-[#D93636] text-white border-[#D93636] shadow-md'
+                    : 'bg-slate-50 border-[#FBE9E5] hover:bg-[#FBE9E5]/50 text-[#33251F]'
                 }`}
               >
                 <img src={item.image} alt={item.name} className="w-12 h-12 rounded-xl object-cover" />
@@ -935,7 +935,7 @@ export const AutoOrderScheduler: React.FC = () => {
                     )}
                   </div>
                   <p className="text-[10px] opacity-80 truncate">{item.restaurant}</p>
-                  <span className={`text-xs font-black ${selectedFoodItem.id === item.id ? 'text-yellow-200' : 'text-[#8B1E2D]'}`}>₹{item.basePrice}</span>
+                  <span className={`text-xs font-black ${selectedFoodItem.id === item.id ? 'text-yellow-200' : 'text-[#D93636]'}`}>₹{item.basePrice}</span>
                 </div>
               </div>
             ))}
@@ -943,12 +943,12 @@ export const AutoOrderScheduler: React.FC = () => {
         </div>
 
         {/* Selected Item Summary & Save Button */}
-        <div className="p-4 bg-[#F1DEDC]/40 rounded-2xl border border-[#E7D9D6] flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="p-4 bg-[#FBE9E5]/40 rounded-2xl border border-[#F0E5DC] flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center space-x-3">
             <img src={selectedFoodItem.image} alt={selectedFoodItem.name} className="w-12 h-12 rounded-xl object-cover" />
             <div>
-              <span className="text-xs text-[#8B1E2D] font-extrabold uppercase block">{t('scheduler.selectedFoodItem')}</span>
-              <h4 className="text-base font-black text-[#302720]">{selectedFoodItem.name}</h4>
+              <span className="text-xs text-[#D93636] font-extrabold uppercase block">{t('scheduler.selectedFoodItem')}</span>
+              <h4 className="text-base font-black text-[#33251F]">{selectedFoodItem.name}</h4>
               <p className="text-xs text-[#4A5568] font-bold">{selectedFoodItem.restaurant} • ₹{selectedFoodItem.basePrice}</p>
             </div>
           </div>
@@ -960,7 +960,7 @@ export const AutoOrderScheduler: React.FC = () => {
               className="px-4 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-400 font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95"
               title={t('addToCart')}
             >
-              <ShoppingBag className="w-4 h-4 text-[#8B1E2D]" />
+              <ShoppingBag className="w-4 h-4 text-[#D93636]" />
               <span>{t('addToCart')}</span>
             </button>
 
@@ -976,7 +976,7 @@ export const AutoOrderScheduler: React.FC = () => {
             <button
               type="button"
               onClick={() => setChooserItem(selectedFoodItem)}
-              className="px-5 py-2.5 bg-[#8B1E2D] hover:bg-[#302720] text-white font-black rounded-xl text-xs shadow-md transition-transform active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              className="px-5 py-2.5 bg-[#D93636] hover:bg-[#33251F] text-white font-black rounded-xl text-xs shadow-md transition-transform active:scale-95 flex items-center gap-1.5 cursor-pointer"
             >
               <Clock className="w-4 h-4 text-white" />
               <span>{t('scheduler.saveScheduleWithDuration')} ({formatDurationLabel(duration)})</span>
@@ -988,13 +988,13 @@ export const AutoOrderScheduler: React.FC = () => {
 
       {/* ACTIVE SCHEDULE CARDS LIST */}
       <div className="space-y-4">
-        <h3 className="text-lg font-black text-[#302720] flex items-center gap-2">
+        <h3 className="text-lg font-black text-[#33251F] flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 text-[#16A34A]" />
           Active Configured Schedules ({schedules.length})
         </h3>
 
         {schedules.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded-3xl border border-[#F1DEDC] text-[#4A5568] font-bold text-sm shadow-sm">
+          <div className="p-8 text-center bg-white rounded-3xl border border-[#FBE9E5] text-[#4A5568] font-bold text-sm shadow-sm">
             No active schedules created yet. Configure a slot above and save!
           </div>
         ) : (
@@ -1002,16 +1002,16 @@ export const AutoOrderScheduler: React.FC = () => {
             {schedules.map(sch => {
               const schOverrides = getOverridesForSchedule(sch.id);
               return (
-                <div key={sch.id} className="bg-white p-6 rounded-3xl border border-[#F1DEDC] shadow-md flex flex-col justify-between space-y-4 text-[#302720]">
+                <div key={sch.id} className="bg-white p-6 rounded-3xl border border-[#FBE9E5] shadow-md flex flex-col justify-between space-y-4 text-[#33251F]">
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="text-xs font-black uppercase text-[#8B1E2D]">{sch.slotName}</span>
+                        <span className="text-xs font-black uppercase text-[#D93636]">{sch.slotName}</span>
                         <span className="text-[10px] font-black uppercase bg-[#16A34A]/10 text-[#16A34A] px-2 py-0.5 rounded-full border border-[#16A34A]/20">
                           {formatDurationLabel(sch.duration)}
                         </span>
                       </div>
-                      <h4 className="text-lg font-black text-[#302720] mt-0.5">{sch.foodItemName}</h4>
+                      <h4 className="text-lg font-black text-[#33251F] mt-0.5">{sch.foodItemName}</h4>
                       <p className="text-xs text-[#4A5568] font-bold">{sch.restaurant}</p>
                     </div>
 
@@ -1022,10 +1022,10 @@ export const AutoOrderScheduler: React.FC = () => {
                   </div>
 
                   {/* Recurrence Range & Overrides Count Badge */}
-                  <div className="p-3 bg-slate-50 rounded-2xl border border-[#F1DEDC] space-y-2">
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-[#FBE9E5] space-y-2">
                     <div className="flex items-center justify-between text-xs font-bold text-[#4A5568]">
                       <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-[#8B1E2D]" />
+                        <Calendar className="w-3.5 h-3.5 text-[#D93636]" />
                         Range: {sch.startDate || 'Started'} → {sch.endDate || 'Until Cancelled'}
                       </span>
                     </div>
@@ -1033,14 +1033,14 @@ export const AutoOrderScheduler: React.FC = () => {
                     {/* Excluded / Skipped Dates Badges */}
                     {((sch.excludedDates && sch.excludedDates.length > 0) || schOverrides.some(o => o.isSkipped)) && (
                       <div className="space-y-1.5 pt-1 border-t border-slate-200">
-                        <span className="text-[10px] font-black uppercase text-[#8B1E2D] block">🚫 Skipped Single Dates:</span>
+                        <span className="text-[10px] font-black uppercase text-[#D93636] block">🚫 Skipped Single Dates:</span>
                         <div className="flex flex-wrap gap-1.5">
                           {Array.from(new Set([...(sch.excludedDates || []), ...schOverrides.filter(o => o.isSkipped).map(o => o.date)])).map(skDate => (
-                            <span key={skDate} className="bg-[#F1DEDC] text-rose-800 text-[11px] font-black px-2 py-0.5 rounded-lg border border-rose-300 flex items-center gap-1">
+                            <span key={skDate} className="bg-[#FBE9E5] text-rose-800 text-[11px] font-black px-2 py-0.5 rounded-lg border border-rose-300 flex items-center gap-1">
                               <span>{skDate}</span>
                               <button
                                 onClick={() => restoreScheduleDate(sch.id, skDate)}
-                                className="text-[#8B1E2D] hover:text-rose-900 font-bold ml-1 hover:underline cursor-pointer"
+                                className="text-[#D93636] hover:text-rose-900 font-bold ml-1 hover:underline cursor-pointer"
                                 title="Restore order for this date"
                               >
                                 ↺ Restore
@@ -1053,7 +1053,7 @@ export const AutoOrderScheduler: React.FC = () => {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex flex-wrap items-center justify-between pt-2 border-t border-[#F1DEDC] gap-2">
+                  <div className="flex flex-wrap items-center justify-between pt-2 border-t border-[#FBE9E5] gap-2">
                     <div className="flex items-center space-x-1.5">
                       <button
                         onClick={() => {
@@ -1070,9 +1070,9 @@ export const AutoOrderScheduler: React.FC = () => {
                             skipScheduleDate(sch.id, tmr);
                           }
                         }}
-                        className="px-3 py-1.5 bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] rounded-xl font-black text-xs border border-[#E7D9D6] flex items-center space-x-1 cursor-pointer transition-colors"
+                        className="px-3 py-1.5 bg-[#FBE9E5] hover:bg-[#FBE9E5] text-[#D93636] rounded-xl font-black text-xs border border-[#F0E5DC] flex items-center space-x-1 cursor-pointer transition-colors"
                       >
-                        <Ban className="w-3.5 h-3.5 text-[#8B1E2D]" />
+                        <Ban className="w-3.5 h-3.5 text-[#D93636]" />
                         <span>
                           {(() => {
                             const tmr = (() => {
@@ -1088,9 +1088,9 @@ export const AutoOrderScheduler: React.FC = () => {
 
                       <button
                         onClick={() => setActiveOverrideSchedule(sch)}
-                        className="px-3 py-1.5 bg-[#F1DEDC] hover:bg-[#E7D9D6] text-[#302720] rounded-xl font-black text-xs border border-[#E7D9D6] flex items-center space-x-1 cursor-pointer"
+                        className="px-3 py-1.5 bg-[#FBE9E5] hover:bg-[#F0E5DC] text-[#33251F] rounded-xl font-black text-xs border border-[#F0E5DC] flex items-center space-x-1 cursor-pointer"
                       >
-                        <Settings2 className="w-3.5 h-3.5 text-[#8B1E2D]" />
+                        <Settings2 className="w-3.5 h-3.5 text-[#D93636]" />
                         <span>Customize Dates</span>
                       </button>
                     </div>
@@ -1106,7 +1106,7 @@ export const AutoOrderScheduler: React.FC = () => {
 
                       <button
                         onClick={() => deleteSchedule(sch.id)}
-                        className="p-1.5 text-[#8B1E2D] bg-[#8B1E2D]/10 hover:bg-[#8B1E2D]/20 rounded-xl transition-colors cursor-pointer"
+                        className="p-1.5 text-[#D93636] bg-[#D93636]/10 hover:bg-[#D93636]/20 rounded-xl transition-colors cursor-pointer"
                         title="Delete Schedule"
                       >
                         <Trash2 className="w-4 h-4" />

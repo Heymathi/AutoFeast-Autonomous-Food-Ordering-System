@@ -250,12 +250,12 @@ export const DynamicFoodSearch: React.FC = () => {
       <div className={`p-6 sm:p-8 rounded-3xl transition-all ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-2 border-yellow-400'
-          : 'bg-white text-zinc-900 border border-[#E7D9D6] shadow-[0_10px_30px_rgba(200,35,70,0.04)]'
+          : 'bg-white text-zinc-900 border border-[#F0E5DC] shadow-[0_10px_30px_rgba(200,35,70,0.04)]'
       }`}>
         <div className="max-w-4xl mx-auto space-y-5">
           
           <div className="text-center space-y-1.5">
-            <h2 className="text-2xl sm:text-3xl font-black font-display tracking-tight text-[#302720]">
+            <h2 className="text-2xl sm:text-3xl font-black font-display tracking-tight text-[#33251F]">
               Dynamic Food Search & Live GPS Location
             </h2>
             <p className="text-xs sm:text-sm font-medium text-zinc-500">
@@ -272,7 +272,7 @@ export const DynamicFoodSearch: React.FC = () => {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder={t('search.placeholder')}
-                className="w-full pl-12 pr-14 py-4 rounded-full bg-[#F8EBE9]/60 hover:bg-[#F8EBE9] text-[#302720] placeholder-zinc-400 font-semibold shadow-xs focus:outline-none focus:ring-2 focus:ring-[#8B1E2D] focus:bg-white border border-[#E7D9D6] transition-all text-base"
+                className="w-full pl-12 pr-14 py-4 rounded-full bg-[#FBE9E5]/60 hover:bg-[#FBE9E5] text-[#33251F] placeholder-zinc-400 font-semibold shadow-xs focus:outline-none focus:ring-2 focus:ring-[#D93636] focus:bg-white border border-[#F0E5DC] transition-all text-base"
               />
               
               {/* MIC SEARCH ICON BUTTON ON RIGHT INSIDE SEARCH BAR */}
@@ -281,8 +281,8 @@ export const DynamicFoodSearch: React.FC = () => {
                 onClick={toggleSearchMic}
                 className={`absolute right-2.5 p-2.5 rounded-full transition-all cursor-pointer ${
                   isMicListening
-                    ? 'bg-[#8B1E2D] text-white shadow-md animate-pulse'
-                    : 'bg-[#F1DEDC] hover:bg-[#F1DEDC] text-[#8B1E2D]'
+                    ? 'bg-[#D93636] text-white shadow-md animate-pulse'
+                    : 'bg-[#FBE9E5] hover:bg-[#FBE9E5] text-[#D93636]'
                 }`}
                 title="Voice Search (Speak Food Name in English, Tamil, Hindi)"
               >
@@ -294,10 +294,10 @@ export const DynamicFoodSearch: React.FC = () => {
             {(isMicListening || liveTranscript || categoryStatusText) && (
               <div className="mt-3 p-3 bg-zinc-900 rounded-2xl text-emerald-200 text-xs font-bold flex items-center justify-between border border-rose-500/40 shadow-sm animate-fade-in">
                 <span className="flex items-center gap-2">
-                  <Volume2 className="w-4 h-4 text-[#8B1E2D] animate-bounce" />
+                  <Volume2 className="w-4 h-4 text-[#D93636] animate-bounce" />
                   {categoryStatusText || `Live Spoken Query: "${liveTranscript || searchQuery || 'Listening...'}"`}
                 </span>
-                <span className="text-[10px] bg-[#8B1E2D] text-white px-2.5 py-0.5 rounded-full uppercase font-bold tracking-wide">
+                <span className="text-[10px] bg-[#D93636] text-white px-2.5 py-0.5 rounded-full uppercase font-bold tracking-wide">
                   Listening Active 🎙️
                 </span>
               </div>
@@ -323,7 +323,7 @@ export const DynamicFoodSearch: React.FC = () => {
                     <button
                       key={item.id}
                       onClick={() => handleSelectSuggestion(item)}
-                      className="px-3.5 py-1.5 bg-white hover:bg-[#F8EBE9] text-[#302720] font-bold text-xs rounded-full border border-[#E7D9D6] shadow-2xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
+                      className="px-3.5 py-1.5 bg-white hover:bg-[#FBE9E5] text-[#33251F] font-bold text-xs rounded-full border border-[#F0E5DC] shadow-2xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
                     >
                       <span>{item.nativeNames?.[language] || item.name}</span>
                       <span className="text-[10px] text-zinc-400 font-normal">({item.restaurant})</span>
@@ -339,8 +339,8 @@ export const DynamicFoodSearch: React.FC = () => {
             
             <div className="flex flex-wrap items-center gap-3">
               {/* Location Selector */}
-              <div className="flex items-center space-x-2 bg-[#F8EBE9] px-3.5 py-2 rounded-full border border-[#E7D9D6] shadow-2xs">
-                <MapPin className="w-3.5 h-3.5 text-[#8B1E2D]" />
+              <div className="flex items-center space-x-2 bg-[#FBE9E5] px-3.5 py-2 rounded-full border border-[#F0E5DC] shadow-2xs">
+                <MapPin className="w-3.5 h-3.5 text-[#D93636]" />
                 <span className="text-xs font-bold text-zinc-600">City:</span>
                 <select
                   value={selectedLocation}
@@ -354,8 +354,8 @@ export const DynamicFoodSearch: React.FC = () => {
               </div>
 
               {/* Cuisine Selector */}
-              <div className="flex items-center space-x-2 bg-[#F8EBE9] px-3.5 py-2 rounded-full border border-[#E7D9D6] shadow-2xs">
-                <Utensils className="w-3.5 h-3.5 text-[#8B1E2D]" />
+              <div className="flex items-center space-x-2 bg-[#FBE9E5] px-3.5 py-2 rounded-full border border-[#F0E5DC] shadow-2xs">
+                <Utensils className="w-3.5 h-3.5 text-[#D93636]" />
                 <span className="text-xs font-bold text-zinc-600">Cuisine:</span>
                 <select
                   value={selectedCuisine}
@@ -376,7 +376,7 @@ export const DynamicFoodSearch: React.FC = () => {
               className={`flex items-center space-x-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer ${
                 vegOnly
                   ? 'bg-emerald-600 text-white'
-                  : 'bg-white text-zinc-700 border border-[#E7D9D6] hover:bg-[#F8EBE9]'
+                  : 'bg-white text-zinc-700 border border-[#F0E5DC] hover:bg-[#FBE9E5]'
               }`}
             >
               <Leaf className={`w-3.5 h-3.5 ${vegOnly ? 'text-white' : 'text-emerald-600'}`} />
@@ -388,9 +388,9 @@ export const DynamicFoodSearch: React.FC = () => {
       </div>
 
       {/* Quick Test Prompt Chips */}
-      <div className="bg-[#F8EBE9]/40 p-4 rounded-3xl border border-[#E7D9D6] shadow-2xs">
+      <div className="bg-[#FBE9E5]/40 p-4 rounded-3xl border border-[#F0E5DC] shadow-2xs">
         <div className="flex items-center space-x-2 mb-2.5">
-          <Sparkles className="w-3.5 h-3.5 text-[#8B1E2D]" />
+          <Sparkles className="w-3.5 h-3.5 text-[#D93636]" />
           <span className="text-xs font-extrabold text-zinc-800 uppercase tracking-wider">
             {t('search.quickTestsTitle')}
           </span>
@@ -400,7 +400,7 @@ export const DynamicFoodSearch: React.FC = () => {
             <button
               key={tc.label}
               onClick={() => handleQuickTest(tc.query)}
-              className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-white text-zinc-700 hover:bg-[#8B1E2D] hover:text-white transition-all shadow-2xs border border-[#E7D9D6] cursor-pointer"
+              className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-white text-zinc-700 hover:bg-[#D93636] hover:text-white transition-all shadow-2xs border border-[#F0E5DC] cursor-pointer"
             >
               "{tc.label}"
             </button>
@@ -411,9 +411,9 @@ export const DynamicFoodSearch: React.FC = () => {
       {/* Search Status & Intent Summary */}
       {searchResult.query && (
         <div className="flex items-center justify-between text-sm font-bold text-zinc-900 px-2">
-          <span>{t('search.resultsFor')} <span className="text-[#8B1E2D] font-extrabold">"{searchResult.query}"</span></span>
+          <span>{t('search.resultsFor')} <span className="text-[#D93636] font-extrabold">"{searchResult.query}"</span></span>
           {searchResult.extractedIntent.location && (
-            <span className="text-xs bg-[#F8EBE9] text-[#8B1E2D] px-3 py-1 rounded-full font-bold border border-[#E7D9D6]">
+            <span className="text-xs bg-[#FBE9E5] text-[#D93636] px-3 py-1 rounded-full font-bold border border-[#F0E5DC]">
               Location Filter: {searchResult.extractedIntent.location}
             </span>
           )}
@@ -422,9 +422,9 @@ export const DynamicFoodSearch: React.FC = () => {
 
       {/* DID YOU MEAN SUGGESTION CHIP FOR MEDIUM CONFIDENCE MATCHES */}
       {searchResult.didYouMean && (
-        <div className="bg-[#F8EBE9] border border-[#E7D9D6] p-4 rounded-3xl flex items-center justify-between shadow-2xs">
+        <div className="bg-[#FBE9E5] border border-[#F0E5DC] p-4 rounded-3xl flex items-center justify-between shadow-2xs">
           <div className="flex items-center space-x-2 text-sm font-bold text-zinc-900">
-            <Sparkles className="w-4 h-4 text-[#8B1E2D]" />
+            <Sparkles className="w-4 h-4 text-[#D93636]" />
             <span>{t('search.didYouMean')}</span>
           </div>
           <button
@@ -433,7 +433,7 @@ export const DynamicFoodSearch: React.FC = () => {
               setSearchQuery(searchResult.didYouMean!.name);
               executeSearch(searchResult.didYouMean!.name, true);
             }}
-            className="px-4 py-2 rounded-xl bg-[#8B1E2D] text-white font-extrabold text-xs hover:bg-[#302720] transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-[#D93636] text-white font-extrabold text-xs hover:bg-[#33251F] transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
           >
             <span>{searchResult.didYouMean.nativeNames?.[language] || searchResult.didYouMean.name}</span>
             <span className="text-[10px] opacity-80">({searchResult.didYouMean.name})</span>
@@ -443,13 +443,13 @@ export const DynamicFoodSearch: React.FC = () => {
 
       {/* ZERO-FALLBACK NOTICE when item unavailable */}
       {!searchResult.isExactMatch && (
-        <div className="bg-[#8B1E2D]/10 border-2 border-[#8B1E2D] p-4 rounded-2xl text-[#8B1E2D] space-y-2">
+        <div className="bg-[#D93636]/10 border-2 border-[#D93636] p-4 rounded-2xl text-[#D93636] space-y-2">
           <div className="flex items-center space-x-2 text-base font-black">
-            <AlertCircle className="w-5 h-5 text-[#8B1E2D]" />
+            <AlertCircle className="w-5 h-5 text-[#D93636]" />
             <span>{t('search.noResultsTitle')}</span>
           </div>
           <p className="text-xs sm:text-sm font-bold">{t('search.noResultsMessage')}</p>
-          <div className="p-3 bg-white rounded-xl border border-[#8B1E2D]/30 text-xs font-extrabold text-[#302720]">
+          <div className="p-3 bg-white rounded-xl border border-[#D93636]/30 text-xs font-extrabold text-[#33251F]">
             <ShieldCheck className="w-4 h-4 inline mr-1 text-[#16A34A]" />
             {t('search.zeroFallbackNotice')}
           </div>
@@ -465,7 +465,7 @@ export const DynamicFoodSearch: React.FC = () => {
       {/* RESULTS HEADER */}
       <div className="flex items-center justify-between pt-2">
         <div>
-          <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#302720] tracking-tight">
+          <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#33251F] tracking-tight">
             Popular Food Dishes
           </h2>
           <p className="text-xs sm:text-sm text-zinc-500 font-medium mt-0.5">
@@ -480,7 +480,7 @@ export const DynamicFoodSearch: React.FC = () => {
               if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }}
             aria-label="Previous dishes"
-            className="w-9 h-9 rounded-xl border border-[#E7D9D6] hover:border-[#8B1E2D] hover:text-[#8B1E2D] bg-white text-zinc-600 flex items-center justify-center transition-all shadow-2xs hover:scale-105 cursor-pointer"
+            className="w-9 h-9 rounded-xl border border-[#F0E5DC] hover:border-[#D93636] hover:text-[#D93636] bg-white text-zinc-600 flex items-center justify-center transition-all shadow-2xs hover:scale-105 cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -491,7 +491,7 @@ export const DynamicFoodSearch: React.FC = () => {
               if (el) el.scrollIntoView({ behavior: 'smooth', block: 'end' });
             }}
             aria-label="Next dishes"
-            className="w-9 h-9 rounded-xl border border-[#E7D9D6] hover:border-[#8B1E2D] hover:text-[#8B1E2D] bg-white text-zinc-600 flex items-center justify-center transition-all shadow-2xs hover:scale-105 cursor-pointer"
+            className="w-9 h-9 rounded-xl border border-[#F0E5DC] hover:border-[#D93636] hover:text-[#D93636] bg-white text-zinc-600 flex items-center justify-center transition-all shadow-2xs hover:scale-105 cursor-pointer"
           >
             <ArrowRight className="w-4 h-4" />
           </button>
@@ -503,7 +503,7 @@ export const DynamicFoodSearch: React.FC = () => {
         {(searchResult.isExactMatch ? searchResult.matchedItems : searchResult.suggestedItems).map(item => (
           <div
             key={item.id}
-            className={`group rounded-3xl overflow-hidden shadow-[0_4px_25px_rgba(0,0,0,0.04)] border border-[#E7D9D6] transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col justify-between ${
+            className={`group rounded-3xl overflow-hidden shadow-[0_4px_25px_rgba(0,0,0,0.04)] border border-[#F0E5DC] transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col justify-between ${
               accessibilitySettings.highContrast
                 ? 'bg-black text-white border-2 border-yellow-400'
                 : 'bg-white text-zinc-900'
@@ -511,7 +511,7 @@ export const DynamicFoodSearch: React.FC = () => {
           >
             <div>
               {/* Food Image with Veg Badge & Distance */}
-              <div className="relative h-48 overflow-hidden bg-[#F8EBE9]/60">
+              <div className="relative h-48 overflow-hidden bg-[#FBE9E5]/60">
                 <img
                   src={item.image}
                   alt={item.name}
@@ -519,12 +519,12 @@ export const DynamicFoodSearch: React.FC = () => {
                 />
                 <div className="absolute top-3 left-3 flex items-center space-x-1.5">
                   <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1 shadow-xs ${
-                    item.isVeg ? 'bg-emerald-600 text-white' : 'bg-[#8B1E2D] text-white'
+                    item.isVeg ? 'bg-emerald-600 text-white' : 'bg-[#D93636] text-white'
                   }`}>
                     <Leaf className="w-3 h-3" />
                     {item.isVeg ? 'Veg' : 'Non-Veg'}
                   </span>
-                  <span className="bg-[#302720]/80 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-bold">
+                  <span className="bg-[#33251F]/80 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-bold">
                     {item.cuisine}
                   </span>
                   {item.isSmartSearch && (
@@ -534,14 +534,14 @@ export const DynamicFoodSearch: React.FC = () => {
                   )}
                 </div>
 
-                <div className="absolute top-3 right-3 bg-[#8B1E2D] text-white font-bold px-2.5 py-1 rounded-full text-xs shadow-xs flex items-center space-x-1">
+                <div className="absolute top-3 right-3 bg-[#D93636] text-white font-bold px-2.5 py-1 rounded-full text-xs shadow-xs flex items-center space-x-1">
                   <Star className="w-3.5 h-3.5 fill-current text-white" />
                   <span>{item.rating}</span>
                 </div>
 
                 {/* Distance Badge in km */}
-                <div className="absolute bottom-3 left-3 bg-[#302720]/85 text-white font-bold px-2.5 py-1 rounded-full text-xs shadow-xs backdrop-blur-sm flex items-center space-x-1 border border-rose-400/30">
-                  <Navigation className="w-3 h-3 text-[#8B1E2D]" />
+                <div className="absolute bottom-3 left-3 bg-[#33251F]/85 text-white font-bold px-2.5 py-1 rounded-full text-xs shadow-xs backdrop-blur-sm flex items-center space-x-1 border border-rose-400/30">
+                  <Navigation className="w-3 h-3 text-[#D93636]" />
                   <span>📍 {item.distanceKm || 1.4} km away</span>
                 </div>
               </div>
@@ -550,14 +550,14 @@ export const DynamicFoodSearch: React.FC = () => {
               <div className="p-5 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="font-serif-editorial text-lg font-bold text-[#302720] leading-snug group-hover:text-[#8B1E2D] transition-colors">
+                    <h3 className="font-serif-editorial text-lg font-bold text-[#33251F] leading-snug group-hover:text-[#D93636] transition-colors">
                       {item.name}
                     </h3>
-                    <p className="text-xs font-bold text-[#8B1E2D] mt-0.5">
+                    <p className="text-xs font-bold text-[#D93636] mt-0.5">
                       {item.nativeNames.ta} • <span className="text-zinc-500 font-semibold">{item.restaurant}</span>
                     </p>
                   </div>
-                  <span className="text-xs bg-[#F8EBE9] text-[#8B1E2D] font-bold px-2.5 py-1 rounded-full border border-[#E7D9D6] shrink-0">
+                  <span className="text-xs bg-[#FBE9E5] text-[#D93636] font-bold px-2.5 py-1 rounded-full border border-[#F0E5DC] shrink-0">
                     {item.locations[0]}
                   </span>
                 </div>
@@ -567,10 +567,10 @@ export const DynamicFoodSearch: React.FC = () => {
                 </p>
 
                 {/* Platform Price Comparison List */}
-                <div className="pt-3 border-t border-[#E7D9D6] space-y-2">
+                <div className="pt-3 border-t border-[#F0E5DC] space-y-2">
                   <div className="flex items-center justify-between text-xs font-bold text-zinc-800">
                     <span>Live Platform Comparison:</span>
-                    <span className="text-[#8B1E2D] font-bold bg-[#F8EBE9] px-2 py-0.5 rounded-full border border-[#E7D9D6]">
+                    <span className="text-[#D93636] font-bold bg-[#FBE9E5] px-2 py-0.5 rounded-full border border-[#F0E5DC]">
                       Save ₹{item.platforms[0].originalPrice - item.platforms[3].price}
                     </span>
                   </div>
@@ -582,7 +582,7 @@ export const DynamicFoodSearch: React.FC = () => {
                         className={`p-2 rounded-2xl border flex flex-col justify-between transition-colors ${
                           p.discountBadge === 'BEST PRICE' || p.discountBadge === '15% OFF'
                             ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
-                            : 'bg-[#F8EBE9]/60 border-[#E7D9D6] text-zinc-800'
+                            : 'bg-[#FBE9E5]/60 border-[#F0E5DC] text-zinc-800'
                         }`}
                       >
                         <div className="flex items-center justify-between font-bold">
@@ -590,11 +590,11 @@ export const DynamicFoodSearch: React.FC = () => {
                           <span className="text-xs text-zinc-500 font-medium">★ {p.rating}</span>
                         </div>
                         <div className="flex items-baseline justify-between mt-1">
-                          <span className="text-sm font-black text-[#8B1E2D]">₹{p.price + p.deliveryFee}</span>
+                          <span className="text-sm font-black text-[#D93636]">₹{p.price + p.deliveryFee}</span>
                           <span className="text-[10px] text-zinc-400 line-through">₹{p.originalPrice}</span>
                         </div>
                         {p.discountBadge && (
-                          <span className="text-[10px] font-bold text-[#8B1E2D] mt-0.5">
+                          <span className="text-[10px] font-bold text-[#D93636] mt-0.5">
                             🔥 {p.discountBadge}
                           </span>
                         )}
@@ -605,8 +605,8 @@ export const DynamicFoodSearch: React.FC = () => {
               </div>
             </div>
 
-            {/* Card Action Footer with Elegant Coral Red CTA (#8B1E2D) */}
-            <div className="p-4 bg-[#F8EBE9]/60 border-t border-[#E7D9D6] space-y-2">
+            {/* Card Action Footer with Elegant Coral Red CTA (#D93636) */}
+            <div className="p-4 bg-[#FBE9E5]/60 border-t border-[#F0E5DC] space-y-2">
               {(() => {
                 const isRestricted = checkIsItemRestrictedByNominee(item.id, item.name);
                 const isApproved = isItemApprovedByNominee(item.id);
@@ -617,9 +617,9 @@ export const DynamicFoodSearch: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setChooserItem(item)}
-                      className="w-full bg-[#302720] hover:bg-black text-white font-bold py-2.5 rounded-full shadow-xs transition-transform active:scale-95 flex items-center justify-center space-x-2 text-xs sm:text-sm cursor-pointer"
+                      className="w-full bg-[#33251F] hover:bg-black text-white font-bold py-2.5 rounded-full shadow-xs transition-transform active:scale-95 flex items-center justify-center space-x-2 text-xs sm:text-sm cursor-pointer"
                     >
-                      <Mic className="w-4 h-4 text-[#8B1E2D]" />
+                      <Mic className="w-4 h-4 text-[#D93636]" />
                       <span>{canDirectOrder ? 'Choose Action (Voice / Tap)' : `🔒 ${t('nominee.approvalRequiredBadge')}`}</span>
                     </button>
 
@@ -628,7 +628,7 @@ export const DynamicFoodSearch: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setChooserItem(item)}
-                          className="bg-[#8B1E2D] hover:bg-[#302720] text-white font-bold py-2 rounded-full shadow-xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                          className="bg-[#D93636] hover:bg-[#33251F] text-white font-bold py-2 rounded-full shadow-xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
                         >
                           <Zap className="w-3.5 h-3.5 text-white" />
                           <span>Instant</span>
@@ -637,16 +637,16 @@ export const DynamicFoodSearch: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setChooserItem(item)}
-                          className="bg-[#F8EBE9] hover:bg-[#F1DEDC]/80 text-[#8B1E2D] font-bold py-2 rounded-full border border-[#E7D9D6]/70 shadow-2xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                          className="bg-[#FBE9E5] hover:bg-[#FBE9E5]/80 text-[#D93636] font-bold py-2 rounded-full border border-[#F0E5DC]/70 shadow-2xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
                         >
-                          <Clock className="w-3.5 h-3.5 text-[#8B1E2D]" />
+                          <Clock className="w-3.5 h-3.5 text-[#D93636]" />
                           <span>Schedule</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setChooserItem(item)}
-                          className="bg-white hover:bg-[#F8EBE9] text-zinc-800 font-bold py-2 rounded-full border border-[#E7D9D6] shadow-2xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                          className="bg-white hover:bg-[#FBE9E5] text-zinc-800 font-bold py-2 rounded-full border border-[#F0E5DC] shadow-2xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
                           title={t('addToCart')}
                         >
                           <span>+ Cart</span>
@@ -666,7 +666,7 @@ export const DynamicFoodSearch: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setChooserItem(item)}
-                          className="bg-white hover:bg-[#F8EBE9] text-zinc-800 font-bold py-2 rounded-full border border-[#E7D9D6] shadow-2xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
+                          className="bg-white hover:bg-[#FBE9E5] text-zinc-800 font-bold py-2 rounded-full border border-[#F0E5DC] shadow-2xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
                           title={t('addToCart')}
                         >
                           <span>+ Cart</span>
@@ -681,9 +681,9 @@ export const DynamicFoodSearch: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPriceCompareItem(item)}
-                className="w-full flex items-center justify-center gap-2 py-1.5 rounded-full text-xs font-bold transition-all border border-[#E7D9D6] bg-white hover:bg-[#F8EBE9] text-zinc-600 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 py-1.5 rounded-full text-xs font-bold transition-all border border-[#F0E5DC] bg-white hover:bg-[#FBE9E5] text-zinc-600 cursor-pointer"
               >
-                <BarChart2 className="w-3.5 h-3.5 text-[#8B1E2D]" />
+                <BarChart2 className="w-3.5 h-3.5 text-[#D93636]" />
                 <span>Live Price Comparison</span>
               </button>
 

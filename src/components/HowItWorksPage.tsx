@@ -1,194 +1,137 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import {
-  Compass,
-  Store,
+  UserCheck,
   Mic,
-  UtensilsCrossed,
-  ShoppingCart,
   ShieldCheck,
+  Users,
+  Lock,
   Bike,
   Sparkles,
-  ArrowRight,
-  Calendar,
-  Lock,
-  Globe2
+  ArrowRight
 } from 'lucide-react';
 
 export const HowItWorksPage: React.FC = () => {
-  const { setActiveView, setIsVoiceModalOpen, t, accessibilitySettings } = useApp();
-
-  const currentTheme =
-    accessibilitySettings.themeMode ||
-    (accessibilitySettings.highContrast ? 'high-contrast' : 'light');
+  const { setActiveView } = useApp();
 
   const steps = [
     {
-      number: '01',
-      title: 'Discover Food',
-      desc: 'Browse hundreds of regional Indian delicacies or type natural cravings. Smart semantic search finds dishes even if you spell or pronounce them phonetically.',
-      icon: Compass,
-      tag: 'Smart Search'
+      number: '1',
+      title: 'Set Up Your Profile',
+      desc: 'Add your dietary restrictions, linked bank, and optional nominee for complete peace of mind.',
+      icon: UserCheck
     },
     {
-      number: '02',
-      title: 'Search Nearby Restaurants',
-      desc: 'View real-time delivery distances, availability, and live platform price comparisons across Swiggy and Zomato to ensure you get the best deal.',
-      icon: Store,
-      tag: 'Best Price'
+      number: '2',
+      title: 'Browse or Speak Your Order',
+      desc: 'Search hundreds of local dishes or speak naturally in Tamil, English, or Hindi hands-free.',
+      icon: Mic
     },
     {
-      number: '03',
-      title: 'Use Voice Search or AI Assistance',
-      desc: 'Order effortlessly by speaking in English, Tamil (தமிழ்), or Hindi (हिन्दी). Works with online Web Speech as well as an offline local Whisper AI speech engine.',
-      icon: Mic,
-      tag: 'Multi-lingual Voice'
+      number: '3',
+      title: 'Smart Checks & Limits',
+      desc: 'AutoFeast AI compares Swiggy and Zomato prices while checking your daily spending limits.',
+      icon: ShieldCheck
     },
     {
-      number: '04',
-      title: 'Choose Your Food',
-      desc: 'Filter by Pure Veg, cuisine, or health requirements. Automated nominee restrictions protect elders and patients from non-permitted dietary items.',
-      icon: UtensilsCrossed,
-      tag: 'Dietary Safe'
+      number: '4',
+      title: 'Nominee Review (If Enabled)',
+      desc: 'Orders exceeding limits or flagged for health are instantly sent to your trusted nominee.',
+      icon: Users
     },
     {
-      number: '05',
-      title: 'Add Items to Cart or Schedule',
-      desc: 'Add to instant cart for immediate delivery, or add to the Weekly Schedule Cart to automate lunch and dinner on specific weekdays.',
-      icon: ShoppingCart,
-      tag: 'Smart Cart'
+      number: '5',
+      title: 'Confirm with PIN',
+      desc: 'Enter your 4-digit security PIN or Face ID to confirm and authorize the transaction.',
+      icon: Lock
     },
     {
-      number: '06',
-      title: 'Place Your Order Securely',
-      desc: 'Verify and authorize payment using your 4-digit security PIN, biometric Face ID, or linked wallet balance with full budget safeguards.',
-      icon: ShieldCheck,
-      tag: 'PIN & Biometrics'
-    },
-    {
-      number: '07',
-      title: 'Track Your Order Live',
-      desc: 'Watch delivery rider movement in real time with OpenStreetMap GPS tracking, live status updates, and interactive audio delivery alerts.',
-      icon: Bike,
-      tag: 'Live GPS Tracking'
+      number: '6',
+      title: 'Track to Your Door',
+      desc: 'Watch your delivery rider in real time with OpenStreetMap GPS and spoken delivery alerts.',
+      icon: Bike
     }
   ];
 
+  const handleStartSearching = () => {
+    setActiveView('home');
+    setTimeout(() => {
+      const el = document.getElementById('dynamic-food-search-section');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const input = el.querySelector('input');
+        if (input) input.focus();
+      }
+    }, 100);
+  };
+
   return (
-    <div className="w-full max-w-6xl mx-auto py-8 sm:py-12 px-4 sm:px-6 space-y-12 animate-fade-in">
-      {/* Page Hero Header */}
-      <div className="text-center space-y-4 max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F1DEDC] text-[#8B1E2D] text-xs font-bold tracking-wide">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Autonomous Food Platform</span>
-        </div>
-        <h1 className="font-serif-editorial text-3xl sm:text-5xl font-bold text-[#302720] tracking-tight leading-tight">
-          How AutoFeast AI Works
+    <div className="w-full max-w-6xl mx-auto py-8 sm:py-12 px-4 sm:px-6 space-y-12 sm:space-y-16 animate-fade-in pb-16">
+      {/* Header matching PDF Page 4 */}
+      <div className="text-center space-y-3 max-w-3xl mx-auto">
+        <h1 className="font-serif-editorial text-3xl sm:text-5xl font-bold text-[#33251F] tracking-tight leading-tight">
+          From craving to{' '}
+          <span className="text-[#D93636]">doorstep in six steps</span>
         </h1>
-        <p className="text-sm sm:text-base text-[#786E64] leading-relaxed">
-          AutoFeast AI combines voice intelligence, live platform price comparisons, and recurring meal scheduling into a seamless, accessible experience.
+        <p className="text-sm sm:text-base text-[#8A817A] leading-relaxed">
+          Experience seamless, AI-guided food ordering designed for everyone.
         </p>
       </div>
 
-      {/* 7-Step User Journey Grid */}
+      {/* 6 Step Cards Grid matching PDF Page 4 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
         {steps.map((step) => {
           const Icon = step.icon;
           return (
             <div
               key={step.number}
-              className={`rounded-2xl p-6 border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 flex flex-col justify-between ${
-                currentTheme === 'high-contrast'
-                  ? 'bg-black text-white border-2 border-yellow-400'
-                  : currentTheme === 'dark'
-                  ? 'bg-zinc-800 text-zinc-100 border-zinc-700'
-                  : 'bg-white text-[#302720] border-[#E7D9D6] shadow-xs'
-              }`}
+              className="bg-white rounded-2xl p-6 sm:p-7 border border-[#F0E5DC] shadow-xs hover:shadow-lg transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between group"
             >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="w-12 h-12 rounded-xl bg-[#F8EBE9] text-[#8B1E2D] flex items-center justify-center font-bold text-lg">
-                    <Icon className="w-6 h-6" />
+                  {/* Peach Square with Red Icon */}
+                  <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+                    <Icon className="w-6 h-6 text-[#D93636]" />
                   </div>
-                  <span className="text-2xl font-black text-[#F1DEDC] group-hover:text-[#8B1E2D]">
+
+                  {/* Red Numbered Circular Badge */}
+                  <div className="w-8 h-8 rounded-full bg-[#D93636] text-white font-bold text-sm flex items-center justify-center shadow-xs">
                     {step.number}
-                  </span>
+                  </div>
                 </div>
 
-                <div>
-                  <div className="inline-block px-2.5 py-0.5 rounded-md bg-[#F8EBE9] text-[#8B1E2D] text-[11px] font-bold mb-2">
-                    {step.tag}
-                  </div>
-                  <h3 className="font-serif-editorial text-xl font-bold text-[#302720] mb-2">{step.title}</h3>
-                  <p className="text-xs sm:text-sm text-[#786E64] leading-relaxed">{step.desc}</p>
-                </div>
+                <h3 className="font-bold text-lg text-[#33251F] group-hover:text-[#D93636] transition-colors">
+                  {step.title}
+                </h3>
+
+                <p className="text-xs sm:text-sm text-[#8A817A] leading-relaxed">
+                  {step.desc}
+                </p>
               </div>
             </div>
           );
         })}
-
-        {/* Feature Highlight CTA Box */}
-        <div className="rounded-2xl p-6 bg-gradient-to-br from-[#8B1E2D] to-[#302720] text-white flex flex-col justify-between shadow-lg">
-          <div className="space-y-3">
-            <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center text-white font-bold">
-              <Calendar className="w-6 h-6" />
-            </div>
-            <h3 className="text-xl font-bold">Autonomous Scheduling</h3>
-            <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
-              Never forget a meal. Set recurring breakfast, lunch, or dinner delivery on specific days with automatic guardian budget limits.
-            </p>
-          </div>
-
-          <div className="pt-6">
-            <button
-              type="button"
-              onClick={() => setActiveView('home')}
-              className="w-full py-3 px-4 rounded-lg bg-white text-[#302720] font-bold text-xs sm:text-sm shadow-md hover:bg-[#F1DEDC] transition-colors flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Explore Food Catalog</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
       </div>
 
-      {/* Safety & Nominee Assurance Section */}
-      <div className={`p-6 sm:p-8 rounded-2xl border ${
-        currentTheme === 'dark' ? 'bg-zinc-800/80 border-zinc-700' : 'bg-[#F8EBE9] border-[#E7D9D6]'
-      }`}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center md:text-left">
-          <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#F1DEDC] text-[#8B1E2D] flex items-center justify-center shrink-0">
-              <Globe2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-[#302720]">3 Official Languages</h4>
-              <p className="text-xs text-[#786E64]">English, தமிழ், and हिन्दी supported with full functionality.</p>
-            </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#F1DEDC] text-[#8B1E2D] flex items-center justify-center shrink-0">
-              <Lock className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-[#302720]">Nominee Guardianship</h4>
-              <p className="text-xs text-[#786E64]">Remote approval for restricted items & daily order safety caps.</p>
-            </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#F1DEDC] text-[#8B1E2D] flex items-center justify-center shrink-0">
-              <Mic className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-[#302720]">Offline Whisper Speech</h4>
-              <p className="text-xs text-[#786E64]">Local on-device transcription when internet is intermittent.</p>
-            </div>
-          </div>
+      {/* Bottom Call to Action Box matching PDF Page 4 */}
+      <div className="rounded-3xl border border-[#F0E5DC] bg-white p-8 sm:p-12 text-center shadow-xs space-y-5">
+        <h2 className="font-serif-editorial text-2xl sm:text-4xl font-bold text-[#33251F]">
+          Ready to find your next meal?
+        </h2>
+        <p className="text-sm text-[#8A817A] max-w-lg mx-auto">
+          Explore local favorites or use voice to order in seconds.
+        </p>
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={handleStartSearching}
+            className="px-8 py-3.5 rounded-full bg-[#D93636] hover:bg-[#C02B2B] text-white font-bold text-sm shadow-md hover:shadow-lg transition-all hover:scale-105 active:scale-95 inline-flex items-center gap-2 cursor-pointer"
+          >
+            <span>Start searching</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>
   );
 };
-

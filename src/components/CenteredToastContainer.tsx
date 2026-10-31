@@ -105,7 +105,7 @@ const ToastCard: React.FC<ToastCardProps> = ({ toast, onRemove }) => {
         return 'bg-amber-950 text-amber-100 border-2 border-amber-500 shadow-2xl';
       case 'info':
       default:
-        return 'bg-[#302720] text-white border-2 border-[#8B1E2D] shadow-2xl';
+        return 'bg-[#33251F] text-white border-2 border-[#D93636] shadow-2xl';
     }
   };
 
@@ -119,7 +119,7 @@ const ToastCard: React.FC<ToastCardProps> = ({ toast, onRemove }) => {
         return <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />;
       case 'info':
       default:
-        return <Sparkles className="w-5 h-5 text-[#8B1E2D] shrink-0 animate-pulse" />;
+        return <Sparkles className="w-5 h-5 text-[#D93636] shrink-0 animate-pulse" />;
     }
   };
 

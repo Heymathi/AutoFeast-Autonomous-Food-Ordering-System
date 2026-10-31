@@ -189,12 +189,12 @@ export const OrderPinConfirmationModal: React.FC = () => {
   const details = getItemDetails();
 
   const summaryCard = (
-    <div className="bg-[#F1DEDC]/50 p-3 rounded-xl border border-[#E7D9D6] flex items-center justify-between gap-3 my-2">
+    <div className="bg-[#FBE9E5]/50 p-3 rounded-xl border border-[#F0E5DC] flex items-center justify-between gap-3 my-2">
       <div className="space-y-0.5">
-        <span className="text-[9px] font-black uppercase tracking-wider text-[#8B1E2D] bg-[#8B1E2D]/10 px-2 py-0.5 rounded-full border border-[#8B1E2D]/30">
+        <span className="text-[9px] font-black uppercase tracking-wider text-[#D93636] bg-[#D93636]/10 px-2 py-0.5 rounded-full border border-[#D93636]/30">
           {details.typeBadge}
         </span>
-        <h4 className="text-sm font-black text-[#302720] line-clamp-1">{details.title}</h4>
+        <h4 className="text-sm font-black text-[#33251F] line-clamp-1">{details.title}</h4>
         <p className="text-[11px] font-semibold text-[#4A5568] line-clamp-1">{details.subtitle}</p>
       </div>
       {details.amount !== null && (
@@ -211,7 +211,7 @@ export const OrderPinConfirmationModal: React.FC = () => {
       <div className={`relative w-full max-w-md max-h-[94vh] flex flex-col rounded-3xl shadow-2xl transition-all border-4 overflow-y-auto p-5 ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-yellow-400'
-          : 'bg-white text-[#302720] border-[#8B1E2D]'
+          : 'bg-white text-[#33251F] border-[#D93636]'
       }`}>
         <button
           onClick={cancelPendingPinAction}

@@ -1077,7 +1077,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border-2 border-[#8B1E2D]/30 overflow-hidden relative">
+      <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border-2 border-[#D93636]/30 overflow-hidden relative">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1086,13 +1086,13 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
               <button
                 type="button"
                 onClick={handleGoBack}
-                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#8B1E2D] hover:text-white text-slate-500 transition-all cursor-pointer"
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#D93636] hover:text-white text-slate-500 transition-all cursor-pointer"
                 title={t('guided.backBtn')}
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
             )}
-            <div className="p-2 rounded-xl bg-[#8B1E2D]/10 text-[#8B1E2D]">
+            <div className="p-2 rounded-xl bg-[#D93636]/10 text-[#D93636]">
               <Zap className="w-5 h-5" />
             </div>
             <div>
@@ -1112,7 +1112,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black ${isListening ? 'bg-[#8B1E2D] text-white animate-pulse' : 'bg-slate-100 text-slate-400'
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black ${isListening ? 'bg-[#D93636] text-white animate-pulse' : 'bg-slate-100 text-slate-400'
               }`}>
               {isListening ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
               {isListening ? 'Listening' : 'Tap or Speak'}
@@ -1136,7 +1136,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
         {/* On-screen error hint */}
         {speechError && (
-          <div className="mx-5 mt-2 px-3 py-1.5 bg-[#F8EBE9] dark:bg-rose-950/30 border border-[#E7D9D6] dark:border-rose-900 rounded-xl text-xs font-bold text-[#302720] dark:text-rose-300 flex items-center gap-1.5 animate-fade-in">
+          <div className="mx-5 mt-2 px-3 py-1.5 bg-[#FBE9E5] dark:bg-rose-950/30 border border-[#F0E5DC] dark:border-rose-900 rounded-xl text-xs font-bold text-[#33251F] dark:text-rose-300 flex items-center gap-1.5 animate-fade-in">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">{speechError}</span>
           </div>
@@ -1152,9 +1152,9 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => handleVarietyChosen(item)}
-                  className="w-full text-left flex items-center gap-3 px-4 py-3 bg-[#F1DEDC]/60 hover:bg-[#8B1E2D] hover:text-white rounded-2xl border border-[#E7D9D6] transition-all group cursor-pointer"
+                  className="w-full text-left flex items-center gap-3 px-4 py-3 bg-[#FBE9E5]/60 hover:bg-[#D93636] hover:text-white rounded-2xl border border-[#F0E5DC] transition-all group cursor-pointer"
                 >
-                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-[#8B1E2D]/20 group-hover:bg-white/20 text-[#8B1E2D] group-hover:text-white text-xs font-black shrink-0">
+                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-[#D93636]/20 group-hover:bg-white/20 text-[#D93636] group-hover:text-white text-xs font-black shrink-0">
                     {idx + 1}
                   </span>
                   <div className="flex-1 min-w-0">
@@ -1185,9 +1185,9 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                 <button
                   type="button"
                   onClick={() => selectedItem && handleRestaurantChosen(selectedItem.restaurant || '')}
-                  className="w-full text-left flex items-center gap-3 px-4 py-3 bg-[#F1DEDC]/60 hover:bg-[#8B1E2D] hover:text-white rounded-2xl border border-[#E7D9D6] transition-all group cursor-pointer"
+                  className="w-full text-left flex items-center gap-3 px-4 py-3 bg-[#FBE9E5]/60 hover:bg-[#D93636] hover:text-white rounded-2xl border border-[#F0E5DC] transition-all group cursor-pointer"
                 >
-                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-[#8B1E2D]/20 group-hover:bg-white/20 text-xs font-black shrink-0">1</span>
+                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-[#D93636]/20 group-hover:bg-white/20 text-xs font-black shrink-0">1</span>
                   <span className="text-sm font-black">{selectedItem?.restaurant || 'Restaurant'}</span>
                 </button>
               )}
@@ -1196,9 +1196,9 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                   key={r}
                   type="button"
                   onClick={() => handleRestaurantChosen(r)}
-                  className="w-full text-left flex items-center gap-3 px-4 py-3 bg-[#F1DEDC]/60 hover:bg-[#8B1E2D] hover:text-white rounded-2xl border border-[#E7D9D6] transition-all group cursor-pointer"
+                  className="w-full text-left flex items-center gap-3 px-4 py-3 bg-[#FBE9E5]/60 hover:bg-[#D93636] hover:text-white rounded-2xl border border-[#F0E5DC] transition-all group cursor-pointer"
                 >
-                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-[#8B1E2D]/20 group-hover:bg-white/20 text-xs font-black shrink-0">
+                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-[#D93636]/20 group-hover:bg-white/20 text-xs font-black shrink-0">
                     {idx + 1}
                   </span>
                   <span className="text-sm font-black truncate flex-1">{r}</span>
@@ -1228,7 +1228,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                   <button
                     type="button"
                     onClick={() => selectedItem && handleOrderNow(selectedItem)}
-                    className="flex flex-col items-center gap-2 px-4 py-5 bg-[#8B1E2D] hover:bg-[#302720] text-white rounded-2xl shadow-md transition-all cursor-pointer"
+                    className="flex flex-col items-center gap-2 px-4 py-5 bg-[#D93636] hover:bg-[#33251F] text-white rounded-2xl shadow-md transition-all cursor-pointer"
                   >
                     <Zap className="w-6 h-6" />
                     <span className="text-sm font-black">{t('guided.nowBtn')}</span>
@@ -1283,7 +1283,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                 const dh = h % 12 || 12;
                 setSchedTimeDisplay(`${dh}:${String(m).padStart(2, '0')} ${ampm}`);
               }}
-              className="w-full py-3 px-4 bg-slate-50 dark:bg-slate-800 border-2 border-[#8B1E2D] rounded-2xl text-xl font-black text-center text-slate-900 dark:text-white focus:outline-none"
+              className="w-full py-3 px-4 bg-slate-50 dark:bg-slate-800 border-2 border-[#D93636] rounded-2xl text-xl font-black text-center text-slate-900 dark:text-white focus:outline-none"
             />
             <div className="flex flex-wrap gap-2">
               {[
@@ -1305,8 +1305,8 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                     });
                   }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer ${schedTime === preset.t24
-                    ? 'bg-[#8B1E2D] text-white border-[#8B1E2D]'
-                    : 'bg-[#F1DEDC] text-[#302720] border-[#E7D9D6] hover:bg-[#8B1E2D] hover:text-white'
+                    ? 'bg-[#D93636] text-white border-[#D93636]'
+                    : 'bg-[#FBE9E5] text-[#33251F] border-[#F0E5DC] hover:bg-[#D93636] hover:text-white'
                     }`}
                 >
                   {preset.label}
@@ -1325,7 +1325,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                   minutes: m
                 });
               }}
-              className="w-full py-3.5 bg-[#8B1E2D] hover:bg-[#302720] text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
+              className="w-full py-3.5 bg-[#D93636] hover:bg-[#33251F] text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
             >
               {t('guided.continueBtn')} ({schedTimeDisplay}) ✓
             </button>
@@ -1347,9 +1347,9 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                   key={opt.type}
                   type="button"
                   onClick={() => handleScheduleDurationSet(opt.type)}
-                  className="w-full text-left flex items-center gap-3.5 px-4 py-3.5 bg-[#F1DEDC]/60 hover:bg-[#8B1E2D] hover:text-white rounded-2xl border border-[#E7D9D6] transition-all group cursor-pointer"
+                  className="w-full text-left flex items-center gap-3.5 px-4 py-3.5 bg-[#FBE9E5]/60 hover:bg-[#D93636] hover:text-white rounded-2xl border border-[#F0E5DC] transition-all group cursor-pointer"
                 >
-                  <div className="p-2 rounded-xl bg-[#8B1E2D]/15 group-hover:bg-white/20 text-[#8B1E2D] group-hover:text-white shrink-0">
+                  <div className="p-2 rounded-xl bg-[#D93636]/15 group-hover:bg-white/20 text-[#D93636] group-hover:text-white shrink-0">
                     <Calendar className="w-5 h-5" />
                   </div>
                   <div className="flex-1">
@@ -1379,12 +1379,12 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                     max={180}
                     value={customDaysCount}
                     onChange={e => setCustomDaysCount(parseInt(e.target.value, 10) || 1)}
-                    className="flex-1 py-2.5 px-4 bg-slate-50 dark:bg-slate-800 border-2 border-[#8B1E2D] rounded-2xl text-lg font-black text-center"
+                    className="flex-1 py-2.5 px-4 bg-slate-50 dark:bg-slate-800 border-2 border-[#D93636] rounded-2xl text-lg font-black text-center"
                   />
                   <button
                     type="button"
                     onClick={() => handleCustomDurationSet({ type: 'days', count: customDaysCount })}
-                    className="py-2.5 px-5 bg-[#8B1E2D] hover:bg-[#302720] text-white font-black rounded-2xl text-xs cursor-pointer"
+                    className="py-2.5 px-5 bg-[#D93636] hover:bg-[#33251F] text-white font-black rounded-2xl text-xs cursor-pointer"
                   >
                     Set Days
                   </button>
@@ -1412,7 +1412,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                       handleCustomDurationSet({ type: 'until_date', dateStr: val, displayDate: val });
                     }
                   }}
-                  className="w-full py-2.5 px-4 bg-slate-50 dark:bg-slate-800 border-2 border-[#8B1E2D] rounded-2xl text-sm font-black text-center"
+                  className="w-full py-2.5 px-4 bg-slate-50 dark:bg-slate-800 border-2 border-[#D93636] rounded-2xl text-sm font-black text-center"
                 />
               </div>
             </div>
@@ -1427,18 +1427,18 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleDaysModeSet('all_days')}
-                className="flex flex-col items-center gap-2 p-5 bg-[#F1DEDC]/60 hover:bg-[#8B1E2D] hover:text-white rounded-2xl border border-[#E7D9D6] transition-all cursor-pointer group"
+                className="flex flex-col items-center gap-2 p-5 bg-[#FBE9E5]/60 hover:bg-[#D93636] hover:text-white rounded-2xl border border-[#F0E5DC] transition-all cursor-pointer group"
               >
-                <Calendar className="w-6 h-6 text-[#8B1E2D] group-hover:text-white" />
+                <Calendar className="w-6 h-6 text-[#D93636] group-hover:text-white" />
                 <span className="text-sm font-black">{t('guided.daysModeAll')}</span>
                 <span className="text-[10px] opacity-70">Daily delivery</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleDaysModeSet('particular_days')}
-                className="flex flex-col items-center gap-2 p-5 bg-[#F1DEDC]/60 hover:bg-[#8B1E2D] hover:text-white rounded-2xl border border-[#E7D9D6] transition-all cursor-pointer group"
+                className="flex flex-col items-center gap-2 p-5 bg-[#FBE9E5]/60 hover:bg-[#D93636] hover:text-white rounded-2xl border border-[#F0E5DC] transition-all cursor-pointer group"
               >
-                <Clock className="w-6 h-6 text-[#8B1E2D] group-hover:text-white" />
+                <Clock className="w-6 h-6 text-[#D93636] group-hover:text-white" />
                 <span className="text-sm font-black">{t('guided.daysModeParticular')}</span>
                 <span className="text-[10px] opacity-70">Custom weekdays</span>
               </button>
@@ -1455,14 +1455,14 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
               <button
                 type="button"
                 onClick={() => setSchedDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])}
-                className="px-2.5 py-1 text-[11px] font-black rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-[#8B1E2D] hover:text-white transition-all cursor-pointer"
+                className="px-2.5 py-1 text-[11px] font-black rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-[#D93636] hover:text-white transition-all cursor-pointer"
               >
                 Weekdays
               </button>
               <button
                 type="button"
                 onClick={() => setSchedDays(['Saturday', 'Sunday'])}
-                className="px-2.5 py-1 text-[11px] font-black rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-[#8B1E2D] hover:text-white transition-all cursor-pointer"
+                className="px-2.5 py-1 text-[11px] font-black rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-[#D93636] hover:text-white transition-all cursor-pointer"
               >
                 Weekends
               </button>
@@ -1478,8 +1478,8 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                     type="button"
                     onClick={() => toggleDay(day)}
                     className={`py-2 px-2 rounded-xl text-xs font-black border transition-all text-center cursor-pointer ${isSelected
-                      ? 'bg-[#8B1E2D] text-white border-[#8B1E2D] shadow-sm'
-                      : 'bg-[#F1DEDC] text-[#302720] border-[#E7D9D6] hover:bg-[#8B1E2D]/20'
+                      ? 'bg-[#D93636] text-white border-[#D93636] shadow-sm'
+                      : 'bg-[#FBE9E5] text-[#33251F] border-[#F0E5DC] hover:bg-[#D93636]/20'
                       }`}
                   >
                     {label}
@@ -1492,7 +1492,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
               type="button"
               onClick={() => handleWeekdaysSet(schedDays)}
               disabled={schedDays.length === 0}
-              className="w-full py-3.5 bg-[#8B1E2D] hover:bg-[#302720] disabled:opacity-50 text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
+              className="w-full py-3.5 bg-[#D93636] hover:bg-[#33251F] disabled:opacity-50 text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
             >
               {t('guided.continueBtn')} ({schedDays.length} days selected) ✓
             </button>
@@ -1503,16 +1503,16 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
         {step === 'schedule_bill' && (
           <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
             {/* Header info */}
-            <div className="bg-[#F1DEDC]/60 p-3.5 rounded-2xl border border-[#E7D9D6] flex items-center justify-between">
+            <div className="bg-[#FBE9E5]/60 p-3.5 rounded-2xl border border-[#F0E5DC] flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#8B1E2D] block">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#D93636] block">
                   {selectedRestaurant || selectedItem?.restaurant}
                 </span>
                 <h4 className="text-sm font-black text-slate-900 dark:text-white">
                   {selectedItem?.nativeNames?.[language] || selectedItem?.name}
                 </h4>
               </div>
-              <span className="text-xs font-black bg-[#8B1E2D] text-white px-3 py-1 rounded-full shadow-sm">
+              <span className="text-xs font-black bg-[#D93636] text-white px-3 py-1 rounded-full shadow-sm">
                 {deliveryDates.length} {language === 'ta' ? 'நாட்கள்' : language === 'hi' ? 'दिन' : 'Deliveries'}
               </span>
             </div>
@@ -1537,9 +1537,9 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
               </div>
               <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 font-black text-slate-900 dark:text-white">
                 <span>{t('guided.perOrderTotal')}:</span>
-                <span className="font-mono text-[#8B1E2D]">₹{bill.perOrderTotal.toFixed(2)}</span>
+                <span className="font-mono text-[#D93636]">₹{bill.perOrderTotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between border-t-2 border-[#8B1E2D]/30 pt-2 text-sm font-black text-slate-900 dark:text-white">
+              <div className="flex justify-between border-t-2 border-[#D93636]/30 pt-2 text-sm font-black text-slate-900 dark:text-white">
                 <span>{t('guided.grandTotal')}:</span>
                 <span className="font-mono text-emerald-600 dark:text-emerald-400 text-base">₹{bill.grandTotal}</span>
               </div>
@@ -1576,7 +1576,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
         {step === 'schedule_pin' && (
           <div className="p-5 space-y-4">
             <div className="text-center space-y-1">
-              <div className="w-10 h-10 rounded-2xl bg-[#8B1E2D]/10 text-[#8B1E2D] flex items-center justify-center mx-auto">
+              <div className="w-10 h-10 rounded-2xl bg-[#D93636]/10 text-[#D93636] flex items-center justify-center mx-auto">
                 <Lock className="w-5 h-5" />
               </div>
               <h4 className="text-sm font-black text-slate-900 dark:text-white">
@@ -1593,12 +1593,12 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                 <div
                   key={idx}
                   className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all ${pinDigits[idx] !== ''
-                    ? 'border-[#8B1E2D] bg-[#8B1E2D]/10 text-[#8B1E2D]'
+                    ? 'border-[#D93636] bg-[#D93636]/10 text-[#D93636]'
                     : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
                     }`}
                 >
                   {pinDigits[idx] !== '' ? (
-                    <span className="w-3.5 h-3.5 rounded-full bg-[#8B1E2D]"></span>
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#D93636]"></span>
                   ) : (
                     <span className="text-slate-300 dark:text-slate-600 text-xs font-mono">•</span>
                   )}
@@ -1608,7 +1608,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
 
             {/* Error or Lockout Display */}
             {pinError && (
-              <div className="px-3 py-1.5 bg-[#F8EBE9] dark:bg-rose-950/40 border border-[#E7D9D6] dark:border-rose-900 rounded-xl text-xs font-bold text-[#302720] dark:text-rose-300 text-center animate-fade-in">
+              <div className="px-3 py-1.5 bg-[#FBE9E5] dark:bg-rose-950/40 border border-[#F0E5DC] dark:border-rose-900 rounded-xl text-xs font-bold text-[#33251F] dark:text-rose-300 text-center animate-fade-in">
                 {pinError}
               </div>
             )}
@@ -1621,7 +1621,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                   type="button"
                   onClick={() => handleKeypadDigit(d)}
                   disabled={isPinVerifying || pinLockSeconds > 0}
-                  className="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-[#8B1E2D] hover:text-white rounded-2xl text-base font-black text-slate-900 dark:text-white transition-all cursor-pointer disabled:opacity-40"
+                  className="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-[#D93636] hover:text-white rounded-2xl text-base font-black text-slate-900 dark:text-white transition-all cursor-pointer disabled:opacity-40"
                 >
                   {d}
                 </button>
@@ -1638,7 +1638,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
                 type="button"
                 onClick={() => handleKeypadDigit('0')}
                 disabled={isPinVerifying || pinLockSeconds > 0}
-                className="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-[#8B1E2D] hover:text-white rounded-2xl text-base font-black text-slate-900 dark:text-white transition-all cursor-pointer disabled:opacity-40"
+                className="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-[#D93636] hover:text-white rounded-2xl text-base font-black text-slate-900 dark:text-white transition-all cursor-pointer disabled:opacity-40"
               >
                 0
               </button>
@@ -1670,7 +1670,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-full py-3.5 bg-[#8B1E2D] hover:bg-[#302720] text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
+              className="w-full py-3.5 bg-[#D93636] hover:bg-[#33251F] text-white font-black rounded-2xl shadow-md transition-all cursor-pointer"
             >
               Done ✓
             </button>

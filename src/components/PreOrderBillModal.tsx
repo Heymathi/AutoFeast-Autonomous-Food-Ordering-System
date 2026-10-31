@@ -248,7 +248,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
       <div className={`relative w-full max-w-lg max-h-[94vh] flex flex-col rounded-3xl p-4 sm:p-6 shadow-2xl transition-all border-4 overflow-hidden ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-yellow-400'
-          : 'bg-white text-[#302720] border-[#8B1E2D]'
+          : 'bg-white text-[#33251F] border-[#D93636]'
       }`}>
 
         {/* Header (Fixed Top) Actions */}
@@ -257,7 +257,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             type="button"
             onClick={() => window.print()}
             title="Print / Save Invoice"
-            className="p-2 rounded-full bg-[#F8EBE9] hover:bg-[#F1DEDC] text-[#8B1E2D] transition-all cursor-pointer"
+            className="p-2 rounded-full bg-[#FBE9E5] hover:bg-[#FBE9E5] text-[#D93636] transition-all cursor-pointer"
           >
             <Printer className="w-4 h-4" />
           </button>
@@ -268,7 +268,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
               setIsListening(false);
               onClose();
             }}
-            className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-red-100 hover:text-red-600 transition-all text-[#786E64] cursor-pointer"
+            className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-red-100 hover:text-red-600 transition-all text-[#8A817A] cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -276,14 +276,14 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
 
         {/* Header (Fixed Top) */}
         <div className="flex items-center space-x-3 mb-3 pr-20 shrink-0">
-          <div className="p-2.5 bg-[#8B1E2D]/10 rounded-2xl border border-[#8B1E2D]/30 text-[#8B1E2D] shrink-0">
-            <FileText className="w-6 h-6 text-[#8B1E2D]" />
+          <div className="p-2.5 bg-[#D93636]/10 rounded-2xl border border-[#D93636]/30 text-[#D93636] shrink-0">
+            <FileText className="w-6 h-6 text-[#D93636]" />
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#8B1E2D] bg-[#8B1E2D]/10 px-2.5 py-0.5 rounded-full inline-block truncate max-w-full">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#D93636] bg-[#D93636]/10 px-2.5 py-0.5 rounded-full inline-block truncate max-w-full">
               {language === 'ta' ? 'GST இன்வாய்ஸ் விவரம்' : language === 'hi' ? 'जीएसटी चालान विवरण' : 'AutoFeast AI • Official GST Tax Invoice'}
             </span>
-            <h2 className="text-lg sm:text-xl font-black text-[#302720] dark:text-white mt-0.5 truncate">
+            <h2 className="text-lg sm:text-xl font-black text-[#33251F] dark:text-white mt-0.5 truncate">
               {bill.restaurantName}
             </h2>
           </div>
@@ -293,21 +293,21 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
         <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 my-1 text-xs">
           
           {/* Customer & Restaurant Billed Info */}
-          <div className="p-2.5 bg-[#F7F3EB] rounded-xl border border-[#E7D9D6] flex items-center justify-between text-xs">
+          <div className="p-2.5 bg-[#FFF8F0] rounded-xl border border-[#F0E5DC] flex items-center justify-between text-xs">
             <div>
-              <span className="text-[10px] text-[#786E64] block font-medium">Billed To</span>
-              <span className="font-bold text-[#302720]">{currentUser?.name || 'Verified Customer'}</span>
+              <span className="text-[10px] text-[#8A817A] block font-medium">Billed To</span>
+              <span className="font-bold text-[#33251F]">{currentUser?.name || 'Verified Customer'}</span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-[#786E64] block font-medium">Provider</span>
-              <span className="font-bold text-[#302720]">{bill.restaurantName}</span>
+              <span className="text-[10px] text-[#8A817A] block font-medium">Provider</span>
+              <span className="font-bold text-[#33251F]">{bill.restaurantName}</span>
             </div>
           </div>
 
           {/* Delivery Address & ETA Badge */}
-          <div className="bg-[#F1DEDC]/40 dark:bg-slate-900/60 p-3 rounded-2xl border border-[#E7D9D6] dark:border-slate-800 flex items-center justify-between text-xs gap-2">
-            <div className="flex items-center space-x-2 text-[#786E64] dark:text-slate-300 font-bold min-w-0 truncate">
-              <MapPin className="w-4 h-4 text-[#8B1E2D] shrink-0" />
+          <div className="bg-[#FBE9E5]/40 dark:bg-slate-900/60 p-3 rounded-2xl border border-[#F0E5DC] dark:border-slate-800 flex items-center justify-between text-xs gap-2">
+            <div className="flex items-center space-x-2 text-[#8A817A] dark:text-slate-300 font-bold min-w-0 truncate">
+              <MapPin className="w-4 h-4 text-[#D93636] shrink-0" />
               <span className="truncate">{bill.deliveryAddress}</span>
             </div>
             <div className="flex items-center space-x-1 shrink-0 text-[#4F8964] font-black bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200">
@@ -324,17 +324,17 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             {bill.items.map((item, idx) => (
               <div key={idx} className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
                 <div className="flex items-center space-x-2.5 min-w-0">
-                  <span className="w-6 h-6 rounded-lg bg-[#8B1E2D] text-white font-black text-xs flex items-center justify-center shrink-0">
+                  <span className="w-6 h-6 rounded-lg bg-[#D93636] text-white font-black text-xs flex items-center justify-center shrink-0">
                     {item.quantity}x
                   </span>
                   <div className="min-w-0">
-                    <h5 className="text-xs font-black text-[#302720] dark:text-white truncate">
+                    <h5 className="text-xs font-black text-[#33251F] dark:text-white truncate">
                       {item.foodItem.nativeNames?.[language] || item.foodItem.name}
                     </h5>
                     <span className="text-[10px] text-[#4A5568] dark:text-slate-400 font-bold block">₹{item.unitPrice} each</span>
                   </div>
                 </div>
-                <span className="text-xs font-black text-[#302720] dark:text-white shrink-0">₹{item.totalPrice}</span>
+                <span className="text-xs font-black text-[#33251F] dark:text-white shrink-0">₹{item.totalPrice}</span>
               </div>
             ))}
           </div>
@@ -364,8 +364,8 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
               <span>{language === 'ta' ? 'தள கட்டணம்' : language === 'hi' ? 'प्लेटफॉर्म शुल्क' : 'Platform Fee'}</span>
               <span>₹{bill.platformFee.toFixed(2)}</span>
             </div>
-            <div className="pt-2 border-t border-slate-300 dark:border-slate-700 flex items-center justify-between text-sm sm:text-base font-black text-[#302720] dark:text-white">
-              <span className="text-[#8B1E2D]">{language === 'ta' ? 'மொத்தத் தொகை (GST உடன்):' : language === 'hi' ? 'कुल योग (GST सहित):' : 'Grand Total (with GST):'}</span>
+            <div className="pt-2 border-t border-slate-300 dark:border-slate-700 flex items-center justify-between text-sm sm:text-base font-black text-[#33251F] dark:text-white">
+              <span className="text-[#D93636]">{language === 'ta' ? 'மொத்தத் தொகை (GST உடன்):' : language === 'hi' ? 'कुल योग (GST सहित):' : 'Grand Total (with GST):'}</span>
               <span className="text-[#16A34A] text-lg sm:text-xl font-mono">₹{bill.grandTotal}</span>
             </div>
           </div>
@@ -386,7 +386,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
           </div>
 
           {/* Prompt Question */}
-          <p className="text-center text-xs sm:text-sm font-black text-[#302720] dark:text-white">
+          <p className="text-center text-xs sm:text-sm font-black text-[#33251F] dark:text-white">
             {language === 'ta'
               ? 'இந்த ஆர்டரை பதிவு செய்ய விரும்புகிறீர்களா?'
               : language === 'hi'
@@ -416,8 +416,8 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             aria-busy={isChecking}
             className={`w-full sm:w-2/3 py-3 px-5 font-black rounded-2xl text-xs sm:text-sm shadow-lg transition-transform active:scale-95 flex items-center justify-center space-x-2 ${
               isChecking
-                ? 'bg-[#8B1E2D]/60 text-white cursor-not-allowed'
-                : 'bg-[#8B1E2D] hover:bg-[#302720] text-white shadow-[#8B1E2D]/30 cursor-pointer'
+                ? 'bg-[#D93636]/60 text-white cursor-not-allowed'
+                : 'bg-[#D93636] hover:bg-[#33251F] text-white shadow-[#D93636]/30 cursor-pointer'
             }`}
           >
             {isChecking ? (

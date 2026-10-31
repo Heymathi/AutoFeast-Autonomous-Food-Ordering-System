@@ -1,20 +1,27 @@
 @import "tailwindcss";
 
 :root {
-  --color-wine-red: #8B1E2D;        /* Primary Wine Red */
-  --color-deep-burgundy: #641B29;   /* Deep Burgundy (Hover & Accent) */
-  --color-secondary-red: #B84045;   /* Secondary Red */
-  --color-soft-red: #C96565;        /* Soft Red */
-  --color-pale-rose: #F1DEDC;       /* Pale Rose Panels & Highlights */
-  --color-light-rose: #F8EBE9;      /* Light Rose Secondary Surface */
-  --color-warm-ivory: #F7F3EB;      /* Warm Ivory Background */
+  --color-warm-cream: #FFF8F0;      /* Warm Cream Page Background */
+  --color-tomato-red: #D93636;      /* Primary Tomato Red Accent */
+  --color-tomato-hover: #C02B2B;    /* Tomato Red Hover */
+  --color-soft-peach: #FBE9E5;      /* Soft Peach Secondary / Icon Background */
   --color-card-bg: #FFFFFF;         /* Pure White Card Background */
-  --color-espresso: #302720;        /* Espresso Typography */
-  --color-secondary-text: #786E64;  /* Secondary Text */
-  --color-border: #E7D9D6;          /* Fine Rose-Neutral Border */
+  --color-dark-brown: #33251F;      /* Main Typography Dark Brown */
+  --color-secondary-text: #8A817A;  /* Muted Warm Grey Secondary Text */
+  --color-border: #F0E5DC;          /* Light Cream-Grey Border */
   --color-success: #16A34A;         /* Semantic Success */
   --color-warning: #D97706;         /* Semantic Warning */
-  --color-error: #DC2626;           /* Semantic Error */
+  --color-error: #D93636;           /* Semantic Error */
+
+  /* Legacy variable mappings */
+  --color-wine-red: #D93636;
+  --color-deep-burgundy: #C02B2B;
+  --color-secondary-red: #D93636;
+  --color-soft-red: #FBE9E5;
+  --color-pale-rose: #FBE9E5;
+  --color-light-rose: #FFF8F0;
+  --color-warm-ivory: #FFF8F0;
+  --color-espresso: #33251F;
 }
 
 @layer base {
@@ -32,19 +39,19 @@
 
   body {
     font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
-    background-color: #F7F3EB;
-    color: #302720;
+    background-color: #FFF8F0;
+    color: #33251F;
     -webkit-font-smoothing: antialiased;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    color: #302720;
+    color: #33251F;
     font-family: 'Playfair Display', 'DM Serif Display', Georgia, serif;
     letter-spacing: -0.015em;
   }
 }
 
-/* Editorial Typography Helpers */
+/* Typography Helpers */
 .font-serif-editorial {
   font-family: 'Playfair Display', 'DM Serif Display', Georgia, serif;
 }
@@ -57,87 +64,96 @@
   font-family: 'Playfair Display', 'DM Serif Display', Georgia, serif;
 }
 
-/* Editorial Red Design System Utility Classes */
-.bg-wine-red { background-color: #8B1E2D !important; }
-.hover\:bg-deep-burgundy:hover { background-color: #641B29 !important; }
-.text-wine-red { color: #8B1E2D !important; }
-.border-wine-red { border-color: #8B1E2D !important; }
+/* Tomato Red & Cream Design System Utility Classes */
+.bg-warm-cream { background-color: #FFF8F0 !important; }
+.bg-soft-peach { background-color: #FBE9E5 !important; }
+.bg-tomato-red { background-color: #D93636 !important; }
+.text-tomato-red { color: #D93636 !important; }
+.border-tomato-red { border-color: #D93636 !important; }
+.border-cream-grey { border-color: #F0E5DC !important; }
+.text-dark-brown { color: #33251F !important; }
+.text-muted-grey { color: #8A817A !important; }
 
-.bg-deep-burgundy { background-color: #641B29 !important; }
-.text-deep-burgundy { color: #641B29 !important; }
+.bg-wine-red { background-color: #D93636 !important; }
+.hover\:bg-deep-burgundy:hover { background-color: #C02B2B !important; }
+.text-wine-red { color: #D93636 !important; }
+.border-wine-red { border-color: #D93636 !important; }
 
-.bg-secondary-red { background-color: #B84045 !important; }
-.text-secondary-red { color: #B84045 !important; }
+.bg-deep-burgundy { background-color: #C02B2B !important; }
+.text-deep-burgundy { color: #C02B2B !important; }
 
-.bg-soft-red { background-color: #C96565 !important; }
-.text-soft-red { color: #C96565 !important; }
+.bg-secondary-red { background-color: #D93636 !important; }
+.text-secondary-red { color: #D93636 !important; }
 
-.bg-pale-rose { background-color: #F1DEDC !important; }
-.text-pale-rose { color: #8B1E2D !important; }
-.border-pale-rose { border-color: #E7D9D6 !important; }
+.bg-soft-red { background-color: #FBE9E5 !important; }
+.text-soft-red { color: #D93636 !important; }
 
-.bg-light-rose { background-color: #F8EBE9 !important; }
-.border-rose { border-color: #E7D9D6 !important; }
+.bg-pale-rose { background-color: #FBE9E5 !important; }
+.text-pale-rose { color: #D93636 !important; }
+.border-pale-rose { border-color: #F0E5DC !important; }
 
-.bg-espresso { background-color: #302720 !important; }
-.text-espresso { color: #302720 !important; }
+.bg-light-rose { background-color: #FFF8F0 !important; }
+.border-rose { border-color: #F0E5DC !important; }
 
-.bg-warm-ivory { background-color: #F7F3EB !important; }
-.bg-soft-sand { background-color: #F8EBE9 !important; }
-.bg-sand-tint { background-color: #F1DEDC !important; }
-.border-sand { border-color: #E7D9D6 !important; }
-.text-sand-muted { color: #786E64 !important; }
+.bg-espresso { background-color: #33251F !important; }
+.text-espresso { color: #33251F !important; }
+
+.bg-warm-ivory { background-color: #FFF8F0 !important; }
+.bg-soft-sand { background-color: #FBE9E5 !important; }
+.bg-sand-tint { background-color: #FBE9E5 !important; }
+.border-sand { border-color: #F0E5DC !important; }
+.text-sand-muted { color: #8A817A !important; }
 
 .bg-app-card { background-color: #FFFFFF !important; }
-.border-app { border-color: #E7D9D6 !important; }
+.border-app { border-color: #F0E5DC !important; }
 
-.text-charcoal-primary { color: #302720 !important; }
-.text-charcoal-secondary { color: #786E64 !important; }
+.text-charcoal-primary { color: #33251F !important; }
+.text-charcoal-secondary { color: #8A817A !important; }
 
-/* Re-mappings of legacy tokens to Editorial Red theme */
-.bg-terracotta { background-color: #8B1E2D !important; }
-.hover\:bg-terracotta-hover:hover { background-color: #641B29 !important; }
-.text-terracotta { color: #8B1E2D !important; }
-.border-terracotta { border-color: #8B1E2D !important; }
+/* Re-mappings of legacy tokens to Tomato & Cream theme */
+.bg-terracotta { background-color: #D93636 !important; }
+.hover\:bg-terracotta-hover:hover { background-color: #C02B2B !important; }
+.text-terracotta { color: #D93636 !important; }
+.border-terracotta { border-color: #D93636 !important; }
 
-.bg-emerald-primary { background-color: #8B1E2D !important; }
-.hover\:bg-emerald-primary-hover:hover { background-color: #641B29 !important; }
-.text-emerald-primary { color: #8B1E2D !important; }
-.border-emerald-primary { border-color: #8B1E2D !important; }
+.bg-emerald-primary { background-color: #D93636 !important; }
+.hover\:bg-emerald-primary-hover:hover { background-color: #C02B2B !important; }
+.text-emerald-primary { color: #D93636 !important; }
+.border-emerald-primary { border-color: #D93636 !important; }
 
-.bg-forest-green { background-color: #641B29 !important; }
-.text-forest-green { color: #641B29 !important; }
+.bg-forest-green { background-color: #C02B2B !important; }
+.text-forest-green { color: #C02B2B !important; }
 
-.bg-dark-green { background-color: #302720 !important; }
-.text-dark-green { color: #302720 !important; }
+.bg-dark-green { background-color: #33251F !important; }
+.text-dark-green { color: #33251F !important; }
 
-.bg-soft-mint { background-color: #F1DEDC !important; }
-.text-soft-mint { color: #8B1E2D !important; }
-.border-soft-mint { border-color: #E7D9D6 !important; }
+.bg-soft-mint { background-color: #FBE9E5 !important; }
+.text-soft-mint { color: #D93636 !important; }
+.border-soft-mint { border-color: #F0E5DC !important; }
 
-.bg-pale-green { background-color: #F7F3EB !important; }
+.bg-pale-green { background-color: #FFF8F0 !important; }
 
-.bg-brand-orange { background-color: #8B1E2D !important; }
-.hover\:bg-brand-orange-hover:hover { background-color: #641B29 !important; }
-.text-brand-orange { color: #8B1E2D !important; }
-.border-brand-orange { border-color: #8B1E2D !important; }
-.shadow-brand-orange { box-shadow: 0 10px 25px -5px rgba(139, 30, 45, 0.25) !important; }
+.bg-brand-orange { background-color: #D93636 !important; }
+.hover\:bg-brand-orange-hover:hover { background-color: #C02B2B !important; }
+.text-brand-orange { color: #D93636 !important; }
+.border-brand-orange { border-color: #D93636 !important; }
+.shadow-brand-orange { box-shadow: 0 10px 25px -5px rgba(217, 54, 54, 0.25) !important; }
 
-.bg-crimson-red { background-color: #8B1E2D !important; }
-.text-crimson-red { color: #8B1E2D !important; }
-.border-crimson-red { border-color: #8B1E2D !important; }
+.bg-crimson-red { background-color: #D93636 !important; }
+.text-crimson-red { color: #D93636 !important; }
+.border-crimson-red { border-color: #D93636 !important; }
 
-.bg-light-blue { background-color: #F1DEDC !important; }
-.text-light-blue { color: #8B1E2D !important; }
-.border-light-blue { border-color: #E7D9D6 !important; }
+.bg-light-blue { background-color: #FBE9E5 !important; }
+.text-light-blue { color: #D93636 !important; }
+.border-light-blue { border-color: #F0E5DC !important; }
 
 .bg-pure-white { background-color: #FFFFFF !important; }
 
-.text-espresso-black { color: #302720 !important; }
-.bg-espresso-black { background-color: #302720 !important; }
+.text-espresso-black { color: #33251F !important; }
+.bg-espresso-black { background-color: #33251F !important; }
 
-.text-charcoal-slate { color: #786E64 !important; }
-.bg-charcoal-slate { background-color: #786E64 !important; }
+.text-charcoal-slate { color: #8A817A !important; }
+.bg-charcoal-slate { background-color: #8A817A !important; }
 
 .bg-guacamole-green { background-color: #16A34A !important; }
 .text-guacamole-green { color: #16A34A !important; }

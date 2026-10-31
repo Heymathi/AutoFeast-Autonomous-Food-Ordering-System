@@ -1581,12 +1581,12 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             </div>
 
             {pinError && (
-              <p className="text-xs text-center font-black text-[#8B1E2D] dark:text-rose-400 animate-bounce">
+              <p className="text-xs text-center font-black text-[#D93636] dark:text-rose-400 animate-bounce">
                 {pinError}
               </p>
             )}
             {pinLockSecondsLeft > 0 && (
-              <p role="status" className="text-sm text-center font-bold text-[#302720] dark:text-rose-300">
+              <p role="status" className="text-sm text-center font-bold text-[#33251F] dark:text-rose-300">
                 {language === 'ta'
                   ? `${pinLockSecondsLeft} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கலாம்.`
                   : language === 'hi'
@@ -1626,7 +1626,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   setPinDigits(['', '', '', '']);
                   setPinError(null);
                 }}
-                className="p-3 bg-[#F1DEDC] dark:bg-rose-950 text-[#8B1E2D] font-black text-xs rounded-2xl shadow cursor-pointer"
+                className="p-3 bg-[#FBE9E5] dark:bg-rose-950 text-[#D93636] font-black text-xs rounded-2xl shadow cursor-pointer"
               >
                 Clear
               </button>
