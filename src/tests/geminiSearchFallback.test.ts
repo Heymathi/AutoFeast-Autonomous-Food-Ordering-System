@@ -1,16 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { validateSearchFallbackResult, VALID_CATALOG_IDS } from '../../api/search-fallback.js';
-import { fetchSearchFallback } from '../services/geminiSearchFallbackClient';
+import { fetchSearchFallback, resetCircuitBreaker, isCircuitBreakerOpen, tripCircuitBreaker, CIRCUIT_BREAKER_DURATION_MS } from '../services/geminiSearchFallbackClient';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { DynamicFoodSearchEngine } from '../services/dynamicFoodSearch';
+import { isFoodItemRestricted } from '../services/restrictedFoodMatcher';
+import { TRANSLATIONS } from '../data/translations';
 
 describe('Gemini Search Fallback - STEP 3 Verification Suite', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    resetCircuitBreaker();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    resetCircuitBreaker();
   });
 
   // =========================================================================
@@ -314,5 +318,148 @@ describe('Gemini Search Fallback - STEP 3 Verification Suite', () => {
       expect(fallbackSuggestions.some(f => f.id === 'parotta-kothu' || f.id === 'dosa-masala')).toBe(true);
     });
   });
-});
 
+  // =========================================================================
+  // PART 6: Circuit Breaker, Not-Configured & Nominee Restriction Verification
+  // =========================================================================
+  describe('Circuit Breaker, 503 GEMINI_NOT_CONFIGURED & Nominee Safeguards', () => {
+    it('Server 503 GEMINI_NOT_CONFIGURED causes client to treat fallback as offline/not-configured', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({
+          code: 'GEMINI_NOT_CONFIGURED',
+          error: 'gemini_unavailable',
+          message: 'GEMINI_API_KEY is not configured on the server'
+        })
+      } as Response);
+
+      const result = await fetchSearchFallback('something rare', 'en');
+      expect(result.items).toEqual([]);
+      expect(result.isOffline).toBe(true);
+      expect(result.error).toBe('not_configured');
+    });
+
+    it('Circuit breaker trips on 5xx failure and skips Gemini for 30 seconds', async () => {
+      // First call fails with 503
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({ error: 'gemini_unavailable' })
+      } as Response);
+
+      const res1 = await fetchSearchFallback('query 1', 'en');
+      expect(res1.error).toBe('status_503');
+      expect(isCircuitBreakerOpen()).toBe(true);
+
+      // Second call within 30s: fetch should NOT be called; returns circuit_open
+      fetchSpy.mockClear();
+      const res2 = await fetchSearchFallback('query 2', 'en');
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(res2.isOffline).toBe(true);
+      expect(res2.error).toBe('circuit_open');
+
+      // After manual reset or 30s expiry: circuit closes and calls fetch again
+      resetCircuitBreaker();
+      expect(isCircuitBreakerOpen()).toBe(false);
+
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ matches: [{ id: 'dosa-masala', confidence: 0.95 }] })
+      } as Response);
+
+      const res3 = await fetchSearchFallback('query 3', 'en');
+      expect(fetchSpy).toHaveBeenCalled();
+      expect(res3.items.length).toBe(1);
+      expect(res3.items[0].id).toBe('dosa-masala');
+    });
+
+    it('Circuit breaker trips on timeout as well', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementationOnce((_url, init) => {
+        return new Promise((_, reject) => {
+          if (init?.signal) {
+            init.signal.addEventListener('abort', () => {
+              const abortErr = new Error('The operation was aborted');
+              abortErr.name = 'AbortError';
+              reject(abortErr);
+            });
+          }
+        });
+      });
+
+      const res = await fetchSearchFallback('slow', 'en', 20);
+      expect(res.error).toBe('timeout');
+      expect(isCircuitBreakerOpen()).toBe(true);
+    });
+
+    it('Restricted item returned by Gemini still passes checkIsItemRestrictedByNominee and gets intercepted', async () => {
+      // Mock Gemini returning chaat-pani-puri (the canonical restricted item)
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          matches: [{ id: 'chaat-pani-puri', confidence: 0.95 }]
+        })
+      } as Response);
+
+      const fallbackResult = await fetchSearchFallback('pani puri street snack', 'en');
+      expect(fallbackResult.items.length).toBe(1);
+      const returnedItem = fallbackResult.items[0];
+      expect(returnedItem.id).toBe('chaat-pani-puri');
+
+      // Verify restricted item check against nominee restricted list
+      const nomineeRestrictedIds = ['chaat-pani-puri'];
+      const isRestricted = isFoodItemRestricted(returnedItem.id, nomineeRestrictedIds, returnedItem.name);
+      expect(isRestricted).toBe(true);
+
+      // Unrestricted item returns false
+      const unrestrictedItem = INDIAN_FOOD_CATALOG.find(f => f.id === 'dosa-masala')!;
+      expect(isFoodItemRestricted(unrestrictedItem.id, nomineeRestrictedIds, unrestrictedItem.name)).toBe(false);
+    });
+
+    it('Fallback unavailable hint string is correctly defined in translations for en, ta, and hi', () => {
+      expect(TRANSLATIONS.en['search.smartSearchUnavailable']).toBe('Smart search is unavailable. Showing the closest matches.');
+      expect(TRANSLATIONS.ta['search.smartSearchUnavailable']).toBeDefined();
+      expect(TRANSLATIONS.ta['search.smartSearchUnavailable'].length).toBeGreaterThan(10);
+      expect(TRANSLATIONS.hi['search.smartSearchUnavailable']).toBeDefined();
+      expect(TRANSLATIONS.hi['search.smartSearchUnavailable'].length).toBeGreaterThan(10);
+    });
+
+    it('Tamil voice degraded audio query "??????" triggers fallback and maps to parotta-kothu', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          matches: [{ id: 'parotta-kothu', confidence: 0.90 }]
+        })
+      } as Response);
+
+      const res = await fetchSearchFallback('??????', 'ta');
+      expect(res.items.length).toBe(1);
+      expect(res.items[0].id).toBe('parotta-kothu');
+      expect(res.items[0].isSmartSearch).toBe(true);
+    });
+
+    it('Hindi food craving query "???? ???" triggers fallback with language: hi', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          matches: [{ id: 'pongal-ghee', confidence: 0.88 }]
+        })
+      } as Response);
+
+      const res = await fetchSearchFallback('???? ???', 'hi');
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/search-fallback',
+        expect.objectContaining({
+          body: JSON.stringify({ text: '???? ???', language: 'hi' })
+        })
+      );
+      expect(res.items.length).toBe(1);
+      expect(res.items[0].id).toBe('pongal-ghee');
+    });
+  });
+
+});

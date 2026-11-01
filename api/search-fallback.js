@@ -88,6 +88,12 @@ function checkRateLimit(clientId) {
   return true;
 }
 
+let hasLoggedMissingKey = false;
+
+export function resetMissingKeyLogged() {
+  hasLoggedMissingKey = false;
+}
+
 let geminiClient = null;
 
 export async function handleSearchFallback(req, res) {
@@ -126,7 +132,12 @@ export async function handleSearchFallback(req, res) {
   const rawApiKey = process.env.GEMINI_API_KEY || '';
   const apiKey = rawApiKey.replace(/^["']|["']$/g, '').trim();
   if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
+    if (!hasLoggedMissingKey) {
+      console.warn('[Search Fallback] GEMINI_API_KEY is not configured on the server');
+      hasLoggedMissingKey = true;
+    }
     return res.status(503).json({
+      code: 'GEMINI_NOT_CONFIGURED',
       error: 'gemini_unavailable',
       message: 'GEMINI_API_KEY is not configured on the server'
     });

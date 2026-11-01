@@ -750,13 +750,13 @@ export const Navbar: React.FC = () => {
           {/* CENTER SECTION – MAIN NAVIGATION (Exact order: Home, How It Works, Features, About) */}
           <nav
             aria-label="Main Navigation"
-            className="header-nav-group hidden md:flex flex-wrap items-center gap-1 sm:gap-1.5 px-3 py-1.5 rounded-full bg-[#FBE9E5] border border-[#F0E5DC] shrink-0"
+            className="header-nav-group hidden md:flex flex-wrap items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FBE9E5] border border-[#F0E5DC] shrink-0"
           >
             {/* 1. Home */}
             <button
               type="button"
               onClick={() => setActiveView('home')}
-              className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeView === 'home' || activeView === 'search'
                   ? 'bg-[#D93636] text-white shadow-xs'
                   : 'text-[#8A817A] hover:text-[#33251F] hover:bg-white'
@@ -769,7 +769,7 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('how-it-works')}
-              className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeView === 'how-it-works'
                   ? 'bg-[#D93636] text-white shadow-xs'
                   : 'text-[#8A817A] hover:text-[#33251F] hover:bg-white'
@@ -782,7 +782,7 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('features')}
-              className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeView === 'features'
                   ? 'bg-[#D93636] text-white shadow-xs'
                   : 'text-[#8A817A] hover:text-[#33251F] hover:bg-white'
@@ -795,7 +795,7 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveView('about')}
-              className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              className={`px-4 py-1.5 rounded-full text-xs lg:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeView === 'about'
                   ? 'bg-[#D93636] text-white shadow-xs'
                   : 'text-[#8A817A] hover:text-[#33251F] hover:bg-white'

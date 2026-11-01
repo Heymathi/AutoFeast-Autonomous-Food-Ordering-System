@@ -107,11 +107,12 @@ export class VoiceCommandParser {
     let needsVarietyClarification = false;
 
     if (matchedFoodItem) {
-      const familyCheck = this.findCategoryVariants(items[0].name, matchedFoodItem);
+      const queryItemTerm = (cleanedForItems || norm).trim();
+      const familyCheck = this.findCategoryVariants(queryItemTerm || items[0].name, matchedFoodItem);
       if (familyCheck.length > 1) {
         catalogVariants = familyCheck;
         // If user didn't specify a distinctive variant e.g. "masala dosa" vs generic "dosa"
-        if (this.isGenericBaseTerm(items[0].name, familyCheck)) {
+        if (this.isGenericBaseTerm(queryItemTerm || items[0].name, familyCheck)) {
           needsVarietyClarification = true;
         }
       }
@@ -380,7 +381,7 @@ export class VoiceCommandParser {
     }
 
     // 5. Explicit Order Keywords
-    const hasOrderWord = /\b(order|buy|send|ஆர்டர்|வாங்கு|மங்காओ)\b/i.test(norm);
+    const hasOrderWord = /(?:\b|(?:^|\s))(order|buy|send|want|need|get me|give me|ஆர்டர்|வாங்கு|வேணும்|வேண்டும்|குடு|மங்காओ|मंगाओ|चाहिए|दीजिए|लाओ|कर दो)(?:\b|(?:\s|$))/i.test(norm);
     if (hasOrderWord) {
       return 'order';
     }
@@ -394,7 +395,7 @@ export class VoiceCommandParser {
   }
 
   private static hasExplicitActionKeyword(norm: string): boolean {
-    return /(?:\b|(?:^|\s))(order|schedule|now|later|tomorrow|daily|weekly|month|at|am|pm|maniku|baje|cart|add|search|find|show|மணிக்கு|ஆர்டர்|திட்டமிடு|இப்போ|நாளைக்கு|கார்டில்|சேர்|தேடு|காட்டு|शेड्यूल|अभी|कल|कार्ट|ढूंढो|दिखाओ)(?:\b|(?:\s|$))/i.test(norm);
+    return /(?:\b|(?:^|\s))(order|schedule|now|later|tomorrow|daily|weekly|month|at|am|pm|maniku|baje|cart|add|search|find|show|want|need|get|give|மணிக்கு|ஆர்டர்|திட்டமிடு|இப்போ|நாளைக்கு|கார்டில்|சேர்|தேடு|காட்டு|வேணும்|வேண்டும்|குடு|शेड्यूल|अभी|कल|कार्ट|ढूंढो|दिखाओ|चाहिए|दीजिए|मंगाओ)(?:\b|(?:\s|$))/i.test(norm);
   }
 
   /**
@@ -588,7 +589,6 @@ export class VoiceCommandParser {
       'डोसा', 'इडली', 'बिरयानी', 'परोटा', 'चपाती'
     ];
     if (genericBases.includes(q)) return true;
-    // Check if query is just the base family word while variants have distinctive prefixes
-    return variants.length > 1 && variants.every(v => v.name.toLowerCase() !== q);
+    return false;
   }
 }

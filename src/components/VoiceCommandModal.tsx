@@ -220,6 +220,8 @@ export const VoiceCommandModal: React.FC = () => {
       confirmHandledRef.current = false;
       restaurantHandledRef.current = false;
       setShowConsentPrompt(false);
+      setVariantSuggestions(null);
+      setChooserItems(null);
     } else {
       startListeningSession();
     }
@@ -380,7 +382,6 @@ export const VoiceCommandModal: React.FC = () => {
               console.log('[STT Diagnostic] Transcript sent to local food search', {
                 queryLength: cleanText.length
               });
-              executeSearch(cleanText, true);
               handleSpeechResult(cleanText, candidates);
             }
           } else {
@@ -566,7 +567,46 @@ export const VoiceCommandModal: React.FC = () => {
       setPipelineState('food_identified');
     }
 
-    // Case 1: Item-only spoken ("parotta", "dosa", "பரோட்டா", "डोसा") -> prompt Order or Schedule
+    // If variant suggestions are active and user spoke a variety name
+    if (variantSuggestions && variantSuggestions.items.length > 0) {
+      const lower = spokenText.toLowerCase();
+      const matchedVar = variantSuggestions.items.find(v =>
+        lower.includes(v.name.toLowerCase()) ||
+        (v.nativeNames && Object.values(v.nativeNames).some(n => typeof n === 'string' && lower.includes(n.toLowerCase()))) ||
+        (v.tags && v.tags.some(t => lower.includes(t.toLowerCase()) && t !== 'dosa' && t !== 'south indian' && t !== 'breakfast'))
+      );
+      if (matchedVar) {
+        setVariantSuggestions(null);
+        setChooserItems([matchedVar]);
+        const targetName = matchedVar.nativeNames?.[language] || matchedVar.name;
+        const clarifyPrompt = language === 'ta'
+          ? `${targetName} - இப்போதே ஆர்டர் செய்யவா அல்லது திட்டமிடவா?`
+          : language === 'hi'
+          ? `${targetName} - अभी ऑर्डर करें या बाद के लिए शेड्यूल करें?`
+          : `${targetName} - Order now or schedule for later?`;
+        setStatusMessage(clarifyPrompt);
+        speakText(clarifyPrompt, () => startListeningSession({ allowDuringTts: true }), language);
+        return;
+      }
+      setVariantSuggestions(null);
+    }
+
+    // Case 1A: Generic Category Variety Clarification ("dosa", "தோசை", "डोसा")
+    if (parsed.needsVarietyClarification && parsed.catalogVariants && parsed.catalogVariants.length > 1) {
+      setPipelineState('clarifying');
+      const baseName = String(parsed.matchedFoodItem?.nativeNames?.[language] || parsed.matchedFoodItem?.name || spokenText);
+      const varietyPrompt = language === 'ta'
+        ? 'எந்த தோசை வகை வேண்டும்?'
+        : language === 'hi'
+        ? 'कौन सी डोसा वेरायटी चाहिए?'
+        : `Which variety of ${baseName.toLowerCase().includes('dosa') ? 'dosa' : baseName} would you like?`;
+      setStatusMessage(varietyPrompt);
+      setVariantSuggestions({ prompt: varietyPrompt, items: parsed.catalogVariants });
+      speakText(varietyPrompt, () => startListeningSession({ allowDuringTts: true }), language);
+      return;
+    }
+
+    // Case 1B: Specific item-only spoken ("parotta", "masala dosa", "பரோட்டா", "डोसा") -> prompt Order or Schedule
     if (parsed.needsOrderOrScheduleClarification && parsed.matchedFoodItem) {
       setPipelineState('clarifying');
       const targetItem = parsed.matchedFoodItem;
@@ -640,17 +680,20 @@ export const VoiceCommandModal: React.FC = () => {
         return;
       }
 
-      // Check multiple restaurants if restaurant not specified
+      // Check multiple restaurants if restaurant not specified - match ONLY identical specific dish
       const matchingItems = INDIAN_FOOD_CATALOG.filter(i =>
         i.id === matchedItem!.id ||
-        i.name.toLowerCase() === matchedItem!.name.toLowerCase() ||
-        (matchedItem!.tags && matchedItem!.tags[0] && i.tags && i.tags.includes(matchedItem!.tags[0]))
+        i.name.toLowerCase() === matchedItem!.name.toLowerCase()
       );
 
       let chosenItem = matchedItem;
       if (parsed.restaurant) {
         const restLower = parsed.restaurant.toLowerCase();
-        const found = matchingItems.find(i => i.restaurant.toLowerCase().includes(restLower));
+        const found = matchingItems.find(i => i.restaurant.toLowerCase().includes(restLower)) ||
+          INDIAN_FOOD_CATALOG.find(i =>
+            i.restaurant.toLowerCase().includes(restLower) &&
+            (i.id === matchedItem!.id || i.name.toLowerCase() === matchedItem!.name.toLowerCase() || i.name.toLowerCase().includes(matchedItem!.name.toLowerCase()))
+          );
         if (found) chosenItem = found;
       } else {
         const restaurantNames = [...new Set(matchingItems.map(i => i.restaurant))];
@@ -712,10 +755,13 @@ export const VoiceCommandModal: React.FC = () => {
         const restLower = parsed.restaurant.toLowerCase();
         const matchingItems = INDIAN_FOOD_CATALOG.filter(i =>
           i.id === matchedItem!.id ||
-          i.name.toLowerCase() === matchedItem!.name.toLowerCase() ||
-          (matchedItem!.tags && matchedItem!.tags[0] && i.tags && i.tags.includes(matchedItem!.tags[0]))
+          i.name.toLowerCase() === matchedItem!.name.toLowerCase()
         );
-        const found = matchingItems.find(i => i.restaurant.toLowerCase().includes(restLower));
+        const found = matchingItems.find(i => i.restaurant.toLowerCase().includes(restLower)) ||
+          INDIAN_FOOD_CATALOG.find(i =>
+            i.restaurant.toLowerCase().includes(restLower) &&
+            (i.id === matchedItem!.id || i.name.toLowerCase() === matchedItem!.name.toLowerCase())
+          );
         if (found) chosenItem = found;
       }
 
@@ -770,9 +816,9 @@ export const VoiceCommandModal: React.FC = () => {
 
     if (parsed.action === 'search' || (parsed.items.length > 0 && !parsed.matchedFoodItem)) {
       const q = parsed.items[0]?.name || spokenText;
+      setIsVoiceModalOpen(false);
       executeSearch(q, false);
       setActiveView('search');
-      setIsVoiceModalOpen(false);
       return;
     }
 
@@ -791,7 +837,6 @@ export const VoiceCommandModal: React.FC = () => {
             : `${targetName} - Order now or schedule for later?`;
           setStatusMessage(clarifyPrompt);
           setChooserItems(fallback.items);
-          executeSearch(spokenText, true);
           speakText(clarifyPrompt, () => startListeningSession({ allowDuringTts: true }), language);
           return;
         }
@@ -825,8 +870,7 @@ export const VoiceCommandModal: React.FC = () => {
     // Find all restaurants serving this item
     const matchingItems = INDIAN_FOOD_CATALOG.filter(i =>
       i.id === item.id ||
-      i.name.toLowerCase() === item.name.toLowerCase() ||
-      (item.tags && item.tags[0] && i.tags && i.tags.includes(item.tags[0]))
+      i.name.toLowerCase() === item.name.toLowerCase()
     );
     const restaurantNames = [...new Set(matchingItems.map(i => i.restaurant))];
 
@@ -903,8 +947,7 @@ export const VoiceCommandModal: React.FC = () => {
       const specificItem = INDIAN_FOOD_CATALOG.find(i =>
         i.restaurant === restaurantName && (
           i.id === baseItem.id ||
-          i.name.toLowerCase() === baseItem.name.toLowerCase() ||
-          (baseItem.tags && baseItem.tags[0] && i.tags && i.tags.includes(baseItem.tags[0]))
+          i.name.toLowerCase() === baseItem.name.toLowerCase()
         )
       );
       chosenItem = specificItem || { ...baseItem, restaurant: restaurantName };
@@ -1216,6 +1259,8 @@ export const VoiceCommandModal: React.FC = () => {
                   onClick={() => {
                     setVariantSuggestions(null);
                     setChooserItems([vItem]);
+                    const targetName = vItem.nativeNames?.[language] || vItem.name;
+                    setStatusMessage(`${targetName} - Order now or schedule for later?`);
                   }}
                   className="p-3 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] font-black rounded-xl text-xs border border-[#E9DED5] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
                 >

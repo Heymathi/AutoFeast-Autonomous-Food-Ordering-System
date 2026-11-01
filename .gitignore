@@ -21,6 +21,8 @@ pnpm-debug.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
+.env.development
 
 # IDE & OS Files
 .DS_Store
@@ -32,3 +34,9 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Graphify & Assistant Cache
+.agents/
+.claude/
+CLAUDE.md
+graphify-out/

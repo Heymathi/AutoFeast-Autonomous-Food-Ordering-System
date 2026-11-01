@@ -18,6 +18,22 @@ export interface FallbackResult {
   latencyMs?: number;
 }
 
+// Circuit breaker state: skip Gemini for 30s after a failure
+let circuitBreakerOpenUntil = 0;
+export const CIRCUIT_BREAKER_DURATION_MS = 30000; // 30 seconds
+
+export function isCircuitBreakerOpen(): boolean {
+  return Date.now() < circuitBreakerOpenUntil;
+}
+
+export function tripCircuitBreaker(durationMs: number = CIRCUIT_BREAKER_DURATION_MS): void {
+  circuitBreakerOpenUntil = Date.now() + durationMs;
+}
+
+export function resetCircuitBreaker(): void {
+  circuitBreakerOpenUntil = 0;
+}
+
 /**
  * Checks if the browser client is currently online
  */
@@ -49,6 +65,11 @@ export async function fetchSearchFallback(
     return { items: [], isOffline: true };
   }
 
+  // If circuit breaker is open (failure within last 30s), skip Gemini
+  if (isCircuitBreakerOpen()) {
+    return { items: [], isOffline: true, error: 'circuit_open' };
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -70,14 +91,30 @@ export async function fetchSearchFallback(
     const latency = Math.round(performance.now() - startTime);
 
     if (!res.ok) {
+      let isNotConfigured = false;
+      try {
+        const errJson = await res.json();
+        if (errJson?.code === 'GEMINI_NOT_CONFIGURED') {
+          isNotConfigured = true;
+        }
+      } catch {}
+
+      // Trip circuit breaker on server failure
+      if (res.status >= 500) {
+        tripCircuitBreaker();
+      }
+
       console.warn(`[Search Fallback]: API returned HTTP ${res.status} (${latency}ms)`);
-      return { items: [], isOffline: false, error: `status_${res.status}`, latencyMs: latency };
+      return {
+        items: [],
+        isOffline: isNotConfigured || !isClientOnline(),
+        error: isNotConfigured ? 'not_configured' : `status_${res.status}`,
+        latencyMs: latency
+      };
     }
 
     const data: FallbackResponse = await res.json();
     const matches = Array.isArray(data?.matches) ? data.matches : [];
-
-    // Diagnostic console logging (local score, fallback called, latency, IDs returned)
 
     // Map matched IDs to catalog items with isSmartSearch: true flag
     const matchedItems: FoodItem[] = [];
@@ -94,6 +131,7 @@ export async function fetchSearchFallback(
     return { items: matchedItems, isOffline: false, latencyMs: latency };
   } catch (err: any) {
     clearTimeout(timer);
+    tripCircuitBreaker();
     if (err?.name === 'AbortError') {
       console.warn('[Search Fallback]: Request aborted due to 5000ms timeout.');
       return { items: [], isOffline: false, error: 'timeout' };

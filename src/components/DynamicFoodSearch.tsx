@@ -595,7 +595,7 @@ export const DynamicFoodSearch: React.FC = () => {
             {searchResult.offlineHint && (
               <p className="text-xs font-bold text-amber-800 bg-amber-100/80 p-2.5 rounded-xl border border-amber-300 flex items-center gap-1.5" data-testid="offline-smart-search-hint">
                 <span>🌐</span>
-                <span>{language === 'ta' ? 'ஸ்மார்ட் தேடலுக்கு இணையம் தேவை (Internet needed for smart search)' : language === 'hi' ? 'स्मार्ट खोज के लिए इंटरनेट आवश्यक है (Internet needed for smart search)' : 'Internet needed for smart search'}</span>
+                <span>{t('search.smartSearchUnavailable')}</span>
               </p>
             )}
           </div>

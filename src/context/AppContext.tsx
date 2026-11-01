@@ -1677,15 +1677,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       : 0;
 
     let isOffline = false;
+    let isFallbackUnavailable = false;
 
     // Gemini fallback: Triggered ONLY when local search finds nothing or has low confidence (best score < 0.45 or "not found")
     if (q.trim() && (result.matchedItems.length === 0 || bestLocalScore < 0.45)) {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         isOffline = true;
+        isFallbackUnavailable = true;
       } else {
         const fallbackRes = await fetchSearchFallback(q, language);
-        if (fallbackRes.isOffline) {
+        if (fallbackRes.isOffline || fallbackRes.error === 'timeout' || fallbackRes.error === 'not_configured' || fallbackRes.error === 'circuit_open') {
           isOffline = true;
+          isFallbackUnavailable = true;
         } else if (fallbackRes.items.length > 0) {
           let filteredFallback = fallbackRes.items;
           if (vegOnly) {
@@ -1704,8 +1707,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               isSmartSearch: true
             };
           }
+        } else if (fallbackRes.error) {
+          isFallbackUnavailable = true;
         }
       }
+    }
+
+    if (isFallbackUnavailable && !isVoiceModalOpen && !isVoiceTrigger) {
+      speakText(t('search.smartSearchUnavailable'), undefined, language);
     }
 
     // Graceful local catalog fallback: if neither local search nor Gemini found matched items,
@@ -1736,9 +1745,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     if (q.trim() && finalMatched.length > 0) {
-      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-      setVoiceDialogItem(null); // Ensure old dialog item doesn't interfere
-      openGuidedSearch(q.trim(), finalMatched);
+      if (!isVoiceModalOpen && !isVoiceTrigger) {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        setVoiceDialogItem(null); // Ensure old dialog item doesn't interfere
+        openGuidedSearch(q.trim(), finalMatched);
+      }
     } else if (!q.trim()) {
       setVoiceDialogItem(null);
       closeGuidedSearch();

@@ -285,14 +285,12 @@ header.app-header .header-chip,
 header.app-header nav button {
   min-height: 40px !important;
   height: auto !important;
-  padding: 6px 14px !important;
   min-width: fit-content !important;
   flex: 0 0 auto !important;
   width: auto !important;
   white-space: nowrap !important;
   text-align: center !important;
   line-height: 1.5 !important;
-  font-weight: 700 !important;
   box-sizing: border-box !important;
 }
 
