@@ -90,68 +90,6 @@ export const HeroSection: React.FC = () => {
             <p className="text-sm sm:text-base text-[#8A817A] max-w-xl leading-relaxed font-normal">
               Personalised, voice-enabled food discovery tailored to your health, daily limits, and routine.
             </p>
-
-            {/* Prominent Hero Search Bar matching PDF Page 1 */}
-            <div className="pt-2 max-w-xl">
-              <form
-                onSubmit={handleSearchSubmit}
-                className="relative flex items-center bg-white rounded-full border border-[#F0E5DC] shadow-sm hover:border-[#D93636]/50 focus-within:border-[#D93636] focus-within:ring-2 focus-within:ring-[#D93636]/20 transition-all p-1.5 sm:p-2"
-              >
-                <div className="pl-3 sm:pl-4 pr-2 text-[#8A817A]">
-                  <Search className="w-5 h-5 text-[#8A817A]" />
-                </div>
-
-                <input
-                  type="text"
-                  value={localSearchInput}
-                  onChange={(e) => setLocalSearchInput(e.target.value)}
-                  placeholder="Search food or restaurant..."
-                  aria-label="Search food or restaurant"
-                  className="w-full bg-transparent text-sm sm:text-base text-[#33251F] placeholder-[#8A817A] focus:outline-none py-1.5"
-                />
-
-
-
-                {/* Solid Tomato Red Search Button */}
-                <button
-                  type="submit"
-                  className="px-5 sm:px-7 py-2.5 sm:py-3 rounded-full bg-[#D93636] hover:bg-[#C02B2B] text-white text-xs sm:text-sm font-bold shadow-sm transition-all hover:scale-[1.02] active:scale-95 shrink-0 cursor-pointer"
-                >
-                  Search
-                </button>
-              </form>
-
-              {/* Suggested Chips below Search Bar matching PDF */}
-              <div className="flex flex-wrap items-center gap-2 pt-3">
-                <span className="text-xs text-[#8A817A] font-medium mr-1">Popular:</span>
-                {['Pani Poori', 'Kothu Parotta', 'Healthy bowls', 'Masala Dosa', 'Biryani'].map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => handleChipClick(chip)}
-                    className="px-3 py-1 rounded-full text-xs font-medium bg-white text-[#33251F] border border-[#F0E5DC] hover:border-[#D93636] hover:bg-[#FBE9E5] transition-all cursor-pointer shadow-2xs"
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Highlights metrics */}
-            <div className="pt-3 flex flex-wrap items-center gap-6 text-xs text-[#8A817A] font-medium border-t border-[#F0E5DC]">
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-[#D93636]" />
-                <span>Delivery in <strong className="text-[#33251F]">20 mins</strong></span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-[#16A34A]" />
-                <span>Live <strong className="text-[#33251F]">Price Comparison</strong></span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm">🗣️</span>
-                <span>Voice in <strong className="text-[#33251F]">Tamil • English • Hindi</strong></span>
-              </div>
-            </div>
           </div>
 
           {/* Right Column: Visual dish presentation matching PDF & reference */}

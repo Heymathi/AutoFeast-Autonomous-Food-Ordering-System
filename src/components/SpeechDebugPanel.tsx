@@ -7,15 +7,15 @@ export const SpeechDebugPanel: React.FC<{ activeLanguage: string }> = ({ activeL
   if (!isDev) return null;
 
   const [isOpen, setIsOpen] = useState(false);
-  const [state, setState] = useState<SpeechState>(SpeechController.getState());
+  const [state, setState] = useState<SpeechState>(() => SpeechController.getState().voiceState);
   const [owner, setOwner] = useState<string | null>(SpeechController.getOwner());
   const [micMode, setMicMode] = useState<MicLanguageMode>(SpeechController.getMicMode());
   const [logs, setLogs] = useState(SpeechController.getDebugLogs());
   const [voices, setVoices] = useState(SpeechController.getSystemVoicesInfo());
 
   useEffect(() => {
-    const unsubscribe = SpeechController.subscribe(() => {
-      setState(SpeechController.getState());
+    const unsubscribe = SpeechController.subscribe((s) => {
+      setState(s || SpeechController.getState().voiceState);
       setOwner(SpeechController.getOwner());
       setMicMode(SpeechController.getMicMode());
       setLogs([...SpeechController.getDebugLogs()]);

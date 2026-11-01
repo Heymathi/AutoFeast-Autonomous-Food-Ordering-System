@@ -95,8 +95,8 @@ describe('AutoFeast AI Homepage & Header Layout Verification Suite', () => {
     });
   });
 
-  describe('2. Homepage Sections Order & Two-Column Dynamic Food Search', () => {
-    it('Hero section keeps heading, description, search input & Search button without voice mic inside', () => {
+  describe('2. Homepage Sections Order & Dynamic Food Search Layout', () => {
+    it('Hero section keeps heading, description & circular hero food image with review cards, without simple search input', () => {
       const { container } = render(
         <AppProvider>
           <HomePage />
@@ -107,22 +107,20 @@ describe('AutoFeast AI Homepage & Header Layout Verification Suite', () => {
       expect(screen.getByRole('heading', { name: /discover your next favourite meal/i })).toBeDefined();
       // Description
       expect(screen.getByText(/Personalised, voice-enabled food discovery/i)).toBeDefined();
-      // Search input
-      const heroSearchInput = screen.getByPlaceholderText(/search food or restaurant/i);
-      expect(heroSearchInput).toBeDefined();
 
-      // Search button inside the hero form
-      const form = heroSearchInput.closest('form');
-      expect(form).toBeDefined();
-      const heroSearchBtn = form?.querySelector('button[type="submit"]');
-      expect(heroSearchBtn).toBeDefined();
-      expect(heroSearchBtn?.textContent).toContain('Search');
+      // Right side: Circular food bowl image and review cards
+      const heroImg = screen.getByAltText(/Delicious gourmet food bowl/i);
+      expect(heroImg).toBeDefined();
+      expect(screen.getByText(/Maria Martinez/i)).toBeDefined();
+      expect(screen.getByText(/John Doe/i)).toBeDefined();
 
-      // Hero search form must NOT contain any mic button
-      expect(form?.querySelector('svg.lucide-mic')).toBeNull();
+      // Simple search input and search form must be removed from the hero section
+      const heroSection = heroImg.closest('section');
+      expect(heroSection?.querySelector('form')).toBeNull();
+      expect(heroSection?.querySelector('input[placeholder*="Search food or restaurant"]')).toBeNull();
     });
 
-    it('renders Dynamic Food Search with 2-column layout (Search on Left, Food Image on Right)', () => {
+    it('renders Dynamic Food Search with multilingual input, mic, filters and quick chips', () => {
       const { container } = render(
         <AppProvider>
           <HomePage />
@@ -136,15 +134,16 @@ describe('AutoFeast AI Homepage & Header Layout Verification Suite', () => {
       expect(screen.getByText(/Dynamic Food Search & Live GPS Location/i)).toBeDefined();
       expect(screen.getByText(/OpenStreetMap Live Geocoding • Haversine Nearest Restaurant Sorting/i)).toBeDefined();
 
+      // Dynamic search input with mic button and Search button
+      const searchInput = screen.getByLabelText(/Search food dishes in English, Tamil or Hindi/i);
+      expect(searchInput).toBeDefined();
+      const micBtn = searchSection?.querySelector('button[aria-label*="voice search"]');
+      expect(micBtn).toBeDefined();
+
       // City dropdown, Cuisine dropdown, Veg only toggle
       expect(screen.getByText(/City:/i)).toBeDefined();
       expect(screen.getByText(/Cuisine:/i)).toBeDefined();
       expect(screen.getByText(/Vegetarian Only|Veg Only/i)).toBeDefined();
-
-      // Right side food image
-      const foodImg = searchSection?.querySelector('img[alt*="Delicious gourmet food feast bowl"]');
-      expect(foodImg).toBeDefined();
-      expect(foodImg?.getAttribute('src')).toBeTruthy();
     });
 
     it('renders the 4 feature cards in exact order between search and catalog', () => {

@@ -110,9 +110,6 @@ const MainLayout: React.FC = () => {
       {/* Top Navbar */}
       <Navbar />
 
-      {/* Accessibility Controls Bar */}
-      <AccessibilityToolbar />
-
       {/* Floating Schedule Cart Action Button */}
       {scheduleCart.length > 0 && !isNomineeFlow && (
         <div className="fixed bottom-6 right-6 z-40 animate-bounce">
@@ -137,16 +134,16 @@ const MainLayout: React.FC = () => {
             <NomineePortalPage />
           </ErrorBoundary>
         ) : (
-          <>
+          <ErrorBoundary fallbackTitle="AutoFeast Main View Error">
             {(activeView === 'home' || activeView === 'search') && <HomePage />}
             {activeView === 'how-it-works' && <HowItWorksPage />}
             {activeView === 'features' && <FeaturesPage />}
             {activeView === 'about' && <AboutPage />}
-            {activeView === 'scheduler' && <AutoOrderScheduler />}
+            {(activeView === 'scheduler' || (activeView as any) === 'schedule') && <AutoOrderScheduler />}
             {activeView === 'wallet' && <WalletModal />}
             {activeView === 'orders' && <OrderHistoryModal />}
             {activeView === 'tracking' && <LiveOrderTrackingView />}
-          </>
+          </ErrorBoundary>
         )}
       </main>
 
