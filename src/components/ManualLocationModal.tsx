@@ -277,8 +277,8 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
   }, 1000)).current;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-orange-500 relative space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#302720]/40 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-[#FFF8EF] text-[#302720] rounded-3xl max-w-lg w-full p-6 shadow-2xl border-2 border-[#E9DED5] relative space-y-5">
         
         {/* Close Button */}
         <button
@@ -286,21 +286,21 @@ export const ManualLocationModal: React.FC<ManualLocationModalProps> = ({ isOpen
             SpeechController.releaseMic('manual_location');
             onClose();
           }}
-          className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-500 cursor-pointer"
+          className="absolute top-4 right-4 p-2 rounded-full bg-[#FCE8E3] hover:bg-[#E9DED5] text-[#786E64] cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
         <div className="flex items-center space-x-3">
-          <div className="p-3 bg-orange-100 dark:bg-orange-950 text-orange-600 rounded-2xl">
-            <MapPin className="w-6 h-6 text-orange-600" />
+          <div className="p-3 bg-[#FCE8E3] text-[#D93636] rounded-2xl border border-[#E9DED5]">
+            <MapPin className="w-6 h-6 text-[#D93636]" />
           </div>
           <div>
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white leading-tight">
+            <h2 className="text-lg sm:text-xl font-black text-[#302720] leading-tight">
               {getPromptText()}
             </h2>
-            <p className="text-xs text-orange-600 dark:text-orange-400 font-bold mt-0.5">
+            <p className="text-xs text-[#786E64] font-bold mt-0.5">
               {getSubTitleText()}
             </p>
           </div>

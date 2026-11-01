@@ -2,6 +2,7 @@ import { AutoOrderSchedule, ExecutedOrder, ScheduleDuration, ScheduleOverride } 
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { PriceComparisonService } from './priceComparisonService';
 import { WalletService } from './walletService';
+import { toTime24 } from '../utils/scheduleCalculator';
 
 const SCHEDULES_KEY = 'smart_food_auto_schedules';
 const OVERRIDES_KEY = 'smart_food_schedule_overrides';
@@ -120,7 +121,29 @@ export class AutoOrderBackgroundService {
     const stored = localStorage.getItem(SCHEDULES_KEY);
     if (stored !== null) {
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          let dirty = false;
+          const normalized = parsed.map(s => {
+            if (!s) return s;
+            const needsClarification = Boolean(
+              s.needsAmPmClarification || (typeof s.time === 'object' && s.time?.needsAmPmClarification)
+            );
+            const safeTime = toTime24(s.time) || '08:00';
+            if (s.time !== safeTime || (needsClarification && !s.needsAmPmClarification)) {
+              dirty = true;
+            }
+            return {
+              ...s,
+              time: safeTime,
+              ...(needsClarification ? { needsAmPmClarification: true } : {})
+            };
+          });
+          if (dirty) {
+            localStorage.setItem(SCHEDULES_KEY, JSON.stringify(normalized));
+          }
+          return normalized;
+        }
       } catch (e) {
         console.error('Error reading schedules', e);
       }
@@ -133,22 +156,27 @@ export class AutoOrderBackgroundService {
    * Save or update a schedule.
    */
   public static saveSchedule(schedule: AutoOrderSchedule): AutoOrderSchedule[] {
+    const safeTime = toTime24(schedule.time) || '08:00';
+    const safeSchedule: AutoOrderSchedule = {
+      ...schedule,
+      time: safeTime
+    };
     const schedules = this.getSchedules();
 
     // Enforce default start date & end date calculation if missing
-    if (!schedule.startDate) {
-      schedule.startDate = getTodayFormattedDate();
+    if (!safeSchedule.startDate) {
+      safeSchedule.startDate = getTodayFormattedDate();
     }
-    if (schedule.duration && !schedule.endDate) {
-      schedule.endDate = calculateScheduleEndDate(schedule.startDate, schedule.duration);
+    if (safeSchedule.duration && !safeSchedule.endDate) {
+      safeSchedule.endDate = calculateScheduleEndDate(safeSchedule.startDate, safeSchedule.duration);
     }
 
-    const existingIndex = schedules.findIndex(s => s.id === schedule.id);
+    const existingIndex = schedules.findIndex(s => s.id === safeSchedule.id);
 
     if (existingIndex >= 0) {
-      schedules[existingIndex] = schedule;
+      schedules[existingIndex] = safeSchedule;
     } else {
-      schedules.push(schedule);
+      schedules.push(safeSchedule);
     }
 
     localStorage.setItem(SCHEDULES_KEY, JSON.stringify(schedules));
@@ -450,7 +478,7 @@ export class AutoOrderBackgroundService {
       }
 
       // Effective trigger time for today (override time if set, else schedule default time)
-      const targetTime = (override && override.time) ? override.time : schedule.time;
+      const targetTime = toTime24((override && override.time) ? override.time : schedule.time);
 
       if (!targetTime || typeof targetTime !== 'string' || !targetTime.includes(':')) {
         return;

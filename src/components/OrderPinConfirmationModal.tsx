@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { AuthService } from '../services/authService';
 import { SecurityPinEntryView } from './SecurityPinEntryView';
 import { X } from 'lucide-react';
+import { toTimeText } from '../utils/scheduleCalculator';
 
 export const OrderPinConfirmationModal: React.FC = () => {
   const {
@@ -146,7 +147,7 @@ export const OrderPinConfirmationModal: React.FC = () => {
       const sch = pendingPinVerification.schedule;
       return {
         title: `${sch.slotName}: ${sch.foodItemName}`,
-        subtitle: `${sch.restaurant} • Time: ${sch.time} (${sch.frequency})`,
+        subtitle: `${sch.restaurant} • Time: ${toTimeText(sch.time)} (${sch.frequency})`,
         amount: null,
         typeBadge: 'Auto-Order Schedule Setup'
       };
@@ -199,46 +200,53 @@ export const OrderPinConfirmationModal: React.FC = () => {
   const details = getItemDetails();
 
   const summaryCard = (
-    <div className="bg-[#FBE9E5]/50 p-3 rounded-xl border border-[#F0E5DC] flex items-center justify-between gap-3 my-2">
+    <div className="bg-[#FCE8E3] p-3 rounded-xl border border-[#E9DED5] flex items-center justify-between gap-3 my-2 shadow-xs">
       <div className="space-y-0.5">
-        <span className="text-[9px] font-black uppercase tracking-wider text-[#D93636] bg-[#D93636]/10 px-2 py-0.5 rounded-full border border-[#D93636]/30">
+        <span className="text-[9px] font-black uppercase tracking-wider text-[#D93636] bg-[#FFF8EF] px-2 py-0.5 rounded-full border border-[#E9DED5]">
           {details.typeBadge}
         </span>
-        <h4 className="text-sm font-black text-[#33251F] line-clamp-1">{details.title}</h4>
-        <p className="text-[11px] font-semibold text-[#4A5568] line-clamp-1">{details.subtitle}</p>
+        <h4 className="text-sm font-black text-[#302720] line-clamp-1">{details.title}</h4>
+        <p className="text-[11px] font-semibold text-[#786E64] line-clamp-1">{details.subtitle}</p>
       </div>
       {details.amount !== null && (
         <div className="text-right shrink-0">
-          <span className="text-[10px] font-bold text-[#4A5568] block">Total</span>
-          <span className="text-lg font-black text-[#16A34A]">₹{details.amount}</span>
+          <span className="text-[10px] font-bold text-[#786E64] block">Total</span>
+          <span className="text-lg font-black text-[#43845C]">₹{details.amount}</span>
         </div>
       )}
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className={`relative w-full max-w-md max-h-[94vh] flex flex-col rounded-3xl shadow-2xl transition-all border-4 overflow-y-auto p-5 ${
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-[#302720]/40 backdrop-blur-sm animate-fadeIn">
+      <div className={`relative w-full max-w-md max-h-[94vh] flex flex-col rounded-3xl shadow-2xl transition-all border-2 overflow-y-auto p-5 ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-yellow-400'
-          : 'bg-white text-[#33251F] border-[#D93636]'
+          : 'bg-[#FFF8EF] text-[#302720] border-[#E9DED5]'
       }`}>
         <button
           onClick={cancelPendingPinAction}
-          className="absolute top-3 right-3 z-20 p-2 rounded-full bg-slate-100 hover:bg-red-100 hover:text-red-600 transition-all text-[#4A5568] cursor-pointer"
+          className="absolute top-3 right-3 z-20 p-2 rounded-full bg-[#FCE8E3] hover:bg-[#FCE8E3]/80 text-[#786E64] hover:text-[#302720] border border-[#E9DED5] transition-all cursor-pointer"
           title="Cancel"
         >
           <X className="w-4 h-4" />
         </button>
 
         <SecurityPinEntryView
-          title={t('pinConfirm.title')}
+          title={t('pinConfirm.title') || 'Security PIN Verification'}
+          leadPrompt={
+            language === 'ta'
+              ? 'உங்கள் பாதுகாப்பு PIN-ஐ உள்ளிடவும்.'
+              : language === 'hi'
+              ? 'कृपया अपना सुरक्षा पिन दर्ज करें।'
+              : 'Please enter your security PIN.'
+          }
           subtitle={
-            pendingPinVerification.type === 'save_schedule'
-              ? t('pinConfirm.scheduleSubtitle')
-              : pendingPinVerification.type === 'execute_schedule'
-              ? t('pinConfirm.executeSubtitle')
-              : t('pinConfirm.orderSubtitle')
+            language === 'ta'
+              ? '4 இலக்க PIN பேசவும் அல்லது எண்களைத் தொடவும்.'
+              : language === 'hi'
+              ? '4 अंकों का पिन बोलें या नीचे दिए गए नंबर दबाएं।'
+              : 'Speak 4-digit PIN or tap numbers below.'
           }
           onPinComplete={triggerVerification}
           onCancel={cancelPendingPinAction}
@@ -246,6 +254,13 @@ export const OrderPinConfirmationModal: React.FC = () => {
           lockSecondsLeft={lockSecondsLeft}
           errorMessage={errorMessage}
           setErrorMessage={setErrorMessage}
+          submitButtonText={
+            language === 'ta'
+              ? 'PIN சரிபார்க்கவும்'
+              : language === 'hi'
+              ? 'पिन सत्यापित करें'
+              : 'Verify PIN'
+          }
           summaryCard={summaryCard}
         />
       </div>

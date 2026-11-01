@@ -1,13 +1,49 @@
 import { ScheduleDuration } from '../types';
 
 /**
- * Normalizes any schedule time representation (string, object with time24/time/displayTime, etc.)
- * into a standard "HH:MM" 24-hour string format.
+ * Converts 24-hour "HH:MM" string to 12-hour display format "H:MM AM/PM".
  */
-export function normalizeTime(timeInput: any): string {
-  if (!timeInput) return '08:00';
-  if (typeof timeInput === 'string') {
-    const trimmed = timeInput.trim();
+function format24To12(t24: string): string {
+  if (!t24 || !t24.includes(':')) return t24 || '';
+  const [hStr, mStr] = t24.split(':');
+  let h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10) || 0;
+  if (isNaN(h)) return t24;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+/**
+ * Converts any time input (string, parser object, undefined, null) into 24-hour "HH:MM" string.
+ * Returns "HH:MM" or "" if empty/invalid.
+ */
+export function toTime24(value: any): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') {
+    if (typeof value.time24 === 'string' && value.time24.trim()) {
+      return toTime24(value.time24);
+    }
+    if (typeof value.time === 'string' && value.time.trim()) {
+      return toTime24(value.time);
+    }
+    if (typeof value.time12Formatted === 'string' && value.time12Formatted.trim()) {
+      return toTime24(value.time12Formatted);
+    }
+    if (typeof value.displayTime === 'string' && value.displayTime.trim()) {
+      return toTime24(value.displayTime);
+    }
+    if (typeof value.hour === 'number' && typeof value.minute === 'number') {
+      return `${String(value.hour).padStart(2, '0')}:${String(value.minute).padStart(2, '0')}`;
+    }
+    if (typeof value.hours === 'number' && typeof value.minutes === 'number') {
+      return `${String(value.hours).padStart(2, '0')}:${String(value.minutes).padStart(2, '0')}`;
+    }
+    return '';
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
     // If it's already HH:MM or H:MM
     if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
       const [h, m] = trimmed.split(':');
@@ -23,48 +59,69 @@ export function normalizeTime(timeInput: any): string {
       if (meridiem === 'am' && h === 12) h = 0;
       return `${String(h).padStart(2, '0')}:${m}`;
     }
+    // Short 12-hour format e.g. "8 AM" or "8 PM"
+    const matchShort12 = trimmed.match(/^(\d{1,2})\s*(am|pm)$/i);
+    if (matchShort12) {
+      let h = parseInt(matchShort12[1], 10);
+      const meridiem = matchShort12[2].toLowerCase();
+      if (meridiem === 'pm' && h < 12) h += 12;
+      if (meridiem === 'am' && h === 12) h = 0;
+      return `${String(h).padStart(2, '0')}:00`;
+    }
+  }
+  return '';
+}
+
+/**
+ * Accepts string | { time12Formatted } | { time24 } | undefined | null
+ * and safely returns a display string (e.g. "8:00 AM"), or "" if empty/invalid.
+ * Guarantees never returning an object or "[object Object]".
+ */
+export function toTimeText(value: any): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') {
+    if (typeof value.time12Formatted === 'string' && value.time12Formatted.trim()) {
+      return value.time12Formatted.trim();
+    }
+    if (typeof value.displayTime === 'string' && value.displayTime.trim()) {
+      return value.displayTime.trim();
+    }
+    const t24 = toTime24(value);
+    if (t24) {
+      return format24To12(t24);
+    }
+    return '';
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    // If already in 12-hour format like "8:00 AM" or "08:30 PM"
+    if (/^\d{1,2}:\d{2}\s*(am|pm)$/i.test(trimmed)) {
+      return trimmed.toUpperCase();
+    }
+    const t24 = toTime24(trimmed);
+    if (t24) {
+      return format24To12(t24);
+    }
     return trimmed;
   }
-  if (typeof timeInput === 'object') {
-    if (typeof timeInput.time24 === 'string') return normalizeTime(timeInput.time24);
-    if (typeof timeInput.time === 'string') return normalizeTime(timeInput.time);
-    if (typeof timeInput.time12Formatted === 'string') return normalizeTime(timeInput.time12Formatted);
-    if (typeof timeInput.displayTime === 'string') return normalizeTime(timeInput.displayTime);
-    if (typeof timeInput.hour === 'number' && typeof timeInput.minute === 'number') {
-      return `${String(timeInput.hour).padStart(2, '0')}:${String(timeInput.minute).padStart(2, '0')}`;
-    }
-    if (typeof timeInput.hours === 'number' && typeof timeInput.minutes === 'number') {
-      return `${String(timeInput.hours).padStart(2, '0')}:${String(timeInput.minutes).padStart(2, '0')}`;
-    }
-  }
-  return '08:00';
+  return '';
+}
+
+/**
+ * Normalizes any schedule time representation (string, object with time24/time/displayTime, etc.)
+ * into a standard "HH:MM" 24-hour string format. Defaults to '08:00' if invalid.
+ */
+export function normalizeTime(timeInput: any): string {
+  return toTime24(timeInput) || '08:00';
 }
 
 /**
  * Formats any time representation into user-friendly "H:MM AM/PM" text.
- * Guarantees never returning "[object Object]".
+ * Guarantees never returning "[object Object]" or an object.
  */
 export function formatScheduleTime(timeInput: any): string {
-  if (!timeInput) return '8:00 AM';
-  if (typeof timeInput === 'object') {
-    if (typeof timeInput.displayTime === 'string' && timeInput.displayTime.trim()) {
-      return timeInput.displayTime.trim();
-    }
-    if (typeof timeInput.time12Formatted === 'string' && timeInput.time12Formatted.trim()) {
-      return timeInput.time12Formatted.trim();
-    }
-  }
-  const norm = normalizeTime(timeInput);
-  if (typeof norm !== 'string') return '8:00 AM';
-  if (/am|pm/i.test(norm)) return norm;
-  const parts = norm.split(':');
-  if (parts.length < 2) return norm;
-  let h = parseInt(parts[0], 10);
-  const m = parseInt(parts[1], 10) || 0;
-  if (isNaN(h)) return norm;
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
+  return toTimeText(timeInput) || '8:00 AM';
 }
 
 export function checkIsDateTimePast(dateStr: any, timeStr?: any): boolean {

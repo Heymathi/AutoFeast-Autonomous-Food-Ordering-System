@@ -25,6 +25,7 @@ import { DynamicFoodSearchEngine } from '../services/dynamicFoodSearch';
 import { parseSpokenTimeTo24Hr } from './VoiceOrderDialogModal';
 import { calculateHaversineDistance } from '../services/locationService';
 import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
+import { toTime24 } from '../utils/scheduleCalculator';
 import { NLPParserService } from '../services/nlpParserService';
 import { ItemActionChooser } from './ItemActionChooser';
 import { VoiceCommandParser } from '../services/voiceCommandParser';
@@ -443,7 +444,7 @@ export const VoiceCommandModal: React.FC = () => {
     }
     if (checkIsItemRestrictedByNominee(item.id, item.name)) {
       handleNomineeRestrictedInterception(item, 'scheduled', {
-        time: timeStr || '08:00',
+        time: toTime24(timeStr) || '08:00',
         duration: recurrence === 'once' ? 'today_only' : '1_month',
         frequency: recurrence || 'daily'
       });
@@ -461,7 +462,7 @@ export const VoiceCommandModal: React.FC = () => {
       foodItemName: item.name,
       restaurant: item.restaurant || 'Saravana Bhavan',
       slotName: 'custom',
-      time: timeStr || '08:00',
+      time: toTime24(timeStr) || '08:00',
       frequency: recurrence === 'daily' ? 'daily' : (recurrence === 'weekdays' ? 'weekdays' : (recurrence === 'weekends' ? 'weekends' : (recurrence === 'once' ? 'once' : 'daily'))),
       duration: recurrence === 'once' ? 'today_only' : '1_month',
       customDays: [],
@@ -726,7 +727,7 @@ export const VoiceCommandModal: React.FC = () => {
       }
       if (checkIsItemRestrictedByNominee(chosenItem.id, chosenItem.name)) {
         handleNomineeRestrictedInterception(chosenItem, 'scheduled', {
-          time: parsed.time ? parsed.time.time24 : '08:00',
+          time: toTime24(parsed.time) || '08:00',
           duration: parsed.recurrence?.duration || (parsed.recurrence?.frequency === 'once' ? 'today_only' : '1_month'),
           frequency: parsed.recurrence?.frequency || 'daily'
         });
@@ -747,7 +748,7 @@ export const VoiceCommandModal: React.FC = () => {
         return;
       }
 
-      executeVoiceSchedule(chosenItem, parsed.time.time24, parsed.recurrence?.frequency || 'once');
+      executeVoiceSchedule(chosenItem, toTime24(parsed.time) || '08:00', parsed.recurrence?.frequency || 'once');
       return;
     }
 
@@ -938,8 +939,8 @@ export const VoiceCommandModal: React.FC = () => {
   if (!isVoiceModalOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl border-2 border-[#FBE9E5] relative text-[#33251F]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#302720]/40 backdrop-blur-sm p-3 sm:p-4 animate-fade-in">
+      <div className="bg-[#FFF8EF] rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl border-2 border-[#E9DED5] relative text-[#302720]">
         
         {/* Close Button & Debug Toggle (Dev Only) */}
         <div className="absolute top-4 right-4 flex items-center space-x-2">
@@ -947,7 +948,7 @@ export const VoiceCommandModal: React.FC = () => {
             <button
               onClick={() => setShowDebugPanel(!showDebugPanel)}
               className={`p-2 rounded-full cursor-pointer transition-colors ${
-                showDebugPanel ? 'bg-[#D93636] text-white' : 'bg-slate-100 hover:bg-slate-200 text-[#4A5568]'
+                showDebugPanel ? 'bg-[#D93636] text-white' : 'bg-[#FCE8E3] hover:bg-[#E9DED5] text-[#786E64]'
               }`}
               title="Toggle SpeechController Debug Logs"
             >
@@ -959,7 +960,7 @@ export const VoiceCommandModal: React.FC = () => {
               SpeechController.stopListening('VoiceCommandModal');
               setIsVoiceModalOpen(false);
             }}
-            className="p-2 rounded-full hover:bg-slate-100 text-[#4A5568] cursor-pointer"
+            className="p-2 rounded-full hover:bg-[#FCE8E3] text-[#786E64] cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -971,8 +972,8 @@ export const VoiceCommandModal: React.FC = () => {
             <Mic className="w-6 h-6 animate-pulse" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-[#33251F]">{t('voice.modalTitle')}</h2>
-            <p className="text-xs text-[#4A5568] font-bold">
+            <h2 className="text-xl font-black text-[#302720]">{t('voice.modalTitle')}</h2>
+            <p className="text-xs text-[#786E64] font-bold">
               {awaitingConfirmation
                 ? (language === 'ta' ? 'குரல் உறுதிப்படுத்தல்: "ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள்' : language === 'hi' ? 'आवाज़ पुष्टि: "हाँ" या "नहीं" बोलें' : 'Voice Confirmation Active: Say "Yes" or "No"')
                 : restaurantStep
@@ -991,12 +992,12 @@ export const VoiceCommandModal: React.FC = () => {
             className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95 cursor-pointer ${
               isListening
                 ? 'bg-[#D93636] text-white animate-ping'
-                : 'bg-[#D93636] hover:bg-[#33251F] text-white hover:scale-105'
+                : 'bg-[#D93636] hover:bg-[#B9252D] text-white hover:scale-105'
             }`}
           >
             {isListening ? <Mic className="w-8 h-8 text-white" /> : <MicOff className="w-8 h-8 text-white" />}
           </button>
-          <span className="mt-2 text-xs font-extrabold text-[#33251F]">
+          <span className="mt-2 text-xs font-extrabold text-[#302720]">
             {isListening ? 'Mic Active - Listening...' : 'Tap Mic to Speak'}
           </span>
         </div>
@@ -1030,10 +1031,10 @@ export const VoiceCommandModal: React.FC = () => {
 
         {/* Food Name & Requested Action Separate Breakdown Card */}
         {identifiedFoodName && (
-          <div className="bg-[#FBE9E5] border border-[#F0E5DC] rounded-2xl p-3 mb-3 flex items-center justify-between text-xs font-black shadow-sm">
+          <div className="bg-[#FCE8E3] border border-[#E9DED5] rounded-2xl p-3 mb-3 flex items-center justify-between text-xs font-black shadow-sm">
             <div className="flex items-center space-x-2">
               <span className="text-[#786E64] uppercase tracking-wider text-[10px]">Dish:</span>
-              <span className="text-[#33251F] font-extrabold text-sm">{identifiedFoodName}</span>
+              <span className="text-[#302720] font-extrabold text-sm">{identifiedFoodName}</span>
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-[#786E64] uppercase tracking-wider text-[10px]">Action:</span>
@@ -1047,8 +1048,8 @@ export const VoiceCommandModal: React.FC = () => {
         {/* Transcript & Confirmation Display */}
         <div className={`p-4 rounded-2xl border min-h-[90px] mb-4 transition-all text-center flex flex-col items-center justify-center space-y-2 ${
           awaitingConfirmation || singleRestaurantPrompt || restaurantStep
-            ? 'bg-[#FBE9E5]/60 border-[#D93636] text-[#33251F]'
-            : 'bg-[#FBE9E5]/30 border-[#F0E5DC] text-[#33251F]'
+            ? 'bg-[#FCE8E3] border-[#D93636] text-[#302720]'
+            : 'bg-[#FFFFFF] border-[#E9DED5] text-[#302720]'
         }`}>
           {transcript ? (
             <div>
@@ -1071,7 +1072,7 @@ export const VoiceCommandModal: React.FC = () => {
             </div>
           ) : (
             <div>
-              <p className="text-xs text-[#4A5568] italic font-bold">
+              <p className="text-xs text-[#786E64] italic font-bold">
                 {language === 'ta'
                   ? 'Say "தோசை ஆர்டர் பண்ணு" or "காலை 8 மணிக்கு பரோட்டா அட்டவணைப்படுத்து".'
                   : language === 'hi'
@@ -1110,7 +1111,7 @@ export const VoiceCommandModal: React.FC = () => {
 
             <button
               onClick={handleYes}
-              className="py-3 px-4 bg-[#D93636] hover:bg-[#33251F] text-white font-black rounded-2xl text-xs shadow-md shadow-[#D93636]/30 transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+              className="py-3 px-4 bg-[#D93636] hover:bg-[#B9252D] text-white font-black rounded-2xl text-xs shadow-md shadow-[#D93636]/30 transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4 text-white" />
               <span>
@@ -1135,7 +1136,7 @@ export const VoiceCommandModal: React.FC = () => {
 
             <button
               onClick={() => handleRestaurantSelected(singleRestaurantPrompt.restaurant)}
-              className="py-3 px-4 bg-[#D93636] hover:bg-[#33251F] text-white font-black rounded-2xl text-xs shadow-md shadow-[#D93636]/30 transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+              className="py-3 px-4 bg-[#D93636] hover:bg-[#B9252D] text-white font-black rounded-2xl text-xs shadow-md shadow-[#D93636]/30 transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4 text-white" />
               <span>
@@ -1147,7 +1148,7 @@ export const VoiceCommandModal: React.FC = () => {
 
         {/* Multi-Restaurant List Selection Cards */}
         {restaurantStep && restaurantStep.restaurants.length > 0 && (
-          <div className="mb-4 p-4 bg-[#D93636]/10 rounded-2xl border border-[#D93636]/30 space-y-2">
+          <div className="mb-4 p-4 bg-[#FCE8E3] rounded-2xl border border-[#E9DED5] space-y-2">
             <p className="text-xs font-black text-[#D93636] flex items-center gap-1">
               <Volume2 className="w-4 h-4 animate-pulse" /> {t('voice.restaurantsAvailable')}
             </p>
@@ -1156,7 +1157,7 @@ export const VoiceCommandModal: React.FC = () => {
                 <button
                   key={rName}
                   onClick={() => handleRestaurantSelected(rName)}
-                  className="p-3 bg-white hover:bg-[#FBE9E5] text-[#33251F] font-black rounded-xl text-xs border border-[#F0E5DC] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
+                  className="p-3 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] font-black rounded-xl text-xs border border-[#E9DED5] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
                 >
                   <div className="flex items-center space-x-2">
                     <span className="w-5 h-5 rounded-full bg-[#D93636] text-white text-[10px] flex items-center justify-center font-bold">
@@ -1173,7 +1174,7 @@ export const VoiceCommandModal: React.FC = () => {
 
         {/* Popular Items Fallback after retries */}
         {showPopularSuggestions && (
-          <div className="mb-4 p-4 bg-[#D93636]/10 rounded-2xl border border-[#D93636]/30 space-y-2">
+          <div className="mb-4 p-4 bg-[#FCE8E3] rounded-2xl border border-[#E9DED5] space-y-2">
             <p className="text-xs font-black text-[#D93636] flex items-center gap-1">
               <Sparkles className="w-4 h-4 animate-pulse" />
               <span>
@@ -1192,7 +1193,7 @@ export const VoiceCommandModal: React.FC = () => {
                     setShowPopularSuggestions(false);
                     handleSpeechResult(pItem.name);
                   }}
-                  className="p-2.5 bg-white hover:bg-[#FBE9E5] text-[#33251F] font-black rounded-xl text-xs border border-[#F0E5DC] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
+                  className="p-2.5 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] font-black rounded-xl text-xs border border-[#E9DED5] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
                 >
                   <span className="truncate">{pItem.nativeNames?.[language] || pItem.name}</span>
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#D93636] shrink-0" />
@@ -1204,7 +1205,7 @@ export const VoiceCommandModal: React.FC = () => {
 
         {/* Generic Category Variant Buttons */}
         {variantSuggestions && variantSuggestions.items.length > 0 && (
-          <div className="mb-4 p-4 bg-[#D93636]/10 rounded-2xl border border-[#D93636]/30 space-y-2">
+          <div className="mb-4 p-4 bg-[#FCE8E3] rounded-2xl border border-[#E9DED5] space-y-2">
             <p className="text-xs font-black text-[#D93636] flex items-center gap-1">
               <Volume2 className="w-4 h-4 animate-pulse" /> {variantSuggestions.prompt}
             </p>
@@ -1216,11 +1217,11 @@ export const VoiceCommandModal: React.FC = () => {
                     setVariantSuggestions(null);
                     setChooserItems([vItem]);
                   }}
-                  className="p-3 bg-white hover:bg-[#FBE9E5] text-[#33251F] font-black rounded-xl text-xs border border-[#F0E5DC] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
+                  className="p-3 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] font-black rounded-xl text-xs border border-[#E9DED5] text-left shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-95"
                 >
                   <div>
                     <div className="font-extrabold">{vItem.nativeNames?.[language] || vItem.name}</div>
-                    <div className="text-[10px] text-[#4A5568]">{vItem.restaurant} • ₹{vItem.basePrice}</div>
+                    <div className="text-[10px] text-[#786E64]">{vItem.restaurant} • ₹{vItem.basePrice}</div>
                   </div>
                   <CheckCircle2 className="w-4 h-4 text-[#D93636]" />
                 </button>
@@ -1233,7 +1234,7 @@ export const VoiceCommandModal: React.FC = () => {
         {transcript && !awaitingConfirmation && !restaurantStep && !singleRestaurantPrompt && (
           <button
             onClick={() => processCommand(transcript)}
-            className="w-full bg-[#D93636] hover:bg-[#33251F] text-white font-black py-3 rounded-2xl mb-4 shadow-md transition-transform active:scale-98 cursor-pointer text-xs sm:text-sm"
+            className="w-full bg-[#D93636] hover:bg-[#B9252D] text-white font-black py-3 rounded-2xl mb-4 shadow-md transition-transform active:scale-98 cursor-pointer text-xs sm:text-sm"
           >
             Process Voice Command Now 🚀
           </button>
@@ -1259,14 +1260,14 @@ export const VoiceCommandModal: React.FC = () => {
         )}
 
         {/* Offline Voice Setup Section */}
-        <div className="my-4 p-4 bg-slate-50 border border-slate-200/90 rounded-2xl shadow-sm text-left">
+        <div className="my-4 p-4 bg-[#F7F3EB] border border-[#E9DED5] rounded-2xl shadow-sm text-left">
           {/* Header & Status Badge */}
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center space-x-2">
               <div className="p-1.5 bg-[#D93636]/10 text-[#D93636] rounded-lg">
                 <HardDrive className="w-4 h-4" />
               </div>
-              <h4 className="text-xs sm:text-sm font-black text-[#33251F]">
+              <h4 className="text-xs sm:text-sm font-black text-[#302720]">
                 {language === 'ta'
                   ? 'ஆஃப்லைன் குரல் அமைப்பு'
                   : language === 'hi'
@@ -1282,8 +1283,8 @@ export const VoiceCommandModal: React.FC = () => {
                 <span>Downloading {downloadProgress}%</span>
               </span>
             ) : offlineStatus.isDownloaded ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-[#43845C]/10 text-[#43845C] border border-[#43845C]/30">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#43845C]" />
                 <span>Downloaded / Ready</span>
               </span>
             ) : downloadError ? (
@@ -1292,15 +1293,15 @@ export const VoiceCommandModal: React.FC = () => {
                 <span>Download Failed</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-slate-200/80 text-slate-700">
-                <WifiOff className="w-3 h-3 text-slate-500" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-[#FCE8E3] text-[#786E64]">
+                <WifiOff className="w-3 h-3 text-[#786E64]" />
                 <span>Not Downloaded</span>
               </span>
             )}
           </div>
 
           {/* Model Description & Details */}
-          <p className="text-[11px] text-[#4A5568] font-medium leading-relaxed mb-3">
+          <p className="text-[11px] text-[#786E64] font-medium leading-relaxed mb-3">
             {language === 'ta'
               ? 'Whisper Multilingual Tiny (~39 MB) மாதிரியை உலாவியில் சேமித்து வைத்தால், இணைய இணைப்பு இல்லாதபோதும் தமிழ் மற்றும் ஆங்கில குரல் தேடல் சீராக இயங்கும்.'
               : language === 'hi'
@@ -1311,13 +1312,13 @@ export const VoiceCommandModal: React.FC = () => {
           {/* Progress Bar (Visible while downloading) */}
           {isDownloadingModel && (
             <div className="mb-3 space-y-1.5">
-              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-[#E9DED5] h-2 rounded-full overflow-hidden">
                 <div
                   className="bg-[#D93636] h-full transition-all duration-300 rounded-full"
                   style={{ width: `${Math.max(5, downloadProgress)}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] font-extrabold text-[#4A5568]">
+              <div className="flex justify-between text-[10px] font-extrabold text-[#786E64]">
                 <span>Downloading Whisper model...</span>
                 <span>{downloadProgress}%</span>
               </div>
@@ -1326,8 +1327,8 @@ export const VoiceCommandModal: React.FC = () => {
 
           {/* Success Message Banner */}
           {downloadSuccessMessage && (
-            <div className="mb-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="mb-3 p-3 bg-[#43845C]/10 border border-[#43845C]/30 text-[#43845C] rounded-xl text-xs font-bold flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#43845C] shrink-0 mt-0.5" />
               <span>{downloadSuccessMessage}</span>
             </div>
           )}
@@ -1361,7 +1362,7 @@ export const VoiceCommandModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleConfirmConsentDownload}
-                  className="flex-1 py-2 px-3 bg-[#D93636] hover:bg-[#33251F] text-white font-black text-xs rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-3 bg-[#D93636] hover:bg-[#B9252D] text-white font-black text-xs rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>
@@ -1371,7 +1372,7 @@ export const VoiceCommandModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleCancelConsent}
-                  className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-lg border border-slate-300 transition-colors cursor-pointer"
+                  className="py-2 px-3 bg-[#FFFFFF] hover:bg-[#F7F3EB] text-[#786E64] font-bold text-xs rounded-lg border border-[#E9DED5] transition-colors cursor-pointer"
                 >
                   {language === 'ta' ? 'ரத்து செய்' : language === 'hi' ? 'रद्द करें' : 'Cancel'}
                 </button>
@@ -1381,8 +1382,8 @@ export const VoiceCommandModal: React.FC = () => {
             /* Action Button: Download or Ready Status */
             <div>
               {offlineStatus.isDownloaded ? (
-                <div className="w-full py-2.5 px-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-black flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <div className="w-full py-2.5 px-3 bg-[#43845C]/10 border border-[#43845C]/30 text-[#43845C] rounded-xl text-xs font-black flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#43845C]" />
                   <span>
                     {language === 'ta'
                       ? 'ஆஃப்லைன் குரல் தயார் (Whisper 39 MB சேமிக்கப்பட்டுள்ளது)'
@@ -1399,7 +1400,7 @@ export const VoiceCommandModal: React.FC = () => {
                   className={`w-full py-2.5 px-4 rounded-xl text-xs font-black shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     isDownloadingModel
                       ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                      : 'bg-[#D93636] hover:bg-[#33251F] text-white hover:shadow active:scale-98'
+                      : 'bg-[#D93636] hover:bg-[#B9252D] text-white hover:shadow active:scale-98'
                   }`}
                 >
                   {isDownloadingModel ? (
@@ -1444,20 +1445,20 @@ export const VoiceCommandModal: React.FC = () => {
 
         {/* Quick Sample Voice Command Presets */}
         <div>
-          <h4 className="text-xs font-black text-[#4A5568] uppercase tracking-wider mb-2 flex items-center gap-1">
+          <h4 className="text-xs font-black text-[#786E64] uppercase tracking-wider mb-2 flex items-center gap-1">
             <Command className="w-3.5 h-3.5" /> Direct Voice Command Presets (Click or Speak):
           </h4>
           <div className="grid grid-cols-1 gap-2 text-xs">
             <button
               onClick={() => handleSpeechResult("order dosa")}
-              className="text-left bg-[#16A34A]/10 hover:bg-[#16A34A]/20 text-[#16A34A] font-extrabold p-2.5 rounded-xl border border-[#16A34A]/30 cursor-pointer"
+              className="text-left bg-[#43845C]/10 hover:bg-[#43845C]/20 text-[#43845C] font-extrabold p-2.5 rounded-xl border border-[#43845C]/30 cursor-pointer"
             >
               ⚡ "order dosa" → (Orders Dosa via Dynamic Search Pipeline)
             </button>
 
             <button
               onClick={() => handleSpeechResult("schedule parotta at 8 AM")}
-              className="text-left bg-[#FBE9E5] hover:bg-[#F0E5DC] text-[#33251F] font-extrabold p-2.5 rounded-xl border border-[#F0E5DC] cursor-pointer"
+              className="text-left bg-[#FFFFFF] hover:bg-[#F7F3EB] text-[#302720] font-extrabold p-2.5 rounded-xl border border-[#E9DED5] cursor-pointer"
             >
               📅 "schedule parotta at 8 AM" → Direct Schedule for 8 AM
             </button>

@@ -316,11 +316,11 @@ export const WelcomeMessageModal: React.FC = () => {
   if (entryStep !== 'welcome') return null;
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-lg bg-white text-[#33251F] rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-[#D93636] text-center space-y-6 transform scale-100">
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#302720]/40 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-lg bg-[#FFF8EF] text-[#302720] rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-[#E9DED5] text-center space-y-6 transform scale-100">
         
         {/* Celebration Icon Header */}
-        <div className="inline-flex p-4 bg-[#D93636]/10 rounded-full border-2 border-[#D93636] text-[#D93636]">
+        <div className="inline-flex p-4 bg-[#D93636]/10 rounded-full border border-[#E9DED5] text-[#D93636]">
           <Sparkles className="w-10 h-10 animate-bounce" />
         </div>
 
@@ -329,11 +329,11 @@ export const WelcomeMessageModal: React.FC = () => {
             {t('welcome.badge') || (activeLang === 'ta' ? 'வரவேற்புச் செய்தி' : activeLang === 'hi' ? 'स्वागत संदेश' : 'Welcome to AutoFeast')}
           </span>
 
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-[#33251F]">
+          <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-[#302720]">
             {(t('welcome.title') || 'Welcome to AutoFeast, {name}! 🎉').replace('{name}', userName)}
           </h2>
 
-          <p className="text-sm font-extrabold text-[#4A5568] leading-relaxed max-w-md mx-auto">
+          <p className="text-sm font-extrabold text-[#786E64] leading-relaxed max-w-md mx-auto">
             {t('welcome.subtitle') || (activeLang === 'ta'
               ? 'உங்கள் குரல் வழி உணவு ஆர்டர் மற்றும் அட்டவணை அமைப்பு தயாராக உள்ளது!'
               : activeLang === 'hi'
@@ -342,7 +342,7 @@ export const WelcomeMessageModal: React.FC = () => {
           </p>
         </div>
 
-        <div className="p-4 bg-[#FBE9E5]/40 rounded-2xl border border-[#F0E5DC] flex items-center justify-center space-x-2 text-xs font-black text-[#33251F]">
+        <div className="p-4 bg-[#FCE8E3] rounded-2xl border border-[#E9DED5] flex items-center justify-center space-x-2 text-xs font-black text-[#302720]">
           <Heart className="w-4 h-4 text-[#D93636] fill-[#D93636] animate-pulse" />
           <span>
             {t('welcome.langSet') || (activeLang === 'ta'

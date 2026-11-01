@@ -192,7 +192,9 @@ export const VoicePinInput: React.FC<VoicePinInputProps> = ({
         disabled={disabled}
         aria-pressed={isListening}
         onClick={() => {
-          SpeechController.markUserGesture();
+          if (typeof (SpeechController as any).markUserGesture === 'function') {
+            (SpeechController as any).markUserGesture();
+          }
           if (isListening) {
             SpeechController.releaseMic(owner);
             setIsListening(false);

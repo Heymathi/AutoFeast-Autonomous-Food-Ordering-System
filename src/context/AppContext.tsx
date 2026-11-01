@@ -20,7 +20,7 @@ import { FuzzyMatchEngine } from '../services/fuzzyMatchService';
 import { CartService } from '../services/cartService';
 import { CartVoiceService } from '../services/cartVoiceService';
 import { isFoodItemRestricted } from '../services/restrictedFoodMatcher';
-import { normalizeTime, formatScheduleTime } from '../utils/scheduleCalculator';
+import { normalizeTime, formatScheduleTime, toTime24, toTimeText } from '../utils/scheduleCalculator';
 import { fetchSearchFallback } from '../services/geminiSearchFallbackClient';
 
 interface AppContextType {
@@ -1078,7 +1078,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           id: `SCHED-${Date.now()}`,
           slotName: req.scheduleDetails.slotName || 'Lunch Slot',
           slotIndex: 2,
-          time: req.scheduleDetails.time || '01:00 PM',
+          time: toTime24(req.scheduleDetails.time) || '13:00',
           frequency: (req.scheduleDetails.frequency as any) || 'daily',
           foodItemId: req.foodItem.id,
           foodItemName: req.foodItem.name,
@@ -1946,9 +1946,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         const itemsSummary = result.bill.items.map(i => `${i.quantity > 1 ? `${i.quantity}x ` : ''}${i.foodItem.name}`).join(', ');
         const parsedTime = parseSpokenTimeTo24Hr(transcript);
-        const hasSpokenTime = !!parsedTime || !!result.time;
-        const scheduleTime = result.time || (parsedTime ? parsedTime.time24 : '08:00');
-        const formattedTimeStr = parsedTime ? parsedTime.time12Formatted : (result.time || '8:00 AM');
+        const safeResultTime24 = toTime24(result.time);
+        const hasSpokenTime = !!parsedTime || !!safeResultTime24;
+        const scheduleTime = safeResultTime24 || (parsedTime ? parsedTime.time24 : '08:00');
+        const formattedTimeStr = parsedTime ? parsedTime.time12Formatted : (toTimeText(result.time) || '8:00 AM');
 
         const details = result.scheduleDetails || NLPParserService.parseScheduleDetailsFromVoice(transcript);
         const duration = details.duration || '1_week';
@@ -2441,7 +2442,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         restaurantLng: 80.2707,
         platforms: []
       };
-      handleNomineeRestrictedInterception(itemObj, 'scheduled', { time: s.time, slotName: s.slotName, duration: s.duration, frequency: s.frequency });
+      handleNomineeRestrictedInterception(itemObj, 'scheduled', { time: toTime24(s.time) || '08:00', slotName: s.slotName, duration: s.duration, frequency: s.frequency });
       return;
     }
 
@@ -2458,13 +2459,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setPendingPinVerification({
       type: 'save_schedule',
-      schedule: s
+      schedule: { ...s, time: toTime24(s.time) || '08:00' }
     });
     setIsOrderPinModalOpen(true);
   };
 
   const executeActualSaveSchedule = (s: AutoOrderSchedule) => {
-    const updated = AutoOrderBackgroundService.saveSchedule(s);
+    const safeSchedule: AutoOrderSchedule = { ...s, time: toTime24(s.time) || '08:00' };
+    const updated = AutoOrderBackgroundService.saveSchedule(safeSchedule);
     setSchedules([...updated]);
     incrementDailyOrderCount();
 

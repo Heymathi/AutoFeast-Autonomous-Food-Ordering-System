@@ -249,8 +249,8 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-6 shadow-2xl border-2 border-rose-500 relative space-y-5 my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#302720]/40 backdrop-blur-sm p-4 animate-fade-in overflow-y-auto">
+      <div className="bg-[#FFF8EF] text-[#302720] rounded-3xl max-w-xl w-full p-6 shadow-2xl border-2 border-[#E9DED5] relative space-y-5 my-8">
         
         {/* Close Button */}
         <button
@@ -259,14 +259,14 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
             setIsListening(false);
             onClose();
           }}
-          className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-500 z-10 cursor-pointer"
+          className="absolute top-4 right-4 p-2 rounded-full bg-[#FCE8E3] hover:bg-[#E9DED5] text-[#786E64] z-10 cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
         <div className="flex items-center space-x-3">
-          <div className="p-3 bg-[#FBE9E5] dark:bg-rose-950 text-[#D93636] rounded-2xl">
+          <div className="p-3 bg-[#FCE8E3] text-[#D93636] rounded-2xl border border-[#E9DED5]">
             <HeartPulse className="w-7 h-7 text-[#D93636] animate-pulse" />
           </div>
           <div>
@@ -274,24 +274,24 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
               <span className="text-xs font-black uppercase text-[#D93636] tracking-wider">
                 {language === 'ta' ? 'உடல்நல & உணவு வழிகாட்டி' : language === 'hi' ? 'स्वास्थ्य और आहार सलाहकार' : 'Health & Dietary AI Guide'}
               </span>
-              <span className="bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full border border-emerald-400 flex items-center gap-1">
-                <Mic className="w-3 h-3 text-yellow-300" /> Catalog Verified
+              <span className="bg-[#43845C] text-white text-[10px] font-black px-2.5 py-0.5 rounded-full border border-[#43845C]/40 flex items-center gap-1">
+                <Mic className="w-3 h-3 text-white" /> Catalog Verified
               </span>
             </div>
-            <h2 className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
+            <h2 className="text-xl font-black text-[#302720] mt-0.5">
               {language === 'ta' ? 'உடல்நலக்கேற்ப உணவு பரிந்துரை' : language === 'hi' ? 'स्वास्थ्य के अनुसार आहार सुझाव' : 'Voice Food Suggestions by Health Context'}
             </h2>
           </div>
         </div>
 
         {/* 🚀 MANDATORY MEDICAL SAFETY DISCLAIMER BANNER */}
-        <div className="bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 dark:border-amber-600 rounded-2xl p-4 flex items-start space-x-3 shadow-inner">
-          <ShieldAlert className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+        <div className="bg-[#FCE8E3] border border-[#E9DED5] rounded-2xl p-4 flex items-start space-x-3 shadow-inner">
+          <ShieldAlert className="w-6 h-6 text-[#D93636] shrink-0 mt-0.5" />
           <div>
-            <span className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 block">
+            <span className="text-xs font-black uppercase tracking-wider text-[#D93636] block">
               {language === 'ta' ? 'மருத்துவ எச்சரிக்கை (General Dietary Note)' : language === 'hi' ? 'चिकित्सीय ध्यान दें' : 'Medical Disclaimer Notice'}
             </span>
-            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5 leading-relaxed">
+            <p className="text-xs font-bold text-[#302720] mt-0.5 leading-relaxed">
               {getDisclaimerText()}
             </p>
           </div>
@@ -300,8 +300,8 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         {/* STEP 1: Speak Condition */}
         {step === 'speak_condition' && (
           <div className="space-y-4">
-            <div className="bg-[#FBE9E5] dark:bg-slate-800/80 p-5 rounded-2xl border border-[#F0E5DC] text-center space-y-2">
-              <p className="text-base font-black text-slate-900 dark:text-white leading-relaxed">
+            <div className="bg-[#F7F3EB] p-5 rounded-2xl border border-[#E9DED5] text-center space-y-2">
+              <p className="text-base font-black text-[#302720] leading-relaxed">
                 {language === 'ta'
                   ? 'உங்களுக்கு அல்லது உங்கள் குடும்பத்தினருக்கு (அப்பா/அம்மா/தாத்தா/பாட்டி) என்ன உடல்நல சவால்கள் உள்ளன? பேசவும்!'
                   : language === 'hi'
@@ -329,7 +329,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
               </button>
 
               {liveTranscript && (
-                <p className="text-xs text-center text-[#D93636] dark:text-rose-400 font-black bg-[#FBE9E5] dark:bg-slate-800 p-2 rounded-xl w-full border border-[#F0E5DC]">
+                <p className="text-xs text-center text-[#D93636] font-black bg-[#FCE8E3] p-2 rounded-xl w-full border border-[#E9DED5]">
                   Detected Speech: "{liveTranscript}"
                 </p>
               )}
@@ -337,7 +337,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
 
             {/* Quick Prompt Suggestions */}
             <div className="space-y-1.5 pt-2">
-              <span className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400">
+              <span className="text-[11px] font-black uppercase text-[#786E64]">
                 {language === 'ta' ? 'எடுத்துக்காட்டு கேள்விகள் (Tap to test):' : 'Example Spoken Queries:'}
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
@@ -350,7 +350,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                   <button
                     key={idx}
                     onClick={() => handleAnalyzeHealthText(language === 'ta' ? ex.labelTa : ex.labelEn)}
-                    className="p-2.5 bg-slate-100 hover:bg-[#FBE9E5] dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-left cursor-pointer transition-all border border-slate-200 dark:border-slate-700"
+                    className="p-2.5 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] rounded-xl font-bold text-left cursor-pointer transition-all border border-[#E9DED5]"
                   >
                     {language === 'ta' ? ex.labelTa : ex.labelEn}
                   </button>
@@ -363,10 +363,10 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         {/* STEP 2: Analyzing */}
         {step === 'analyzing' && (
           <div className="py-12 flex flex-col items-center justify-center space-y-4 text-center">
-            <div className="p-4 bg-[#FBE9E5] dark:bg-slate-800 rounded-full animate-bounce">
-              <Sparkles className="w-10 h-10 text-[#D93636] dark:text-rose-400" />
+            <div className="p-4 bg-[#FCE8E3] rounded-full animate-bounce">
+              <Sparkles className="w-10 h-10 text-[#D93636]" />
             </div>
-            <p className="text-lg font-black text-slate-900 dark:text-white">
+            <p className="text-lg font-black text-[#302720]">
               {language === 'ta'
                 ? 'உங்கள் உடல்நிலைக்கு ஏற்ற கட்லாக் உணவுகளை AI ஆய்வு செய்கிறது...'
                 : language === 'hi'
@@ -379,11 +379,11 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         {/* STEP 3: View Suggestions */}
         {step === 'view_suggestions' && analysisResult && (
           <div className="space-y-4">
-            <div className="bg-emerald-50 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-300">
-              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 block">
+            <div className="bg-[#43845C]/10 p-4 rounded-2xl border border-[#43845C]/20">
+              <span className="text-[11px] font-black uppercase tracking-wider text-[#43845C] block">
                 ✓ {analysisResult.healthContextSummary} ({analysisResult.targetPerson.toUpperCase()})
               </span>
-              <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-1">
+              <p className="text-xs font-bold text-[#302720] mt-1">
                 {language === 'ta'
                   ? '📢 குரல் மூலம் உணவைத் தேர்ந்தெடுக்கவும் (எ.கா: "இட்லி" அல்லது "பொங்கல்"): '
                   : '📢 Speak item name out loud (e.g. "Idli" or "Pongal") or tap a card below:'}
@@ -392,8 +392,8 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
 
             {/* Mic Listening Status */}
             <div className="flex flex-col items-center justify-center space-y-2">
-              <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center space-x-3 font-black shadow-md border border-slate-700 w-full justify-center">
-                <Mic className="w-5 h-5 text-yellow-400 animate-pulse" />
+              <div className="p-3 bg-[#FCE8E3] text-[#302720] rounded-2xl flex items-center space-x-3 font-black shadow-sm border border-[#E9DED5] w-full justify-center">
+                <Mic className="w-5 h-5 text-[#D93636] animate-pulse" />
                 <span className="text-xs">
                   {language === 'ta'
                     ? 'தானியங்கியாகக் கேட்கிறது: உணவின் பெயரைச் சொல்லுங்கள்...'
@@ -402,7 +402,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
               </div>
 
               {liveTranscript && (
-                <p className="text-xs text-center text-emerald-600 dark:text-emerald-400 font-black">
+                <p className="text-xs text-center text-[#43845C] font-black">
                   Detected Voice Speech: "{liveTranscript}"
                 </p>
               )}
@@ -419,30 +419,30 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                   <div
                     key={idx}
                     onClick={() => handleSelectItem(item)}
-                    className="p-4 bg-slate-50 dark:bg-slate-800/90 rounded-2xl border-2 border-slate-200 hover:border-emerald-500 dark:border-slate-700 hover:shadow-lg transition-all cursor-pointer flex items-center space-x-4"
+                    className="p-4 bg-[#FFFFFF] rounded-2xl border-2 border-[#E9DED5] hover:border-[#D93636] hover:shadow-lg transition-all cursor-pointer flex items-center space-x-4"
                   >
                     <img
                       src={item.image}
                       alt={item.name}
-                      className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-300"
+                      className="w-16 h-16 rounded-xl object-cover shrink-0 border border-[#E9DED5]"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2">
-                        <span className="font-black text-slate-900 dark:text-white text-base">
+                        <span className="font-black text-[#302720] text-base">
                           {nativeName}
                         </span>
-                        <span className="text-xs font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-bold bg-[#43845C]/15 text-[#43845C] px-2 py-0.5 rounded-full">
                           ₹{item.basePrice}
                         </span>
                       </div>
-                      <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">
+                      <p className="text-xs font-bold text-[#43845C] mt-0.5">
                         💡 {reason}
                       </p>
-                      <span className="text-[10px] text-slate-500 font-bold block mt-1">
+                      <span className="text-[10px] text-[#786E64] font-bold block mt-1">
                         📍 {item.restaurant} • ⭐ {item.rating}
                       </span>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-400 shrink-0" />
+                    <ChevronRight className="w-5 h-5 text-[#786E64] shrink-0" />
                   </div>
                 );
               })}
@@ -453,12 +453,12 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         {/* STEP 4: Price Comparison & Order/Schedule Handoff */}
         {step === 'view_price_comparison' && selectedItem && priceComparison && (
           <div className="space-y-4">
-            <div className="bg-emerald-50 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-300 flex items-center justify-between">
+            <div className="bg-[#43845C]/10 p-4 rounded-2xl border border-[#43845C]/20 flex items-center justify-between">
               <div>
-                <span className="text-xs font-black uppercase text-emerald-700 dark:text-emerald-300">
+                <span className="text-xs font-black uppercase text-[#43845C]">
                   {language === 'ta' ? 'தேர்ந்தெடுக்கப்பட்ட உணவு:' : 'Selected Food Item:'}
                 </span>
-                <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                <h3 className="text-lg font-black text-[#302720]">
                   {selectedItem.nativeNames?.[language] || selectedItem.name}
                 </h3>
               </div>
@@ -478,7 +478,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
 
             {/* Price Comparison Cards */}
             <div>
-              <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 block mb-2">
+              <span className="text-xs font-black uppercase tracking-wider text-[#786E64] block mb-2">
                 📊 {language === 'ta' ? 'டெலிவரி செயலிகளின் விலை ஒப்பீடு:' : 'Delivery Platform Price Comparison:'}
               </span>
               
@@ -493,16 +493,16 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                       key={idx}
                       className={`p-3.5 rounded-2xl border-2 flex flex-col justify-between ${
                         isCheapest
-                          ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500'
-                          : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                          ? 'bg-[#43845C]/10 border-[#43845C]'
+                          : 'bg-[#FFFFFF] border-[#E9DED5]'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-black text-xs text-slate-900 dark:text-white">
+                        <span className="font-black text-xs text-[#302720]">
                           {p.platformName}
                         </span>
                         {isCheapest && (
-                          <span className="text-[9px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full uppercase">
+                          <span className="text-[9px] font-black bg-[#43845C] text-white px-2 py-0.5 rounded-full uppercase">
                             Best Price
                           </span>
                         )}
@@ -514,10 +514,10 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                       </div>
 
                       <div className="mt-2">
-                        <div className="text-lg font-black text-slate-900 dark:text-white">
-                          ₹{p.price} <span className="text-[10px] text-slate-500 font-bold">+ ₹{p.deliveryFee} Fee</span>
+                        <div className="text-lg font-black text-[#302720]">
+                          ₹{p.price} <span className="text-[10px] text-[#786E64] font-bold">+ ₹{p.deliveryFee} Fee</span>
                         </div>
-                        <span className="text-[10px] font-bold text-slate-500 block">
+                        <span className="text-[10px] font-bold text-[#786E64] block">
                           ⏱ {p.deliveryTime} mins • ⭐ {p.rating}
                         </span>
                       </div>
@@ -528,8 +528,8 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
             </div>
 
             {/* Voice Intent Listener Bar */}
-            <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center space-x-3 font-black shadow-md border border-slate-700 justify-center">
-              <Mic className="w-5 h-5 text-yellow-400 animate-pulse" />
+            <div className="p-3 bg-[#FCE8E3] text-[#302720] rounded-2xl flex items-center space-x-3 font-black shadow-sm border border-[#E9DED5] justify-center">
+              <Mic className="w-5 h-5 text-[#D93636] animate-pulse" />
               <span className="text-xs">
                 {language === 'ta'
                   ? 'பேசுங்கள்: "இப்போதே ஆர்டர் செய்" அல்லது "அட்டவணைப்படுத்து"'
@@ -543,21 +543,21 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                 onClick={() => {
                   if (selectedItem) setChooserItem(selectedItem);
                 }}
-                className="p-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-400 rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
+                className="p-3 bg-[#FFFFFF] hover:bg-[#F7F3EB] text-[#302720] border border-[#E9DED5] rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
                 title={t('addToCart')}
               >
                 <ShoppingBag className="w-5 h-5 text-[#D93636]" />
                 <span>{t('addToCart')}</span>
-                <span className="text-[10px] opacity-90">+ Shared Cart</span>
+                <span className="text-[10px] opacity-90 text-[#786E64]">+ Shared Cart</span>
               </button>
 
               <button
                 onClick={() => {
                   if (selectedItem) setChooserItem(selectedItem);
                 }}
-                className="p-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
+                className="p-3 bg-[#D93636] hover:bg-[#B9252D] text-white rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
               >
-                <Zap className="w-5 h-5 text-yellow-300" />
+                <Zap className="w-5 h-5 text-white" />
                 <span>{t('orderNow')}</span>
                 <span className="text-[10px] opacity-90">Instant Order</span>
               </button>
@@ -566,7 +566,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                 onClick={() => {
                   if (selectedItem) setChooserItem(selectedItem);
                 }}
-                className="p-3 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
+                className="p-3 bg-[#FCE8E3] hover:bg-[#E9DED5] text-[#302720] rounded-2xl font-black text-xs shadow-md border border-[#E9DED5] flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
               >
                 <Clock className="w-5 h-5 text-white" />
                 <span>{t('scheduleCart')}</span>

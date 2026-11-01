@@ -569,7 +569,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
           onClick={() => key === 'clear' || key === 'backspace'
             ? editPin(target, key)
             : appendPinDigit(target, key)}
-          className="py-3 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-lg font-black text-slate-900 dark:text-white disabled:opacity-50"
+          className="py-3 bg-[#FFFFFF] hover:bg-[#FCE8E3] border border-[#E9DED5] rounded-xl text-lg font-black text-[#302720] disabled:opacity-50"
         >
           {key === 'clear' ? t('nominee.clearPin') : key === 'backspace' ? t('nominee.backspacePin') : key}
         </button>
@@ -579,26 +579,26 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
 
   return (
     <div
-      className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto"
+      className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#302720]/40 backdrop-blur-sm animate-fade-in overflow-y-auto"
       onClick={e => {
         if (e.target === e.currentTarget) {
           handleClose();
         }
       }}
     >
-      <div className="w-full max-w-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-amber-500 my-8 space-y-6 max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-2xl bg-[#FFF8EF] text-[#302720] rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-[#E9DED5] my-8 space-y-6 max-h-[90vh] overflow-y-auto">
         
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+        <div className="flex items-center justify-between border-b border-[#E9DED5] pb-4">
           <div className="flex items-center space-x-3">
-            <div className="p-3 bg-amber-100 dark:bg-amber-950 text-amber-600 rounded-2xl border border-amber-300">
+            <div className="p-3 bg-[#FCE8E3] text-[#D93636] rounded-2xl border border-[#E9DED5]">
               <ShieldCheck className="w-8 h-8" />
             </div>
             <div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <h3 className="text-xl font-black text-[#302720] flex items-center gap-2">
                 {t('nominee.restrictedTitle')}
               </h3>
-              <p className="text-xs text-slate-500 font-bold">
+              <p className="text-xs text-[#786E64] font-bold">
                 {t('nominee.restrictedSubtitle')} • {nomineeName} ({nomineePhone})
               </p>
             </div>
@@ -609,7 +609,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
               <button
                 type="button"
                 onClick={handleLogout}
-                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-[#FCE8E3] text-[#786E64] hover:bg-[#E9DED5] rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer"
                 title="Nominee Logout"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -619,7 +619,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
             <button
               type="button"
               onClick={handleClose}
-              className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl font-bold cursor-pointer"
+              className="p-2 bg-[#FCE8E3] text-[#786E64] hover:bg-[#E9DED5] rounded-xl font-bold cursor-pointer"
               aria-label="Close"
             >
               ✕
@@ -633,21 +633,21 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
               event.preventDefault();
               void handleNomineeLogin();
             }}
-            className="p-6 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 rounded-2xl space-y-4"
+            className="p-6 bg-[#FCE8E3] border border-[#E9DED5] rounded-2xl space-y-4"
           >
             <div className="text-center">
-              <h4 className="text-lg font-black text-slate-900 dark:text-white">{t('nominee.loginTitle')}</h4>
-              <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1">{t('nominee.loginPrompt')}</p>
+              <h4 className="text-lg font-black text-[#302720]">{t('nominee.loginTitle')}</h4>
+              <p className="text-xs text-[#786E64] font-bold mt-1">{t('nominee.loginPrompt')}</p>
             </div>
 
             {pinError && (
-              <div role="alert" className="p-3 bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 rounded-xl text-xs font-black flex items-center justify-center space-x-2">
+              <div role="alert" className="p-3 bg-red-100 text-red-700 rounded-xl text-xs font-black flex items-center justify-center space-x-2">
                 <AlertCircle className="w-4 h-4" />
                 <span>{pinError}</span>
               </div>
             )}
 
-            <label className="block text-left text-xs font-black text-slate-700 dark:text-slate-300">
+            <label className="block text-left text-xs font-black text-[#302720]">
               {t('nominee.emailLabel')}
               <input
                 type="email"
@@ -655,11 +655,11 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                 required
                 value={nomineeEmail}
                 onChange={event => setNomineeEmail(event.target.value)}
-                className="mt-1 w-full py-3 px-4 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white"
+                className="mt-1 w-full py-3 px-4 bg-[#FFFFFF] border border-[#E9DED5] rounded-xl text-sm text-[#302720]"
               />
             </label>
 
-            <label className="block text-left text-xs font-black text-slate-700 dark:text-slate-300">
+            <label className="block text-left text-xs font-black text-[#302720]">
               {t('nominee.loginPasswordLabel')}
               <input
                 type="password"
@@ -667,14 +667,14 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                 required
                 value={nomineePassword}
                 onChange={event => setNomineePassword(event.target.value)}
-                className="mt-1 w-full py-3 px-4 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white"
+                className="mt-1 w-full py-3 px-4 bg-[#FFFFFF] border border-[#E9DED5] rounded-xl text-sm text-[#302720]"
               />
             </label>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3 px-6 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-400 text-white font-black text-sm rounded-xl shadow-md"
+              className="w-full py-3 px-6 bg-[#D93636] hover:bg-[#B9252D] disabled:bg-slate-400 text-white font-black text-sm rounded-xl shadow-md cursor-pointer"
             >
               {isSubmitting ? t('nominee.loading') : t('nominee.loginBtn')}
             </button>
@@ -683,29 +683,29 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => void handleSaveNomineeCredentials()}
-                className="w-full py-2 px-4 border-2 border-amber-600 text-amber-800 dark:text-amber-200 font-black text-xs rounded-xl disabled:opacity-50"
+                className="w-full py-2 px-4 border border-[#D93636] text-[#D93636] font-black text-xs rounded-xl disabled:opacity-50 cursor-pointer"
               >
                 {t('nominee.repairCredentialsBtn')}
               </button>
             )}
           </form>
         ) : !isPinVerified ? (
-          <div className="p-6 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 rounded-2xl space-y-4 text-center">
-            <div className="inline-flex p-3 bg-amber-200 dark:bg-amber-900 rounded-full text-amber-800 dark:text-amber-200">
+          <div className="p-6 bg-[#FCE8E3] border border-[#E9DED5] rounded-2xl space-y-4 text-center">
+            <div className="inline-flex p-3 bg-[#FFFFFF] border border-[#E9DED5] rounded-full text-[#D93636]">
               <KeyRound className="w-8 h-8 animate-bounce" />
             </div>
 
             <div>
-              <h4 className="text-lg font-black text-slate-900 dark:text-white">
+              <h4 className="text-lg font-black text-[#302720]">
                 {t('nominee.pinTitle')}
               </h4>
-              <p className="text-xs text-slate-600 dark:text-slate-300 font-bold mt-1">
+              <p className="text-xs text-[#786E64] font-bold mt-1">
                 {t('nominee.pinPrompt')}
               </p>
             </div>
 
             {pinError && (
-              <div role="alert" className="p-3 bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 rounded-xl text-xs font-black flex items-center justify-center space-x-2">
+              <div role="alert" className="p-3 bg-red-100 text-red-700 rounded-xl text-xs font-black flex items-center justify-center space-x-2">
                 <AlertCircle className="w-4 h-4" />
                 <span>{pinError}</span>
               </div>
@@ -720,7 +720,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                 disabled={Boolean(lockCountdown && lockCountdown > 0)}
                 value={enteredPin}
                 placeholder={t('nominee.pinLabel')}
-                className="w-full text-center tracking-widest text-xl font-black py-3 px-4 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white disabled:opacity-50"
+                className="w-full text-center tracking-widest text-xl font-black py-3 px-4 bg-[#FFFFFF] border border-[#E9DED5] rounded-xl text-[#302720] disabled:opacity-50"
               />
               <VoicePinInput
                 key={pinPromptKey}
@@ -741,7 +741,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                 type="button"
                 disabled={Boolean(lockCountdown && lockCountdown > 0) || isSubmitting}
                 onClick={() => void handleVerifyPin()}
-                className="w-full sm:w-auto py-3 px-6 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-400 text-white font-black text-sm rounded-xl shadow-md cursor-pointer transition-all active:scale-95 whitespace-nowrap flex items-center justify-center space-x-2"
+                className="w-full sm:w-auto py-3 px-6 bg-[#D93636] hover:bg-[#B9252D] disabled:bg-slate-400 text-white font-black text-sm rounded-xl shadow-md cursor-pointer transition-all active:scale-95 whitespace-nowrap flex items-center justify-center space-x-2"
               >
                 {lockCountdown && lockCountdown > 0 ? (
                   <>
@@ -755,8 +755,8 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
             </div>
 
             {/* Change/Set Nominee PIN block */}
-            <div className="pt-4 border-t border-amber-200 dark:border-amber-900/60 text-left space-y-2">
-              <span className="text-xs font-black text-slate-700 dark:text-slate-300 block">
+            <div className="pt-4 border-t border-[#E9DED5] text-left space-y-2">
+              <span className="text-xs font-black text-[#302720] block">
                 {t('nominee.changePinPrompt')}
               </span>
               <div className="space-y-3">
@@ -767,7 +767,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                   maxLength={4}
                   value={newNomineePin}
                   placeholder={t('nominee.newPinLabel')}
-                  className="w-full py-2 px-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white text-center tracking-widest"
+                  className="w-full py-2 px-3 bg-[#FFFFFF] border border-[#E9DED5] rounded-xl text-xs font-bold text-[#302720] text-center tracking-widest"
                 />
                 <VoicePinInput
                   language={language}
@@ -781,7 +781,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => void handleSetNewPin()}
-                  className="py-2 px-3 bg-slate-800 dark:bg-slate-700 text-white text-xs font-black rounded-xl cursor-pointer disabled:opacity-50"
+                  className="py-2 px-3 bg-[#302720] hover:bg-[#1f1915] text-white text-xs font-black rounded-xl cursor-pointer disabled:opacity-50"
                 >
                   {t('nominee.setPinBtn')}
                 </button>
@@ -821,7 +821,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
               </h4>
 
               {(serverApprovals.length > 0 ? serverApprovals : pendingNomineeApprovals).length === 0 ? (
-                <div className="p-4 text-center bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-xs">
+                <div className="p-4 text-center bg-[#FFFFFF] rounded-xl border border-[#E9DED5] text-[#786E64] font-bold text-xs">
                   No pending order approval requests.
                 </div>
               ) : (
@@ -837,26 +837,26 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                         key={req.id}
                         className={`p-4 rounded-2xl border-2 shadow-sm flex flex-col gap-3 ${
                           req.status === 'pending'
-                            ? 'border-amber-400 bg-amber-50/50 dark:bg-amber-950/30'
+                            ? 'border-amber-400 bg-amber-50/50'
                             : req.status === 'approved'
-                            ? 'border-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/20'
-                            : 'border-red-400 bg-red-50/30 dark:bg-red-950/20'
+                            ? 'border-[#43845C]/40 bg-[#43845C]/10'
+                            : 'border-[#D93636]/40 bg-[#FCE8E3]'
                         }`}
                       >
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                           <div className="space-y-1">
                             <div className="flex items-center space-x-2">
-                              <span className="text-sm font-black text-slate-900 dark:text-white">{itemName}</span>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+                              <span className="text-sm font-black text-[#302720]">{itemName}</span>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#FCE8E3] text-[#302720]">
                                 {orderType}
                               </span>
                             </div>
-                            <p className="text-xs text-slate-500 font-semibold">
+                            <p className="text-xs text-[#786E64] font-semibold">
                               {sched ? `Slot: ${sched.slotName || ''} at ${sched.time || ''}` : 'Instant Order'} • {req.requestedAt ? new Date(req.requestedAt).toLocaleTimeString() : ''}
                             </p>
                             
                             {/* Email Sent Indicator */}
-                            <div className="flex items-center space-x-1 text-[10px] text-blue-600 dark:text-blue-400 font-bold">
+                            <div className="flex items-center space-x-1 text-[10px] text-blue-600 font-bold">
                               <Mail className="w-3 h-3" />
                               <span>{t('nominee.emailSentNotice')}</span>
                             </div>
@@ -875,13 +875,13 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                                   const val = e.target.value.replace(/\D/g, '').slice(0, 4);
                                   setItemPins(prev => ({ ...prev, [reqKey]: val }));
                                 }}
-                                className="w-20 py-2 px-2 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-center text-xs font-black tracking-widest text-slate-900 dark:text-white focus:border-amber-500 focus:outline-none"
+                                className="w-20 py-2 px-2 bg-[#FFFFFF] border border-[#E9DED5] rounded-xl text-center text-xs font-black tracking-widest text-[#302720] focus:border-[#D93636] focus:outline-none"
                               />
                               <button
                                 type="button"
                                 disabled={Boolean(isDeciding[reqKey])}
                                 onClick={() => void handleDecision(reqKey, 'deny')}
-                                className="py-2 px-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-sm flex items-center space-x-1 cursor-pointer"
+                                className="py-2 px-3 bg-[#D93636] hover:bg-[#B9252D] disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-sm flex items-center space-x-1 cursor-pointer"
                               >
                                 <XCircle className="w-4 h-4" />
                                 <span>{t('nominee.denyBtn') || 'Deny'}</span>
@@ -891,7 +891,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                                 type="button"
                                 disabled={Boolean(isDeciding[reqKey])}
                                 onClick={() => void handleDecision(reqKey, 'approve')}
-                                className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-sm flex items-center space-x-1 cursor-pointer"
+                                className="py-2 px-4 bg-[#43845C] hover:bg-[#326646] disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-sm flex items-center space-x-1 cursor-pointer"
                               >
                                 <CheckCircle2 className="w-4 h-4" />
                                 <span>{t('nominee.approveBtn') || 'Approve'}</span>
@@ -899,7 +899,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                             </div>
                           ) : (
                             <span className={`text-xs font-black px-3 py-1 rounded-xl uppercase ${
-                              req.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                              req.status === 'approved' ? 'bg-[#43845C]/15 text-[#43845C]' : 'bg-[#FCE8E3] text-[#D93636]'
                             }`}>
                               {req.status}
                             </span>
@@ -911,14 +911,14 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                             role="alert"
                             className={`p-2.5 rounded-xl text-xs font-black flex items-center gap-2 ${
                               itemFeedback[reqKey].type === 'success'
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
-                                : 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300'
+                                ? 'bg-[#43845C]/15 text-[#43845C]'
+                                : 'bg-[#FCE8E3] text-[#D93636]'
                             }`}
                           >
                             {itemFeedback[reqKey].type === 'success' ? (
-                              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                              <CheckCircle2 className="w-4 h-4 shrink-0 text-[#43845C]" />
                             ) : (
-                              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                              <AlertCircle className="w-4 h-4 shrink-0 text-[#D93636]" />
                             )}
                             <span>{itemFeedback[reqKey].message}</span>
                           </div>
@@ -931,8 +931,8 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
             </div>
 
             {/* RESTRICTED ITEMS LIST MANAGEMENT */}
-            <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-              <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center justify-between">
+            <div className="space-y-3 pt-4 border-t border-[#E9DED5]">
+              <h4 className="text-base font-black text-[#302720] flex items-center justify-between">
                 <span>Restricted Food Items Catalog ({restrictedIds.length})</span>
               </h4>
 
@@ -941,7 +941,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                 <select
                   value={selectedFoodToAdd}
                   onChange={(e) => setSelectedFoodToAdd(e.target.value)}
-                  className="flex-1 py-2.5 px-3 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white"
+                  className="flex-1 py-2.5 px-3 bg-[#FFFFFF] border border-[#E9DED5] rounded-xl text-xs font-bold text-[#302720]"
                 >
                   <option value="">-- Select Food Item to Restrict --</option>
                   {INDIAN_FOOD_CATALOG.filter(f => !restrictedIds.includes(f.id)).map(f => (
@@ -960,7 +960,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                       setSelectedFoodToAdd('');
                     }
                   }}
-                  className="py-2.5 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md flex items-center space-x-1 cursor-pointer"
+                  className="py-2.5 px-4 bg-[#D93636] hover:bg-[#B9252D] disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md flex items-center space-x-1 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span>{t('nominee.addRestrictedItem')}</span>
@@ -969,7 +969,7 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
 
               {/* List of currently restricted items */}
               {restrictedIds.length === 0 ? (
-                <div className="p-4 text-center bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-xs">
+                <div className="p-4 text-center bg-[#FFFFFF] rounded-xl border border-[#E9DED5] text-[#786E64] font-bold text-xs">
                   {t('nominee.noRestrictedItems')}
                 </div>
               ) : (
@@ -981,17 +981,17 @@ export const NomineeControlModal: React.FC<NomineeControlModalProps> = ({ isOpen
                     return (
                       <div
                         key={id}
-                        className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-xl flex items-center justify-between gap-2"
+                        className="p-3 bg-[#FCE8E3] border border-[#E9DED5] rounded-xl flex items-center justify-between gap-2"
                       >
                         <div className="space-y-0.5">
-                          <span className="text-xs font-black text-slate-900 dark:text-white block">{name}</span>
-                          <span className="text-[10px] text-slate-500 font-semibold">{item.category} • ₹{item.basePrice}</span>
+                          <span className="text-xs font-black text-[#302720] block">{name}</span>
+                          <span className="text-[10px] text-[#786E64] font-semibold">{item.category} • ₹{item.basePrice}</span>
                         </div>
 
                         <button
                           type="button"
                           onClick={() => handleToggleRestrictedItem(id)}
-                          className="p-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg cursor-pointer"
+                          className="p-1.5 bg-[#FFFFFF] hover:bg-[#F7F3EB] text-[#D93636] rounded-lg cursor-pointer border border-[#E9DED5]"
                           title="Remove restriction"
                         >
                           <Trash2 className="w-4 h-4" />

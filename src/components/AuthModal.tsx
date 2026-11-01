@@ -365,14 +365,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-lg bg-white text-[#33251F] rounded-3xl shadow-2xl overflow-hidden border-2 border-[#FBE9E5] transition-all">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#302720]/40 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-lg bg-[#FFF8EF] text-[#302720] rounded-3xl shadow-2xl overflow-hidden border-2 border-[#E9DED5] transition-all">
 
         {/* Modal Top Header */}
-        <div className="relative bg-[#FBE9E5] p-6 text-center text-[#33251F] border-b border-[#F0E5DC]">
-          <div className="inline-flex items-center justify-center p-3 bg-white rounded-2xl mb-2 shadow-sm border border-[#F0E5DC]">
+        <div className="relative bg-[#FCE8E3] p-6 text-center text-[#302720] border-b border-[#E9DED5]">
+          <div className="inline-flex items-center justify-center p-3 bg-[#FFFFFF] rounded-2xl mb-2 shadow-sm border border-[#E9DED5]">
             <Sparkles className="w-7 h-7 text-[#D93636] mr-2" />
-            <h1 className="text-3xl font-black tracking-tight text-[#33251F]">AutoFeast AI</h1>
+            <h1 className="text-3xl font-black tracking-tight text-[#302720]">AutoFeast AI</h1>
           </div>
           <p className="text-xs font-black text-[#D93636] uppercase tracking-widest">
             {activeTab === 'signup' ? 'First-Time Account Setup' : 'Secure Account Login'}

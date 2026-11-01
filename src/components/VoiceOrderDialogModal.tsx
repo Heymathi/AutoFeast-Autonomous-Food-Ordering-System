@@ -6,7 +6,7 @@ import { AuthService } from '../services/authService';
 import { SttMatcherService } from '../services/sttMatcherService';
 import { parsePinSpeech } from '../services/pinVoiceParserService';
 import { calculateScheduleEndDate } from '../services/autoOrderBackgroundService';
-import { calculateScheduleOccurrences, calculateScheduleDatesList } from '../utils/scheduleCalculator';
+import { calculateScheduleOccurrences, calculateScheduleDatesList, toTime24 } from '../utils/scheduleCalculator';
 import { ScheduleBill } from './ScheduleBill';
 import { WeekdaySelector } from './WeekdaySelector';
 import { Mic, MicOff, X, Zap, Clock, Volume2, Sparkles, CheckCircle2, XCircle, FileText, Receipt, ShieldCheck, Calendar, ArrowRight } from 'lucide-react';
@@ -778,7 +778,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
       id: `sched-${Date.now()}`,
       slotName: `Voice Schedule: ${item.name}`,
       slotIndex: 1 as const,
-      time: scheduleTimeInput,
+      time: toTime24(scheduleTimeInput) || '08:00',
       frequency,
       selectedDays,
       foodItemId: item.id,
@@ -845,8 +845,8 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
   if (!isOpen || !item) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl border-2 border-orange-500 relative space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#302720]/40 backdrop-blur-sm p-3 sm:p-4 animate-fade-in">
+      <div className="bg-[#FFF8EF] text-[#302720] rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl border-2 border-[#E9DED5] relative space-y-4">
         
         {/* Close Button */}
         <button
@@ -856,26 +856,26 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             setIsListening(false);
             onClose();
           }}
-          className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-500 z-10 cursor-pointer"
+          className="absolute top-4 right-4 p-2 rounded-full bg-[#FCE8E3] hover:bg-[#FCE8E3]/80 text-[#786E64] hover:text-[#302720] border border-[#E9DED5] z-10 cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
         <div className="flex items-center space-x-3">
-          <div className="p-3 bg-orange-100 dark:bg-orange-950 text-orange-600 rounded-2xl shrink-0">
-            <Volume2 className="w-6 h-6 text-orange-600" />
+          <div className="p-3 bg-[#FCE8E3] text-[#D93636] border border-[#E9DED5] rounded-2xl shrink-0">
+            <Volume2 className="w-6 h-6 text-[#D93636]" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="text-[11px] font-black uppercase text-orange-600 tracking-wider">
+              <span className="text-[11px] font-black uppercase text-[#D93636] tracking-wider">
                 {language === 'ta' ? 'தானியங்கி குரல் உதவி' : language === 'hi' ? 'स्वचालित वॉइस असिस्टेंट' : 'Auto Voice Active'}
               </span>
-              <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-400 shadow-sm flex items-center gap-1">
-                <Mic className="w-3 h-3 text-yellow-300" /> Active Listening
+              <span className="bg-[#D93636] text-white text-[10px] font-black px-2 py-0.5 rounded-full border border-[#B9252D] shadow-sm flex items-center gap-1">
+                <Mic className="w-3 h-3 text-white" /> Active Listening
               </span>
             </div>
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-0.5 leading-snug">
+            <h2 className="text-lg sm:text-xl font-black text-[#302720] mt-0.5 leading-snug">
               {language === 'ta' ? (item.nativeNames?.ta || item.name) : language === 'hi' ? (item.nativeNames?.hi || item.name) : item.name}
             </h2>
           </div>
@@ -883,14 +883,14 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
 
         <div className="flex flex-col gap-2">
           {voiceMessage && (
-            <p role="status" className="rounded-xl bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm font-bold text-amber-900 dark:text-amber-100">
+            <p role="status" className="rounded-xl bg-[#FCE8E3] border border-[#E9DED5] px-3 py-2 text-sm font-bold text-[#302720]">
               {voiceMessage}
             </p>
           )}
           <button
             type="button"
             onClick={toggleListening}
-            className="self-start rounded-xl border border-orange-300 px-4 py-2 text-sm font-bold text-orange-800 dark:text-orange-100 hover:bg-orange-50 dark:hover:bg-slate-800"
+            className="self-start rounded-xl border border-[#E9DED5] bg-[#FFFFFF] px-4 py-2 text-sm font-bold text-[#302720] hover:bg-[#FCE8E3] cursor-pointer shadow-xs"
           >
             {language === 'ta' ? 'மைக்ரோஃபோனை மீண்டும் முயற்சிக்கவும்' : language === 'hi' ? 'माइक फिर से आज़माएँ' : 'Retry mic'}
           </button>
@@ -899,8 +899,8 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         {/* STEP 0: Ask Order Type */}
         {step === 'ask_type' && (
           <div className="space-y-4">
-            <div className="bg-orange-50 dark:bg-slate-800/80 p-4 sm:p-5 rounded-2xl border border-orange-200 text-center shadow-inner">
-              <p className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-relaxed">
+            <div className="bg-[#FCE8E3] p-4 sm:p-5 rounded-2xl border border-[#E9DED5] text-center shadow-xs">
+              <p className="text-sm sm:text-base font-black text-[#302720] leading-relaxed">
                 {getVisualPromptText()}
               </p>
             </div>
@@ -911,11 +911,11 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                 onClick={toggleListening}
                 className={`p-3.5 rounded-2xl flex items-center space-x-3 font-black shadow-md border cursor-pointer transition-all ${
                   isListening
-                    ? 'bg-slate-900 text-white border-emerald-500 ring-2 ring-emerald-400'
-                    : 'bg-slate-800 hover:bg-slate-700 text-yellow-300 border-slate-600'
+                    ? 'bg-[#D93636] text-white border-[#B9252D] ring-2 ring-[#D93636]/30'
+                    : 'bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] border-[#E9DED5]'
                 }`}
               >
-                <Mic className={`w-5 h-5 ${isListening ? 'text-emerald-400 animate-pulse' : 'text-yellow-400'}`} />
+                <Mic className={`w-5 h-5 ${isListening ? 'text-white animate-pulse' : 'text-[#D93636]'}`} />
                 <span className="text-xs">
                   {isListening
                     ? (language === 'ta' ? 'தானியங்கியாகக் கேட்கிறது: "இப்போதே ஆர்டர் செய்" அல்லது "அட்டவணைப்படுத்து"' : 'Listening automatically: Say "Order Now" or "Schedule"')
@@ -924,7 +924,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
               </button>
 
               {liveTranscript && (
-                <p className="text-xs text-center text-orange-600 dark:text-orange-400 font-black">
+                <p className="text-xs text-center text-[#D93636] font-black">
                   Detected Voice Speech: "{liveTranscript}"
                 </p>
               )}
@@ -933,9 +933,9 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 onClick={handleInstantOrder}
-                className="p-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-sm shadow-lg flex flex-col items-center justify-center space-y-1 transform active:scale-95 cursor-pointer"
+                className="p-4 bg-[#D93636] hover:bg-[#B9252D] text-white rounded-2xl font-black text-sm shadow-md flex flex-col items-center justify-center space-y-1 transform active:scale-95 cursor-pointer"
               >
-                <Zap className="w-6 h-6 text-yellow-300" />
+                <Zap className="w-6 h-6 text-white" />
                 <span>{language === 'ta' ? 'இப்போதே ஆர்டர் செய்' : language === 'hi' ? 'अभी ऑर्डर करें' : 'Order Instantly Now'}</span>
               </button>
 
@@ -945,9 +945,9 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'confirm_item';
                   speakStepPrompt('confirm_item');
                 }}
-                className="p-4 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl font-black text-sm shadow-lg flex flex-col items-center justify-center space-y-1 transform active:scale-95 cursor-pointer"
+                className="p-4 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] rounded-2xl font-black text-sm shadow-xs border-2 border-[#E9DED5] flex flex-col items-center justify-center space-y-1 transform active:scale-95 cursor-pointer"
               >
-                <Clock className="w-6 h-6 text-white" />
+                <Clock className="w-6 h-6 text-[#D93636]" />
                 <span>{language === 'ta' ? 'நேரத்திற்கு அட்டவணைப்படுத்து' : language === 'hi' ? 'बाद के लिए शेड्यूल करें' : 'Schedule for Later'}</span>
               </button>
             </div>
@@ -955,8 +955,8 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         )}
 
         {(step === 'confirm_instant' || step === 'confirm_schedule') && (
-          <div className="space-y-4 rounded-2xl border border-orange-300 bg-orange-50 p-5 text-center dark:bg-slate-800">
-            <p className="text-lg font-black text-slate-900 dark:text-white">
+          <div className="space-y-4 rounded-2xl border border-[#E9DED5] bg-[#FCE8E3] p-5 text-center">
+            <p className="text-lg font-black text-[#302720]">
               {step === 'confirm_instant'
                 ? (language === 'ta'
                   ? `${item.nativeNames?.ta || item.name} ஆர்டரை உறுதிசெய்யவா?`
@@ -969,21 +969,21 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   ? `${item.nativeNames?.hi || item.name} का शेड्यूल बनाएँ?`
                   : `Create the schedule for ${item.name}?`)}
             </p>
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+            <p className="text-sm font-semibold text-[#786E64]">
               {language === 'ta' ? '"ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள் அல்லது தேர்ந்தெடுக்கவும்.' : language === 'hi' ? '"हाँ" या "नहीं" बोलें या चुनें।' : 'Say Yes or No, or choose below.'}
             </p>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => step === 'confirm_instant' ? (setStep('ask_type'), stepRef.current = 'ask_type', speakStepPrompt('ask_type')) : handleCancelSchedule()}
-                className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-black text-white"
+                className="rounded-xl bg-[#FFFFFF] hover:bg-[#FCE8E3] border border-[#E9DED5] px-4 py-3 text-sm font-black text-[#302720] cursor-pointer"
               >
                 {language === 'ta' ? 'இல்லை' : language === 'hi' ? 'नहीं' : 'No'}
               </button>
               <button
                 type="button"
                 onClick={() => step === 'confirm_instant' ? placeInstantOrderConfirmed() : finalizeAndSaveSchedule()}
-                className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white"
+                className="rounded-xl bg-[#D93636] hover:bg-[#B9252D] px-4 py-3 text-sm font-black text-white shadow-md cursor-pointer"
               >
                 {language === 'ta' ? 'ஆம், உறுதிசெய்' : language === 'hi' ? 'हाँ, पुष्टि करें' : 'Yes, confirm'}
               </button>
@@ -994,31 +994,31 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         {/* STEP 1: Confirm Item */}
         {step === 'confirm_item' && (
           <div className="space-y-4">
-            <div className="bg-orange-50 dark:bg-slate-800/80 p-4 sm:p-5 rounded-2xl border border-orange-200 text-center space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-orange-600">
+            <div className="bg-[#FCE8E3] p-4 sm:p-5 rounded-2xl border border-[#E9DED5] text-center space-y-2">
+              <span className="text-xs font-black uppercase tracking-wider text-[#D93636]">
                 {language === 'ta' ? 'படி 1: உணவு சரிபார்ப்பு' : language === 'hi' ? 'चरण 1: भोजन आइटम की पुष्टि' : 'Step 1: Item Verification'}
               </span>
-              <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-snug">
+              <p className="text-base sm:text-lg font-black text-[#302720] leading-snug">
                 {language === 'ta'
                   ? `${item.nativeNames?.ta || item.name} (${item.restaurant}) என்ற உணவு சரியாக உள்ளதா?`
                   : language === 'hi'
                   ? `क्या ${item.restaurant} से ${item.nativeNames?.hi || item.name} सही आइटम है?`
                   : `Is ${item.name} from ${item.restaurant} the correct item to schedule?`}
               </p>
-              <p className="text-xs font-bold text-orange-600 dark:text-orange-400">
+              <p className="text-xs font-bold text-[#D93636]">
                 {language === 'ta' ? '📢 "ஆம் / சரி" அல்லது "இல்லை / வேண்டாம்" என்று பேசவும்!' : language === 'hi' ? '📢 "हाँ / ठीक है" या "नहीं / मना" बोलें!' : '📢 Say "Yes / Confirm" or "No / Cancel" out loud!'}
               </p>
             </div>
 
             <div className="flex flex-col items-center justify-center space-y-2">
-              <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center space-x-3 font-black shadow-md border border-slate-700">
-                <Mic className="w-5 h-5 text-yellow-400 animate-pulse" />
+              <div className="p-3 bg-[#FFFFFF] text-[#302720] rounded-2xl flex items-center space-x-3 font-black shadow-xs border border-[#E9DED5]">
+                <Mic className="w-5 h-5 text-[#D93636] animate-pulse" />
                 <span className="text-xs">
                   {language === 'ta' ? 'கேட்கிறது: "ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள்' : language === 'hi' ? 'सुन रहा है: "हाँ" या "नहीं" बोलें' : 'Listening: Say "Yes" or "No"'}
                 </span>
               </div>
               {liveTranscript && (
-                <p className="text-xs text-center text-orange-600 dark:text-orange-400 font-black">
+                <p className="text-xs text-center text-[#D93636] font-black">
                   Detected Voice Speech: "{liveTranscript}"
                 </p>
               )}
@@ -1027,9 +1027,9 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             <div className="grid grid-cols-2 gap-3 pt-1">
               <button
                 onClick={handleCancelSchedule}
-                className="py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                className="py-3 px-4 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] border border-[#E9DED5] rounded-2xl font-black text-sm shadow-xs flex items-center justify-center space-x-2 cursor-pointer"
               >
-                <XCircle className="w-5 h-5" />
+                <XCircle className="w-5 h-5 text-[#D93636]" />
                 <span>{language === 'ta' ? 'இல்லை / ரத்து' : language === 'hi' ? 'नहीं / रद्द' : 'No / Cancel'}</span>
               </button>
 
@@ -1039,9 +1039,9 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'ask_time';
                   speakStepPrompt('ask_time');
                 }}
-                className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                className="py-3 px-4 bg-[#D93636] hover:bg-[#B9252D] text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
               >
-                <CheckCircle2 className="w-5 h-5 text-yellow-300" />
+                <CheckCircle2 className="w-5 h-5 text-white" />
                 <span>{language === 'ta' ? 'ஆம் / சரி' : language === 'hi' ? 'हाँ / सही' : 'Yes / Correct'}</span>
               </button>
             </div>
@@ -1051,11 +1051,11 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         {/* STEP 2: Ask Schedule Time */}
         {step === 'ask_time' && (
           <div className="space-y-4">
-            <div className="bg-orange-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-orange-200 text-center space-y-1">
-              <span className="text-xs font-black uppercase tracking-wider text-orange-600">
+            <div className="bg-[#FCE8E3] p-4 rounded-2xl border border-[#E9DED5] text-center space-y-1">
+              <span className="text-xs font-black uppercase tracking-wider text-[#D93636]">
                 {language === 'ta' ? 'படி 2: நேரத்தைத் தேர்வு செய்தல்' : language === 'hi' ? 'चरण 2: समय का चयन' : 'Step 2: Pick Delivery Time'}
               </span>
-              <p className="text-base font-black text-slate-900 dark:text-white leading-relaxed">
+              <p className="text-base font-black text-[#302720] leading-relaxed">
                 {language === 'ta'
                   ? `${item.nativeNames?.ta || item.name} எந்த நேரத்திற்கு அட்டவணைப்படுத்த வேண்டும்? (உதாரணம்: காலை 8 மணி, மாலை 8 மணி)`
                   : language === 'hi'
@@ -1065,21 +1065,21 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             </div>
 
             <div className="flex flex-col items-center justify-center space-y-2">
-              <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center space-x-3 font-black shadow-md border border-slate-700">
-                <Mic className="w-5 h-5 text-yellow-400 animate-pulse" />
+              <div className="p-3 bg-[#FFFFFF] text-[#302720] rounded-2xl flex items-center space-x-3 font-black shadow-xs border border-[#E9DED5]">
+                <Mic className="w-5 h-5 text-[#D93636] animate-pulse" />
                 <span className="text-xs">
                   {language === 'ta' ? 'நேரத்தைச் சொல்லுங்கள் (காலை 8 மணி / மாலை 8 மணி)...' : language === 'hi' ? 'समय बोलें (जैसे सुबह 8 बजे)...' : 'Say time aloud (e.g., 8 AM)...'}
                 </span>
               </div>
               {liveTranscript && (
-                <p className="text-xs text-center text-orange-600 dark:text-orange-400 font-black">
+                <p className="text-xs text-center text-[#D93636] font-black">
                   Detected Voice Speech: "{liveTranscript}"
                 </p>
               )}
             </div>
 
             <div className="space-y-2 pt-1">
-              <label className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+              <label className="text-xs font-black uppercase tracking-wider text-[#786E64]">
                 {language === 'ta' ? 'அல்லது கைமுறையாக நேரம் தேர்ந்தெடுக்கவும்:' : language === 'hi' ? 'या स्वयं समय चुनें:' : 'Or Select Schedule Time Manually:'}
               </label>
               <input
@@ -1091,7 +1091,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   setScheduleTimeInput(val);
                   setFormattedSpokenTime(parsed ? parsed.time12Formatted : val);
                 }}
-                className="w-full p-3 rounded-2xl border border-slate-300 dark:border-slate-700 font-black text-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-center cursor-pointer"
+                className="w-full p-3 rounded-2xl border-2 border-[#D93636] font-black text-lg bg-[#FFFFFF] text-[#302720] text-center cursor-pointer shadow-xs focus:outline-none"
               />
             </div>
 
@@ -1102,7 +1102,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'confirm_item';
                   speakStepPrompt('confirm_item');
                 }}
-                className="py-3 px-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-2xl font-black text-sm cursor-pointer"
+                className="py-3 px-4 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] border border-[#E9DED5] rounded-2xl font-black text-sm cursor-pointer shadow-xs"
               >
                 {language === 'ta' ? 'முந்தைய படி' : language === 'hi' ? 'पीछे जाएँ' : 'Back'}
               </button>
@@ -1112,9 +1112,9 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'ask_frequency_days';
                   speakStepPrompt('ask_frequency_days');
                 }}
-                className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                className="py-3 px-4 bg-[#D93636] hover:bg-[#B9252D] text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
               >
-                <CheckCircle2 className="w-5 h-5 text-yellow-300" />
+                <CheckCircle2 className="w-5 h-5 text-white" />
                 <span>{language === 'ta' ? 'தொடரவும்' : language === 'hi' ? 'आगे बढ़ें' : 'Proceed'}</span>
               </button>
             </div>
@@ -1124,11 +1124,11 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         {/* STEP 3: Ask Days / Frequency (Daily vs Weekly) */}
         {step === 'ask_frequency_days' && (
           <div className="space-y-4">
-            <div className="bg-orange-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-orange-200 text-center space-y-1">
-              <span className="text-xs font-black uppercase tracking-wider text-orange-600">
+            <div className="bg-[#FCE8E3] p-4 rounded-2xl border border-[#E9DED5] text-center space-y-1">
+              <span className="text-xs font-black uppercase tracking-wider text-[#D93636]">
                 {language === 'ta' ? 'படி 3: தினமும் அல்லது வாராந்திர நாட்கள்' : language === 'hi' ? 'चरण 3: प्रतिदिन या साप्ताहिक दिन' : 'Step 3: Daily vs Weekly Days'}
               </span>
-              <p className="text-base font-black text-slate-900 dark:text-white leading-relaxed">
+              <p className="text-base font-black text-[#302720] leading-relaxed">
                 {language === 'ta'
                   ? 'இதை தினமும் (Daily) ஆர்டர் செய்யவா, அல்லது வாராந்திர குறிப்பிட்ட நாட்களில் (Weekly) மட்டும் செய்யவா?'
                   : language === 'hi'
@@ -1138,14 +1138,14 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             </div>
 
             <div className="flex flex-col items-center justify-center space-y-2">
-              <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center space-x-3 font-black shadow-md border border-slate-700">
-                <Mic className="w-5 h-5 text-yellow-400 animate-pulse" />
+              <div className="p-3 bg-[#FFFFFF] text-[#302720] rounded-2xl flex items-center space-x-3 font-black shadow-xs border border-[#E9DED5]">
+                <Mic className="w-5 h-5 text-[#D93636] animate-pulse" />
                 <span className="text-xs">
                   {language === 'ta' ? 'கேட்கிறது: "தினமும்" அல்லது குறிப்பிட்ட நாட்கள்' : language === 'hi' ? 'सुन रहा है: "प्रतिदिन" या "साप्ताहिक"' : 'Listening: Say "Daily" or "Weekly"'}
                 </span>
               </div>
               {liveTranscript && (
-                <p className="text-xs text-center text-orange-600 dark:text-orange-400 font-black">
+                <p className="text-xs text-center text-[#D93636] font-black">
                   Detected Voice Speech: "{liveTranscript}"
                 </p>
               )}
@@ -1162,9 +1162,9 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'ask_duration';
                   speakStepPrompt('ask_duration');
                 }}
-                className="p-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs shadow-lg flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
+                className="p-4 bg-[#D93636] hover:bg-[#B9252D] text-white rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
               >
-                <CheckCircle2 className="w-5 h-5 text-yellow-300" />
+                <CheckCircle2 className="w-5 h-5 text-white" />
                 <span>{language === 'ta' ? 'தினமும் (Every Day / Daily)' : language === 'hi' ? 'प्रतिदिन (Daily)' : 'Every Day (Daily)'}</span>
               </button>
 
@@ -1177,8 +1177,8 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                     selectedDaysRef.current = ['Mon', 'Wed', 'Fri'];
                   }
                 }}
-                className={`p-4 rounded-2xl font-black text-xs shadow-lg flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95 ${
-                  !isEveryDay ? 'bg-orange-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white'
+                className={`p-4 rounded-2xl font-black text-xs shadow-xs border border-[#E9DED5] flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95 ${
+                  !isEveryDay ? 'bg-[#D93636] text-white border-[#D93636]' : 'bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720]'
                 }`}
               >
                 <Clock className="w-5 h-5" />
@@ -1187,7 +1187,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             </div>
 
             {!isEveryDay && (
-              <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <div className="bg-[#FFFFFF] p-4 rounded-2xl border border-[#E9DED5] shadow-xs">
                 <WeekdaySelector
                   selectedDays={selectedDays}
                   onChange={(days) => {
@@ -1205,7 +1205,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'ask_time';
                   speakStepPrompt('ask_time');
                 }}
-                className="py-3 px-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-2xl font-black text-sm cursor-pointer"
+                className="py-3 px-4 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] border border-[#E9DED5] rounded-2xl font-black text-sm cursor-pointer shadow-xs"
               >
                 {language === 'ta' ? 'முந்தைய படி' : language === 'hi' ? 'पीछे जाएँ' : 'Back'}
               </button>
@@ -1219,9 +1219,9 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'ask_duration';
                   speakStepPrompt('ask_duration');
                 }}
-                className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                className="py-3 px-4 bg-[#D93636] hover:bg-[#B9252D] text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
               >
-                <CheckCircle2 className="w-5 h-5 text-yellow-300" />
+                <CheckCircle2 className="w-5 h-5 text-white" />
                 <span>{language === 'ta' ? 'நாட்களை உறுதிசெய்து தொடரவும்' : language === 'hi' ? 'दिनों की पुष्टि करें और आगे बढ़ें' : 'Confirm Days & Continue'}</span>
               </button>
             </div>
@@ -1231,11 +1231,11 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         {/* STEP 4: Ask Recurrence Duration */}
         {step === 'ask_duration' && (
           <div className="space-y-4">
-            <div className="bg-emerald-50 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-300 text-center space-y-1">
-              <span className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+            <div className="bg-[#FCE8E3] p-4 rounded-2xl border border-[#E9DED5] text-center space-y-1">
+              <span className="text-xs font-black uppercase tracking-wider text-[#D93636]">
                 {language === 'ta' ? 'படி 4: அட்டவணை காலம்' : language === 'hi' ? 'चरण 4: अवधि' : 'Step 4: Recurrence Duration'}
               </span>
-              <p className="text-base font-black text-slate-900 dark:text-white leading-relaxed">
+              <p className="text-base font-black text-[#302720] leading-relaxed">
                 {language === 'ta'
                   ? 'இந்த அட்டவணை எவ்வளவு காலத்திற்கு தொடர வேண்டும்? (1 வாரம், 1 மாதம், 3 மாதங்கள், அல்லது சுயவிருப்ப தேதி வரம்பு)'
                   : language === 'hi'
@@ -1245,8 +1245,8 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             </div>
 
             <div className="flex flex-col items-center justify-center space-y-2">
-              <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center space-x-3 font-black shadow-md border border-slate-700">
-                <Mic className="w-5 h-5 text-yellow-400" />
+              <div className="p-3 bg-[#FFFFFF] text-[#302720] rounded-2xl flex items-center space-x-3 font-black shadow-xs border border-[#E9DED5]">
+                <Mic className="w-5 h-5 text-[#D93636]" />
                 <span className="text-xs">
                   {language === 'ta'
                     ? 'காலத்தைச் சொல்லுங்கள் (1 வாரம் / 1 மாதம் / சுயவிருப்ப தேதி)...'
@@ -1257,7 +1257,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
               </div>
 
               {liveTranscript && (
-                <p className="text-xs text-center text-orange-600 dark:text-orange-400 font-black">
+                <p className="text-xs text-center text-[#D93636] font-black">
                   Detected Voice Speech: "{liveTranscript}"
                 </p>
               )}
@@ -1285,10 +1285,10 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                       speakStepPrompt('confirm_dates');
                     }
                   }}
-                  className={`p-3.5 rounded-2xl font-black text-xs shadow transition-all cursor-pointer text-center ${
+                  className={`p-3.5 rounded-2xl font-black text-xs shadow-xs transition-all cursor-pointer text-center border border-[#E9DED5] ${
                     opt.key === 'custom'
-                      ? 'bg-orange-600 hover:bg-orange-700 text-white col-span-2'
-                      : 'bg-slate-100 hover:bg-emerald-600 hover:text-white dark:bg-slate-800 text-slate-900 dark:text-white'
+                      ? 'bg-[#D93636] hover:bg-[#B9252D] text-white col-span-2'
+                      : 'bg-[#FFFFFF] hover:bg-[#D93636] hover:text-white text-[#302720]'
                   }`}
                 >
                   {language === 'ta' ? opt.labelTa : language === 'hi' ? opt.labelHi : opt.labelEn}
@@ -1303,7 +1303,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'ask_frequency_days';
                   speakStepPrompt('ask_frequency_days');
                 }}
-                className="w-full py-3 px-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-2xl font-black text-sm cursor-pointer"
+                className="w-full py-3 px-4 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] border border-[#E9DED5] rounded-2xl font-black text-sm cursor-pointer shadow-xs"
               >
                 {language === 'ta' ? 'முந்தைய படி' : language === 'hi' ? 'पीछे जाएँ' : 'Back'}
               </button>
@@ -1314,11 +1314,11 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         {/* STEP 4.5: Custom Date Range Inputs */}
         {step === 'ask_custom_dates' && (
           <div className="space-y-4">
-            <div className="bg-orange-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-orange-200 text-center space-y-1">
-              <span className="text-xs font-black uppercase tracking-wider text-orange-600">
+            <div className="bg-[#FCE8E3] p-4 rounded-2xl border border-[#E9DED5] text-center space-y-1">
+              <span className="text-xs font-black uppercase tracking-wider text-[#D93636]">
                 {language === 'ta' ? 'சுயவிருப்ப தேதி வரம்பு அமைத்தல்' : language === 'hi' ? 'कस्टम तिथि सीमा तय करें' : 'Custom Date Range Picker'}
               </span>
-              <p className="text-base font-black text-slate-900 dark:text-white">
+              <p className="text-base font-black text-[#302720]">
                 {language === 'ta'
                   ? 'ஆரம்ப தேதி மற்றும் முடிவு தேதியைத் தேர்ந்தெடுக்கவும் அல்லது குரல் மூலம் கூறவும்:'
                   : language === 'hi'
@@ -1328,14 +1328,14 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             </div>
 
             <div className="flex flex-col items-center justify-center space-y-2">
-              <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center space-x-3 font-black shadow-md border border-slate-700">
-                <Mic className="w-5 h-5 text-yellow-400 animate-pulse" />
+              <div className="p-3 bg-[#FFFFFF] text-[#302720] rounded-2xl flex items-center space-x-3 font-black shadow-xs border border-[#E9DED5]">
+                <Mic className="w-5 h-5 text-[#D93636] animate-pulse" />
                 <span className="text-xs">
                   {language === 'ta' ? 'தேதியைச் சொல்லுங்கள் (எ.கா: "நாளை", "அடுத்த திங்கள்")...' : language === 'hi' ? 'तारीख बोलें (जैसे: "कल", "अगला सोमवार")...' : 'Speak date (e.g., "tomorrow", "next Monday")...'}
                 </span>
               </div>
               {liveTranscript && (
-                <p className="text-xs text-center text-orange-600 dark:text-orange-400 font-black">
+                <p className="text-xs text-center text-[#D93636] font-black">
                   Detected Voice Speech: "{liveTranscript}"
                 </p>
               )}
@@ -1343,7 +1343,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-black text-slate-600 dark:text-slate-300 uppercase">
+                <label className="text-xs font-black text-[#786E64] uppercase">
                   {language === 'ta' ? 'ஆரம்ப தேதி (Start Date):' : language === 'hi' ? 'प्रारंभ तिथि:' : 'Start Date:'}
                 </label>
                 <input
@@ -1351,12 +1351,12 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   value={customStartDate}
                   min={getTodayFormattedStr()}
                   onChange={e => setCustomStartDate(e.target.value)}
-                  className="w-full p-3 rounded-2xl border border-slate-300 dark:border-slate-700 font-black text-sm bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
+                  className="w-full p-3 rounded-2xl border-2 border-[#D93636] font-black text-sm bg-[#FFFFFF] text-[#302720] cursor-pointer shadow-xs"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-black text-slate-600 dark:text-slate-300 uppercase">
+                <label className="text-xs font-black text-[#786E64] uppercase">
                   {language === 'ta' ? 'முடிவு தேதி (End Date):' : language === 'hi' ? 'अंतिम तिथि:' : 'End Date:'}
                 </label>
                 <input
@@ -1364,7 +1364,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   value={customEndDate}
                   min={customStartDate}
                   onChange={e => setCustomEndDate(e.target.value)}
-                  className="w-full p-3 rounded-2xl border border-slate-300 dark:border-slate-700 font-black text-sm bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white cursor-pointer"
+                  className="w-full p-3 rounded-2xl border-2 border-[#D93636] font-black text-sm bg-[#FFFFFF] text-[#302720] cursor-pointer shadow-xs"
                 />
               </div>
             </div>
@@ -1376,7 +1376,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'ask_duration';
                   speakStepPrompt('ask_duration');
                 }}
-                className="py-3 px-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-2xl font-black text-sm cursor-pointer"
+                className="py-3 px-4 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] border border-[#E9DED5] rounded-2xl font-black text-sm cursor-pointer shadow-xs"
               >
                 {language === 'ta' ? 'முந்தைய படி' : language === 'hi' ? 'पीछे जाएँ' : 'Back'}
               </button>
@@ -1387,9 +1387,9 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'confirm_dates';
                   speakStepPrompt('confirm_dates');
                 }}
-                className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-sm shadow-lg flex items-center justify-center space-x-2 cursor-pointer"
+                className="py-3 px-4 bg-[#D93636] hover:bg-[#B9252D] text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
               >
-                <CheckCircle2 className="w-5 h-5 text-yellow-300" />
+                <CheckCircle2 className="w-5 h-5 text-white" />
                 <span>
                   {language === 'ta' ? 'தேதி வரம்பை உறுதிசெய்க' : language === 'hi' ? 'तिथि सीमा की पुष्टि करें' : 'Confirm Date Range'}
                 </span>
@@ -1411,14 +1411,14 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
 
               return (
                 <>
-                  <div className="bg-emerald-50 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-300 text-center space-y-1">
-                    <div className="flex items-center justify-center space-x-2 text-emerald-700 dark:text-emerald-300">
+                  <div className="bg-[#FCE8E3] p-4 rounded-2xl border border-[#E9DED5] text-center space-y-1">
+                    <div className="flex items-center justify-center space-x-2 text-[#D93636]">
                       <Calendar className="w-5 h-5" />
                       <span className="text-xs font-black uppercase tracking-wider">
                         {language === 'ta' ? 'படி 5: டெலிவரி தேதிகள் சரிபார்ப்பு' : language === 'hi' ? 'चरण 5: डिलीवरी तिथियां सत्यापन' : 'Step 5: Delivery Dates Verification'}
                       </span>
                     </div>
-                    <p className="text-base font-black text-slate-900 dark:text-white leading-snug">
+                    <p className="text-base font-black text-[#302720] leading-snug">
                       {language === 'ta'
                         ? `மொத்தம் ${occurrences.length} டெலிவரி தேதிகள் கணக்கிடப்பட்டுள்ளன. விவரங்கள் கீழே:`
                         : language === 'hi'
@@ -1428,11 +1428,11 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   </div>
 
                   {/* Computed Dates List Grid */}
-                  <div className="max-h-40 overflow-y-auto p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+                  <div className="max-h-40 overflow-y-auto p-3 bg-[#F7F3EB] rounded-2xl border border-[#E9DED5]">
                     <div className="flex flex-wrap gap-2 justify-center">
                       {occurrences.map((d, i) => (
-                        <span key={i} className="px-2.5 py-1 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                        <span key={i} className="px-2.5 py-1 bg-[#FFFFFF] text-[#302720] font-bold text-xs rounded-xl border border-[#E9DED5] shadow-xs flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-[#43845C]" />
                           {d}
                         </span>
                       ))}
@@ -1440,14 +1440,14 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   </div>
 
                   <div className="flex flex-col items-center justify-center space-y-2">
-                    <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center space-x-3 font-black shadow-md border border-slate-700">
-                      <Mic className="w-5 h-5 text-yellow-400 animate-pulse" />
+                    <div className="p-3 bg-[#FFFFFF] text-[#302720] rounded-2xl flex items-center space-x-3 font-black shadow-xs border border-[#E9DED5]">
+                      <Mic className="w-5 h-5 text-[#D93636] animate-pulse" />
                       <span className="text-xs">
                         {language === 'ta' ? 'கேட்கிறது: "ஆம்" அல்லது "இல்லை" என்று சொல்லுங்கள்' : language === 'hi' ? 'सुन रहा है: "हाँ" या "नहीं" बोलें' : 'Listening: Say "Yes" or "No"'}
                       </span>
                     </div>
                     {liveTranscript && (
-                      <p className="text-xs text-center text-orange-600 dark:text-orange-400 font-black">
+                      <p className="text-xs text-center text-[#D93636] font-black">
                         Detected Voice Speech: "{liveTranscript}"
                       </p>
                     )}
@@ -1460,7 +1460,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                         stepRef.current = 'ask_duration';
                         speakStepPrompt('ask_duration');
                       }}
-                      className="py-3 px-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-2xl font-black text-sm cursor-pointer"
+                      className="py-3 px-4 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] border border-[#E9DED5] rounded-2xl font-black text-sm cursor-pointer shadow-xs"
                     >
                       {language === 'ta' ? 'மாற்று (Edit)' : language === 'hi' ? 'बदलें (Edit)' : 'Edit Duration'}
                     </button>
@@ -1471,9 +1471,9 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                         stepRef.current = 'show_bill';
                         speakStepPrompt('show_bill');
                       }}
-                      className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                      className="py-3 px-4 bg-[#43845C] hover:bg-[#356b4a] text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
                     >
-                      <CheckCircle2 className="w-5 h-5 text-yellow-300" />
+                      <CheckCircle2 className="w-5 h-5 text-white" />
                       <span>{language === 'ta' ? 'கட்டணம் காண்க (Proceed)' : language === 'hi' ? 'बिल देखें (Proceed)' : 'Proceed to Bill'}</span>
                     </button>
                   </div>
@@ -1487,7 +1487,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         {step === 'show_bill' && (
           <div className="space-y-4">
             <div className="text-center">
-              <span className="text-xs font-black uppercase tracking-wider text-orange-600">
+              <span className="text-xs font-black uppercase tracking-wider text-[#D93636]">
                 {language === 'ta' ? 'படி 6: கட்டணப் பட்டியல்' : language === 'hi' ? 'चरण 6: बिल विवरण' : 'Step 6: Bill Breakdown'}
               </span>
             </div>
@@ -1503,14 +1503,14 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             />
 
             <div className="flex flex-col items-center justify-center space-y-2">
-              <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center space-x-3 font-black shadow-md border border-slate-700">
-                <Mic className="w-5 h-5 text-yellow-400 animate-pulse" />
+              <div className="p-3 bg-[#FFFFFF] text-[#302720] rounded-2xl flex items-center space-x-3 font-black shadow-xs border border-[#E9DED5]">
+                <Mic className="w-5 h-5 text-[#D93636] animate-pulse" />
                 <span className="text-xs">
                   {language === 'ta' ? 'கேட்கிறது: PIN சரிபார்க்க "ஆம்" என்று சொல்லுங்கள்' : language === 'hi' ? 'सुन रहा है: PIN के लिए "हाँ" बोलें' : 'Listening: Say "Yes" to enter Security PIN'}
                 </span>
               </div>
               {liveTranscript && (
-                <p className="text-xs text-center text-orange-600 dark:text-orange-400 font-black">
+                <p className="text-xs text-center text-[#D93636] font-black">
                   Detected Voice Speech: "{liveTranscript}"
                 </p>
               )}
@@ -1523,7 +1523,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'ask_duration';
                   speakStepPrompt('ask_duration');
                 }}
-                className="py-3 px-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-2xl font-black text-sm cursor-pointer"
+                className="py-3 px-4 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] border border-[#E9DED5] rounded-2xl font-black text-sm cursor-pointer shadow-xs"
               >
                 {language === 'ta' ? 'மாற்று (Back)' : language === 'hi' ? 'बदलें (Back)' : 'Back to Edit'}
               </button>
@@ -1536,9 +1536,9 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   setPinDigits(['', '', '', '']);
                   speakStepPrompt('verify_pin');
                 }}
-                className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+                className="py-3 px-4 bg-[#43845C] hover:bg-[#356b4a] text-white rounded-2xl font-black text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
               >
-                <CheckCircle2 className="w-5 h-5 text-yellow-300" />
+                <CheckCircle2 className="w-5 h-5 text-white" />
                 <span>{language === 'ta' ? 'PIN சரிபார் (Proceed)' : language === 'hi' ? 'PIN दर्ज करें (Proceed)' : 'Proceed to Security PIN'}</span>
               </button>
             </div>
@@ -1548,14 +1548,14 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
         {/* STEP 7: Security PIN Verification (AFTER Bill Breakdown) */}
         {step === 'verify_pin' && (
           <div className="space-y-4">
-            <div className="bg-orange-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-orange-200 text-center space-y-1">
-              <div className="flex items-center justify-center space-x-2 text-orange-600">
+            <div className="bg-[#FCE8E3] p-4 rounded-2xl border border-[#E9DED5] text-center space-y-1">
+              <div className="flex items-center justify-center space-x-2 text-[#D93636]">
                 <ShieldCheck className="w-5 h-5" />
                 <span className="text-xs font-black uppercase tracking-wider">
                   {language === 'ta' ? 'படி 7: பாதுகாப்பு PIN சரிபார்ப்பு' : language === 'hi' ? 'चरण 7: सुरक्षा पिन सत्यापन' : 'Step 7: Security PIN Verification'}
                 </span>
               </div>
-              <p className="text-base font-black text-slate-900 dark:text-white leading-relaxed">
+              <p className="text-base font-black text-[#302720] leading-relaxed">
                 {language === 'ta'
                   ? 'உங்கள் 4-இலக்க PIN-ஐ விசைப்பலகை மூலம் உள்ளிடவும்'
                   : language === 'hi'
@@ -1571,8 +1571,8 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   key={idx}
                   className={`w-12 h-14 rounded-2xl border-2 flex items-center justify-center text-2xl font-black transition-all ${
                     pinDigits[idx]
-                      ? 'border-emerald-500 bg-emerald-50 text-emerald-900 shadow-md'
-                      : 'border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400'
+                      ? 'border-[#D93636] bg-[#FCE8E3] text-[#D93636] shadow-sm'
+                      : 'border-[#E9DED5] bg-[#FFFFFF] text-[#786E64]'
                   }`}
                 >
                   {pinDigits[idx] ? '●' : ''}
@@ -1581,12 +1581,12 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             </div>
 
             {pinError && (
-              <p className="text-xs text-center font-black text-[#D93636] dark:text-rose-400 animate-bounce">
+              <p className="text-xs text-center font-black text-[#D93636] animate-bounce">
                 {pinError}
               </p>
             )}
             {pinLockSecondsLeft > 0 && (
-              <p role="status" className="text-sm text-center font-bold text-[#33251F] dark:text-rose-300">
+              <p role="status" className="text-sm text-center font-bold text-[#302720]">
                 {language === 'ta'
                   ? `${pinLockSecondsLeft} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கலாம்.`
                   : language === 'hi'
@@ -1596,10 +1596,42 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
             )}
 
             {/* Onscreen Keypad */}
-            <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+            <div className="p-3 bg-[#FCE8E3] rounded-2xl border border-[#E9DED5] max-w-xs mx-auto">
+              <div className="grid grid-cols-3 gap-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    disabled={isPinVerifying || pinLockSecondsLeft > 0}
+                    onClick={() => {
+                      setPinError(null);
+                      const emptyIdx = pinDigits.findIndex(d => d === '');
+                      if (emptyIdx !== -1) {
+                        const next = [...pinDigits];
+                        next[emptyIdx] = num.toString();
+                        setPinDigits(next);
+                        if (emptyIdx === 3) {
+                          verifyPinAndProceed(next.join(''));
+                        }
+                      }
+                    }}
+                    className="p-3 bg-[#FFFFFF] hover:bg-[#D93636] hover:text-white font-black text-lg text-[#302720] rounded-2xl shadow-xs border border-[#E9DED5] transition-all cursor-pointer"
+                  >
+                    {num}
+                  </button>
+                ))}
                 <button
-                  key={num}
+                  type="button"
+                  disabled={isPinVerifying || pinLockSecondsLeft > 0}
+                  onClick={() => {
+                    setPinDigits(['', '', '', '']);
+                    setPinError(null);
+                  }}
+                  className="p-3 bg-[#FFFFFF] hover:bg-[#D93636] hover:text-white text-[#D93636] font-black text-xs rounded-2xl border border-[#E9DED5] shadow-xs cursor-pointer"
+                >
+                  Clear
+                </button>
+                <button
                   type="button"
                   disabled={isPinVerifying || pinLockSecondsLeft > 0}
                   onClick={() => {
@@ -1607,59 +1639,29 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                     const emptyIdx = pinDigits.findIndex(d => d === '');
                     if (emptyIdx !== -1) {
                       const next = [...pinDigits];
-                      next[emptyIdx] = num.toString();
+                      next[emptyIdx] = '0';
                       setPinDigits(next);
                       if (emptyIdx === 3) {
                         verifyPinAndProceed(next.join(''));
                       }
                     }
                   }}
-                  className="p-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white rounded-2xl shadow transition-all cursor-pointer"
+                  className="p-3 bg-[#FFFFFF] hover:bg-[#D93636] hover:text-white font-black text-lg text-[#302720] rounded-2xl shadow-xs border border-[#E9DED5] transition-all cursor-pointer"
                 >
-                  {num}
+                  0
                 </button>
-              ))}
-              <button
-                type="button"
-                disabled={isPinVerifying || pinLockSecondsLeft > 0}
-                onClick={() => {
-                  setPinDigits(['', '', '', '']);
-                  setPinError(null);
-                }}
-                className="p-3 bg-[#FBE9E5] dark:bg-rose-950 text-[#D93636] font-black text-xs rounded-2xl shadow cursor-pointer"
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                disabled={isPinVerifying || pinLockSecondsLeft > 0}
-                onClick={() => {
-                  setPinError(null);
-                  const emptyIdx = pinDigits.findIndex(d => d === '');
-                  if (emptyIdx !== -1) {
-                    const next = [...pinDigits];
-                    next[emptyIdx] = '0';
-                    setPinDigits(next);
-                    if (emptyIdx === 3) {
-                      verifyPinAndProceed(next.join(''));
-                    }
-                  }
-                }}
-                className="p-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 font-black text-lg text-slate-900 dark:text-white rounded-2xl shadow transition-all cursor-pointer"
-              >
-                0
-              </button>
-              <button
-                type="button"
-                disabled={isPinVerifying || pinLockSecondsLeft > 0}
-                onClick={() => {
-                  const full = pinDigits.join('');
-                  if (full.length === 4) verifyPinAndProceed(full);
-                }}
-                className="p-3 bg-emerald-600 text-white font-black text-xs rounded-2xl shadow cursor-pointer flex items-center justify-center"
-              >
-                <CheckCircle2 className="w-5 h-5 text-yellow-300" />
-              </button>
+                <button
+                  type="button"
+                  disabled={isPinVerifying || pinLockSecondsLeft > 0}
+                  onClick={() => {
+                    const full = pinDigits.join('');
+                    if (full.length === 4) verifyPinAndProceed(full);
+                  }}
+                  className="p-3 bg-[#43845C] hover:bg-[#356b4a] text-white font-black text-xs rounded-2xl shadow-md cursor-pointer flex items-center justify-center"
+                >
+                  <CheckCircle2 className="w-5 h-5 text-white" />
+                </button>
+              </div>
             </div>
 
             <div className="pt-2 text-center">
@@ -1669,7 +1671,7 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
                   stepRef.current = 'show_bill';
                   speakStepPrompt('show_bill');
                 }}
-                className="py-2.5 px-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-2xl font-black text-xs cursor-pointer"
+                className="py-2.5 px-4 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] border border-[#E9DED5] rounded-2xl font-black text-xs cursor-pointer shadow-xs"
               >
                 {language === 'ta' ? 'கட்டணத்திற்குத் திரும்பு' : language === 'hi' ? 'बिल पर वापस जाएँ' : 'Back to Bill'}
               </button>

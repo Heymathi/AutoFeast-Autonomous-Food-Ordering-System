@@ -21,7 +21,7 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onCl
       role="dialog"
       aria-modal="true"
       aria-labelledby="user-details-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#302720]/40 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div
@@ -31,27 +31,27 @@ export const UserDetailsModal: React.FC<UserDetailsModalProps> = ({ isOpen, onCl
             ? 'bg-black text-white border-2 border-yellow-400'
             : currentTheme === 'dark'
             ? 'bg-zinc-900 text-zinc-100 border-zinc-800'
-            : 'bg-white text-[#33251F] border-[#F0E5DC]'
+            : 'bg-[#FFF8EF] text-[#302720] border-[#E9DED5]'
         }`}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-[#F0E5DC]">
+        <div className="flex items-center justify-between pb-4 border-b border-[#E9DED5]">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center font-bold text-lg">
+            <div className="w-10 h-10 rounded-xl bg-[#FCE8E3] text-[#D93636] flex items-center justify-center font-bold text-lg border border-[#E9DED5]">
               {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
             </div>
             <div>
-              <h2 id="user-details-title" className="text-lg font-bold text-[#33251F]">
+              <h2 id="user-details-title" className="text-lg font-bold text-[#302720]">
                 {t('profile.userDetails')}
               </h2>
-              <p className="text-xs text-[#8A817A]">AutoFeast AI Verified Account</p>
+              <p className="text-xs text-[#786E64]">AutoFeast AI Verified Account</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-2 rounded-lg text-[#8A817A] hover:text-[#33251F] hover:bg-[#FBE9E5] transition-colors"
+            className="p-2 rounded-lg text-[#786E64] hover:text-[#302720] hover:bg-[#FCE8E3] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

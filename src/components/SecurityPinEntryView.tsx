@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { SpeechController } from '../services/speechController';
 import { parsePinSpeech } from '../services/pinVoiceParserService';
-import { debounceHandler } from '../utils/debounce';
 import { Lock, ShieldCheck, Mic, Delete, AlertTriangle, Volume2 } from 'lucide-react';
 
 export interface SecurityPinEntryViewProps {
   title?: string;
+  leadPrompt?: string;
   subtitle?: string;
   onPinComplete: (pinStr: string) => void | Promise<void>;
   onCancel?: () => void;
@@ -17,10 +17,13 @@ export interface SecurityPinEntryViewProps {
   submitButtonText?: string;
   cancelButtonText?: string;
   summaryCard?: React.ReactNode;
+  belowSubmitContent?: React.ReactNode;
+  showCancelButton?: boolean;
 }
 
 export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
   title,
+  leadPrompt,
   subtitle,
   onPinComplete,
   onCancel,
@@ -30,9 +33,11 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
   setErrorMessage,
   submitButtonText,
   cancelButtonText,
-  summaryCard
+  summaryCard,
+  belowSubmitContent,
+  showCancelButton = false
 }) => {
-  const { language, t, accessibilitySettings } = useApp();
+  const { language, t } = useApp();
 
   const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '']);
   const [micState, setMicState] = useState<'idle' | 'listening' | 'processing' | 'error'>('idle');
@@ -119,7 +124,6 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
       isSubmittingRef.current = true;
       isVoiceSubmittingRef.current = false;
       cleanupSpeech();
-      setPinDigits(['', '', '', '']);
       Promise.resolve(onPinCompleteRef.current(pinStr)).finally(() => {
         isSubmittingRef.current = false;
       });
@@ -341,8 +345,7 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
               }
             },
             undefined,
-            'voice_pin',
-            'voice_pin_repeat'
+            'voice_pin'
           );
         } else {
           // After 2 failed voice tries, stop and leave keypad buttons only
@@ -375,7 +378,9 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
   };
 
   const handleMicToggle = () => {
-    SpeechController.markUserGesture();
+    if (typeof (SpeechController as any).markUserGesture === 'function') {
+      (SpeechController as any).markUserGesture();
+    }
     voicePinRepeatCountRef.current = 0;
     if (micState === 'listening') {
       cleanupSpeech();
@@ -388,16 +393,21 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
   return (
     <div className="space-y-3.5">
 
-      {/* Title & Lock Icon */}
-      <div className="text-center space-y-1">
-        <div className="inline-flex p-2.5 bg-[#D93636]/10 rounded-2xl border border-[#D93636]/30 text-[#D93636] shadow-sm">
-          <Lock className="w-6 h-6" />
+      {/* Lock Icon inside pale peach circular background & Heading */}
+      <div className="text-center space-y-1.5 pt-1">
+        <div className="w-14 h-14 rounded-full bg-[#FCE8E3] border border-[#E9DED5] text-[#D93636] flex items-center justify-center mx-auto shadow-xs">
+          <Lock className="w-6 h-6 text-[#D93636]" />
         </div>
-        <h2 className="text-xl sm:text-2xl font-black text-[#33251F]">
-          {title || t('pinEnter4') || 'Enter 4-Digit PIN'}
+        <h2 className="text-xl sm:text-2xl font-black text-[#302720] tracking-tight">
+          {title || t('pinEnter4') || 'Security PIN Verification'}
         </h2>
+        {leadPrompt && (
+          <p className="text-sm font-bold text-[#302720]">
+            {leadPrompt}
+          </p>
+        )}
         {subtitle && (
-          <p className="text-xs font-bold text-[#4A5568]">
+          <p className="text-xs font-semibold text-[#786E64]">
             {subtitle}
           </p>
         )}
@@ -406,16 +416,14 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
       {/* Optional Summary Card */}
       {summaryCard}
 
-      {/* PIN Digit Displays (4 Boxes - Dots ONLY) */}
-      <div className="flex justify-center items-center space-x-3 sm:space-x-4 my-1">
+      {/* PIN Digit Displays (4 Boxes - Pale Peach Background with Tomato Red Border & Centered Dots) */}
+      <div className="flex justify-center items-center space-x-3 sm:space-x-4 my-2">
         {pinDigits.map((digit, idx) => (
           <div
             key={idx}
             data-testid={`pin-box-${idx}`}
-            className={`w-12 h-14 sm:w-14 sm:h-16 rounded-2xl border-3 flex items-center justify-center text-2xl font-black transition-all shadow-inner ${
-              digit
-                ? 'border-[#D93636] bg-[#D93636]/10 text-[#D93636] scale-105'
-                : 'border-slate-200 bg-slate-50 text-slate-400'
+            className={`w-14 h-16 sm:w-16 sm:h-18 rounded-2xl border-2 border-[#D93636] bg-[#FCE8E3] flex items-center justify-center text-3xl font-black text-[#D93636] transition-all shadow-xs ${
+              digit ? 'scale-105 shadow-sm' : ''
             }`}
           >
             {digit ? '●' : ''}
@@ -423,15 +431,15 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
         ))}
       </div>
 
-      {/* Error & Status Alert Box */}
+      {/* Error & Lockout Alert Box */}
       {errorMessage && (
-        <div className="p-2.5 bg-red-500/10 border-2 border-red-500 rounded-xl text-red-600 font-black text-xs text-center flex items-center justify-center space-x-2 animate-fadeIn">
-          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+        <div className="p-3 bg-[#FCE8E3] border-2 border-[#D93636] rounded-2xl text-[#D93636] font-black text-xs text-center flex items-center justify-center space-x-2 animate-fadeIn shadow-xs">
+          <AlertTriangle className="w-4 h-4 text-[#D93636] shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
       {lockSecondsLeft > 0 && (
-        <div role="status" className="text-center text-xs font-bold text-red-700">
+        <div role="status" className="text-center text-xs font-bold text-[#D93636]">
           {language === 'ta'
             ? `${lockSecondsLeft} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கலாம்.`
             : language === 'hi'
@@ -441,14 +449,14 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
       )}
 
       {statusMessage && !errorMessage && (
-        <div className="p-2 bg-[#FBE9E5] border border-[#F0E5DC] rounded-xl text-[#0284C7] font-bold text-xs text-center flex items-center justify-center space-x-2 animate-fadeIn">
-          <Volume2 className="w-4 h-4 text-[#0284C7] shrink-0 animate-pulse" />
+        <div className="p-2.5 bg-[#FCE8E3] border border-[#E9DED5] rounded-xl text-[#302720] font-bold text-xs text-center flex items-center justify-center space-x-2 animate-fadeIn">
+          <Volume2 className="w-4 h-4 text-[#D93636] shrink-0 animate-pulse" />
           <span>{statusMessage}</span>
         </div>
       )}
 
-      {/* Prominent Voice Mic Banner */}
-      <div className="bg-slate-50 p-3.5 rounded-2xl border-2 border-[#D93636]/30 flex items-center justify-between gap-3 shadow-xs">
+      {/* Voice PIN Section */}
+      <div className="bg-[#FFFFFF] p-3.5 sm:p-4 rounded-2xl border border-[#E9DED5] flex items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center space-x-3">
           <button
             type="button"
@@ -457,24 +465,24 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
             disabled={isInputBlocked}
             className={`p-3 rounded-2xl transition-all cursor-pointer shadow-md active:scale-95 shrink-0 ${
               micState === 'listening'
-                ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-300'
+                ? 'bg-[#D93636] text-white animate-pulse ring-4 ring-[#D93636]/30'
                 : micState === 'processing'
                 ? 'bg-amber-500 text-white animate-bounce'
-                : 'bg-[#D93636] text-white hover:bg-[#33251F]'
+                : 'bg-[#D93636] text-white hover:bg-[#B9252D]'
             }`}
             title="Tap to speak PIN digits"
           >
-            <Mic className="w-6 h-6" />
+            <Mic className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
           <div className="space-y-0.5 text-left">
-            <span className="text-xs font-black uppercase text-slate-800 block">
+            <span className="text-xs font-black uppercase text-[#302720] block">
               {micState === 'listening'
                 ? `Listening for PIN... (${activeLocale})`
                 : micState === 'processing'
                 ? 'Processing PIN...'
                 : 'Speak PIN Digits'}
             </span>
-            <span className="text-[10px] font-bold text-[#D93636] block">
+            <span className="text-[10px] sm:text-[11px] font-bold text-[#D93636] block">
               💡 Say 4 digits in English, Tamil, or Hindi
             </span>
           </div>
@@ -485,10 +493,10 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
           data-testid="btn-speak-pin-toggle"
           onClick={handleMicToggle}
           disabled={isInputBlocked}
-          className={`px-3 py-1.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
+          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-black text-xs transition-all cursor-pointer shadow-xs ${
             micState === 'listening'
-              ? 'bg-red-100 text-red-600 border border-red-300'
-              : 'bg-[#D93636]/10 text-[#D93636] hover:bg-[#D93636]/20'
+              ? 'bg-[#D93636] text-white border border-[#B9252D]'
+              : 'bg-[#FCE8E3] text-[#D93636] hover:bg-[#FCE8E3]/80 border border-[#E9DED5]'
           }`}
         >
           {micState === 'listening' ? 'Stop' : 'Speak PIN'}
@@ -496,90 +504,95 @@ export const SecurityPinEntryView: React.FC<SecurityPinEntryViewProps> = ({
       </div>
 
       {/* Privacy Warning Note */}
-      <div className="text-[10px] font-semibold text-slate-500 text-center px-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+      <div className="text-[10px] sm:text-[11px] font-semibold text-[#786E64] text-center px-3 py-2 bg-[#FCE8E3]/60 rounded-xl border border-[#E9DED5]">
         🛡️ Voice PIN security: Digits are never logged, displayed, or spoken aloud.
       </div>
 
-      {/* Keypad Buttons */}
-      <div className="grid grid-cols-3 gap-2">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+      {/* 3-Column Numeric Keypad Buttons */}
+      <div className="p-3.5 sm:p-4 bg-[#FCE8E3] rounded-3xl border border-[#E9DED5]">
+        <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+            <button
+              key={num}
+              type="button"
+              data-testid={`keypad-digit-${num}`}
+              onClick={() => handleDigitClick(num)}
+              disabled={isInputBlocked}
+              className="py-3 sm:py-3.5 rounded-2xl bg-[#FFFFFF] hover:bg-[#D93636] hover:text-white text-[#302720] font-black text-lg sm:text-xl shadow-xs active:scale-95 transition-all border border-[#E9DED5] cursor-pointer"
+            >
+              {num}
+            </button>
+          ))}
           <button
-            key={num}
             type="button"
-            data-testid={`keypad-digit-${num}`}
-            onClick={() => handleDigitClick(num)}
+            onClick={handleClear}
             disabled={isInputBlocked}
-            className="py-2.5 sm:py-3 rounded-2xl bg-slate-100 hover:bg-[#D93636] hover:text-white text-[#33251F] font-black text-lg sm:text-xl shadow-xs active:scale-95 transition-all border border-slate-200 cursor-pointer"
+            className="py-3 sm:py-3.5 rounded-2xl bg-[#FFFFFF] hover:bg-[#D93636] hover:text-white text-xs font-black uppercase text-[#D93636] border border-[#E9DED5] transition-all cursor-pointer shadow-xs active:scale-95"
           >
-            {num}
+            Clear
           </button>
-        ))}
-        <button
-          type="button"
-          onClick={handleClear}
-          disabled={isInputBlocked}
-          className="py-2.5 sm:py-3 rounded-2xl bg-slate-200 hover:bg-slate-300 text-xs font-black uppercase text-[#4A5568] transition-all cursor-pointer"
-        >
-          Clear
-        </button>
-        <button
-          type="button"
-          data-testid="keypad-digit-0"
-          onClick={() => handleDigitClick(0)}
-          disabled={isInputBlocked}
-          className="py-2.5 sm:py-3 rounded-2xl bg-slate-100 hover:bg-[#D93636] hover:text-white text-[#33251F] font-black text-lg sm:text-xl shadow-xs active:scale-95 transition-all border border-slate-200 cursor-pointer"
-        >
-          0
-        </button>
-        <button
-          type="button"
-          onClick={handleBackspace}
-          disabled={isInputBlocked}
-          className="py-2.5 sm:py-3 rounded-2xl bg-slate-200 hover:bg-slate-300 text-[#4A5568] flex items-center justify-center transition-all cursor-pointer"
-          title="Backspace"
-        >
-          <Delete className="w-5 h-5" />
-        </button>
+          <button
+            type="button"
+            data-testid="keypad-digit-0"
+            onClick={() => handleDigitClick(0)}
+            disabled={isInputBlocked}
+            className="py-3 sm:py-3.5 rounded-2xl bg-[#FFFFFF] hover:bg-[#D93636] hover:text-white text-[#302720] font-black text-lg sm:text-xl shadow-xs active:scale-95 transition-all border border-[#E9DED5] cursor-pointer"
+          >
+            0
+          </button>
+          <button
+            type="button"
+            onClick={handleBackspace}
+            disabled={isInputBlocked}
+            className="py-3 sm:py-3.5 rounded-2xl bg-[#FFFFFF] hover:bg-[#D93636] hover:text-white text-[#786E64] flex items-center justify-center border border-[#E9DED5] transition-all cursor-pointer shadow-xs active:scale-95"
+            title="Backspace"
+          >
+            <Delete className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
-      {/* Submit / Action Buttons */}
-      <div className="flex items-center gap-2 pt-1">
-        {onCancel && (
+      {/* Primary Action Button (Full Width Tomato Red) & Below Content */}
+      <div className="space-y-2 pt-1">
+        <div className="flex items-center gap-2">
+          {showCancelButton && onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="w-1/3 py-3.5 px-3 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] font-black rounded-2xl text-xs transition-all border border-[#E9DED5] cursor-pointer text-center shadow-xs"
+            >
+              {cancelButtonText || 'Cancel'}
+            </button>
+          )}
           <button
             type="button"
-            onClick={onCancel}
-            className="w-1/3 py-3 px-3 bg-slate-100 hover:bg-slate-200 text-[#4A5568] font-black rounded-xl text-xs transition-all border border-slate-300 cursor-pointer text-center"
+            onClick={() => {
+              if (currentPinString.length === 4) {
+                debouncedPinComplete(currentPinString);
+              }
+            }}
+            disabled={isInputBlocked || currentPinString.length !== 4}
+            className={`w-full py-3.5 sm:py-4 px-4 font-black rounded-2xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+              currentPinString.length === 4 && !isInputBlocked
+                ? 'bg-[#D93636] hover:bg-[#B9252D] text-white shadow-[#D93636]/30 active:scale-[0.99]'
+                : 'bg-[#F7F3EB] text-[#786E64] border border-[#E9DED5] cursor-not-allowed opacity-75'
+            }`}
           >
-            {cancelButtonText || 'Cancel'}
+            <ShieldCheck className="w-5 h-5 shrink-0" />
+            <span>
+              {isVerifying
+                ? 'Verifying...'
+                : lockSecondsLeft > 0
+                  ? language === 'ta'
+                    ? `${lockSecondsLeft} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கவும்`
+                    : language === 'hi'
+                      ? `${lockSecondsLeft} सेकंड बाद फिर कोशिश करें`
+                      : `Retry in ${lockSecondsLeft}s`
+                  : submitButtonText || 'Verify PIN'}
+            </span>
           </button>
-        )}
-        <button
-          type="button"
-          onClick={() => {
-            if (currentPinString.length === 4) {
-              debouncedPinComplete(currentPinString);
-            }
-          }}
-          disabled={isInputBlocked || currentPinString.length !== 4}
-          className={`flex-1 py-3.5 px-4 font-black rounded-xl text-xs sm:text-sm shadow-xl transition-all flex items-center justify-center space-x-2 cursor-pointer ${
-            currentPinString.length === 4
-              ? 'bg-[#16A34A] hover:bg-[#15803D] text-white shadow-[#16A34A]/40 ring-4 ring-[#16A34A]/30 animate-pulse'
-              : 'bg-slate-300 text-slate-500 cursor-not-allowed'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4 text-white" />
-          <span>
-            {isVerifying
-              ? 'Verifying...'
-              : lockSecondsLeft > 0
-                ? language === 'ta'
-                  ? `${lockSecondsLeft} வினாடிகளுக்குப் பிறகு மீண்டும் முயற்சிக்கவும்`
-                  : language === 'hi'
-                    ? `${lockSecondsLeft} सेकंड बाद फिर कोशिश करें`
-                    : `Retry in ${lockSecondsLeft}s`
-                : submitButtonText || 'Confirm PIN'}
-          </span>
-        </button>
+        </div>
+        {belowSubmitContent}
       </div>
 
     </div>

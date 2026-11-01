@@ -105,10 +105,10 @@ export const PlatformComparisonSection: React.FC<PlatformComparisonSectionProps>
 
   return (
     <div className="space-y-2" data-testid="platform-comparison-section">
-      <div className="flex items-center justify-between text-xs font-black uppercase text-[#4A5568] dark:text-slate-400 tracking-wider">
+      <div className="flex items-center justify-between text-xs font-black uppercase text-[#786E64] tracking-wider">
         <span>{label}</span>
         {!loading && rows.length > 0 && (
-          <span className="text-[#D93636] font-black bg-[#D93636]/10 px-2 py-0.5 rounded-full normal-case tracking-normal">
+          <span className="text-[#D93636] font-black bg-[#FCE8E3] border border-[#E9DED5] px-2 py-0.5 rounded-full normal-case tracking-normal">
             {saveLabel} ₹{max - min}
           </span>
         )}
@@ -117,11 +117,11 @@ export const PlatformComparisonSection: React.FC<PlatformComparisonSectionProps>
       {loading ? (
         <div className="grid grid-cols-2 gap-2" aria-busy="true">
           {[0, 1, 2, 3].map(i => (
-            <div key={i} className="h-[62px] rounded-[14px] bg-slate-200 dark:bg-slate-700 animate-pulse" />
+            <div key={i} className="h-[62px] rounded-[14px] bg-[#FCE8E3] animate-pulse" />
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 p-2.5 rounded-[14px] border border-dashed border-slate-300 dark:border-slate-600 text-center">
+        <p className="text-[11px] font-bold text-[#786E64] p-2.5 rounded-[14px] border border-dashed border-[#E9DED5] bg-[#FFFFFF] text-center">
           {unavailable}
         </p>
       ) : (
@@ -133,22 +133,22 @@ export const PlatformComparisonSection: React.FC<PlatformComparisonSectionProps>
                 key={r.key}
                 className={`relative p-2.5 rounded-[14px] border-2 flex flex-col justify-between min-w-0 ${
                   isBest
-                    ? 'bg-[#16A34A]/10 border-[#16A34A]'
-                    : 'bg-[#FBE9E5]/40 dark:bg-slate-800 border-[#F0E5DC] dark:border-slate-700'
+                    ? 'bg-[#43845C]/10 border-[#43845C]'
+                    : 'bg-[#FFFFFF] border-[#E9DED5] shadow-xs'
                 }`}
               >
                 {isBest && (
-                  <span className="absolute -top-2 right-2 text-[8px] font-black bg-[#16A34A] text-white px-1.5 py-0.5 rounded-full uppercase">
+                  <span className="absolute -top-2 right-2 text-[8px] font-black bg-[#43845C] text-white px-1.5 py-0.5 rounded-full uppercase">
                     {bestLabel}
                   </span>
                 )}
-                <div className="flex items-center justify-between gap-1 font-black text-[#33251F] dark:text-white">
+                <div className="flex items-center justify-between gap-1 font-black text-[#302720]">
                   <span className="truncate">{r.name}</span>
-                  <span className="text-[11px] text-[#4A5568] dark:text-slate-300 font-bold shrink-0">★ {r.rating}</span>
+                  <span className="text-[11px] text-[#786E64] font-bold shrink-0">★ {r.rating}</span>
                 </div>
                 <div className="flex items-baseline justify-between mt-1.5">
                   <span className="text-sm font-black text-[#D93636]">₹{r.price}</span>
-                  <span className="text-[10px] text-[#4A5568] dark:text-slate-400 line-through">₹{r.original}</span>
+                  <span className="text-[10px] text-[#786E64] line-through">₹{r.original}</span>
                 </div>
               </div>
             );

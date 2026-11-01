@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { ShoppingBag, CheckCircle, Sparkles, Tag, Zap, Clock, Calendar, Hourglass, PlayCircle, FileText, Printer, ArrowDownToLine } from 'lucide-react';
+import { toTimeText } from '../utils/scheduleCalculator';
 
 export const OrderHistoryModal: React.FC = () => {
   const {
@@ -179,7 +180,7 @@ export const OrderHistoryModal: React.FC = () => {
                         <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold flex items-center gap-2">
                           <span>{t('orders.slot')} <strong className="text-orange-600 dark:text-orange-400">{sched.slotName}</strong></span>
                           <span>•</span>
-                          <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-amber-600" /> {t('orders.time')} <strong className="text-slate-900 dark:text-white">{sched.time}</strong></span>
+                          <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-amber-600" /> {t('orders.time')} <strong className="text-slate-900 dark:text-white">{toTimeText(sched.time)}</strong></span>
                         </p>
                       </div>
 

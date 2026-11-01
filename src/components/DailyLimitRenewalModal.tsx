@@ -322,42 +322,42 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-lg bg-white text-[#33251F] border-2 border-[#FBE9E5] rounded-3xl shadow-2xl overflow-hidden my-8 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#302720]/40 backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-lg bg-[#FFF8EF] text-[#302720] border-2 border-[#E9DED5] rounded-3xl shadow-2xl overflow-hidden my-8 max-h-[90vh] overflow-y-auto">
 
         {/* Modal Header */}
-        <div className="bg-[#FBE9E5] p-6 text-[#33251F] text-center relative border-b border-[#F0E5DC]">
+        <div className="bg-[#FCE8E3] p-6 text-[#302720] text-center relative border-b border-[#E9DED5]">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 bg-white/80 hover:bg-white rounded-full text-[#33251F] transition-colors cursor-pointer"
+            className="absolute top-4 right-4 p-2 bg-[#FFFFFF] hover:bg-[#F7F3EB] rounded-full text-[#786E64] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <div className="inline-flex items-center justify-center p-3 bg-white rounded-2xl mb-3 shadow-sm border border-[#F0E5DC]">
+          <div className="inline-flex items-center justify-center p-3 bg-[#FFFFFF] rounded-2xl mb-3 shadow-sm border border-[#E9DED5]">
             <ShieldAlert className="w-8 h-8 text-[#D93636] animate-pulse" />
           </div>
 
           <h2 className="text-xl sm:text-2xl font-black text-[#D93636]">{t('limit.title')}</h2>
-          <p className="text-xs text-[#8A817A] mt-1 max-w-md mx-auto leading-relaxed font-bold">
+          <p className="text-xs text-[#786E64] mt-1 max-w-md mx-auto leading-relaxed font-bold">
             Verify 4-digit PIN (Typed/Spoken), Face ID, or Nominee Fallback to reset daily limit to 0/6.
           </p>
 
           {/* Daily Limit Usage Progress Bar */}
-          <div className="mt-4 p-3.5 rounded-xl border border-[#F0E5DC] bg-white text-left space-y-2 shadow-2xs">
+          <div className="mt-4 p-3.5 rounded-xl border border-[#E9DED5] bg-[#FFFFFF] text-left space-y-2 shadow-2xs">
             <div className="flex items-center justify-between text-xs font-bold">
-              <span className="text-[#33251F]">Daily Orders: {dailyOrderCount} / 6 Used</span>
+              <span className="text-[#302720]">Daily Orders: {dailyOrderCount} / 6 Used</span>
               <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
                 dailyOrderCount >= 6
                   ? 'bg-red-100 text-[#BD5149]'
                   : dailyOrderCount >= 4
                   ? 'bg-amber-100 text-[#C18A42]'
-                  : 'bg-[#FBE9E5] text-[#D93636]'
+                  : 'bg-[#FCE8E3] text-[#D93636]'
               }`}>
                 {dailyOrderCount >= 6 ? 'Limit Reached' : `${6 - dailyOrderCount} Orders Left`}
               </span>
             </div>
-            <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div className="w-full h-2 rounded-full bg-[#E9DED5] overflow-hidden">
               <div
                 className={`h-full transition-all duration-500 rounded-full ${
                   dailyOrderCount >= 6
@@ -373,13 +373,13 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
         </div>
 
         {/* Method Selector Tabs */}
-        <div className="grid grid-cols-4 border-b border-[#FBE9E5] bg-[#FBE9E5]/40 p-2 gap-1.5 text-center">
+        <div className="grid grid-cols-4 border-b border-[#E9DED5] bg-[#FCE8E3] p-2 gap-1.5 text-center">
           <button
             onClick={() => setRenewalMethod('pin')}
             className={`py-2.5 px-1 rounded-xl text-xs font-black flex items-center justify-center space-x-1 transition-all cursor-pointer ${
               renewalMethod === 'pin'
                 ? 'bg-[#D93636] text-white shadow-md'
-                : 'text-[#4A5568] hover:text-[#33251F] hover:bg-white'
+                : 'text-[#786E64] hover:text-[#302720] hover:bg-[#FFFFFF]'
             }`}
           >
             <Lock className="w-3.5 h-3.5" />
@@ -391,7 +391,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
             className={`py-2.5 px-1 rounded-xl text-xs font-black flex items-center justify-center space-x-1 transition-all cursor-pointer ${
               renewalMethod === 'faceid'
                 ? 'bg-[#D93636] text-white shadow-md'
-                : 'text-[#4A5568] hover:text-[#33251F] hover:bg-white'
+                : 'text-[#786E64] hover:text-[#302720] hover:bg-[#FFFFFF]'
             }`}
           >
             <Scan className="w-3.5 h-3.5" />
@@ -403,7 +403,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
             className={`py-2.5 px-1 rounded-xl text-xs font-black flex items-center justify-center space-x-1 transition-all cursor-pointer ${
               renewalMethod === 'nominee'
                 ? 'bg-[#D93636] text-white shadow-md'
-                : 'text-[#4A5568] hover:text-[#33251F] hover:bg-white'
+                : 'text-[#786E64] hover:text-[#302720] hover:bg-[#FFFFFF]'
             }`}
           >
             <UserCheck className="w-3.5 h-3.5" />
@@ -415,7 +415,7 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
             className={`py-2.5 px-1 rounded-xl text-xs font-black flex items-center justify-center space-x-1 transition-all cursor-pointer ${
               renewalMethod === 'password'
                 ? 'bg-[#D93636] text-white shadow-md'
-                : 'text-[#4A5568] hover:text-[#33251F] hover:bg-white'
+                : 'text-[#786E64] hover:text-[#302720] hover:bg-[#FFFFFF]'
             }`}
           >
             <KeyRound className="w-3.5 h-3.5" />
@@ -442,28 +442,46 @@ export const DailyLimitRenewalModal: React.FC<DailyLimitRenewalModalProps> = ({ 
 
         {/* Method 1: 4-Digit PIN Renewal (Shared SecurityPinEntryView) */}
         {renewalMethod === 'pin' && (
-          <div className="p-6">
+          <div className="p-5 sm:p-6">
             <SecurityPinEntryView
-              title="Daily Limit Renewal PIN"
-              subtitle="Enter or speak your 4-digit PIN to reset daily limit to 0/6"
+              title={
+                language === 'ta'
+                  ? 'தினசரி வரம்பு புதுப்பித்தல் PIN'
+                  : language === 'hi'
+                  ? 'दैनिक सीमा नवीनीकरण पिन'
+                  : 'Daily Limit Renewal PIN'
+              }
+              subtitle={
+                language === 'ta'
+                  ? 'தினசரி வரம்பை மீட்டமைக்க உங்கள் 4-இலக்க PIN-ஐ கூறவும் அல்லது உள்ளிடவும்.'
+                  : language === 'hi'
+                  ? 'दैनिक सीमा रीसेट करने के लिए अपना 4-अंकीय पिन दर्ज करें या बोलें।'
+                  : 'Enter or speak your 4-digit PIN to reset daily limit.'
+              }
               onPinComplete={(pinStr) => handlePINSubmit(pinStr)}
               isVerifying={isProcessing}
               errorMessage={errorMessage}
               setErrorMessage={setErrorMessage}
-              submitButtonText="Verify PIN & Reset Daily Limit"
+              submitButtonText={
+                language === 'ta'
+                  ? 'PIN சரிபார்த்து தினசரி வரம்பை மீட்டமைக்கவும்'
+                  : language === 'hi'
+                  ? 'पिन सत्यापित करें और दैनिक सीमा रीसेट करें'
+                  : 'Verify PIN & Reset Daily Limit'
+              }
+              belowSubmitContent={
+                <div className="pt-3 border-t border-[#E9DED5] mt-3">
+                  <button
+                    type="button"
+                    onClick={() => triggerNomineeNotification('User requested Nominee approval')}
+                    className="text-xs text-[#D93636] hover:underline font-extrabold flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5 text-[#D93636]" />
+                    <span>Forgot PIN? Send Notification Alert to Nominee to Approve</span>
+                  </button>
+                </div>
+              }
             />
-
-            {/* Forgot PIN / Nominee Notification Fallback Trigger */}
-            <div className="pt-4 border-t border-[#FBE9E5] mt-4">
-              <button
-                type="button"
-                onClick={() => triggerNomineeNotification('User requested Nominee approval')}
-                className="text-xs text-[#D93636] hover:underline font-extrabold flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
-              >
-                <Send className="w-3.5 h-3.5 text-[#D93636]" />
-                <span>Forgot PIN? Send Notification Alert to Nominee to Approve</span>
-              </button>
-            </div>
           </div>
         )}
 

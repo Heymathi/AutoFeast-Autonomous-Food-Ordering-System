@@ -412,18 +412,18 @@ export const LanguageSelectionModal: React.FC = () => {
   return (
     <div
       onClick={handleUserGesture}
-      className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-lg animate-fade-in"
+      className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#302720]/40 backdrop-blur-sm animate-fade-in"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl bg-white text-[#33251F] rounded-3xl shadow-2xl overflow-hidden border-4 border-[#D93636] transition-all transform scale-100"
+        className="w-full max-w-xl bg-[#FFF8EF] text-[#302720] rounded-3xl shadow-2xl overflow-hidden border-2 border-[#E9DED5] transition-all transform scale-100"
       >
 
         {/* Top Branding Banner */}
-        <div className="bg-[#FBE9E5] p-6 text-center border-b border-[#F0E5DC]">
-          <div className="inline-flex items-center justify-center p-3.5 bg-white rounded-2xl mb-3 shadow-md border border-[#F0E5DC]">
+        <div className="bg-[#FCE8E3] p-6 text-center border-b border-[#E9DED5]">
+          <div className="inline-flex items-center justify-center p-3.5 bg-[#FFFFFF] rounded-2xl mb-3 shadow-md border border-[#E9DED5]">
             <Sparkles className="w-8 h-8 text-[#D93636] mr-2 animate-pulse" />
-            <h1 className="text-3xl font-black text-[#33251F] tracking-tight">AutoFeast AI</h1>
+            <h1 className="text-3xl font-black text-[#302720] tracking-tight">AutoFeast AI</h1>
           </div>
 
           <p className="text-xs font-black text-[#D93636] uppercase tracking-widest flex items-center justify-center gap-1">
@@ -431,7 +431,7 @@ export const LanguageSelectionModal: React.FC = () => {
             <span>Select Your Preferred Language / மொழியைத் தேர்ந்தெடுக்கவும்</span>
           </p>
 
-          <div className="mt-3 space-y-1 text-xs font-bold text-[#4A5568]">
+          <div className="mt-3 space-y-1 text-xs font-bold text-[#786E64]">
             <p>🇬🇧 Say "English", "Tamil", or "Hindi"</p>
             <p>🇮🇳 "தமிழ்", "ஆங்கிலம்" அல்லது "ஹிந்தி" என்று சொல்லுங்கள்</p>
           </div>

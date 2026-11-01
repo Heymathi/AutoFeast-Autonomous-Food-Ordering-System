@@ -292,41 +292,41 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
   const showOrderAndSchedule = !isAnyRestricted || isApproved;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-      <div className={`relative w-full max-w-lg rounded-3xl p-6 shadow-2xl border-4 transition-all ${
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#302720]/40 backdrop-blur-sm p-4 animate-fade-in">
+      <div className={`relative w-full max-w-lg rounded-3xl p-6 shadow-2xl border-2 transition-all ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-yellow-400'
-          : 'bg-white text-[#33251F] border-[#D93636]'
+          : 'bg-[#FFF8EF] text-[#302720] border-[#E9DED5]'
       }`}>
         
         {/* Close button */}
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 p-2.5 rounded-full bg-slate-100 hover:bg-slate-200 text-[#4A5568] transition-colors cursor-pointer"
+          className="absolute top-4 right-4 p-2.5 rounded-full bg-[#FCE8E3] hover:bg-[#E9DED5] text-[#786E64] transition-colors cursor-pointer"
           aria-label={t('nav.close')}
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
-        <div className="space-y-2 pr-8 border-b border-[#FBE9E5] pb-4">
+        <div className="space-y-2 pr-8 border-b border-[#E9DED5] pb-4">
           <span className="text-xs font-black uppercase text-[#D93636] bg-[#D93636]/10 px-3 py-1 rounded-full border border-[#D93636]/20">
             {t('nav.title')} • Item Chooser
           </span>
 
-          <h3 className="text-xl sm:text-2xl font-black text-[#33251F] flex items-center gap-2">
+          <h3 className="text-xl sm:text-2xl font-black text-[#302720] flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-[#D93636]" />
             {items.length === 1 ? primaryItem.name : `${items.length} Items Selected`}
           </h3>
 
-          <p className="text-xs sm:text-sm font-semibold text-[#4A5568]">
+          <p className="text-xs sm:text-sm font-semibold text-[#786E64]">
             {items.length === 1 ? `${primaryItem.restaurant} • ₹${primaryItem.basePrice}` : items.map(i => i.name).join(', ')}
           </p>
         </div>
 
         {/* Spoken Prompt / Live Voice Indicator */}
-        <div className="my-4 p-3 bg-[#FBE9E5]/40 rounded-2xl border border-[#F0E5DC] space-y-1">
-          <div className="flex items-center justify-between text-xs font-black text-[#33251F]">
+        <div className="my-4 p-3 bg-[#FCE8E3] rounded-2xl border border-[#E9DED5] space-y-1">
+          <div className="flex items-center justify-between text-xs font-black text-[#302720]">
             <span className="flex items-center gap-1.5 text-[#D93636]">
               <Volume2 className="w-4 h-4 animate-pulse" />
               <span>Prompt:</span>
@@ -337,7 +337,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
               </span>
             )}
           </div>
-          <p className="text-xs font-bold text-[#33251F]">{statusMessage || getPromptText()}</p>
+          <p className="text-xs font-bold text-[#302720]">{statusMessage || getPromptText()}</p>
           {liveTranscript && (
             <p className="text-xs font-extrabold text-[#D93636] italic">Heard: "{liveTranscript}"</p>
           )}
@@ -345,12 +345,12 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
 
         {/* Item Preview Card */}
         {items.length === 1 && (
-          <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-2xl border border-slate-200 mb-4">
+          <div className="flex items-center space-x-3 bg-[#FFFFFF] p-3 rounded-2xl border border-[#E9DED5] mb-4">
             <img src={primaryItem.image} alt={primaryItem.name} className="w-16 h-16 rounded-xl object-cover" />
             <div>
-              <h4 className="text-sm font-black text-[#33251F]">{primaryItem.name}</h4>
+              <h4 className="text-sm font-black text-[#302720]">{primaryItem.name}</h4>
               <p className="text-xs text-[#D93636] font-extrabold">{primaryItem.restaurant}</p>
-              <span className="text-xs font-black text-[#16A34A]">₹{primaryItem.basePrice}</span>
+              <span className="text-xs font-black text-[#43845C]">₹{primaryItem.basePrice}</span>
             </div>
           </div>
         )}
@@ -389,7 +389,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
                   console.log('[ItemActionChooser]: "Order Now" button clicked for items:', items);
                   debouncedSelectAction('order_now');
                 }}
-                className="w-full min-h-[48px] bg-[#D93636] hover:bg-[#33251F] text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
+                className="w-full min-h-[48px] bg-[#D93636] hover:bg-[#B9252D] text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
               >
                 <Zap className="w-5 h-5 text-white" />
                 <span>{t('orderNow')}</span>
@@ -402,7 +402,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
                   console.log('[ItemActionChooser]: "Schedule" button clicked for items:', items);
                   debouncedSelectAction('schedule');
                 }}
-                className="w-full min-h-[48px] bg-[#FBE9E5] hover:bg-[#F0E5DC] text-[#33251F] font-black py-3.5 px-4 rounded-2xl border-2 border-[#F0E5DC] shadow-sm transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
+                className="w-full min-h-[48px] bg-[#FFFFFF] hover:bg-[#F7F3EB] text-[#302720] font-black py-3.5 px-4 rounded-2xl border-2 border-[#E9DED5] shadow-sm transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
               >
                 <Clock className="w-5 h-5 text-[#D93636]" />
                 <span>{t('scheduleCart')}</span>
@@ -431,7 +431,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
               console.log('[ItemActionChooser]: "Add to Cart" button clicked for items:', items);
               debouncedSelectAction('add_to_cart');
             }}
-            className="w-full min-h-[48px] bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
+            className="w-full min-h-[48px] bg-[#43845C] hover:bg-[#326646] text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
           >
             <ShoppingCart className="w-5 h-5 text-white" />
             <span>{t('addToCart')}</span>

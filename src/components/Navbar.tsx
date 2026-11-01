@@ -716,7 +716,7 @@ export const Navbar: React.FC = () => {
           : 'bg-white/95 text-[#33251F] border-b border-[#F0E5DC] backdrop-blur-md shadow-xs'
       }`}
     >
-      <div className="header-container w-full max-w-7xl mx-auto px-4 sm:px-6 py-2.5 sm:py-3">
+      <div className="header-container w-full px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3">
         {/* MAIN TOP BAR */}
         <div className="flex items-center justify-between gap-4 w-full min-w-0">
           

@@ -244,11 +244,11 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
   if (!isOpen || !bill) return null;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className={`relative w-full max-w-lg max-h-[94vh] flex flex-col rounded-3xl p-4 sm:p-6 shadow-2xl transition-all border-4 overflow-hidden ${
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-2 sm:p-4 bg-[#302720]/40 backdrop-blur-sm animate-fadeIn">
+      <div className={`relative w-full max-w-lg max-h-[94vh] flex flex-col rounded-3xl p-4 sm:p-6 shadow-2xl transition-all border-2 overflow-hidden ${
         accessibilitySettings.highContrast
           ? 'bg-black text-white border-yellow-400'
-          : 'bg-white text-[#33251F] border-[#D93636]'
+          : 'bg-[#FFF8EF] text-[#302720] border-[#E9DED5]'
       }`}>
 
         {/* Header (Fixed Top) Actions */}
@@ -257,7 +257,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             type="button"
             onClick={() => window.print()}
             title="Print / Save Invoice"
-            className="p-2 rounded-full bg-[#FBE9E5] hover:bg-[#FBE9E5] text-[#D93636] transition-all cursor-pointer"
+            className="p-2 rounded-full bg-[#FCE8E3] hover:bg-[#FCE8E3]/80 text-[#D93636] border border-[#E9DED5] transition-all cursor-pointer"
           >
             <Printer className="w-4 h-4" />
           </button>
@@ -268,7 +268,7 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
               setIsListening(false);
               onClose();
             }}
-            className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-red-100 hover:text-red-600 transition-all text-[#8A817A] cursor-pointer"
+            className="p-2 rounded-full bg-[#FCE8E3] hover:bg-[#FCE8E3]/80 text-[#786E64] hover:text-[#302720] border border-[#E9DED5] transition-all cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -276,14 +276,14 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
 
         {/* Header (Fixed Top) */}
         <div className="flex items-center space-x-3 mb-3 pr-20 shrink-0">
-          <div className="p-2.5 bg-[#D93636]/10 rounded-2xl border border-[#D93636]/30 text-[#D93636] shrink-0">
+          <div className="p-2.5 bg-[#FCE8E3] rounded-2xl border border-[#E9DED5] text-[#D93636] shrink-0">
             <FileText className="w-6 h-6 text-[#D93636]" />
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#D93636] bg-[#D93636]/10 px-2.5 py-0.5 rounded-full inline-block truncate max-w-full">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#D93636] bg-[#FCE8E3] px-2.5 py-0.5 rounded-full inline-block truncate max-w-full border border-[#E9DED5]">
               {language === 'ta' ? 'GST இன்வாய்ஸ் விவரம்' : language === 'hi' ? 'जीएसटी चालान विवरण' : 'AutoFeast AI • Official GST Tax Invoice'}
             </span>
-            <h2 className="text-lg sm:text-xl font-black text-[#33251F] dark:text-white mt-0.5 truncate">
+            <h2 className="text-lg sm:text-xl font-black text-[#302720] mt-0.5 truncate">
               {bill.restaurantName}
             </h2>
           </div>
@@ -293,24 +293,24 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
         <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 my-1 text-xs">
           
           {/* Customer & Restaurant Billed Info */}
-          <div className="p-2.5 bg-[#FFF8F0] rounded-xl border border-[#F0E5DC] flex items-center justify-between text-xs">
+          <div className="p-2.5 bg-[#FFFFFF] rounded-xl border border-[#E9DED5] flex items-center justify-between text-xs shadow-xs">
             <div>
-              <span className="text-[10px] text-[#8A817A] block font-medium">Billed To</span>
-              <span className="font-bold text-[#33251F]">{currentUser?.name || 'Verified Customer'}</span>
+              <span className="text-[10px] text-[#786E64] block font-medium">Billed To</span>
+              <span className="font-bold text-[#302720]">{currentUser?.name || 'Verified Customer'}</span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-[#8A817A] block font-medium">Provider</span>
-              <span className="font-bold text-[#33251F]">{bill.restaurantName}</span>
+              <span className="text-[10px] text-[#786E64] block font-medium">Provider</span>
+              <span className="font-bold text-[#302720]">{bill.restaurantName}</span>
             </div>
           </div>
 
           {/* Delivery Address & ETA Badge */}
-          <div className="bg-[#FBE9E5]/40 dark:bg-slate-900/60 p-3 rounded-2xl border border-[#F0E5DC] dark:border-slate-800 flex items-center justify-between text-xs gap-2">
-            <div className="flex items-center space-x-2 text-[#8A817A] dark:text-slate-300 font-bold min-w-0 truncate">
+          <div className="bg-[#FFFFFF] p-3 rounded-2xl border border-[#E9DED5] flex items-center justify-between text-xs gap-2 shadow-xs">
+            <div className="flex items-center space-x-2 text-[#786E64] font-bold min-w-0 truncate">
               <MapPin className="w-4 h-4 text-[#D93636] shrink-0" />
               <span className="truncate">{bill.deliveryAddress}</span>
             </div>
-            <div className="flex items-center space-x-1 shrink-0 text-[#4F8964] font-black bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-200">
+            <div className="flex items-center space-x-1 shrink-0 text-[#43845C] font-black bg-[#43845C]/10 px-2 py-0.5 rounded-lg border border-[#43845C]/20">
               <Clock className="w-3.5 h-3.5" />
               <span>{bill.etaMinutes} mins</span>
             </div>
@@ -318,23 +318,23 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
 
           {/* Itemized Order List */}
           <div className="space-y-2">
-            <h4 className="text-xs font-black uppercase text-[#4A5568] dark:text-slate-400 tracking-wider">
+            <h4 className="text-xs font-black uppercase text-[#786E64] tracking-wider">
               {language === 'ta' ? 'உணவுப் பட்டியல்:' : language === 'hi' ? 'ऑर्डर आइटम:' : 'Order Items Breakdown:'}
             </h4>
             {bill.items.map((item, idx) => (
-              <div key={idx} className="p-2.5 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+              <div key={idx} className="p-2.5 bg-[#FFFFFF] rounded-2xl border border-[#E9DED5] flex items-center justify-between gap-2 shadow-xs">
                 <div className="flex items-center space-x-2.5 min-w-0">
                   <span className="w-6 h-6 rounded-lg bg-[#D93636] text-white font-black text-xs flex items-center justify-center shrink-0">
                     {item.quantity}x
                   </span>
                   <div className="min-w-0">
-                    <h5 className="text-xs font-black text-[#33251F] dark:text-white truncate">
+                    <h5 className="text-xs font-black text-[#302720] truncate">
                       {item.foodItem.nativeNames?.[language] || item.foodItem.name}
                     </h5>
-                    <span className="text-[10px] text-[#4A5568] dark:text-slate-400 font-bold block">₹{item.unitPrice} each</span>
+                    <span className="text-[10px] text-[#786E64] font-bold block">₹{item.unitPrice} each</span>
                   </div>
                 </div>
-                <span className="text-xs font-black text-[#33251F] dark:text-white shrink-0">₹{item.totalPrice}</span>
+                <span className="text-xs font-black text-[#302720] shrink-0">₹{item.totalPrice}</span>
               </div>
             ))}
           </div>
@@ -343,36 +343,36 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
           <PlatformComparisonSection items={bill.items} language={language} />
 
           {/* Tax & Bill Breakdown Calculation Card */}
-          <div className="bg-slate-100 dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
-            <div className="flex items-center justify-between text-[#4A5568] dark:text-slate-400 font-bold">
+          <div className="bg-[#F7F3EB] p-3 sm:p-4 rounded-2xl border border-[#E9DED5] space-y-1.5 text-xs text-[#302720]">
+            <div className="flex items-center justify-between text-[#786E64] font-bold">
               <span>{language === 'ta' ? 'பொருட்கள் தொகை' : language === 'hi' ? 'सब-टोटल' : 'Items Subtotal'}</span>
               <span>₹{bill.subtotal.toFixed(2)}</span>
             </div>
-            <div className="flex items-center justify-between text-[#4A5568] dark:text-slate-400 font-bold">
+            <div className="flex items-center justify-between text-[#786E64] font-bold">
               <span>CGST (2.5%)</span>
               <span>₹{bill.cgst.toFixed(2)}</span>
             </div>
-            <div className="flex items-center justify-between text-[#4A5568] dark:text-slate-400 font-bold">
+            <div className="flex items-center justify-between text-[#786E64] font-bold">
               <span>SGST (2.5%)</span>
               <span>₹{bill.sgst.toFixed(2)}</span>
             </div>
-            <div className="flex items-center justify-between text-[#4A5568] dark:text-slate-400 font-bold">
+            <div className="flex items-center justify-between text-[#786E64] font-bold">
               <span>{language === 'ta' ? 'டெலிவரி கட்டணம்' : language === 'hi' ? 'डिलीवरी शुल्क' : 'Delivery Fee'}</span>
               <span>₹{bill.deliveryFee.toFixed(2)}</span>
             </div>
-            <div className="flex items-center justify-between text-[#4A5568] dark:text-slate-400 font-bold">
+            <div className="flex items-center justify-between text-[#786E64] font-bold">
               <span>{language === 'ta' ? 'தள கட்டணம்' : language === 'hi' ? 'प्लेटफॉर्म शुल्क' : 'Platform Fee'}</span>
               <span>₹{bill.platformFee.toFixed(2)}</span>
             </div>
-            <div className="pt-2 border-t border-slate-300 dark:border-slate-700 flex items-center justify-between text-sm sm:text-base font-black text-[#33251F] dark:text-white">
+            <div className="pt-2 border-t border-[#E9DED5] flex items-center justify-between text-sm sm:text-base font-black text-[#302720]">
               <span className="text-[#D93636]">{language === 'ta' ? 'மொத்தத் தொகை (GST உடன்):' : language === 'hi' ? 'कुल योग (GST सहित):' : 'Grand Total (with GST):'}</span>
-              <span className="text-[#16A34A] text-lg sm:text-xl font-mono">₹{bill.grandTotal}</span>
+              <span className="text-[#43845C] text-lg sm:text-xl font-mono">₹{bill.grandTotal}</span>
             </div>
           </div>
 
           {/* Voice Confirmation Status Card */}
-          <div className="p-2.5 bg-slate-900 text-white rounded-2xl text-center space-y-1">
-            <div className="flex items-center justify-center space-x-2 text-xs font-black text-yellow-300">
+          <div className="p-2.5 bg-[#FCE8E3] text-[#302720] border border-[#E9DED5] rounded-2xl text-center space-y-1 shadow-xs">
+            <div className="flex items-center justify-center space-x-2 text-xs font-black text-[#D93636]">
               <Mic className="w-4 h-4 animate-bounce shrink-0" />
               <span className="truncate">
                 {isListening
@@ -381,12 +381,12 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
               </span>
             </div>
             {liveTranscript && (
-              <p className="text-[11px] text-emerald-400 font-bold truncate">Detected Speech: "{liveTranscript}"</p>
+              <p className="text-[11px] text-[#43845C] font-bold truncate">Detected Speech: "{liveTranscript}"</p>
             )}
           </div>
 
           {/* Prompt Question */}
-          <p className="text-center text-xs sm:text-sm font-black text-[#33251F] dark:text-white">
+          <p className="text-center text-xs sm:text-sm font-black text-[#302720]">
             {language === 'ta'
               ? 'இந்த ஆர்டரை பதிவு செய்ய விரும்புகிறீர்களா?'
               : language === 'hi'
@@ -396,17 +396,17 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
         </div>
 
         {/* Action Buttons (Fixed Bottom Container) */}
-        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center gap-2 shrink-0">
+        <div className="pt-3 border-t border-[#E9DED5] flex flex-col sm:flex-row items-center gap-2 shrink-0">
           <button
             onClick={() => {
               SpeechController.cancelSpeech();
-    SpeechController.releaseMic('cart_checkout');
+              SpeechController.releaseMic('cart_checkout');
               setIsListening(false);
               onClose();
             }}
-            className="w-full sm:w-1/3 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-[#4A5568] font-black rounded-2xl text-xs sm:text-sm transition-all border border-slate-300 flex items-center justify-center space-x-1 cursor-pointer"
+            className="w-full sm:w-1/3 py-3 px-4 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] font-black rounded-2xl text-xs sm:text-sm transition-all border border-[#E9DED5] flex items-center justify-center space-x-1 cursor-pointer shadow-xs"
           >
-            <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+            <XCircle className="w-4 h-4 text-[#D93636] shrink-0" />
             <span>{language === 'ta' ? 'ரத்து' : language === 'hi' ? 'रद्द करें' : 'Cancel'}</span>
           </button>
           <button
@@ -414,10 +414,10 @@ export const PreOrderBillModal: React.FC<PreOrderBillModalProps> = ({
             onClick={debouncedConfirmProceed}
             disabled={isChecking}
             aria-busy={isChecking}
-            className={`w-full sm:w-2/3 py-3 px-5 font-black rounded-2xl text-xs sm:text-sm shadow-lg transition-transform active:scale-95 flex items-center justify-center space-x-2 ${
+            className={`w-full sm:w-2/3 py-3 px-5 font-black rounded-2xl text-xs sm:text-sm shadow-md transition-transform active:scale-95 flex items-center justify-center space-x-2 ${
               isChecking
                 ? 'bg-[#D93636]/60 text-white cursor-not-allowed'
-                : 'bg-[#D93636] hover:bg-[#33251F] text-white shadow-[#D93636]/30 cursor-pointer'
+                : 'bg-[#D93636] hover:bg-[#B9252D] text-white shadow-[#D93636]/30 cursor-pointer'
             }`}
           >
             {isChecking ? (

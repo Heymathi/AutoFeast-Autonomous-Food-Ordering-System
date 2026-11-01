@@ -522,11 +522,11 @@ export const LocationPermissionModal: React.FC = () => {
   if (entryStep !== 'location_permission') return null;
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-lg bg-white text-[#33251F] rounded-3xl p-6 sm:p-8 shadow-2xl border-4 border-[#D93636] text-center space-y-5">
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#302720]/40 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-lg bg-[#FFF8EF] text-[#302720] rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-[#E9DED5] text-center space-y-5">
 
         {/* Header Icon */}
-        <div className="inline-flex p-4 bg-[#FBE9E5] rounded-full border-2 border-[#F0E5DC] text-[#D93636]">
+        <div className="inline-flex p-4 bg-[#FCE8E3] rounded-full border border-[#E9DED5] text-[#D93636]">
           <MapPin className="w-9 h-9 animate-bounce text-[#D93636]" />
         </div>
 
@@ -539,7 +539,7 @@ export const LocationPermissionModal: React.FC = () => {
 
         {/* Dynamic Header Question */}
         <div className="space-y-1">
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-[#33251F]">
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-[#302720]">
             {modalMode === 'confirming_place' && pendingCandidatePlace
               ? t('location.confirmLocation').replace('{place}', pendingCandidatePlace.addressName)
               : modalMode === 'asking_place'

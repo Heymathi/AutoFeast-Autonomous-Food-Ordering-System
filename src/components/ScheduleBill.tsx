@@ -98,13 +98,13 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
       : `${startDate} → ${endDate || 'Custom'}`;
 
   return (
-    <div className="space-y-4 text-xs text-[#33251F]">
+    <div className="space-y-4 text-xs text-[#302720]">
       
       {/* Bill Section Header */}
-      <div className="bg-[#FBE9E5]/50 p-3 rounded-2xl border border-[#F0E5DC] flex items-center justify-between">
+      <div className="bg-[#FCE8E3] p-3 rounded-2xl border border-[#E9DED5] flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <FileText className="w-4 h-4 text-[#D93636]" />
-          <span className="font-black text-[#33251F] uppercase tracking-wider">
+          <span className="font-black text-[#302720] uppercase tracking-wider">
             {language === 'ta'
               ? 'அட்டவணை பில் & GST விவரம்'
               : language === 'hi'
@@ -120,10 +120,10 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
       {/* Restaurant-grouped Items Section */}
       <div className="space-y-3">
         {restaurantNames.map(restName => (
-          <div key={restName} className="bg-slate-50 p-3.5 rounded-2xl border border-[#FBE9E5] space-y-2">
-            <div className="flex items-center justify-between border-b border-[#FBE9E5] pb-1.5">
+          <div key={restName} className="bg-[#FFFFFF] p-3.5 rounded-2xl border border-[#E9DED5] space-y-2">
+            <div className="flex items-center justify-between border-b border-[#E9DED5] pb-1.5">
               <span className="font-black text-[#D93636] uppercase text-xs">{restName}</span>
-              <span className="text-[10px] text-[#4A5568] font-bold">
+              <span className="text-[10px] text-[#786E64] font-bold">
                 {language === 'ta' ? 'டெலிவரி கட்டணம்:' : language === 'hi' ? 'डिलीवरी शुल्क:' : 'Delivery Fee:'} ₹{deliveryFeePerRestaurant}
               </span>
             </div>
@@ -150,16 +150,16 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
       </div>
 
       {/* Financial Breakdown Card */}
-      <div className="p-4 bg-[#FBE9E5]/40 rounded-2xl border border-[#F0E5DC] space-y-2 text-xs font-bold text-[#33251F]">
+      <div className="p-4 bg-[#F7F3EB] rounded-2xl border border-[#E9DED5] space-y-2 text-xs font-bold text-[#302720]">
         <div className="flex justify-between">
-          <span className="text-[#4A5568]">
+          <span className="text-[#786E64]">
             {language === 'ta' ? 'பொருட்கள் தொகை:' : language === 'hi' ? 'सामग्री सब-टोटल:' : 'Items Subtotal:'}
           </span>
           <span className="font-mono font-black">₹{subtotal.toFixed(2)}</span>
         </div>
 
         <div className="flex justify-between">
-          <span className="text-[#4A5568]">
+          <span className="text-[#786E64]">
             {language === 'ta'
               ? `டெலிவரி கட்டணம் (${restaurantNames.length} உணவகம்):`
               : language === 'hi'
@@ -170,19 +170,19 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
         </div>
 
         <div className="flex justify-between">
-          <span className="text-[#4A5568]">
+          <span className="text-[#786E64]">
             {language === 'ta' ? 'பிளாட்பார்ம் கட்டணம்:' : language === 'hi' ? 'प्लेटफॉर्म शुल्क:' : 'Platform Fee:'}
           </span>
           <span className="font-mono font-black">₹{platformFee.toFixed(2)}</span>
         </div>
 
         <div className="flex justify-between">
-          <span className="text-[#4A5568]">GST Tax (5%):</span>
+          <span className="text-[#786E64]">GST Tax (5%):</span>
           <span className="font-mono font-black">₹{gstTax.toFixed(2)}</span>
         </div>
 
         {/* Per-Order Total Row */}
-        <div className="flex justify-between border-t border-[#F0E5DC] pt-2 text-xs font-black text-[#33251F]">
+        <div className="flex justify-between border-t border-[#E9DED5] pt-2 text-xs font-black text-[#302720]">
           <span>
             {language === 'ta' ? 'ஒரு ஆர்டரின் மொத்தம் (Per-Order Total):' : language === 'hi' ? 'प्रति ऑर्डर कुल (Per-Order Total):' : 'Per-Order Total:'}
           </span>
@@ -190,7 +190,7 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
         </div>
 
         {/* Occurrences & Duration Row */}
-        <div className="flex justify-between text-xs font-black text-[#4A5568]">
+        <div className="flex justify-between text-xs font-black text-[#786E64]">
           <span>
             {language === 'ta' ? 'அட்டவணை சுழற்சி & நாட்கள்:' : language === 'hi' ? 'शेड्यूल अवधि और दिन:' : 'Schedule Duration & Occurrences:'}
           </span>
@@ -210,36 +210,36 @@ export const ScheduleBill: React.FC<ScheduleBillProps> = ({
       {showDailyLimitImpact && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Daily Limit Usage */}
-          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+          <div className="p-3 bg-[#FFFFFF] rounded-2xl border border-[#E9DED5] flex items-center justify-between">
             <div className="space-y-0.5">
-              <span className="text-[10px] font-black uppercase text-[#4A5568] block">
+              <span className="text-[10px] font-black uppercase text-[#786E64] block">
                 {language === 'ta' ? 'தினசரி ஆர்டர் வரம்பு பயன்பாடு' : language === 'hi' ? 'दैनिक सीमा उपयोग' : 'Daily Limit Impact'}
               </span>
-              <span className="text-xs font-black text-[#33251F]">
+              <span className="text-xs font-black text-[#302720]">
                 {dailyOrderCount}/6 {language === 'ta' ? 'ஆர்டர்கள் முடிந்தது' : language === 'hi' ? 'ऑर्डर प्रयुक्त' : 'orders used today'}
               </span>
             </div>
             <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
-              dailyOrderCount >= 6 ? 'bg-[#FBE9E5] text-rose-800' : 'bg-emerald-100 text-emerald-800'
+              dailyOrderCount >= 6 ? 'bg-[#FCE8E3] text-[#D93636]' : 'bg-[#43845C]/10 text-[#43845C]'
             }`}>
               {dailyOrderCount >= 6 ? 'Limit Full' : 'OK'}
             </span>
           </div>
 
           {/* Wallet Balance Status */}
-          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+          <div className="p-3 bg-[#FFFFFF] rounded-2xl border border-[#E9DED5] flex items-center justify-between">
             <div className="space-y-0.5">
-              <span className="text-[10px] font-black uppercase text-[#4A5568] block">
+              <span className="text-[10px] font-black uppercase text-[#786E64] block">
                 {language === 'ta' ? 'வால்லெட் இருப்பு' : language === 'hi' ? 'वॉलेट शेष' : 'Wallet Balance'}
               </span>
-              <span className="text-xs font-black font-mono text-[#33251F]">₹{walletBalance.toFixed(2)}</span>
+              <span className="text-xs font-black font-mono text-[#302720]">₹{walletBalance.toFixed(2)}</span>
             </div>
             {walletBalance >= perOrderTotal ? (
-              <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-black bg-[#43845C]/10 text-[#43845C] px-2 py-0.5 rounded-full">
                 Sufficient
               </span>
             ) : (
-              <span className="text-[10px] font-black bg-[#FBE9E5] text-rose-800 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-black bg-[#FCE8E3] text-[#D93636] px-2 py-0.5 rounded-full">
                 Low Balance
               </span>
             )}
