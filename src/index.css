@@ -266,7 +266,6 @@ header.app-header .header-container,
 /* Minimum 48px touch targets & content-based sizing */
 header.app-header button.header-btn,
 header.app-header a.header-btn,
-header.app-header nav button,
 header.app-header .header-chip,
 .accessibility-bar button {
   min-height: 48px !important;
@@ -277,6 +276,20 @@ header.app-header .header-chip,
   max-width: 100% !important;
   white-space: normal !important;
   overflow-wrap: anywhere !important;
+  text-align: center !important;
+  line-height: 1.5 !important;
+  font-weight: 700 !important;
+  box-sizing: border-box !important;
+}
+
+header.app-header nav button {
+  min-height: 40px !important;
+  height: auto !important;
+  padding: 6px 14px !important;
+  min-width: fit-content !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  white-space: nowrap !important;
   text-align: center !important;
   line-height: 1.5 !important;
   font-weight: 700 !important;
@@ -302,7 +315,6 @@ header.app-header svg,
 
 /* Pill groups wrap naturally with flex-start so no items clip on the left/right */
 header.app-header .header-brand-group,
-header.app-header .header-nav-group,
 .accessibility-bar .a11y-group {
   flex: 1 1 auto;
   display: flex !important;
@@ -312,10 +324,20 @@ header.app-header .header-nav-group,
   box-sizing: border-box !important;
 }
 
+header.app-header .header-nav-group {
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
 header.app-header .header-actions-group {
+  flex: 1 1 auto !important;
   display: flex !important;
   flex-wrap: wrap !important;
-  justify-content: flex-end !important;
+  justify-content: flex-start !important;
   align-items: center !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
