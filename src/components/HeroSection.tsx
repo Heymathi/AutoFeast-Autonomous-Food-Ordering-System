@@ -28,6 +28,10 @@ export const HeroSection: React.FC = () => {
   } = useApp();
 
   const [localSearchInput, setLocalSearchInput] = useState(searchQuery || '');
+
+  React.useEffect(() => {
+    setLocalSearchInput(searchQuery || '');
+  }, [searchQuery]);
   const [isMicListening, setIsMicListening] = useState(false);
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
@@ -106,16 +110,7 @@ export const HeroSection: React.FC = () => {
                   className="w-full bg-transparent text-sm sm:text-base text-[#33251F] placeholder-[#8A817A] focus:outline-none py-1.5"
                 />
 
-                {/* Voice mic inside search bar */}
-                <button
-                  type="button"
-                  onClick={handleVoiceSearchClick}
-                  aria-label="Voice search assistant"
-                  className="p-2 sm:p-2.5 rounded-full text-[#D93636] hover:bg-[#FBE9E5] transition-colors cursor-pointer mr-1.5 shrink-0"
-                  title="Search with Voice"
-                >
-                  <Mic className="w-5 h-5" />
-                </button>
+
 
                 {/* Solid Tomato Red Search Button */}
                 <button
@@ -212,107 +207,120 @@ export const HeroSection: React.FC = () => {
         </div>
       </section>
 
-      {/* 4 FEATURE SHORTCUT CARDS (Requirement 2 & PDF Page 1) */}
-      <section aria-label="Feature Shortcuts" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {/* 1. Nominee Management */}
-        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
-              <ShieldAlert className="w-6 h-6 text-[#D93636]" />
-            </div>
-            <h3 className="font-bold text-base text-[#33251F]">Nominee Management</h3>
-            <p className="text-xs text-[#8A817A] leading-relaxed">
-              Assign trusted contacts to review and approve orders on your behalf.
-            </p>
-          </div>
-          <div className="pt-4">
-            <button
-              type="button"
-              onClick={() => setIsNomineeModalOpen(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
-            >
-              <span>Manage nominee</span>
-              <span className="transition-transform group-hover:translate-x-1">→</span>
-            </button>
-          </div>
-        </div>
 
-        {/* 2. Recommendations */}
-        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-[#D93636]" />
-            </div>
-            <h3 className="font-bold text-base text-[#33251F]">Recommendation System</h3>
-            <p className="text-xs text-[#8A817A] leading-relaxed">
-              Dishes tailored to your dietary profile, past orders, and preferences.
-            </p>
-          </div>
-          <div className="pt-4">
-            <button
-              type="button"
-              onClick={() => {
-                const el = document.getElementById('recommended-dishes-section');
-                if (el) {
-                  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                } else {
-                  setIsHealthModalOpen(true);
-                }
-              }}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
-            >
-              <span>See picks</span>
-              <span className="transition-transform group-hover:translate-x-1">→</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 3. Auto Scheduler */}
-        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-[#D93636]" />
-            </div>
-            <h3 className="font-bold text-base text-[#33251F]">Auto Scheduler</h3>
-            <p className="text-xs text-[#8A817A] leading-relaxed">
-              Set recurring meals on your schedule so you never miss breakfast or dinner.
-            </p>
-          </div>
-          <div className="pt-4">
-            <button
-              type="button"
-              onClick={() => setActiveView('schedule')}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
-            >
-              <span>Open scheduler</span>
-              <span className="transition-transform group-hover:translate-x-1">→</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 4. Voice Search */}
-        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
-              <Mic className="w-6 h-6 text-[#D93636]" />
-            </div>
-            <h3 className="font-bold text-base text-[#33251F]">Voice Search</h3>
-            <p className="text-xs text-[#8A817A] leading-relaxed">
-              Order naturally using voice in English, Tamil, or Hindi with zero hassle.
-            </p>
-          </div>
-          <div className="pt-4">
-            <button
-              type="button"
-              onClick={() => setIsVoiceModalOpen(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
-            >
-              <span>Start speaking</span>
-              <span className="transition-transform group-hover:translate-x-1">→</span>
-            </button>
-          </div>
-        </div>
-      </section>
     </div>
+  );
+};
+
+
+export const FeatureShortcuts: React.FC = () => {
+  const {
+    setIsVoiceModalOpen,
+    setIsNomineeModalOpen,
+    setIsHealthModalOpen,
+    setActiveView
+  } = useApp();
+
+  return (
+    <section aria-label="Feature Shortcuts" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      {/* 1. Nominee Management */}
+      <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+        <div className="space-y-3">
+          <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+            <ShieldAlert className="w-6 h-6 text-[#D93636]" />
+          </div>
+          <h3 className="font-bold text-base text-[#33251F]">Nominee Management</h3>
+          <p className="text-xs text-[#8A817A] leading-relaxed">
+            Assign trusted contacts to review and approve orders on your behalf.
+          </p>
+        </div>
+        <div className="pt-4">
+          <button
+            type="button"
+            onClick={() => setIsNomineeModalOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+          >
+            <span>Manage nominee</span>
+            <span className="transition-transform group-hover:translate-x-1">→</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Recommendations */}
+      <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+        <div className="space-y-3">
+          <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+            <Sparkles className="w-6 h-6 text-[#D93636]" />
+          </div>
+          <h3 className="font-bold text-base text-[#33251F]">Recommendation System</h3>
+          <p className="text-xs text-[#8A817A] leading-relaxed">
+            Dishes tailored to your dietary profile, past orders, and preferences.
+          </p>
+        </div>
+        <div className="pt-4">
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('recommended-dishes-section');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              } else {
+                setIsHealthModalOpen(true);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+          >
+            <span>See picks</span>
+            <span className="transition-transform group-hover:translate-x-1">→</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Auto Scheduler */}
+      <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+        <div className="space-y-3">
+          <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+            <Calendar className="w-6 h-6 text-[#D93636]" />
+          </div>
+          <h3 className="font-bold text-base text-[#33251F]">Auto Scheduler</h3>
+          <p className="text-xs text-[#8A817A] leading-relaxed">
+            Set recurring meals on your schedule so you never miss breakfast or dinner.
+          </p>
+        </div>
+        <div className="pt-4">
+          <button
+            type="button"
+            onClick={() => setActiveView('schedule')}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+          >
+            <span>Open scheduler</span>
+            <span className="transition-transform group-hover:translate-x-1">→</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 4. Voice Search */}
+      <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+        <div className="space-y-3">
+          <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+            <Mic className="w-6 h-6 text-[#D93636]" />
+          </div>
+          <h3 className="font-bold text-base text-[#33251F]">Voice Search</h3>
+          <p className="text-xs text-[#8A817A] leading-relaxed">
+            Order naturally using voice in English, Tamil, or Hindi with zero hassle.
+          </p>
+        </div>
+        <div className="pt-4">
+          <button
+            type="button"
+            onClick={() => setIsVoiceModalOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+          >
+            <span>Start speaking</span>
+            <span className="transition-transform group-hover:translate-x-1">→</span>
+          </button>
+        </div>
+      </div>
+    </section>
   );
 };

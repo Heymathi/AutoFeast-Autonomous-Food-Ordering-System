@@ -185,7 +185,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <p className="font-semibold text-[#33251F] group-hover:text-[#D93636]">
-                    {t('profile.bankAccount') || 'Linked Bank Account Details'}
+                    {t('profile.linkedBankAccountDetails') || 'Linked Bank Account Details'}
                   </p>
                   <span className="text-[11px] font-bold text-[#D93636] bg-[#FBE9E5] px-1.5 py-0.5 rounded-sm">
                     ₹{walletBalance.toFixed(0)}
@@ -209,7 +209,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-[#33251F] group-hover:text-[#D93636]">
-                  {t('profile.healthConditions') || 'Health Condition Details'}
+                  {t('profile.healthConditionDetails') || 'Health Condition Details'}
                 </p>
                 <p className="text-[11px] text-[#8A817A] truncate">Dietary restrictions, allergies & wellness guide</p>
               </div>

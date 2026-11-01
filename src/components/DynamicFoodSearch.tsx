@@ -246,144 +246,127 @@ export const DynamicFoodSearch: React.FC = () => {
   return (
     <div id="dynamic-food-search-section" className="space-y-8">
       
-      {/* Search Header & Input Bar - Clean Elegant White Card */}
-      <div className={`p-6 sm:p-8 rounded-3xl transition-all ${
-        accessibilitySettings.highContrast
-          ? 'bg-black text-white border-2 border-yellow-400'
-          : 'bg-white text-zinc-900 border border-[#F0E5DC] shadow-[0_10px_30px_rgba(200,35,70,0.04)]'
-      }`}>
-        <div className="max-w-4xl mx-auto space-y-5">
-          
-          <div className="text-center space-y-1.5">
-            <h2 className="text-2xl sm:text-3xl font-black font-display tracking-tight text-[#33251F]">
-              Dynamic Food Search & Live GPS Location
+      {/* Food Categories and Filter Bar - Direct extension of Dynamic Food Search */}
+      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-[#F0E5DC] shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F0E5DC] pb-4">
+          <div>
+            <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#33251F] tracking-tight">
+              Food Categories & Catalog
             </h2>
-            <p className="text-xs sm:text-sm font-medium text-zinc-500">
-              OpenStreetMap Live Geocoding • Haversine Nearest Restaurant Sorting • Interactive Voice Prompts
+            <p className="text-xs sm:text-sm text-[#8A817A] font-medium mt-0.5">
+              {searchQuery
+                ? `Showing results for "${searchQuery}"`
+                : 'Handcrafted meals and dishes with live real-time price comparison across platforms'}
             </p>
           </div>
-
-          {/* MAIN SEARCH INPUT WITH CORAL MIC ICON & CALM LISTENING BADGE */}
-          <div className="relative flex-1 w-full flex flex-col justify-center">
-            <div className="relative flex items-center">
-              <Search className="absolute left-4 w-5 h-5 text-zinc-400 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder={t('search.placeholder')}
-                className="w-full pl-12 pr-14 py-4 rounded-full bg-[#FBE9E5]/60 hover:bg-[#FBE9E5] text-[#33251F] placeholder-zinc-400 font-semibold shadow-xs focus:outline-none focus:ring-2 focus:ring-[#D93636] focus:bg-white border border-[#F0E5DC] transition-all text-base"
-              />
-              
-              {/* MIC SEARCH ICON BUTTON ON RIGHT INSIDE SEARCH BAR */}
-              <button
-                type="button"
-                onClick={toggleSearchMic}
-                className={`absolute right-2.5 p-2.5 rounded-full transition-all cursor-pointer ${
-                  isMicListening
-                    ? 'bg-[#D93636] text-white shadow-md animate-pulse'
-                    : 'bg-[#FBE9E5] hover:bg-[#FBE9E5] text-[#D93636]'
-                }`}
-                title="Voice Search (Speak Food Name in English, Tamil, Hindi)"
-              >
-                {isMicListening ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5" />}
-              </button>
-            </div>
-
-            {/* Calm Spoken Transcription Display Badge */}
-            {(isMicListening || liveTranscript || categoryStatusText) && (
-              <div className="mt-3 p-3 bg-zinc-900 rounded-2xl text-emerald-200 text-xs font-bold flex items-center justify-between border border-rose-500/40 shadow-sm animate-fade-in">
-                <span className="flex items-center gap-2">
-                  <Volume2 className="w-4 h-4 text-[#D93636] animate-bounce" />
-                  {categoryStatusText || `Live Spoken Query: "${liveTranscript || searchQuery || 'Listening...'}"`}
-                </span>
-                <span className="text-[10px] bg-[#D93636] text-white px-2.5 py-0.5 rounded-full uppercase font-bold tracking-wide">
-                  Listening Active 🎙️
-                </span>
-              </div>
-            )}
-
-            {/* "Did You Mean?" Top 3 Candidate Suggestion Buttons */}
-            {topSuggestions && topSuggestions.items.length > 0 && (
-              <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2 animate-fade-in">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-amber-500" />
-                    {topSuggestions.prompt || 'Did you mean one of these?'}
-                  </span>
-                  <button
-                    onClick={() => setTopSuggestions(null)}
-                    className="text-[10px] font-bold text-zinc-500 hover:text-zinc-800 underline cursor-pointer"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {topSuggestions.items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => handleSelectSuggestion(item)}
-                      className="px-3.5 py-1.5 bg-white hover:bg-[#FBE9E5] text-[#33251F] font-bold text-xs rounded-full border border-[#F0E5DC] shadow-2xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-                    >
-                      <span>{item.nativeNames?.[language] || item.name}</span>
-                      <span className="text-[10px] text-zinc-400 font-normal">({item.restaurant})</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Filter Options: Location, Cuisine, Veg Toggle */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Location Selector */}
-              <div className="flex items-center space-x-2 bg-[#FBE9E5] px-3.5 py-2 rounded-full border border-[#F0E5DC] shadow-2xs">
-                <MapPin className="w-3.5 h-3.5 text-[#D93636]" />
-                <span className="text-xs font-bold text-zinc-600">City:</span>
-                <select
-                  value={selectedLocation}
-                  onChange={e => setSelectedLocation(e.target.value)}
-                  className="bg-transparent text-xs font-bold focus:outline-none text-zinc-900 cursor-pointer"
-                >
-                  {locationsList.map(loc => (
-                    <option key={loc} value={loc} className="text-black font-medium">{loc}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Cuisine Selector */}
-              <div className="flex items-center space-x-2 bg-[#FBE9E5] px-3.5 py-2 rounded-full border border-[#F0E5DC] shadow-2xs">
-                <Utensils className="w-3.5 h-3.5 text-[#D93636]" />
-                <span className="text-xs font-bold text-zinc-600">Cuisine:</span>
-                <select
-                  value={selectedCuisine}
-                  onChange={e => setSelectedCuisine(e.target.value)}
-                  className="bg-transparent text-xs font-bold focus:outline-none text-zinc-900 cursor-pointer"
-                >
-                  {cuisinesList.map(c => (
-                    <option key={c} value={c} className="text-black font-medium">{c}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Veg Only Toggle */}
+          {searchQuery && (
             <button
               type="button"
-              onClick={() => setVegOnly(!vegOnly)}
-              className={`flex items-center space-x-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer ${
-                vegOnly
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-white text-zinc-700 border border-[#F0E5DC] hover:bg-[#FBE9E5]'
-              }`}
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCuisine('All');
+                executeSearch('', false);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold text-[#D93636] bg-[#FBE9E5] hover:bg-[#D93636] hover:text-white border border-[#F0E5DC] transition-all cursor-pointer self-start sm:self-auto shadow-2xs"
             >
-              <Leaf className={`w-3.5 h-3.5 ${vegOnly ? 'text-white' : 'text-emerald-600'}`} />
-              <span>{t('search.vegOnly')}</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Clear Filter</span>
             </button>
+          )}
+        </div>
+
+        {/* 8 Food Categories matching Tomato Red + Warm Cream theme */}
+        <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto pb-2 scrollbar-none">
+          {[
+            { id: 'All', name: 'All Dishes', icon: '🍽️', count: '23' },
+            { id: 'Breakfast', name: 'Breakfast', icon: '🥞', count: '8' },
+            { id: 'Lunch', name: 'Lunch', icon: '🍱', count: '12' },
+            { id: 'Dinner', name: 'Dinner', icon: '🍛', count: '10' },
+            { id: 'Snacks', name: 'Snacks', icon: '🥪', count: '6' },
+            { id: 'Healthy Food', name: 'Healthy Food', icon: '🥗', count: '5' },
+            { id: 'Beverages', name: 'Beverages', icon: '🥤', count: '4' },
+            { id: 'Desserts', name: 'Desserts', icon: '🍨', count: '3' }
+          ].map((cat) => {
+            const isSelected = (cat.id === 'All' && !searchQuery) || (searchQuery && searchQuery.toLowerCase() === cat.name.toLowerCase());
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => {
+                  if (cat.id === 'All') {
+                    setSearchQuery('');
+                    setSelectedCuisine('All');
+                    executeSearch('', false);
+                  } else {
+                    setSearchQuery(cat.name);
+                    executeSearch(cat.name, false);
+                  }
+                }}
+                className={`px-3.5 sm:px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 shrink-0 transition-all cursor-pointer shadow-2xs border ${
+                  isSelected
+                    ? 'bg-[#D93636] text-white border-[#D93636] shadow-sm scale-105'
+                    : 'bg-white text-[#33251F] border-[#F0E5DC] hover:border-[#D93636] hover:bg-[#FBE9E5]'
+                }`}
+              >
+                <span>{cat.icon}</span>
+                <span>{cat.name}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                  isSelected ? 'bg-white/20 text-white' : 'bg-[#FBE9E5] text-[#8A817A]'
+                }`}>
+                  {cat.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Filter Controls: City, Cuisine, Veg Toggle */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+            {/* City Selector */}
+            <div className="flex items-center space-x-2 bg-[#FBE9E5] px-3.5 py-1.5 rounded-full border border-[#F0E5DC] shadow-2xs">
+              <MapPin className="w-3.5 h-3.5 text-[#D93636]" />
+              <span className="text-xs font-bold text-[#8A817A]">City:</span>
+              <select
+                value={selectedLocation}
+                onChange={e => setSelectedLocation(e.target.value)}
+                className="bg-transparent text-xs font-bold focus:outline-none text-[#33251F] cursor-pointer"
+              >
+                {locationsList.map(loc => (
+                  <option key={loc} value={loc} className="text-[#33251F] font-medium">{loc}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Cuisine Selector */}
+            <div className="flex items-center space-x-2 bg-[#FBE9E5] px-3.5 py-1.5 rounded-full border border-[#F0E5DC] shadow-2xs">
+              <Utensils className="w-3.5 h-3.5 text-[#D93636]" />
+              <span className="text-xs font-bold text-[#8A817A]">Cuisine:</span>
+              <select
+                value={selectedCuisine}
+                onChange={e => setSelectedCuisine(e.target.value)}
+                className="bg-transparent text-xs font-bold focus:outline-none text-[#33251F] cursor-pointer"
+              >
+                {cuisinesList.map(c => (
+                  <option key={c} value={c} className="text-[#33251F] font-medium">{c}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
+          {/* Veg Only Toggle */}
+          <button
+            type="button"
+            onClick={() => setVegOnly(!vegOnly)}
+            className={`flex items-center space-x-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer border ${
+              vegOnly
+                ? 'bg-emerald-600 text-white border-emerald-600'
+                : 'bg-white text-[#33251F] border-[#F0E5DC] hover:bg-[#FBE9E5]'
+            }`}
+          >
+            <Leaf className={`w-3.5 h-3.5 ${vegOnly ? 'text-white' : 'text-emerald-600'}`} />
+            <span>{t('search.vegOnly')}</span>
+          </button>
         </div>
       </div>
 

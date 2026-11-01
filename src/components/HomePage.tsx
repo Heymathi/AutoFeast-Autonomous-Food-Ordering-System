@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { HeroSection } from './HeroSection';
+import { HeroSection, FeatureShortcuts } from './HeroSection';
 import { DynamicFoodSearch } from './DynamicFoodSearch';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { FoodItem, Language } from '../types';
@@ -125,43 +125,16 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="space-y-12 sm:space-y-16 animate-fade-in pb-12">
-      {/* 1. Hero Section with Integrated Search Bar & 4 Feature Shortcuts */}
+      {/* 1. Hero Section with Heading, Description & Dynamic Search Bar */}
       <HeroSection />
 
-      {/* 2. Categories Section matching PDF Page 1 */}
-      <section className="space-y-5">
-        <div className="flex items-center justify-between border-b border-[#F0E5DC] pb-3">
-          <div>
-            <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#33251F]">
-              Food Categories
-            </h2>
-            <p className="text-xs sm:text-sm text-[#8A817A]">
-              Explore handcrafted meals curated for every time of day
-            </p>
-          </div>
-        </div>
+      {/* 2. Food Catalog (Directly below dynamic search bar with Categories and Food Items) */}
+      <DynamicFoodSearch />
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => handleCategorySelect(cat)}
-              className="p-4 rounded-2xl border border-[#F0E5DC] bg-white text-[#33251F] hover:border-[#D93636] hover:bg-[#FBE9E5]/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer flex flex-col items-center justify-center gap-2 group text-center shadow-2xs"
-            >
-              <span className="text-3xl sm:text-4xl group-hover:scale-110 transition-transform">
-                {cat.icon}
-              </span>
-              <span className="text-xs sm:text-sm font-bold text-[#33251F] group-hover:text-[#D93636] transition-colors">
-                {cat.name}
-              </span>
-              <span className="text-[10px] text-[#8A817A]">{cat.count}</span>
-            </button>
-          ))}
-        </div>
-      </section>
+      {/* 3. Feature Shortcuts (Nominee Management, Recommendation System, Auto Scheduler, Voice Search) */}
+      <FeatureShortcuts />
 
-      {/* 3. "Recommended For You" Section matching PDF Page 1 */}
+      {/* 4. "Recommended For You" Section matching PDF Page 1 */}
       <section id="recommended-dishes-section" className="space-y-6">
         <div className="flex items-center justify-between border-b border-[#F0E5DC] pb-3">
           <div>
@@ -241,9 +214,6 @@ export const HomePage: React.FC = () => {
           ))}
         </div>
       </section>
-
-      {/* 4. Dynamic Food Search (Interactive Catalog, Live Price Comparison & Voice Filter) */}
-      <DynamicFoodSearch />
 
       {/* 5. Nearby Top Rated Kitchens */}
       <section className="space-y-6">

@@ -2,6 +2,11 @@ import { Language } from '../types';
 
 export const TRANSLATIONS: Record<Language, Record<string, string>> = {
   en: {
+    'profile.userDetails': 'User Details',
+    'profile.linkedBankAccountDetails': 'Linked Bank Account Details',
+    'profile.healthConditionDetails': 'Health Condition Details',
+    'profile.nomineeDetails': 'Nominee Details',
+    'profile.logout': 'Logout',
     // Navigation & Header
     'nav.title': 'AutoFeast AI Smart Food System',
     'nav.search': 'Dynamic Search',
@@ -568,6 +573,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'welcome.langUnsupported': 'Speech recognition not supported for this language'
   },
   ta: {
+    'profile.userDetails': 'பயனர் விவரங்கள்',
+    'profile.linkedBankAccountDetails': 'இணைக்கப்பட்ட வங்கி கணக்கு விவரங்கள்',
+    'profile.healthConditionDetails': 'உடல்நல நிலை விவரங்கள்',
+    'profile.nomineeDetails': 'நாமினி விவரங்கள்',
+    'profile.logout': 'வெளியேறு',
     // Navigation & Header
     'nav.title': 'ஆட்டோஃபீஸ்ட் AI ஸ்மார்ட் உணவு அமைப்பு',
     'nav.search': 'உணவு தேடல்',
@@ -1119,6 +1129,11 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'welcome.langUnsupported': 'இந்த மொழிக்கு குரல் அறிதல் ஆதரிக்கப்படவில்லை'
   },
   hi: {
+    'profile.userDetails': 'उपयोगकर्ता विवरण',
+    'profile.linkedBankAccountDetails': 'लिंक्ड बैंक खाता विवरण',
+    'profile.healthConditionDetails': 'स्वास्थ्य स्थिति विवरण',
+    'profile.nomineeDetails': 'नामिनी विवरण',
+    'profile.logout': 'लॉग आउट',
     // Navigation & Header
     'nav.title': 'ऑटोफीस्ट एआई स्मार्ट फूड सिस्टम',
     'nav.search': 'भोजन खोजें',

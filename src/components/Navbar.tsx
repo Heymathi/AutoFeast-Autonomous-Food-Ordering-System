@@ -808,7 +808,7 @@ export const Navbar: React.FC = () => {
           {/* RIGHT SECTION – USER PROFILE, LOCATION, CART & MOBILE TOGGLE */}
           <div className="header-actions-group flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
             {/* Delivery Location Chip with Inline Popover */}
-            <div ref={locationContainerRef} className="relative hidden lg:block">
+            <div ref={locationContainerRef} className="relative hidden sm:block">
               <button
                 ref={locationChipRef}
                 type="button"
@@ -923,11 +923,24 @@ export const Navbar: React.FC = () => {
               )}
             </div>
 
-            {/* Cart Icon with Live Badge */}
+            {/* 7. Small microphone icon button immediately beside the location field */}
             <button
               type="button"
+              id="header-voice-search-btn"
+              onClick={() => setIsVoiceModalOpen(true)}
+              aria-label="Voice Search"
+              title="Voice Search (English / Tamil / Hindi)"
+              className="w-9 h-9 rounded-lg bg-[#FBE9E5] text-[#D93636] hover:bg-[#D93636] hover:text-white border border-[#F0E5DC] transition-all cursor-pointer shadow-xs flex items-center justify-center shrink-0 hover:scale-105 active:scale-95"
+            >
+              <Mic className="w-4 h-4" />
+            </button>
+
+            {/* 8. Cart icon with live badge */}
+            <button
+              type="button"
+              id="header-cart-btn"
               onClick={() => setIsScheduleCartModalOpen(true)}
-              className="p-2 rounded-lg text-[#8A817A] hover:text-[#D93636] hover:bg-[#FBE9E5] relative border border-[#F0E5DC] transition-colors cursor-pointer"
+              className="w-9 h-9 rounded-lg text-[#8A817A] hover:text-[#D93636] hover:bg-[#FBE9E5] relative border border-[#F0E5DC] transition-colors cursor-pointer flex items-center justify-center shrink-0"
               title="View Schedule Cart"
               aria-label="View Schedule Cart"
             >
@@ -939,18 +952,18 @@ export const Navbar: React.FC = () => {
               )}
             </button>
 
-            {/* User Profile Dropdown (Top-Right) */}
-            <UserProfileDropdown onNavigateFeatures={() => setActiveView('features')} />
-
-            {/* Mobile Hamburger Toggle Button */}
+            {/* Mobile Hamburger Toggle Button (md:hidden, placed before profile so profile is at extreme right) */}
             <button
               type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-[#33251F] hover:bg-[#FBE9E5] border border-[#F0E5DC] transition-colors cursor-pointer"
+              className="md:hidden w-9 h-9 rounded-lg text-[#33251F] hover:bg-[#FBE9E5] border border-[#F0E5DC] transition-colors cursor-pointer flex items-center justify-center shrink-0"
               aria-label="Toggle navigation menu"
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
+
+            {/* 9. User profile icon at the extreme right */}
+            <UserProfileDropdown onNavigateFeatures={() => setActiveView('features')} />
           </div>
 
         </div>
