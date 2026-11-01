@@ -101,7 +101,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
   };
 
   return (
-    <div ref={dropdownRef} className="relative inline-block text-left shrink-0">
+    <div ref={dropdownRef} className="relative inline-block text-left shrink-0 ml-auto">
       {/* Profile Toggle Button (Navbar Right Side - Circular Person Icon matching PDF) */}
       <button
         type="button"

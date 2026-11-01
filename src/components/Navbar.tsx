@@ -806,7 +806,7 @@ export const Navbar: React.FC = () => {
           </nav>
 
           {/* RIGHT SECTION – USER PROFILE, LOCATION, CART & MOBILE TOGGLE */}
-          <div className="header-actions-group flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
+          <div className="header-actions-group flex flex-wrap items-center justify-end gap-2 sm:gap-3 shrink-0 ml-auto">
             {/* Delivery Location Chip with Inline Popover */}
             <div ref={locationContainerRef} className="relative hidden sm:block">
               <button

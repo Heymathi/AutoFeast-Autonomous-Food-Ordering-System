@@ -303,12 +303,20 @@ header.app-header svg,
 /* Pill groups wrap naturally with flex-start so no items clip on the left/right */
 header.app-header .header-brand-group,
 header.app-header .header-nav-group,
-header.app-header .header-actions-group,
 .accessibility-bar .a11y-group {
   flex: 1 1 auto;
   display: flex !important;
   flex-wrap: wrap !important;
   justify-content: flex-start !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+header.app-header .header-actions-group {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
 }
