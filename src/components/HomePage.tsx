@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { HeroSection, FeatureShortcuts } from './HeroSection';
+import { HeroSection } from './HeroSection';
 import { DynamicFoodSearch } from './DynamicFoodSearch';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { FoodItem, Language } from '../types';
@@ -125,14 +125,11 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="space-y-12 sm:space-y-16 animate-fade-in pb-12">
-      {/* 1. Hero Section with Heading, Description & Dynamic Search Bar */}
+      {/* 1. Hero Section: "Discover Your Next Favourite Meal" */}
       <HeroSection />
 
-      {/* 2. Food Catalog (Directly below dynamic search bar with Categories and Food Items) */}
+      {/* 2. Dynamic Food Search (with food image on right), 3. Four Feature Cards, 4. Food Catalog */}
       <DynamicFoodSearch />
-
-      {/* 3. Feature Shortcuts (Nominee Management, Recommendation System, Auto Scheduler, Voice Search) */}
-      <FeatureShortcuts />
 
       {/* 4. "Recommended For You" Section matching PDF Page 1 */}
       <section id="recommended-dishes-section" className="space-y-6">

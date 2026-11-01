@@ -923,16 +923,17 @@ export const Navbar: React.FC = () => {
               )}
             </div>
 
-            {/* 7. Small microphone icon button immediately beside the location field */}
+            {/* 7. Voice Search Button: 🎤 Voice Search (Icon + Text) */}
             <button
               type="button"
               id="header-voice-search-btn"
               onClick={() => setIsVoiceModalOpen(true)}
               aria-label="Voice Search"
               title="Voice Search (English / Tamil / Hindi)"
-              className="w-9 h-9 rounded-lg bg-[#FBE9E5] text-[#D93636] hover:bg-[#D93636] hover:text-white border border-[#F0E5DC] transition-all cursor-pointer shadow-xs flex items-center justify-center shrink-0 hover:scale-105 active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FBE9E5] text-[#D93636] hover:bg-[#D93636] hover:text-white border border-[#F0E5DC] transition-all cursor-pointer text-xs font-bold shadow-xs hover:scale-105 active:scale-95 shrink-0"
             >
-              <Mic className="w-4 h-4" />
+              <Mic className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Voice Search</span>
             </button>
 
             {/* 8. Cart icon with live badge */}

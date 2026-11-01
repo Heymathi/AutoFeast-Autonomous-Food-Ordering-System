@@ -12,7 +12,7 @@ import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
 import { ItemActionChooser } from './ItemActionChooser';
 import { PriceComparisonModal } from './PriceComparisonModal';
 import { SearchGuidedOrderModal as _SearchGuidedOrderModal } from './SearchGuidedOrderModal'; // mounted in App.tsx
-import { Search, MapPin, Utensils, Leaf, Star, Clock, Sparkles, AlertCircle, ShieldCheck, Zap, Navigation, Mic, MicOff, Volume2, BarChart2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Search, MapPin, Utensils, Leaf, Star, Clock, Sparkles, AlertCircle, ShieldCheck, ShieldAlert, Calendar, Zap, Navigation, Mic, MicOff, Volume2, BarChart2, ArrowLeft, ArrowRight } from 'lucide-react';
 
 export const DynamicFoodSearch: React.FC = () => {
   const {
@@ -40,7 +40,10 @@ export const DynamicFoodSearch: React.FC = () => {
     checkIsItemRestrictedByNominee,
     isItemApprovedByNominee,
     handleNomineeRestrictedInterception,
-    processNaturalLanguageVoiceCommand
+    processNaturalLanguageVoiceCommand,
+    setIsNomineeModalOpen,
+    setIsHealthModalOpen,
+    setIsVoiceModalOpen
   } = useApp();
 
   const [isMicListening, setIsMicListening] = useState(false);
@@ -244,497 +247,548 @@ export const DynamicFoodSearch: React.FC = () => {
   };
 
   return (
-    <div id="dynamic-food-search-section" className="space-y-8">
+    <div className="space-y-10 sm:space-y-12">
       
-      {/* Food Categories and Filter Bar - Direct extension of Dynamic Food Search */}
-      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-[#F0E5DC] shadow-xs space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F0E5DC] pb-4">
-          <div>
-            <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#33251F] tracking-tight">
-              Food Categories & Catalog
-            </h2>
-            <p className="text-xs sm:text-sm text-[#8A817A] font-medium mt-0.5">
-              {searchQuery
-                ? `Showing results for "${searchQuery}"`
-                : 'Handcrafted meals and dishes with live real-time price comparison across platforms'}
+      {/* 1. DYNAMIC FOOD SEARCH SECTION – TWO-COLUMN LAYOUT (Search on Left, Food Image on Right) */}
+      <section
+        id="dynamic-food-search-section"
+        className="bg-white rounded-3xl p-6 sm:p-8 lg:p-10 border border-[#F0E5DC] shadow-[0_10px_35px_rgba(51,37,31,0.05)] transition-all"
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          
+          {/* LEFT COLUMN: Dynamic Food Search Heading, Input & Filters */}
+          <div className="lg:col-span-7 space-y-5 text-left">
+            <div className="space-y-1.5">
+              <h2 className="font-serif-editorial text-2xl sm:text-3xl lg:text-4xl font-bold text-[#33251F] tracking-tight">
+                Dynamic Food Search & Live GPS Location
+              </h2>
+              <p className="text-xs sm:text-sm text-[#8A817A] font-medium leading-relaxed">
+                OpenStreetMap Live Geocoding • Haversine Nearest Restaurant Sorting • Interactive Voice Prompts
+              </p>
+            </div>
+
+            {/* Large Food Search Input with Search Icon */}
+            <div className="relative flex items-center">
+              <div className="absolute left-4 text-[#8A817A] pointer-events-none">
+                <Search className="w-5 h-5 text-[#8A817A]" />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => {
+                  setSearchQuery(e.target.value);
+                  executeSearch(e.target.value, false);
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    executeSearch(searchQuery, true);
+                  }
+                }}
+                placeholder={t('search.placeholder') || "Search food dishes in English, Tamil (பரோட்டா) or Hindi (बिरयानी)..."}
+                aria-label="Search food dishes in English, Tamil or Hindi"
+                className="w-full pl-12 pr-28 py-3.5 sm:py-4 rounded-2xl bg-[#FBE9E5]/40 hover:bg-[#FBE9E5]/60 text-[#33251F] placeholder-[#8A817A] font-medium text-sm sm:text-base border border-[#F0E5DC] focus:outline-none focus:ring-2 focus:ring-[#D93636] focus:bg-white transition-all shadow-2xs"
+              />
+              <button
+                type="button"
+                onClick={() => executeSearch(searchQuery, true)}
+                className="absolute right-2.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-[#D93636] hover:bg-[#C02B2B] text-white text-xs sm:text-sm font-bold shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              >
+                Search
+              </button>
+            </div>
+
+            {/* Filters: City Selector, Cuisine Selector, Veg Only Toggle */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+                {/* City/Location Dropdown */}
+                <div className="flex items-center space-x-2 bg-[#FBE9E5] px-3.5 py-2 rounded-xl border border-[#F0E5DC] shadow-2xs">
+                  <MapPin className="w-4 h-4 text-[#D93636] shrink-0" />
+                  <span className="text-xs font-bold text-[#8A817A]">City:</span>
+                  <select
+                    value={selectedLocation}
+                    onChange={e => setSelectedLocation(e.target.value)}
+                    className="bg-transparent text-xs font-bold focus:outline-none text-[#33251F] cursor-pointer"
+                  >
+                    {locationsList.map(loc => (
+                      <option key={loc} value={loc} className="text-[#33251F] font-medium">{loc}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Cuisine Dropdown */}
+                <div className="flex items-center space-x-2 bg-[#FBE9E5] px-3.5 py-2 rounded-xl border border-[#F0E5DC] shadow-2xs">
+                  <Utensils className="w-4 h-4 text-[#D93636] shrink-0" />
+                  <span className="text-xs font-bold text-[#8A817A]">Cuisine:</span>
+                  <select
+                    value={selectedCuisine}
+                    onChange={e => setSelectedCuisine(e.target.value)}
+                    className="bg-transparent text-xs font-bold focus:outline-none text-[#33251F] cursor-pointer"
+                  >
+                    {cuisinesList.map(c => (
+                      <option key={c} value={c} className="text-[#33251F] font-medium">{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Vegetarian Only Option */}
+              <button
+                type="button"
+                onClick={() => setVegOnly(!vegOnly)}
+                className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer border ${
+                  vegOnly
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white text-[#33251F] border-[#F0E5DC] hover:bg-[#FBE9E5]'
+                }`}
+              >
+                <Leaf className={`w-3.5 h-3.5 ${vegOnly ? 'text-white' : 'text-emerald-600'}`} />
+                <span>{t('search.vegOnly') || 'Veg Only'}</span>
+              </button>
+            </div>
+
+            {/* Quick Test Prompt Chips */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+              <span className="text-[#8A817A] font-semibold flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-[#D93636]" /> Quick test:
+              </span>
+              {quickTestCases.map(tc => (
+                <button
+                  key={tc.label}
+                  type="button"
+                  onClick={() => handleQuickTest(tc.query)}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#FBE9E5]/60 hover:bg-[#D93636] hover:text-white text-[#33251F] border border-[#F0E5DC] transition-all cursor-pointer"
+                >
+                  {tc.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: Attractive High-Quality Food Photograph */}
+          <div className="lg:col-span-5 flex items-center justify-center">
+            <div className="relative w-full h-64 sm:h-72 lg:h-84 rounded-3xl overflow-hidden border border-[#F0E5DC] shadow-md group">
+              <img
+                src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80"
+                alt="Delicious gourmet food feast bowl"
+                className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs font-semibold px-3 py-2 rounded-xl bg-black/40 backdrop-blur-md border border-white/20">
+                <span className="flex items-center gap-1.5">
+                  <Navigation className="w-3.5 h-3.5 text-[#D93636]" />
+                  <span>Live GPS Haversine Sorting</span>
+                </span>
+                <span className="text-amber-400 font-bold">★ 4.9</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* 2. FOUR FEATURE CARDS – BETWEEN SEARCH AND FOOD CATALOG (Order: Nominee, Recommendation, Scheduler, Voice) */}
+      <section aria-label="Feature Shortcuts" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        {/* 1. Nominee Management */}
+        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+              <ShieldAlert className="w-6 h-6 text-[#D93636]" />
+            </div>
+            <h3 className="font-serif-editorial font-bold text-base sm:text-lg text-[#33251F]">Nominee Management</h3>
+            <p className="text-xs text-[#8A817A] leading-relaxed">
+              Assign trusted contacts to review and approve orders on your behalf.
             </p>
           </div>
-          {searchQuery && (
+          <div className="pt-4">
+            <button
+              type="button"
+              onClick={() => setIsNomineeModalOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+            >
+              <span>Manage nominee</span>
+              <span className="transition-transform group-hover:translate-x-1">→</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 2. Recommendation System */}
+        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+              <Sparkles className="w-6 h-6 text-[#D93636]" />
+            </div>
+            <h3 className="font-serif-editorial font-bold text-base sm:text-lg text-[#33251F]">Recommendation System</h3>
+            <p className="text-xs text-[#8A817A] leading-relaxed">
+              Dishes tailored to your dietary profile, past orders, and preferences.
+            </p>
+          </div>
+          <div className="pt-4">
             <button
               type="button"
               onClick={() => {
-                setSearchQuery('');
-                setSelectedCuisine('All');
-                executeSearch('', false);
+                const el = document.getElementById('recommended-dishes-section');
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                  setIsHealthModalOpen(true);
+                }
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold text-[#D93636] bg-[#FBE9E5] hover:bg-[#D93636] hover:text-white border border-[#F0E5DC] transition-all cursor-pointer self-start sm:self-auto shadow-2xs"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Clear Filter</span>
+              <span>See picks</span>
+              <span className="transition-transform group-hover:translate-x-1">→</span>
             </button>
-          )}
+          </div>
         </div>
 
-        {/* 8 Food Categories matching Tomato Red + Warm Cream theme */}
-        <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto pb-2 scrollbar-none">
-          {[
-            { id: 'All', name: 'All Dishes', icon: '🍽️', count: '23' },
-            { id: 'Breakfast', name: 'Breakfast', icon: '🥞', count: '8' },
-            { id: 'Lunch', name: 'Lunch', icon: '🍱', count: '12' },
-            { id: 'Dinner', name: 'Dinner', icon: '🍛', count: '10' },
-            { id: 'Snacks', name: 'Snacks', icon: '🥪', count: '6' },
-            { id: 'Healthy Food', name: 'Healthy Food', icon: '🥗', count: '5' },
-            { id: 'Beverages', name: 'Beverages', icon: '🥤', count: '4' },
-            { id: 'Desserts', name: 'Desserts', icon: '🍨', count: '3' }
-          ].map((cat) => {
-            const isSelected = (cat.id === 'All' && !searchQuery) || (searchQuery && searchQuery.toLowerCase() === cat.name.toLowerCase());
-            return (
+        {/* 3. Auto Scheduler */}
+        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-[#D93636]" />
+            </div>
+            <h3 className="font-serif-editorial font-bold text-base sm:text-lg text-[#33251F]">Auto Scheduler</h3>
+            <p className="text-xs text-[#8A817A] leading-relaxed">
+              Set recurring meals on your schedule so you never miss breakfast or dinner.
+            </p>
+          </div>
+          <div className="pt-4">
+            <button
+              type="button"
+              onClick={() => setActiveView('schedule')}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+            >
+              <span>Open scheduler</span>
+              <span className="transition-transform group-hover:translate-x-1">→</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4. Voice Search */}
+        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
+              <Mic className="w-6 h-6 text-[#D93636]" />
+            </div>
+            <h3 className="font-serif-editorial font-bold text-base sm:text-lg text-[#33251F]">Voice Search</h3>
+            <p className="text-xs text-[#8A817A] leading-relaxed">
+              Order naturally using voice in English, Tamil, or Hindi with zero hassle.
+            </p>
+          </div>
+          <div className="pt-4">
+            <button
+              type="button"
+              onClick={() => setIsVoiceModalOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
+            >
+              <span>Start speaking</span>
+              <span className="transition-transform group-hover:translate-x-1">→</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. FOOD CATALOG – DIRECTLY AFTER THE FOUR FEATURE CARDS */}
+      <section id="food-catalog-section" className="space-y-6">
+        
+        {/* Categories Bar & Results Header */}
+        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-[#F0E5DC] shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F0E5DC] pb-4">
+            <div>
+              <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#33251F] tracking-tight">
+                Food Categories & Catalog
+              </h2>
+              <p className="text-xs sm:text-sm text-[#8A817A] font-medium mt-0.5">
+                {searchQuery
+                  ? `Showing results for "${searchQuery}"`
+                  : 'Explore handcrafted meals and dishes with live real-time price comparison across food platforms'}
+              </p>
+            </div>
+            {searchQuery && (
               <button
-                key={cat.id}
                 type="button"
                 onClick={() => {
-                  if (cat.id === 'All') {
-                    setSearchQuery('');
-                    setSelectedCuisine('All');
-                    executeSearch('', false);
-                  } else {
-                    setSearchQuery(cat.name);
-                    executeSearch(cat.name, false);
-                  }
+                  setSearchQuery('');
+                  setSelectedCuisine('All');
+                  executeSearch('', false);
                 }}
-                className={`px-3.5 sm:px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 shrink-0 transition-all cursor-pointer shadow-2xs border ${
-                  isSelected
-                    ? 'bg-[#D93636] text-white border-[#D93636] shadow-sm scale-105'
-                    : 'bg-white text-[#33251F] border-[#F0E5DC] hover:border-[#D93636] hover:bg-[#FBE9E5]'
-                }`}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold text-[#D93636] bg-[#FBE9E5] hover:bg-[#D93636] hover:text-white border border-[#F0E5DC] transition-all cursor-pointer self-start sm:self-auto shadow-2xs"
               >
-                <span>{cat.icon}</span>
-                <span>{cat.name}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                  isSelected ? 'bg-white/20 text-white' : 'bg-[#FBE9E5] text-[#8A817A]'
-                }`}>
-                  {cat.count}
-                </span>
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Clear Filter</span>
               </button>
-            );
-          })}
-        </div>
-
-        {/* Filter Controls: City, Cuisine, Veg Toggle */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-            {/* City Selector */}
-            <div className="flex items-center space-x-2 bg-[#FBE9E5] px-3.5 py-1.5 rounded-full border border-[#F0E5DC] shadow-2xs">
-              <MapPin className="w-3.5 h-3.5 text-[#D93636]" />
-              <span className="text-xs font-bold text-[#8A817A]">City:</span>
-              <select
-                value={selectedLocation}
-                onChange={e => setSelectedLocation(e.target.value)}
-                className="bg-transparent text-xs font-bold focus:outline-none text-[#33251F] cursor-pointer"
-              >
-                {locationsList.map(loc => (
-                  <option key={loc} value={loc} className="text-[#33251F] font-medium">{loc}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Cuisine Selector */}
-            <div className="flex items-center space-x-2 bg-[#FBE9E5] px-3.5 py-1.5 rounded-full border border-[#F0E5DC] shadow-2xs">
-              <Utensils className="w-3.5 h-3.5 text-[#D93636]" />
-              <span className="text-xs font-bold text-[#8A817A]">Cuisine:</span>
-              <select
-                value={selectedCuisine}
-                onChange={e => setSelectedCuisine(e.target.value)}
-                className="bg-transparent text-xs font-bold focus:outline-none text-[#33251F] cursor-pointer"
-              >
-                {cuisinesList.map(c => (
-                  <option key={c} value={c} className="text-[#33251F] font-medium">{c}</option>
-                ))}
-              </select>
-            </div>
+            )}
           </div>
 
-          {/* Veg Only Toggle */}
-          <button
-            type="button"
-            onClick={() => setVegOnly(!vegOnly)}
-            className={`flex items-center space-x-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer border ${
-              vegOnly
-                ? 'bg-emerald-600 text-white border-emerald-600'
-                : 'bg-white text-[#33251F] border-[#F0E5DC] hover:bg-[#FBE9E5]'
-            }`}
-          >
-            <Leaf className={`w-3.5 h-3.5 ${vegOnly ? 'text-white' : 'text-emerald-600'}`} />
-            <span>{t('search.vegOnly')}</span>
-          </button>
+          {/* 8 Categories Pills */}
+          <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto pb-2 scrollbar-none">
+            {[
+              { id: 'All', name: 'All Dishes', icon: '🍽️', count: '23' },
+              { id: 'Breakfast', name: 'Breakfast', icon: '🥞', count: '8' },
+              { id: 'Lunch', name: 'Lunch', icon: '🍱', count: '12' },
+              { id: 'Dinner', name: 'Dinner', icon: '🍛', count: '10' },
+              { id: 'Snacks', name: 'Snacks', icon: '🥪', count: '6' },
+              { id: 'Healthy Food', name: 'Healthy Food', icon: '🥗', count: '5' },
+              { id: 'Beverages', name: 'Beverages', icon: '🥤', count: '4' },
+              { id: 'Desserts', name: 'Desserts', icon: '🍨', count: '3' }
+            ].map((cat) => {
+              const isSelected = (cat.id === 'All' && !searchQuery) || (searchQuery && searchQuery.toLowerCase() === cat.name.toLowerCase());
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => {
+                    if (cat.id === 'All') {
+                      setSearchQuery('');
+                      setSelectedCuisine('All');
+                      executeSearch('', false);
+                    } else {
+                      setSearchQuery(cat.name);
+                      executeSearch(cat.name, false);
+                    }
+                  }}
+                  className={`px-3.5 sm:px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 shrink-0 transition-all cursor-pointer shadow-2xs border ${
+                    isSelected
+                      ? 'bg-[#D93636] text-white border-[#D93636] shadow-sm scale-105'
+                      : 'bg-white text-[#33251F] border-[#F0E5DC] hover:border-[#D93636] hover:bg-[#FBE9E5]'
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.name}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-[#FBE9E5] text-[#8A817A]'
+                  }`}>
+                    {cat.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      {/* Quick Test Prompt Chips */}
-      <div className="bg-[#FBE9E5]/40 p-4 rounded-3xl border border-[#F0E5DC] shadow-2xs">
-        <div className="flex items-center space-x-2 mb-2.5">
-          <Sparkles className="w-3.5 h-3.5 text-[#D93636]" />
-          <span className="text-xs font-extrabold text-zinc-800 uppercase tracking-wider">
-            {t('search.quickTestsTitle')}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {quickTestCases.map(tc => (
+        {/* DID YOU MEAN SUGGESTION CHIP */}
+        {searchResult.didYouMean && (
+          <div className="bg-[#FBE9E5] border border-[#F0E5DC] p-4 rounded-3xl flex items-center justify-between shadow-2xs">
+            <div className="flex items-center space-x-2 text-sm font-bold text-zinc-900">
+              <Sparkles className="w-4 h-4 text-[#D93636]" />
+              <span>{t('search.didYouMean')}</span>
+            </div>
             <button
-              key={tc.label}
-              onClick={() => handleQuickTest(tc.query)}
-              className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-white text-zinc-700 hover:bg-[#D93636] hover:text-white transition-all shadow-2xs border border-[#F0E5DC] cursor-pointer"
+              type="button"
+              onClick={() => {
+                setSearchQuery(searchResult.didYouMean!.name);
+                executeSearch(searchResult.didYouMean!.name, true);
+              }}
+              className="px-4 py-2 rounded-xl bg-[#D93636] text-white font-extrabold text-xs hover:bg-[#33251F] transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
             >
-              "{tc.label}"
+              <span>{searchResult.didYouMean.nativeNames?.[language] || searchResult.didYouMean.name}</span>
+              <span className="text-[10px] opacity-80">({searchResult.didYouMean.name})</span>
             </button>
+          </div>
+        )}
+
+        {/* ZERO-FALLBACK NOTICE when item unavailable */}
+        {!searchResult.isExactMatch && (
+          <div className="bg-[#D93636]/10 border-2 border-[#D93636] p-4 rounded-2xl text-[#D93636] space-y-2">
+            <div className="flex items-center space-x-2 text-base font-black">
+              <AlertCircle className="w-5 h-5 text-[#D93636]" />
+              <span>{t('search.noResultsTitle')}</span>
+            </div>
+            <p className="text-xs sm:text-sm font-bold">{t('search.noResultsMessage')}</p>
+            <div className="p-3 bg-white rounded-xl border border-[#D93636]/30 text-xs font-extrabold text-[#33251F]">
+              <ShieldCheck className="w-4 h-4 inline mr-1 text-[#16A34A]" />
+              {t('search.zeroFallbackNotice')}
+            </div>
+            {searchResult.offlineHint && (
+              <p className="text-xs font-bold text-amber-800 bg-amber-100/80 p-2.5 rounded-xl border border-amber-300 flex items-center gap-1.5" data-testid="offline-smart-search-hint">
+                <span>🌐</span>
+                <span>{language === 'ta' ? 'ஸ்மார்ட் தேடலுக்கு இணையம் தேவை (Internet needed for smart search)' : language === 'hi' ? 'स्मार्ट खोज के लिए इंटरनेट आवश्यक है (Internet needed for smart search)' : 'Internet needed for smart search'}</span>
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* RESULTS GRID: Clean Food Cards with Coral Red CTA Buttons */}
+        <div id="food-results-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+          {(searchResult.isExactMatch ? searchResult.matchedItems : searchResult.suggestedItems).map(item => (
+            <div
+              key={item.id}
+              className={`group rounded-3xl overflow-hidden shadow-[0_4px_25px_rgba(0,0,0,0.04)] border border-[#F0E5DC] transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col justify-between ${
+                accessibilitySettings.highContrast
+                  ? 'bg-black text-white border-2 border-yellow-400'
+                  : 'bg-white text-zinc-900'
+              }`}
+            >
+              <div>
+                {/* Food Image with Veg Badge & Distance */}
+                <div className="relative h-48 overflow-hidden bg-[#FBE9E5]/60">
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute top-3 left-3 flex items-center space-x-1.5">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1 shadow-xs ${
+                      item.isVeg ? 'bg-emerald-600 text-white' : 'bg-[#D93636] text-white'
+                    }`}>
+                      <Leaf className="w-3 h-3" />
+                      {item.isVeg ? 'Veg' : 'Non-Veg'}
+                    </span>
+                    <span className="bg-[#33251F]/80 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-bold">
+                      {item.cuisine}
+                    </span>
+                    {item.isSmartSearch && (
+                      <span className="bg-indigo-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xs flex items-center gap-1" data-testid="smart-search-badge">
+                        ✨ Smart search
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="absolute top-3 right-3 bg-[#D93636] text-white font-bold px-2.5 py-1 rounded-full text-xs shadow-xs flex items-center space-x-1">
+                    <Star className="w-3.5 h-3.5 fill-current text-white" />
+                    <span>{item.rating}</span>
+                  </div>
+
+                  {/* Distance Badge in km */}
+                  <div className="absolute bottom-3 left-3 bg-[#33251F]/85 text-white font-bold px-2.5 py-1 rounded-full text-xs shadow-xs backdrop-blur-sm flex items-center space-x-1 border border-rose-400/30">
+                    <Navigation className="w-3 h-3 text-[#D93636]" />
+                    <span>📍 {item.distanceKm || 1.4} km away</span>
+                  </div>
+                </div>
+
+                {/* Food Title & Restaurant */}
+                <div className="p-5 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-serif-editorial text-lg font-bold text-[#33251F] leading-snug group-hover:text-[#D93636] transition-colors">
+                        {item.name}
+                      </h3>
+                      <p className="text-xs font-bold text-[#D93636] mt-0.5">
+                        {item.nativeNames.ta} • <span className="text-zinc-500 font-semibold">{item.restaurant}</span>
+                      </p>
+                    </div>
+                    <span className="text-xs bg-[#FBE9E5] text-[#D93636] font-bold px-2.5 py-1 rounded-full border border-[#F0E5DC] shrink-0">
+                      {item.locations[0]}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-zinc-500 font-medium line-clamp-2 leading-relaxed">
+                    {item.description}
+                  </p>
+
+                  {/* Platform Price Comparison List */}
+                  <div className="pt-3 border-t border-[#F0E5DC] space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-zinc-800">
+                      <span>Live Platform Comparison:</span>
+                      <span className="text-[#D93636] font-bold bg-[#FBE9E5] px-2 py-0.5 rounded-full border border-[#F0E5DC]">
+                        Save ₹{item.platforms[0].originalPrice - item.platforms[3].price}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {item.platforms.map(p => (
+                        <div
+                          key={p.platformName}
+                          className={`p-2.5 rounded-xl border flex flex-col justify-between transition-all ${
+                            p.platformName === 'AutoFeast (Direct)'
+                              ? 'bg-rose-50/80 border-[#D93636] text-[#D93636] font-bold shadow-2xs'
+                              : 'bg-white border-[#F0E5DC] text-zinc-600'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="font-extrabold truncate">{p.platformName}</span>
+                            {p.platformName === 'AutoFeast (Direct)' && (
+                              <span className="text-[9px] bg-[#D93636] text-white px-1.5 py-0.2 rounded-xs">
+                                Best
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex justify-between items-baseline mt-1.5">
+                            <span className="text-sm font-black">₹{p.price}</span>
+                            <span className="text-[10px] text-zinc-400 font-medium">{p.deliveryTime}m</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons: Price Compare, Add to Cart, Instant Order */}
+              <div className="p-4 pt-0 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPriceCompareItem(item)}
+                    className="w-full py-2 px-2.5 rounded-xl border border-[#F0E5DC] hover:border-[#D93636] text-zinc-700 hover:text-[#D93636] text-xs font-bold flex items-center justify-center gap-1 transition-all bg-white hover:bg-[#FBE9E5] cursor-pointer"
+                  >
+                    <BarChart2 className="w-3.5 h-3.5" />
+                    <span>Compare</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setChooserItem(item)}
+                    className="w-full py-2 px-2.5 rounded-xl bg-[#D93636] hover:bg-[#C02B2B] text-white text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-xs hover:scale-105 active:scale-95 cursor-pointer"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Order / Schedule</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => addToCart(item, 1, 'dynamic_search')}
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#FBE9E5] hover:bg-[#D93636] text-[#D93636] hover:text-white border border-[#F0E5DC] text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Utensils className="w-3.5 h-3.5" />
+                  <span>Add to Cart (₹{item.basePrice})</span>
+                </button>
+              </div>
+            </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* Search Status & Intent Summary */}
-      {searchResult.query && (
-        <div className="flex items-center justify-between text-sm font-bold text-zinc-900 px-2">
-          <span>{t('search.resultsFor')} <span className="text-[#D93636] font-extrabold">"{searchResult.query}"</span></span>
-          {searchResult.extractedIntent.location && (
-            <span className="text-xs bg-[#FBE9E5] text-[#D93636] px-3 py-1 rounded-full font-bold border border-[#F0E5DC]">
-              Location Filter: {searchResult.extractedIntent.location}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* DID YOU MEAN SUGGESTION CHIP FOR MEDIUM CONFIDENCE MATCHES */}
-      {searchResult.didYouMean && (
-        <div className="bg-[#FBE9E5] border border-[#F0E5DC] p-4 rounded-3xl flex items-center justify-between shadow-2xs">
-          <div className="flex items-center space-x-2 text-sm font-bold text-zinc-900">
-            <Sparkles className="w-4 h-4 text-[#D93636]" />
-            <span>{t('search.didYouMean')}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchQuery(searchResult.didYouMean!.name);
-              executeSearch(searchResult.didYouMean!.name, true);
-            }}
-            className="px-4 py-2 rounded-xl bg-[#D93636] text-white font-extrabold text-xs hover:bg-[#33251F] transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
-          >
-            <span>{searchResult.didYouMean.nativeNames?.[language] || searchResult.didYouMean.name}</span>
-            <span className="text-[10px] opacity-80">({searchResult.didYouMean.name})</span>
-          </button>
-        </div>
-      )}
-
-      {/* ZERO-FALLBACK NOTICE when item unavailable */}
-      {!searchResult.isExactMatch && (
-        <div className="bg-[#D93636]/10 border-2 border-[#D93636] p-4 rounded-2xl text-[#D93636] space-y-2">
-          <div className="flex items-center space-x-2 text-base font-black">
-            <AlertCircle className="w-5 h-5 text-[#D93636]" />
-            <span>{t('search.noResultsTitle')}</span>
-          </div>
-          <p className="text-xs sm:text-sm font-bold">{t('search.noResultsMessage')}</p>
-          <div className="p-3 bg-white rounded-xl border border-[#D93636]/30 text-xs font-extrabold text-[#33251F]">
-            <ShieldCheck className="w-4 h-4 inline mr-1 text-[#16A34A]" />
-            {t('search.zeroFallbackNotice')}
-          </div>
-          {searchResult.offlineHint && (
-            <p className="text-xs font-bold text-amber-800 bg-amber-100/80 p-2.5 rounded-xl border border-amber-300 flex items-center gap-1.5" data-testid="offline-smart-search-hint">
-              <span>🌐</span>
-              <span>{language === 'ta' ? 'ஸ்மார்ட் தேடலுக்கு இணையம் தேவை (Internet needed for smart search)' : language === 'hi' ? 'स्मार्ट खोज के लिए इंटरनेट आवश्यक है (Internet needed for smart search)' : 'Internet needed for smart search'}</span>
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* RESULTS HEADER */}
-      <div className="flex items-center justify-between pt-2">
-        <div>
-          <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#33251F] tracking-tight">
-            Popular Food Dishes
-          </h2>
-          <p className="text-xs sm:text-sm text-zinc-500 font-medium mt-0.5">
-            Hand-picked delicacies with live real-time price comparison across food platforms
-          </p>
-        </div>
-        <div className="hidden sm:flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              const el = document.getElementById('food-results-grid');
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}
-            aria-label="Previous dishes"
-            className="w-9 h-9 rounded-xl border border-[#F0E5DC] hover:border-[#D93636] hover:text-[#D93636] bg-white text-zinc-600 flex items-center justify-center transition-all shadow-2xs hover:scale-105 cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const el = document.getElementById('food-results-grid');
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            }}
-            aria-label="Next dishes"
-            className="w-9 h-9 rounded-xl border border-[#F0E5DC] hover:border-[#D93636] hover:text-[#D93636] bg-white text-zinc-600 flex items-center justify-center transition-all shadow-2xs hover:scale-105 cursor-pointer"
-          >
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* RESULTS GRID: Clean White Food Listing Cards with Coral Red CTA Buttons */}
-      <div id="food-results-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-        {(searchResult.isExactMatch ? searchResult.matchedItems : searchResult.suggestedItems).map(item => (
-          <div
-            key={item.id}
-            className={`group rounded-3xl overflow-hidden shadow-[0_4px_25px_rgba(0,0,0,0.04)] border border-[#F0E5DC] transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col justify-between ${
-              accessibilitySettings.highContrast
-                ? 'bg-black text-white border-2 border-yellow-400'
-                : 'bg-white text-zinc-900'
-            }`}
-          >
-            <div>
-              {/* Food Image with Veg Badge & Distance */}
-              <div className="relative h-48 overflow-hidden bg-[#FBE9E5]/60">
-                <img
-                  src={item.image}
-                  alt={item.name}
-                  className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute top-3 left-3 flex items-center space-x-1.5">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1 shadow-xs ${
-                    item.isVeg ? 'bg-emerald-600 text-white' : 'bg-[#D93636] text-white'
-                  }`}>
-                    <Leaf className="w-3 h-3" />
-                    {item.isVeg ? 'Veg' : 'Non-Veg'}
-                  </span>
-                  <span className="bg-[#33251F]/80 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-bold">
-                    {item.cuisine}
-                  </span>
-                  {item.isSmartSearch && (
-                    <span className="bg-indigo-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-xs flex items-center gap-1" data-testid="smart-search-badge">
-                      ✨ Smart search
-                    </span>
-                  )}
-                </div>
-
-                <div className="absolute top-3 right-3 bg-[#D93636] text-white font-bold px-2.5 py-1 rounded-full text-xs shadow-xs flex items-center space-x-1">
-                  <Star className="w-3.5 h-3.5 fill-current text-white" />
-                  <span>{item.rating}</span>
-                </div>
-
-                {/* Distance Badge in km */}
-                <div className="absolute bottom-3 left-3 bg-[#33251F]/85 text-white font-bold px-2.5 py-1 rounded-full text-xs shadow-xs backdrop-blur-sm flex items-center space-x-1 border border-rose-400/30">
-                  <Navigation className="w-3 h-3 text-[#D93636]" />
-                  <span>📍 {item.distanceKm || 1.4} km away</span>
-                </div>
-              </div>
-
-              {/* Food Title & Restaurant */}
-              <div className="p-5 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="font-serif-editorial text-lg font-bold text-[#33251F] leading-snug group-hover:text-[#D93636] transition-colors">
-                      {item.name}
-                    </h3>
-                    <p className="text-xs font-bold text-[#D93636] mt-0.5">
-                      {item.nativeNames.ta} • <span className="text-zinc-500 font-semibold">{item.restaurant}</span>
-                    </p>
-                  </div>
-                  <span className="text-xs bg-[#FBE9E5] text-[#D93636] font-bold px-2.5 py-1 rounded-full border border-[#F0E5DC] shrink-0">
-                    {item.locations[0]}
-                  </span>
-                </div>
-
-                <p className="text-xs text-zinc-500 font-medium line-clamp-2 leading-relaxed">
-                  {item.description}
-                </p>
-
-                {/* Platform Price Comparison List */}
-                <div className="pt-3 border-t border-[#F0E5DC] space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-zinc-800">
-                    <span>Live Platform Comparison:</span>
-                    <span className="text-[#D93636] font-bold bg-[#FBE9E5] px-2 py-0.5 rounded-full border border-[#F0E5DC]">
-                      Save ₹{item.platforms[0].originalPrice - item.platforms[3].price}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    {item.platforms.map(p => (
-                      <div
-                        key={p.platform}
-                        className={`p-2 rounded-2xl border flex flex-col justify-between transition-colors ${
-                          p.discountBadge === 'BEST PRICE' || p.discountBadge === '15% OFF'
-                            ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
-                            : 'bg-[#FBE9E5]/60 border-[#F0E5DC] text-zinc-800'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between font-bold">
-                          <span>{p.platformName}</span>
-                          <span className="text-xs text-zinc-500 font-medium">★ {p.rating}</span>
-                        </div>
-                        <div className="flex items-baseline justify-between mt-1">
-                          <span className="text-sm font-black text-[#D93636]">₹{p.price + p.deliveryFee}</span>
-                          <span className="text-[10px] text-zinc-400 line-through">₹{p.originalPrice}</span>
-                        </div>
-                        {p.discountBadge && (
-                          <span className="text-[10px] font-bold text-[#D93636] mt-0.5">
-                            🔥 {p.discountBadge}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Card Action Footer with Elegant Coral Red CTA (#D93636) */}
-            <div className="p-4 bg-[#FBE9E5]/60 border-t border-[#F0E5DC] space-y-2">
-              {(() => {
-                const isRestricted = checkIsItemRestrictedByNominee(item.id, item.name);
-                const isApproved = isItemApprovedByNominee(item.id);
-                const canDirectOrder = !isRestricted || isApproved;
-
-                return (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setChooserItem(item)}
-                      className="w-full bg-[#33251F] hover:bg-black text-white font-bold py-2.5 rounded-full shadow-xs transition-transform active:scale-95 flex items-center justify-center space-x-2 text-xs sm:text-sm cursor-pointer"
-                    >
-                      <Mic className="w-4 h-4 text-[#D93636]" />
-                      <span>{canDirectOrder ? 'Choose Action (Voice / Tap)' : `🔒 ${t('nominee.approvalRequiredBadge')}`}</span>
-                    </button>
-
-                    {canDirectOrder ? (
-                      <div className="grid grid-cols-3 gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setChooserItem(item)}
-                          className="bg-[#D93636] hover:bg-[#33251F] text-white font-bold py-2 rounded-full shadow-xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
-                        >
-                          <Zap className="w-3.5 h-3.5 text-white" />
-                          <span>Instant</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setChooserItem(item)}
-                          className="bg-[#FBE9E5] hover:bg-[#FBE9E5]/80 text-[#D93636] font-bold py-2 rounded-full border border-[#F0E5DC]/70 shadow-2xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
-                        >
-                          <Clock className="w-3.5 h-3.5 text-[#D93636]" />
-                          <span>Schedule</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setChooserItem(item)}
-                          className="bg-white hover:bg-[#FBE9E5] text-zinc-800 font-bold py-2 rounded-full border border-[#F0E5DC] shadow-2xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
-                          title={t('addToCart')}
-                        >
-                          <span>+ Cart</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleNomineeRestrictedInterception(item, 'instant')}
-                          className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-full shadow-xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
-                        >
-                          <ShieldCheck className="w-3.5 h-3.5 text-white" />
-                          <span>{t('nominee.requestApprovalBtn')}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setChooserItem(item)}
-                          className="bg-white hover:bg-[#FBE9E5] text-zinc-800 font-bold py-2 rounded-full border border-[#F0E5DC] shadow-2xs transition-transform active:scale-95 flex items-center justify-center space-x-1 text-xs cursor-pointer"
-                          title={t('addToCart')}
-                        >
-                          <span>+ Cart</span>
-                        </button>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-
-              {/* Live Price Comparison Button */}
-              <button
-                type="button"
-                onClick={() => setPriceCompareItem(item)}
-                className="w-full flex items-center justify-center gap-2 py-1.5 rounded-full text-xs font-bold transition-all border border-[#F0E5DC] bg-white hover:bg-[#FBE9E5] text-zinc-600 cursor-pointer"
-              >
-                <BarChart2 className="w-3.5 h-3.5 text-[#D93636]" />
-                <span>Live Price Comparison</span>
-              </button>
-
-            </div>
-
-          </div>
-        ))}
-      </div>
-
-      {/* SHARED ITEM ACTION CHOOSER MODAL */}
-      <ItemActionChooser
-        isOpen={Boolean(chooserItem)}
-        onClose={() => setChooserItem(null)}
-        items={chooserItems}
-        onOrderNow={(items) => {
-          console.log('[DynamicFoodSearch onOrderNow]: Callback triggered with items:', items);
-          if (items && items[0]) {
-            console.log('[DynamicFoodSearch onOrderNow]: Calling placeInstantOrder for item:', items[0].name);
-            placeInstantOrder(items[0]);
-          } else {
-            console.warn('[DynamicFoodSearch onOrderNow]: No items passed to onOrderNow!');
-          }
-        }}
-        onSchedule={(items) => {
-          console.log('[DynamicFoodSearch onSchedule]: Callback triggered with items:', items);
-          if (items && items[0]) {
-            console.log('[DynamicFoodSearch onSchedule]: Setting schedulingItem for item:', items[0].name);
-            setSchedulingItem(items[0]);
-          } else {
-            console.warn('[DynamicFoodSearch onSchedule]: No items passed to onSchedule!');
-          }
-        }}
-        onAddToCart={(items) => {
-          console.log('[DynamicFoodSearch onAddToCart]: Callback invoked with items:', items);
-          if (items && items.length > 0) {
-            items.forEach(itm => {
-              console.log('[DynamicFoodSearch onAddToCart]: Calling addToCart for item:', itm.name, 'id:', itm.id);
-              addToCart(itm, 1, 'dynamic_search');
-              const itemName = itm.nativeNames?.[language] || itm.name;
-              const addedMsg = t('addedNext').replace('{item}', itemName);
-              showToast(addedMsg);
-              speakText(addedMsg);
-            });
-          }
-        }}
-      />
-
-      {/* SHARED SCHEDULE CHECKOUT MODAL */}
-      <ScheduleCheckoutModal
-        isOpen={Boolean(schedulingItem)}
-        onClose={() => setSchedulingItem(null)}
-        items={schedulingItem ? [{ foodItem: schedulingItem, quantity: 1 }] : []}
-        initialSlotName={schedulingItem ? `${schedulingItem.name} Schedule` : 'Scheduled Order'}
-      />
-
-      {/* LIVE PRICE COMPARISON MODAL */}
-      <PriceComparisonModal
-        isOpen={Boolean(priceCompareItem)}
-        item={priceCompareItem}
-        onClose={() => setPriceCompareItem(null)}
-        onSelectPlatform={(platform, price) => {
-          if (priceCompareItem) {
-            placeInstantOrder(priceCompareItem);
+      {/* Modal Dialogs */}
+      {priceCompareItem && (
+        <PriceComparisonModal
+          item={priceCompareItem}
+          isOpen={Boolean(priceCompareItem)}
+          onClose={() => setPriceCompareItem(null)}
+          onSelectPlatform={(platformName) => {
+            console.log(`Platform ${platformName} chosen for ${priceCompareItem.name}`);
             setPriceCompareItem(null);
-          }
-        }}
-      />
+            setChooserItem(priceCompareItem);
+          }}
+        />
+      )}
 
+      {chooserItem && (
+        <ItemActionChooser
+          isOpen={Boolean(chooserItem)}
+          item={chooserItem}
+          onClose={() => setChooserItem(null)}
+          onOrderNow={() => {
+            const it = chooserItem;
+            setChooserItem(null);
+            placeInstantOrder(it);
+          }}
+          onSchedule={() => {
+            const it = chooserItem;
+            setChooserItem(null);
+            setSchedulingItem(it);
+          }}
+        />
+      )}
+
+      {schedulingItem && (
+        <ScheduleCheckoutModal
+          isOpen={Boolean(schedulingItem)}
+          onClose={() => setSchedulingItem(null)}
+          foodItem={schedulingItem}
+        />
+      )}
     </div>
   );
 };
