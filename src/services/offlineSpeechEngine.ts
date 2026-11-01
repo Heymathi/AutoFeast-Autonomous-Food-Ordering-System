@@ -601,6 +601,13 @@ export class OfflineSpeechEngine {
         }
       }
 
+      // 4. Pre-roll & Post-roll silence padding (200ms = 3200 samples at 16kHz)
+      // This prevents STFT windowing from cutting off the initial plosive consonant ('ப' in 'பரோட்டா')
+      // and trailing phonemes, providing proper acoustic context for Whisper's convolutional encoder.
+      const padLength = 3200;
+      const paddedPcm = new Float32Array(float32Pcm.length + padLength * 2);
+      paddedPcm.set(float32Pcm, padLength);
+
       // Ensure model pipeline is initialized via local Vite bundle
       if (!this.pipelineInstance) {
         await this.getPipeline();
@@ -614,7 +621,7 @@ export class OfflineSpeechEngine {
         ? 'hi'
         : 'en';
 
-      const output = await this.pipelineInstance(float32Pcm, {
+      const output = await this.pipelineInstance(paddedPcm, {
         language: langCode,
         task: 'transcribe',
         chunk_length_s: 30,

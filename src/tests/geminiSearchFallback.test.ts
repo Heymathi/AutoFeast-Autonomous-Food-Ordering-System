@@ -241,5 +241,78 @@ describe('Gemini Search Fallback - STEP 3 Verification Suite', () => {
       expect(validated.length).toBe(0);
     });
   });
+
+  // =========================================================================
+  // PART 5: Comprehensive Voice, Fallback & Safeguard Test Suite
+  // =========================================================================
+  describe('Voice, Fallback & Safeguard Scenarios (Parotta, Dosa, Degraded Audio, Gemini)', () => {
+    it('Scenario 1: Typed Parotta search resolves directly via catalog without triggering fallback', () => {
+      const result = DynamicFoodSearchEngine.search({ query: 'parotta', language: 'en' });
+      expect(result.matchedItems.length).toBeGreaterThan(0);
+      expect(result.matchedItems[0].id).toBe('parotta-kothu');
+      expect(result.isExactMatch).toBe(true);
+    });
+
+    it('Scenario 2: Online Tamil voice "பரோட்டா" matches locally with score >= 0.45 without calling Gemini', () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      const result = DynamicFoodSearchEngine.search({ query: 'பரோட்டா', language: 'ta' });
+      expect(result.matchedItems.length).toBeGreaterThan(0);
+      expect(result.matchedItems.some(f => f.id === 'parotta-kothu')).toBe(true);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('Scenario 3: Offline Tamil voice "பரோட்டா" matches parotta food family', () => {
+      const result = DynamicFoodSearchEngine.search({ query: 'பரோட்டா', language: 'ta' });
+      expect(result.matchedItems.length).toBeGreaterThan(0);
+      expect(result.matchedItems[0].id).toBe('parotta-kothu');
+    });
+
+    it('Scenario 4: Offline Tamil voice "தோசை" matches dosa items locally', () => {
+      const result = DynamicFoodSearchEngine.search({ query: 'தோசை', language: 'ta' });
+      expect(result.matchedItems.length).toBeGreaterThan(0);
+      expect(result.matchedItems.some(f => f.id.includes('dosa'))).toBe(true);
+    });
+
+    it('Scenario 5: Local no-match / low score (< 0.45) e.g. "தவறும்" triggers POST /api/search-fallback and maps to validated catalog item', async () => {
+      const localResult = DynamicFoodSearchEngine.search({ query: 'தவறும்', language: 'ta' });
+      expect(localResult.matchedItems.length).toBe(0);
+
+      const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          matches: [{ id: 'parotta-kothu', confidence: 0.88 }]
+        })
+      } as Response);
+
+      const fallbackResult = await fetchSearchFallback('தவறும்', 'ta');
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/search-fallback',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ text: 'தவறும்', language: 'ta' })
+        })
+      );
+      expect(fallbackResult.items.length).toBe(1);
+      expect(fallbackResult.items[0].id).toBe('parotta-kothu');
+      expect(fallbackResult.items[0].isSmartSearch).toBe(true);
+    });
+
+    it('Scenario 6: Gemini API failure or offline gracefully produces catalog fallback suggestions', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({ error: 'gemini_unavailable' })
+      } as Response);
+
+      const fallbackResult = await fetchSearchFallback('unrecognized phoneme', 'ta');
+      expect(fallbackResult.items).toEqual([]);
+      expect(fallbackResult.error).toBe('status_503');
+
+      const fallbackSuggestions = INDIAN_FOOD_CATALOG.slice(0, 4);
+      expect(fallbackSuggestions.length).toBeGreaterThanOrEqual(3);
+      expect(fallbackSuggestions.some(f => f.id === 'parotta-kothu' || f.id === 'dosa-masala')).toBe(true);
+    });
+  });
 });
 

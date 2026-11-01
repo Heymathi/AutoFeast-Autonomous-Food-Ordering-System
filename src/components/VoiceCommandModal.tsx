@@ -22,11 +22,12 @@ const voiceDebug = (message: string, details?: unknown) => {
 };
 
 const POPULAR_ITEMS = INDIAN_FOOD_CATALOG.filter(i =>
-  i.name === 'Crispy Plain Dosa' ||
-  i.name === 'South Indian Idli' ||
-  i.name === 'Parotta with Salna' ||
-  i.name === 'Crispy Masala Dosa'
-).slice(0, 4);
+  i.id === 'parotta-kothu' ||
+  i.id === 'dosa-masala' ||
+  i.id === 'idli-sambar' ||
+  i.id === 'biryani-hyderabadi' ||
+  i.id === 'chapati-kurma'
+).slice(0, 5);
 
 const sanitizeTranscriptForDisplay = (text: string) => {
   if (!text) return '';
@@ -456,8 +457,9 @@ export const VoiceCommandModal: React.FC = () => {
 
   const handleUnknownCommand = (spokenText: string) => {
     retryCountRef.current += 1;
+    // Always surface popular suggestions from catalog so user is never stranded
+    setShowPopularSuggestions(true);
     if (retryCountRef.current >= 2) {
-      setShowPopularSuggestions(true);
       const deadEndPrompt = language === 'ta'
         ? 'எந்த உணவு? தோசை, இட்லி, பரோட்டா என்று சொல்லுங்கள் அல்லது கீழே தொடவும்.'
         : language === 'hi'
@@ -467,10 +469,10 @@ export const VoiceCommandModal: React.FC = () => {
       speakText(deadEndPrompt, () => startListeningSession(), language);
     } else {
       const retryPrompt = language === 'ta'
-        ? 'உணவுப் பெயரைச் சொல்லுங்கள். மீண்டும் ஒருமுறை கேட்கிறேன்.'
+        ? 'உணவுப் பெயரைச் சொல்லுங்கள். தோசை, இட்லி, பரோட்டா என்று சொல்லலாம்.'
         : language === 'hi'
-        ? 'कृपया भोजन का नाम बोलें। मैं फिर से सुन रहा हूँ।'
-        : 'Which food item would you like? Please say the name again.';
+        ? 'कृपया भोजन का नाम बोलें। डोसा, इडली या पराठा कह सकते हैं।'
+        : 'Which food item would you like? Say dosa, idli, or parotta.';
       setStatusMessage(retryPrompt);
       speakText(retryPrompt, () => startListeningSession(), language);
     }
@@ -694,7 +696,31 @@ export const VoiceCommandModal: React.FC = () => {
       return;
     }
 
-    // If still not matched, handle unknown
+    // Case 5: When local matching produces no candidate or low confidence (< 0.45),
+    // trigger Gemini search fallback online to interpret acoustic or phonetic misrecognitions
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      try {
+        const fallback = await fetchSearchFallback(spokenText, language);
+        if (fallback.items && fallback.items.length > 0) {
+          const best = fallback.items[0];
+          const targetName = best.nativeNames?.[language] || best.name;
+          const clarifyPrompt = language === 'ta'
+            ? `${targetName} - இப்போதே ஆர்டர் செய்யவா அல்லது திட்டமிடவா?`
+            : language === 'hi'
+            ? `${targetName} - अभी ऑर्डर करें या बाद के लिए शेड्यूल करें?`
+            : `${targetName} - Order now or schedule for later?`;
+          setStatusMessage(clarifyPrompt);
+          setChooserItems(fallback.items);
+          executeSearch(spokenText, true);
+          speakText(clarifyPrompt, () => startListeningSession({ allowDuringTts: true }), language);
+          return;
+        }
+      } catch (err) {
+        console.warn('[VoiceCommandModal]: Gemini fallback search error:', err);
+      }
+    }
+
+    // If still not matched, handle unknown with graceful local suggestions
     handleUnknownCommand(spokenText);
   };
 

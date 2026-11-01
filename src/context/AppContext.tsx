@@ -1698,6 +1698,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     }
 
+    // Graceful local catalog fallback: if neither local search nor Gemini found matched items,
+    // and suggestedItems is empty, provide popular catalog dishes rather than an empty dead-end
+    if (q.trim() && result.matchedItems.length === 0 && result.suggestedItems.length === 0) {
+      const popularSuggestions = INDIAN_FOOD_CATALOG.filter(f =>
+        f.id === 'dosa-masala' ||
+        f.id === 'parotta-kothu' ||
+        f.id === 'idli-sambar' ||
+        f.id === 'biryani-hyderabadi'
+      );
+      result = {
+        ...result,
+        suggestedItems: vegOnly ? popularSuggestions.filter(f => f.isVeg) : popularSuggestions
+      };
+    }
+
     const finalMatched = enrichDistance(result.matchedItems);
     const finalSuggested = enrichDistance(result.suggestedItems);
 

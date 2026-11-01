@@ -123,7 +123,8 @@ export async function handleSearchFallback(req, res) {
   }
 
   // Check Gemini credentials from process.env (never logged, never sent to client)
-  const apiKey = process.env.GEMINI_API_KEY;
+  const rawApiKey = process.env.GEMINI_API_KEY || '';
+  const apiKey = rawApiKey.replace(/^["']|["']$/g, '').trim();
   if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
     return res.status(503).json({
       error: 'gemini_unavailable',
@@ -136,16 +137,22 @@ export async function handleSearchFallback(req, res) {
   try {
     geminiClient ||= new GoogleGenAI({ apiKey });
 
-    const prompt = `You are the intelligent food search engine for AutoFeast.
-Your job is to understand the user's food search query and match it ONLY to the dishes available in the CLOSED MENU below.
+    const prompt = `You are the intelligent food search engine for AutoFeast, an Indian food delivery platform.
+Your job is to interpret the user's food query and match it ONLY to the dishes available in the CLOSED MENU below.
 
-The user query may be in English, Tamil (தமிழ்), Hindi (हिंदी), Tanglish, Hinglish, with misspellings, ingredient descriptions (e.g. "முட்டை சாதம்" -> egg rice/biryani), flavor or craving descriptions (e.g. "spicy chicken rice", "मीठा कुछ", "chiken biriyani").
+CONTEXT & INPUT SOURCES:
+The query may be typed by the user OR captured from a voice speech-to-text (STT) engine (such as Web Speech API or on-device Whisper).
+Because speech recognition can degrade in real-world microphone conditions:
+- The input may contain phonetic misrecognitions, acoustic homophones, or misheard words (for example in Tamil, acoustic errors where food names sound like general words such as "தவறும்" or "தவறு" for "பரோட்டா" / Parotta, or "தோச" for "தோசை", "இட்லி", "சப்பாத்தி", "பொங்கல்").
+- The input may be in English, Tamil (தமிழ்), Hindi (हिंदी), Tanglish, Hinglish, with phonetic misspellings, colloquial slang, ingredient descriptions (e.g. "முட்டை சாதம்" -> egg rice/biryani), or flavor cravings (e.g. "spicy chicken rice", "मीठा कुछ", "chiken biriyani").
+- In this food context, identify the Indian dish from the CLOSED MENU that the user intended to order, taking into account acoustic similarity, phonetic slips, and culinary intent.
 
 CRITICAL RULES:
 1. ONLY return item IDs from the CLOSED MENU below. NEVER invent, hallucinate, or recommend an item not in this menu.
-2. If the user query is unrelated to the menu (e.g., "tacos", "pizza", "pasta", "sushi", non-food items, or gibberish), return an empty array: {"matches": []}.
-3. Return at most 5 matches.
-4. Each match must include the exact menu "id" and a "confidence" between 0.0 and 1.0 (where 1.0 is exact match, 0.5-0.9 is strong semantic or ingredient match).
+2. If the user query is genuinely unrelated to food and has no phonetic resemblance to any menu dish (e.g., "laptop", "weather", "tacos", "pizza", "pasta", "sushi"), return an empty array: {"matches": []}.
+3. When the query is a plausible phonetic, acoustic, or semantic match for a menu item (such as "தவறும்" or "தவறு" -> "parotta-kothu", "தோச" -> "dosa-masala", etc.), match the corresponding menu ID with confidence >= 0.70.
+4. Return at most 5 matches.
+5. Each match must include the exact menu "id" and a "confidence" between 0.0 and 1.0 (where 1.0 is exact match, 0.7-0.95 is phonetic/semantic match, 0.5-0.69 is related ingredient/cuisine match).
 
 CLOSED MENU:
 ${JSON.stringify(COMPACT_MENU)}
