@@ -987,19 +987,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     }
 
-    // 2 & 7) ONE-TIME GATE: Complete the saved payload directly; skip restricted interception
+    // 2 & 7) ONE-TIME GATE: Require Security PIN Verification before actual order placement
     try {
       if (orderType === 'instant') {
         const itemName = foodItem.nativeNames?.[language] || foodItem.name;
-        const msg = t('nominee.approvedOrderNow') || (language === 'ta'
-          ? `பரிந்துரைப்பாளர் அனுமதித்தார்! "${itemName}" ஆர்டர் செய்யப்படுகிறது.`
+        const msg = language === 'ta'
+          ? `பரிந்துரைப்பாளர் அனுமதித்தார்! "${itemName}" ஆர்டர் செய்ய PIN சரிபார்க்கவும்.`
           : language === 'hi'
-          ? `नामांकित व्यक्ति ने अनुमति दी! "${itemName}" ऑर्डर किया जा रहा है।`
-          : `Approved by Nominee! Order for "${itemName}" is being placed now.`);
-        showToast(msg, 'success');
+          ? `नामांकित व्यक्ति ने अनुमति दी! "${itemName}" ऑर्डर करने के लिए पिन सत्यापित करें।`
+          : `Approved by Nominee! Please verify security PIN to place order for "${itemName}".`;
+        showToast(msg, 'info');
         speakText(msg, undefined, language);
 
-        executeActualInstantOrder(foodItem, 'best_value');
+        setPendingPinVerification({
+          type: 'instant_order',
+          item: foodItem,
+          strategy: 'best_value'
+        });
+        setIsOrderPinModalOpen(true);
         sessionStorage.removeItem('autofeast_pending_nominee_payload');
       } else if (orderType === 'scheduled') {
         const normalizedTime = normalizeTime(scheduleDetails?.time);
@@ -1021,14 +1026,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
 
         const itemName = foodItem.nativeNames?.[language] || foodItem.name;
-        const msg = t('nominee.approvedSchedulingNow') || (language === 'ta'
-          ? `பரிந்துரைப்பாளர் அனுமதித்தார்! "${itemName}" அட்டவணை அமைக்கப்படுகிறது.`
+        const msg = language === 'ta'
+          ? `பரிந்துரைப்பாளர் அனுமதித்தார்! "${itemName}" அட்டவணை அமைக்க PIN சரிபார்க்கவும்.`
           : language === 'hi'
-          ? `नामांकित व्यक्ति ने अनुमति दी! "${itemName}" शेड्यूल सेट किया जा रहा है।`
-          : `Approved by Nominee! Setting up schedule for "${itemName}" now.`);
-        showToast(msg, 'success');
+          ? `नामांकित व्यक्ति ने अनुमति दी! "${itemName}" शेड्यूल सेट करने के लिए पिन सत्यापित करें।`
+          : `Approved by Nominee! Please verify security PIN to schedule "${itemName}".`;
+        showToast(msg, 'info');
+        speakText(msg, undefined, language);
 
-        executeActualSaveSchedule(newSchedule);
+        setPendingPinVerification({
+          type: 'save_schedule',
+          schedule: newSchedule
+        });
+        setIsOrderPinModalOpen(true);
         sessionStorage.removeItem('autofeast_pending_nominee_payload');
       }
     } catch (completionErr: any) {

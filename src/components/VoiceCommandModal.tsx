@@ -1,3 +1,16 @@
+export type VoicePipelineUIState =
+  | 'idle'
+  | 'listening'
+  | 'recognizing'
+  | 'food_identified'
+  | 'clarifying'
+  | 'processing'
+  | 'waiting_nominee'
+  | 'waiting_pin'
+  | 'order_placed'
+  | 'network_unavailable'
+  | 'not_found';
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
@@ -61,9 +74,13 @@ export const VoiceCommandModal: React.FC = () => {
     handleNomineeRestrictedInterception
   } = useApp();
 
+
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [pipelineState, setPipelineState] = useState<VoicePipelineUIState>('idle');
+  const [identifiedFoodName, setIdentifiedFoodName] = useState<string | null>(null);
+  const [identifiedActionName, setIdentifiedActionName] = useState<string | null>(null);
   const [showPopularSuggestions, setShowPopularSuggestions] = useState(false);
   const [pendingScheduleFlow, setPendingScheduleFlow] = useState<{ item: FoodItem; recurrence?: string } | null>(null);
   const [pendingCommand, setPendingCommand] = useState('');
@@ -399,6 +416,7 @@ export const VoiceCommandModal: React.FC = () => {
       if (SpeechController.getActiveSttEngine() === 'whisper') {
         OfflineSpeechEngine.stopRecording();
         setIsListening(false);
+        setPipelineState('recognizing');
         setStatusMessage(
           language === 'ta'
             ? 'குரல் செயலாக்கப்படுகிறது...'
@@ -457,6 +475,7 @@ export const VoiceCommandModal: React.FC = () => {
 
   const handleUnknownCommand = (spokenText: string) => {
     retryCountRef.current += 1;
+    setPipelineState('not_found');
     // Always surface popular suggestions from catalog so user is never stranded
     setShowPopularSuggestions(true);
     if (retryCountRef.current >= 2) {
@@ -483,7 +502,7 @@ export const VoiceCommandModal: React.FC = () => {
 
     // Check if we are waiting for schedule time
     if (pendingScheduleFlowRef.current) {
-      const timeMatch = VoiceCommandParser.extractTime(spokenText, language) || parseSpokenTimeTo24Hr(spokenText);
+      const timeMatch = VoiceCommandParser.extractTime(spokenText) || parseSpokenTimeTo24Hr(spokenText);
       if (timeMatch) {
         const pending = pendingScheduleFlowRef.current;
         pendingScheduleFlowRef.current = null;
@@ -532,8 +551,23 @@ export const VoiceCommandModal: React.FC = () => {
     const parsed = VoiceCommandParser.parse(spokenText, language);
     voiceDebug('[VoiceCommandParser Result]', parsed);
 
+    if (parsed.matchedFoodItem) {
+      const targetName = parsed.matchedFoodItem.nativeNames?.[language] || parsed.matchedFoodItem.name;
+      setIdentifiedFoodName(targetName);
+      const actionLabel = parsed.action === 'add_to_cart'
+        ? 'Add to Cart'
+        : parsed.action === 'schedule'
+        ? 'Schedule'
+        : parsed.action === 'order'
+        ? 'Order Now'
+        : 'Search';
+      setIdentifiedActionName(actionLabel);
+      setPipelineState('food_identified');
+    }
+
     // Case 1: Item-only spoken ("parotta", "dosa", "பரோட்டா", "डोसा") -> prompt Order or Schedule
     if (parsed.needsOrderOrScheduleClarification && parsed.matchedFoodItem) {
+      setPipelineState('clarifying');
       const targetItem = parsed.matchedFoodItem;
       const targetName = targetItem.nativeNames?.[language] || targetItem.name;
       const clarifyPrompt = language === 'ta'
@@ -547,7 +581,51 @@ export const VoiceCommandModal: React.FC = () => {
       return;
     }
 
-    // Case 2: Order Instant
+    // Case 2A: Add to Cart ("கார்டில் சேர்", "add to cart", "कार्ट में जोड़ो")
+    if (parsed.action === 'add_to_cart' && parsed.items.length > 0) {
+      let matchedItem = parsed.matchedFoodItem || DynamicFoodSearchEngine.findBestMatchingFoodItem(parsed.items[0].name);
+      if (!matchedItem && typeof navigator !== 'undefined' && navigator.onLine) {
+        const fallback = await fetchSearchFallback(parsed.items[0].name, language);
+        if (fallback.items.length > 0) {
+          matchedItem = fallback.items[0];
+        }
+      }
+      if (!matchedItem) {
+        handleUnknownCommand(spokenText);
+        return;
+      }
+
+      setPipelineState('processing');
+
+      // Check nominee restriction
+      if (NomineeNotificationService.hasRestrictedFetchError()) {
+        showToast(t('nominee.restrictedLoadError'), 'warning');
+        setIsVoiceModalOpen(false);
+        return;
+      }
+      if (checkIsItemRestrictedByNominee(matchedItem.id, matchedItem.name)) {
+        setPipelineState('waiting_nominee');
+        handleNomineeRestrictedInterception(matchedItem, 'instant');
+        setIsVoiceModalOpen(false);
+        return;
+      }
+
+      const qty = parsed.items[0]?.quantity || 1;
+      await addToCart(matchedItem, qty, 'voice_search');
+      setPipelineState('order_placed');
+      const targetName = matchedItem.nativeNames?.[language] || matchedItem.name;
+      const successMsg = language === 'ta'
+        ? `${qty} ${targetName} கார்டில் சேர்க்கப்பட்டது!`
+        : language === 'hi'
+        ? `${qty} ${targetName} कार्ट में जोड़ दिया गया!`
+        : `${qty} ${targetName} added to cart!`;
+      showToast(successMsg, 'success');
+      speakText(successMsg, undefined, language);
+      setIsVoiceModalOpen(false);
+      return;
+    }
+
+    // Case 2B: Order Instant
     if (parsed.action === 'order' && parsed.items.length > 0) {
       let matchedItem = parsed.matchedFoodItem || DynamicFoodSearchEngine.findBestMatchingFoodItem(parsed.items[0].name);
       if (!matchedItem && typeof navigator !== 'undefined' && navigator.onLine) {
@@ -599,6 +677,7 @@ export const VoiceCommandModal: React.FC = () => {
         return;
       }
       if (checkIsItemRestrictedByNominee(chosenItem.id, chosenItem.name)) {
+        setPipelineState('waiting_nominee');
         handleNomineeRestrictedInterception(chosenItem, 'instant');
         setIsVoiceModalOpen(false);
         return;
@@ -647,9 +726,9 @@ export const VoiceCommandModal: React.FC = () => {
       }
       if (checkIsItemRestrictedByNominee(chosenItem.id, chosenItem.name)) {
         handleNomineeRestrictedInterception(chosenItem, 'scheduled', {
-          time: parsed.time || '08:00',
-          duration: parsed.recurrence === 'once' ? 'today_only' : '1_month',
-          frequency: parsed.recurrence || 'daily'
+          time: parsed.time ? parsed.time.time24 : '08:00',
+          duration: parsed.recurrence?.duration || (parsed.recurrence?.frequency === 'once' ? 'today_only' : '1_month'),
+          frequency: parsed.recurrence?.frequency || 'daily'
         });
         setIsVoiceModalOpen(false);
         return;
@@ -668,7 +747,7 @@ export const VoiceCommandModal: React.FC = () => {
         return;
       }
 
-      executeVoiceSchedule(chosenItem, parsed.time, parsed.recurrence);
+      executeVoiceSchedule(chosenItem, parsed.time.time24, parsed.recurrence?.frequency || 'once');
       return;
     }
 
@@ -921,6 +1000,49 @@ export const VoiceCommandModal: React.FC = () => {
             {isListening ? 'Mic Active - Listening...' : 'Tap Mic to Speak'}
           </span>
         </div>
+
+        {/* Pipeline State Status Pill */}
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <span className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-black shadow-sm transition-all ${
+            pipelineState === 'listening' ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse' :
+            pipelineState === 'recognizing' || pipelineState === 'processing' ? 'bg-blue-100 text-blue-900 border border-blue-300 animate-pulse' :
+            pipelineState === 'food_identified' || pipelineState === 'order_placed' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+            pipelineState === 'clarifying' ? 'bg-indigo-100 text-indigo-900 border border-indigo-300' :
+            pipelineState === 'waiting_nominee' ? 'bg-purple-100 text-purple-900 border border-purple-300 animate-pulse' :
+            pipelineState === 'waiting_pin' ? 'bg-rose-100 text-rose-900 border border-rose-300 animate-pulse' :
+            pipelineState === 'network_unavailable' ? 'bg-red-100 text-red-900 border border-red-300' :
+            pipelineState === 'not_found' ? 'bg-slate-100 text-slate-800 border border-slate-300' :
+            'bg-slate-100 text-slate-700 border border-slate-200'
+          }`}>
+            {pipelineState === 'listening' && '🎙️ Listening...'}
+            {pipelineState === 'recognizing' && '⚡ Recognizing Speech...'}
+            {pipelineState === 'food_identified' && '🍽️ Food Identified'}
+            {pipelineState === 'clarifying' && '❓ Clarifying Choice'}
+            {pipelineState === 'processing' && '⏳ Processing Action...'}
+            {pipelineState === 'waiting_nominee' && '🔒 Nominee Approval Required'}
+            {pipelineState === 'waiting_pin' && '🔐 PIN Verification Required'}
+            {pipelineState === 'order_placed' && '✅ Order Executed!'}
+            {pipelineState === 'network_unavailable' && '🌐 Network Unavailable'}
+            {pipelineState === 'not_found' && '🔍 Food Not Found'}
+            {pipelineState === 'idle' && '✨ Ready'}
+          </span>
+        </div>
+
+        {/* Food Name & Requested Action Separate Breakdown Card */}
+        {identifiedFoodName && (
+          <div className="bg-[#FBE9E5] border border-[#F0E5DC] rounded-2xl p-3 mb-3 flex items-center justify-between text-xs font-black shadow-sm">
+            <div className="flex items-center space-x-2">
+              <span className="text-[#786E64] uppercase tracking-wider text-[10px]">Dish:</span>
+              <span className="text-[#33251F] font-extrabold text-sm">{identifiedFoodName}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-[#786E64] uppercase tracking-wider text-[10px]">Action:</span>
+              <span className="bg-[#D93636] text-white px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow-xs">
+                {identifiedActionName || 'Order'}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Transcript & Confirmation Display */}
         <div className={`p-4 rounded-2xl border min-h-[90px] mb-4 transition-all text-center flex flex-col items-center justify-center space-y-2 ${

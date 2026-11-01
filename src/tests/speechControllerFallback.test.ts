@@ -263,7 +263,7 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     activeRec.onerror({ error: 'network' });
 
     // User stops mic during the 80ms transition window
-    SpeechController.stopMic('food_search');
+    SpeechController.stopMic();
 
     await new Promise((r) => setTimeout(r, 120));
 
@@ -326,7 +326,7 @@ describe('SpeechController Step 2: Error Handling & Mic Exclusivity Fallback', (
     expect(whisperCallback).toBeDefined();
 
     // Now user stops and changes session
-    SpeechController.stopMic('food_search');
+    SpeechController.stopMic();
 
     // Stale whisper onResult fires after cancellation
     whisperCallback.onResult('masala dosa', true, ['masala dosa']);

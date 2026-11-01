@@ -865,10 +865,7 @@ export const Navbar: React.FC = () => {
                         ref={locationInputRef}
                         type="text"
                         value={locationInput}
-                        onChange={(e) => {
-                          setLocationInput(e.target.value);
-                          triggerDebouncedGeocode(e.target.value);
-                        }}
+                        onChange={handleLocationInputChange}
                         placeholder={t('location.popoverPlaceholder')}
                         aria-label={t('location.popoverInputLabel') || 'Enter delivery address or landmark'}
                         className="flex-1 px-3 py-2 text-xs rounded-lg border border-[#F0E5DC] focus:outline-none focus:ring-2 focus:ring-[#D93636]"

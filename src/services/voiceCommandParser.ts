@@ -11,7 +11,7 @@ export interface ParsedVoiceCommandItem {
 }
 
 export interface ParsedVoiceCommandResult {
-  action: 'order' | 'schedule' | 'search' | 'unknown';
+  action: 'order' | 'schedule' | 'search' | 'add_to_cart' | 'unknown';
   items: ParsedVoiceCommandItem[];
   restaurant?: string;
   time?: { time24: string; time12Formatted: string; raw: string; needsAmPmClarification?: boolean };
@@ -354,28 +354,47 @@ export class VoiceCommandParser {
     time: unknown,
     recurrence: unknown,
     date: { isTomorrow?: boolean } | null
-  ): 'order' | 'schedule' | 'search' | 'unknown' {
+  ): 'order' | 'schedule' | 'search' | 'add_to_cart' | 'unknown' {
+    // 1. Cart Actions
+    const hasCartWord = /(?:^|\s|\b)(add to cart|cart|kart|கார்ட்|கார்டில்|கார்ட்டில்|கார்ட்\s*சேர்|கூடை|கூடையில்\s*சேர்|कार्ट|कार्ट\s*में)(?:$|\s|\b)/i.test(norm);
+    if (hasCartWord) {
+      return 'add_to_cart';
+    }
+
+    // 2. Schedule Actions
+    const hasScheduleWord = /\b(schedule|later|tomorrow|daily|everyday|every day|weekly|monthly|thittamidu|naalaikku|dhinamum|அட்டவணை|திட்டமிடு|நாளைக்கு|தினமும்|शेड्यूल|कल|रोज|प्रतिदिन|बाद में)\b/i.test(norm);
+    if (time || recurrence || date?.isTomorrow || hasScheduleWord) {
+      return 'schedule';
+    }
+
+    // 3. Force Order Actions
     const hasForceOrder = /\b(now|ippovae|ippove|ippo|udane|இப்போவே|இப்பவே|இப்போதே|இப்போ|உடனே|abhi|turant|अभी|तुरंत)\b/i.test(norm);
     if (hasForceOrder && !time) {
       return 'order';
     }
 
-    const hasScheduleWord = /\b(schedule|later|tomorrow|daily|everyday|every day|weekly|monthly|thittamidu|naalaikku|dhinamum|அட்டவணை|திட்டமிடு|நாளைக்கு|தினமும்|शेड्यूल|कल|रोज|प्रतिदिन|बाद में)\b/i.test(norm);
-
-    if (time || recurrence || date?.isTomorrow || hasScheduleWord) {
-      return 'schedule';
+    // 4. Search Actions
+    const hasSearchWord = /(?:^|\s|\b)(search|find|show|lookup|தேடு|காட்டு|ढूंढो|दिखाओ)(?:$|\s|\b)/i.test(norm);
+    if (hasSearchWord) {
+      return 'search';
     }
 
-    const hasOrderWord = /\b(order|get|want|buy|bring|give|send|pannu|kudu|podu|venum|ஆர்டர்|வாங்கு|கொடு|வேணும்|மங்காओ|करो|लाओ|दो)\b/i.test(norm);
+    // 5. Explicit Order Keywords
+    const hasOrderWord = /\b(order|buy|send|ஆர்டர்|வாங்கு|மங்காओ)\b/i.test(norm);
     if (hasOrderWord) {
       return 'order';
+    }
+
+    // 6. If no explicit action keyword was spoken, action is unknown (requires clarification)
+    if (!this.hasExplicitActionKeyword(norm)) {
+      return 'unknown';
     }
 
     return 'order';
   }
 
   private static hasExplicitActionKeyword(norm: string): boolean {
-    return /(?:\b|(?:^|\s))(order|schedule|now|later|tomorrow|daily|weekly|month|at|am|pm|maniku|baje|மணிக்கு|ஆர்டர்|திட்டமிடு|இப்போ|நாளைக்கு|शेड्यूल|अभी|कल)(?:\b|(?:\s|$))/i.test(norm);
+    return /(?:\b|(?:^|\s))(order|schedule|now|later|tomorrow|daily|weekly|month|at|am|pm|maniku|baje|cart|add|search|find|show|மணிக்கு|ஆர்டர்|திட்டமிடு|இப்போ|நாளைக்கு|கார்டில்|சேர்|தேடு|காட்டு|शेड्यूल|अभी|कल|कार्ट|ढूंढो|दिखाओ)(?:\b|(?:\s|$))/i.test(norm);
   }
 
   /**

@@ -196,6 +196,182 @@ export const FOOD_FAMILIES: FoodFamily[] = [
       'मेदू', 'सांबर', 'दही', 'तला हुआ',
     ],
   },
+
+  // ── PONGAL ────────────────────────────────────────────────────────────────────
+  {
+    key: 'pongal',
+    familyTag: 'pongal',
+    aliases: [
+      'pongal', 'ven pongal', 'ghee pongal', 'pongall',
+      'பொங்கல்', 'வெண் பொங்கல்', 'நெய் பொங்கல்',
+      'पोंगल', 'वेन पोंगल', 'घी पोंगल',
+    ],
+    variantTokens: [
+      'ven', 'ghee', 'sakkarai', 'sweet', 'vadai',
+      'வெண்', 'நெய்', 'வடை',
+      'वेन', 'घी', 'वड़ा',
+    ],
+  },
+
+  // ── POORI & BHATURE ───────────────────────────────────────────────────────────
+  {
+    key: 'bhature',
+    familyTag: 'bhature',
+    aliases: [
+      'chole bhature', 'bhature', 'bhatura', 'poori', 'puri', 'chola bhatura',
+      'சோலே பட்டூரே', 'பூரி', 'பட்டூரே',
+      'छोले भटूरे', 'भटूरे', 'पूरी',
+    ],
+    variantTokens: [
+      'chole', 'punjabi', 'masala', 'aloo',
+      'சோலே', 'பஞ்சாபி',
+      'छोले', 'पंजाबी', 'आलू',
+    ],
+  },
+
+  // ── PANEER ────────────────────────────────────────────────────────────────────
+  {
+    key: 'paneer',
+    familyTag: 'paneer',
+    aliases: [
+      'paneer', 'paneer butter masala', 'paneer masala',
+      'பன்னீர்', 'பன்னீர் பட்டர் மசாலா', 'பனீர்',
+      'पनीर', 'पनीर बटर मसाला',
+    ],
+    variantTokens: [
+      'butter', 'masala', 'naan', 'tikka', 'kadai',
+      'பட்டர்', 'மசாலா', 'நான்',
+      'बटर', 'मसाला', 'नान',
+    ],
+  },
+
+  // ── CHICKEN / BUTTER CHICKEN ──────────────────────────────────────────────────
+  {
+    key: 'chicken',
+    familyTag: 'chicken',
+    aliases: [
+      'butter chicken', 'chicken curry', 'murgh makhani',
+      'பட்டர் சிக்கன்', 'சிக்கன் கிரேவி',
+      'बटर चिकन', 'मुर्ग मखनी',
+    ],
+    variantTokens: [
+      'butter', 'curry', 'makhani', 'rice',
+      'பட்டர்', 'சாதம்',
+      'बटर', 'चावल',
+    ],
+  },
+
+  // ── APPAM ─────────────────────────────────────────────────────────────────────
+  {
+    key: 'appam',
+    familyTag: 'appam',
+    aliases: [
+      'appam', 'kerala appam', 'stew',
+      'ஆப்பம்', 'அப்‌பம்', 'அப்பம்',
+      'अप्पम',
+    ],
+    variantTokens: [
+      'kerala', 'stew', 'veg stew',
+      'கேரளா', 'ஸ்டூ',
+      'केरल', 'वेज स्टू',
+    ],
+  },
+
+  // ── THALI & MEALS ─────────────────────────────────────────────────────────────
+  {
+    key: 'thali',
+    familyTag: 'thali',
+    aliases: [
+      'thali', 'meals', 'south indian meals', 'gujarati thali',
+      'மீல்ஸ்', 'சாப்பாடு', 'தாலி',
+      'थाली', 'गुजराती थाली', 'भोजन',
+    ],
+    variantTokens: [
+      'gujarati', 'special', 'royal', 'south indian',
+      'குஜராத்தி', 'ஸ்பெஷல்',
+      'गुजराती', 'शाही',
+    ],
+  },
+
+  // ── PAV BHAJI ─────────────────────────────────────────────────────────────────
+  {
+    key: 'pavbhaji',
+    familyTag: 'pavbhaji',
+    aliases: [
+      'pav bhaji', 'pav baji', 'bhaji pav',
+      'பாவ் பாஜி',
+      'पाव भाजी',
+    ],
+    variantTokens: [
+      'butter', 'mumbai', 'cheese',
+      'பட்டர்', 'மும்பை',
+      'बटर', 'मुंबई',
+    ],
+  },
+
+  // ── PANI PURI / CHAAT ─────────────────────────────────────────────────────────
+  {
+    key: 'panipuri',
+    familyTag: 'panipuri',
+    aliases: [
+      'pani puri', 'panipuri', 'golgappa', 'gol gappa', 'puchka', 'chaat',
+      'பானி பூரி', 'பானிபூரி', 'கோல்கப்பா',
+      'पानी पूरी', 'गोलगप्पा', 'गोलगप्पे', 'पुचका',
+    ],
+    variantTokens: [
+      'crispy', 'masala', 'sweet',
+      'மொறுமொறு',
+      'क्रिस्पी',
+    ],
+  },
+
+  // ── FRIED RICE & NOODLES ──────────────────────────────────────────────────────
+  {
+    key: 'friedrice',
+    familyTag: 'friedrice',
+    aliases: [
+      'fried rice', 'schezwan fried rice', 'chicken fried rice', 'noodles',
+      'ஃப்ரைட் ரைஸ்', 'நூடுல்ஸ்', 'பிரைட் ரைஸ்',
+      'फ्राइड राइस', 'नूडल्स',
+    ],
+    variantTokens: [
+      'chicken', 'schezwan', 'veg', 'egg',
+      'சிக்கன்', 'செஸ்வான்',
+      'चिकन', 'शेजवान',
+    ],
+  },
+
+  // ── COFFEE & BEVERAGES ────────────────────────────────────────────────────────
+  {
+    key: 'coffee',
+    familyTag: 'coffee',
+    aliases: [
+      'coffee', 'filter coffee', 'kaapi', 'degree coffee',
+      'காபி', 'டிகிரி காபி', 'ஃபில்டர் காபி', 'காஃபி',
+      'कॉफ़ी', 'कॉफी',
+    ],
+    variantTokens: [
+      'filter', 'degree', 'kumbakonam', 'hot',
+      'டிகிரி', 'ஃபில்டர்', 'கும்பகோணம்',
+      'फिल्टर', 'डिग्री',
+    ],
+  },
+
+  // ── DESSERT / GULAB JAMUN ─────────────────────────────────────────────────────
+  {
+    key: 'dessert',
+    familyTag: 'dessert',
+    aliases: [
+      'gulab jamun', 'jamun', 'gulab jamoon', 'sweet',
+      'குலாப் ஜாமுன்', 'ஜாமுன்', 'இனிப்பு',
+      'गुलाब जामुन', 'जामुन', 'मिठाई',
+    ],
+    variantTokens: [
+      'hot', 'shahi',
+      'சூடான',
+      'शाही', 'गरम',
+    ],
+  },
 ];
 
 /** Strip filler phrases from raw query text. */

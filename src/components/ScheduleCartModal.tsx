@@ -25,6 +25,7 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
     language,
     showToast,
     checkIsItemRestrictedByNominee,
+    handleNomineeRestrictedInterception,
     onConfirmProceedToPinFromBill
   } = useApp();
 
@@ -147,6 +148,29 @@ export const ScheduleCartModal: React.FC<ScheduleCartModalProps> = ({ isOpen, on
 
   const handleProceedToOrderNow = () => {
     if (cart.length === 0) return;
+
+    // Check if any cart item is restricted by nominee
+    const restrictedCartItem = cart.find(item => checkIsItemRestrictedByNominee(item.itemId, item.name));
+    if (restrictedCartItem) {
+      const foodItem = restrictedCartItem.foodItem || INDIAN_FOOD_CATALOG.find(f => f.id === restrictedCartItem.itemId) || {
+        id: restrictedCartItem.itemId,
+        name: restrictedCartItem.name,
+        restaurant: restrictedCartItem.restaurantName,
+        basePrice: restrictedCartItem.price,
+        nativeNames: { ta: restrictedCartItem.name, hi: restrictedCartItem.name, en: restrictedCartItem.name },
+        image: restrictedCartItem.image || '',
+        category: restrictedCartItem.category || 'General',
+        isVegetarian: restrictedCartItem.isVegetarian || false,
+        rating: 4.5,
+        preparationTimeMinutes: 20,
+        locations: ['Chennai'],
+        tags: [],
+        platforms: []
+      } as any;
+      handleNomineeRestrictedInterception(foodItem, 'instant');
+      onClose();
+      return;
+    }
 
     // Build multi-restaurant bill breakdown object for PreOrderBillModal
     const subtotal = cartTotal;

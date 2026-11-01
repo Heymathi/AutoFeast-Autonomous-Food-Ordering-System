@@ -80,8 +80,18 @@ export const OrderPinConfirmationModal: React.FC = () => {
       const msg = getLockMsg(secs);
       setErrorMessage(msg);
       speakText(msg, undefined, language);
+    } else if (res.isNetworkError || (res.serverError && typeof navigator !== 'undefined' && !navigator.onLine)) {
+      // Internet offline / network error — do NOT count against wrong PIN attempts, never place order
+      const msg =
+        language === 'ta'
+          ? '🌐 இணைய இணைப்பு இல்லை. PIN சரிபார்க்க இணையத்தை மீண்டும் இணைக்கவும்.'
+          : language === 'hi'
+          ? '🌐 इंटरनेट कनेक्शन उपलब्ध नहीं है। कृपया पिन सत्यापित करने के लिए इंटरनेट से पुनः कनेक्ट करें।'
+          : '🌐 Internet connection unavailable. Please reconnect to the internet to verify PIN.';
+      setErrorMessage(msg);
+      speakText(msg, undefined, language);
     } else if (res.serverError) {
-      // Transient network / server error — don't count against attempts, just retry
+      // Transient server error — don't count against attempts, just retry
       const msg =
         language === 'ta'
           ? '🔄 இப்போது சரிபார்க்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.'

@@ -36,6 +36,8 @@ export interface VerifyPinResult {
   attemptsLeft?: number;
   /** True when a network/server error prevented verification (not a wrong PIN). */
   serverError?: boolean;
+  /** True when internet or network is disconnected (do not count against wrong PIN attempts). */
+  isNetworkError?: boolean;
 }
 
 export class NomineeRequestError extends Error {
@@ -322,6 +324,17 @@ export class AuthService {
       return { success: false, error: 'Please enter a valid 4-digit numeric PIN.' };
     }
 
+    // Check internet connectivity first
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      console.warn('[AuthService] verifyPIN skipped: Internet offline');
+      return {
+        success: false,
+        serverError: true,
+        isNetworkError: true,
+        error: 'Internet connection unavailable. Please reconnect to the internet to verify PIN.'
+      };
+    }
+
     let isMatch = false;
     let serverAttemptsLeft: number | undefined;
     let serverLocked = false;
@@ -394,10 +407,18 @@ export class AuthService {
         console.warn(`[AuthService] Server verify-pin HTTP ${res.status}`);
         return { success: false, serverError: true, error: serverErrMsg };
       }
-    } catch (e) {
-      const serverErrMsg = 'Cannot verify PIN right now, please try again.';
-      console.warn('[AuthService] Server verify-pin request error:', e);
-      return { success: false, serverError: true, error: serverErrMsg };
+    } catch (e: any) {
+      const isNet = (typeof navigator !== 'undefined' && !navigator.onLine) ||
+        e?.name === 'TypeError' ||
+        String(e?.message).includes('fetch') ||
+        String(e?.message).includes('network') ||
+        String(e?.message).includes('Failed to fetch') ||
+        String(e?.message).includes('ERR_INTERNET_DISCONNECTED');
+      const serverErrMsg = isNet
+        ? 'Internet connection unavailable. Please reconnect to the internet to verify PIN.'
+        : 'Cannot verify PIN right now, please try again.';
+      console.warn('[AuthService] Server verify-pin request error (isNetworkError=' + Boolean(isNet) + '):', e?.message || e);
+      return { success: false, serverError: true, isNetworkError: Boolean(isNet), error: serverErrMsg };
     }
 
     if (isMatch) {

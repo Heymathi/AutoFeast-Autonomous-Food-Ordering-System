@@ -44,7 +44,7 @@ async function invokeVerifyPin(headers: Record<string, string>, body: any): Prom
       json(payload: any) { resolve({ status: statusCode, json: payload }); return this; }
     };
 
-    app.handle(req, res, (err: any) => {
+    (app as any).handle(req, res, (err: any) => {
       if (err) reject(err);
     });
   });
