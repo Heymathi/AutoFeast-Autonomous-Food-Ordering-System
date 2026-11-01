@@ -3,162 +3,184 @@ import { useApp } from '../context/AppContext';
 import {
   Sparkles,
   Target,
-  Shield,
-  Heart,
-  Globe2,
-  Cpu,
-  Layers,
-  ArrowRight,
-  Utensils
+  Eye,
+  Compass,
+  Mic,
+  CalendarClock,
+  TrendingDown,
+  ShieldCheck,
+  ArrowRight
 } from 'lucide-react';
 
 export const AboutPage: React.FC = () => {
-  const { setActiveView, t, accessibilitySettings } = useApp();
+  const { setActiveView, accessibilitySettings } = useApp();
 
-  const currentTheme =
-    accessibilitySettings.themeMode ||
-    (accessibilitySettings.highContrast ? 'high-contrast' : 'light');
+  const isHighContrast = accessibilitySettings?.highContrast;
 
-  const capabilities = [
+  const specialFeatures = [
     {
-      icon: Cpu,
-      title: 'Multi-Model Voice Intelligence',
-      desc: 'Seamless voice ordering powered by Web Speech API with automatic failover to local offline Whisper AI inference for Tamil, Hindi, and English.'
+      icon: Sparkles,
+      title: 'AI-Powered Recommendations',
+      description:
+        'Discover food suggestions based on user preferences, dietary requirements, and previous choices.'
     },
     {
-      icon: Layers,
-      title: 'Multi-Platform Price Optimization',
-      desc: 'Simultaneous price checking across leading delivery networks (Swiggy, Zomato, EatSure) to ensure users always receive the most economical option.'
+      icon: Compass,
+      title: 'Smart Food Discovery',
+      description:
+        'Search for food and restaurants using dynamic search, voice commands, and location-based discovery.'
     },
     {
-      icon: Shield,
-      title: 'Nominee Protection & Dietary Safety',
-      desc: 'Integrated guardian oversight preventing vulnerable users, seniors, and patients from accidentally ordering non-permitted allergenic dishes.'
+      icon: Mic,
+      title: 'Voice-Enabled Ordering',
+      description:
+        'Interact with the platform using voice commands in English, Tamil, and Hindi.'
     },
     {
-      icon: Heart,
-      title: 'Accessibility by Design',
-      desc: 'High contrast styling, dynamic 4-tier font sizing, auto-voice narration, and full keyboard navigation meeting modern web accessibility standards.'
+      icon: CalendarClock,
+      title: 'Automated Meal Scheduling',
+      description:
+        'Plan recurring meals and organize food orders according to your preferred schedule.'
+    },
+    {
+      icon: TrendingDown,
+      title: 'Smart Price Comparison',
+      description:
+        'Compare available food prices across supported platforms to make informed decisions.'
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Personalized Food Management',
+      description:
+        'Manage dietary preferences, health information, daily limits, nominees, and other food-related settings.'
     }
   ];
 
   return (
-    <div className="w-full max-w-5xl mx-auto py-8 sm:py-12 px-4 sm:px-6 space-y-12 animate-fade-in">
-      {/* Header */}
+    <div className={`w-full max-w-5xl mx-auto py-8 sm:py-14 px-4 sm:px-6 space-y-12 sm:space-y-16 animate-fade-in pb-16 ${
+      isHighContrast ? 'text-white' : 'text-[#302720]'
+    }`}>
+      {/* 1. About Page Heading */}
       <div className="text-center space-y-4 max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FBE9E5] text-[#D93636] text-xs font-bold tracking-wide">
-          <Sparkles className="w-3.5 h-3.5" />
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#FCE8E3] text-[#D93636] text-xs font-bold tracking-wide border border-[#E9DED5] shadow-xs">
+          <Sparkles className="w-3.5 h-3.5 text-[#D93636]" />
           <span>About The Platform</span>
         </div>
-        <h1 className="font-serif-editorial text-3xl sm:text-5xl font-bold text-[#33251F] tracking-tight">
-          {t('about.title') || 'About AutoFeast AI'}
+
+        <h1 className="font-serif-editorial text-4xl sm:text-6xl font-bold tracking-tight text-[#302720]">
+          AutoFeast AI
         </h1>
-        <p className="text-sm sm:text-base text-[#8A817A] leading-relaxed">
-          {t('about.subtitle') || 'Autonomous Food Ordering & Smart Scheduling Platform'}
+
+        <p className="text-base sm:text-lg text-[#786E64] font-medium leading-relaxed max-w-2xl mx-auto font-sans">
+          Smarter Food Choices. Easier Ordering. Happier Living.
         </p>
       </div>
 
-      {/* Mission & Purpose Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-        <div className={`p-6 sm:p-8 rounded-2xl border shadow-xs space-y-4 ${
-          currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#F0E5DC]'
+      {/* 2. About AutoFeast AI – Introduction */}
+      <div className={`p-6 sm:p-9 rounded-3xl border shadow-xs text-center max-w-3xl mx-auto ${
+        isHighContrast
+          ? 'bg-black border-yellow-400 text-yellow-100'
+          : 'bg-white border-[#E9DED5] text-[#302720]'
+      }`}>
+        <p className="text-base sm:text-lg leading-relaxed font-normal">
+          AutoFeast AI is an intelligent food ordering platform designed to make food discovery, meal planning, and ordering simpler and smarter. It combines AI-powered recommendations, voice-enabled search, location-based restaurant discovery, and automated scheduling to provide a convenient and personalized food experience.
+        </p>
+      </div>
+
+      {/* 3 & 5. Our Mission & Our Vision */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 items-stretch">
+        {/* Mission Card */}
+        <div className={`p-6 sm:p-8 rounded-3xl border shadow-xs space-y-4 flex flex-col transition-all hover:border-[#D93636]/40 ${
+          isHighContrast
+            ? 'bg-black border-yellow-400'
+            : 'bg-white border-[#E9DED5]'
         }`}>
-          <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center font-bold">
+          <div className="w-12 h-12 rounded-2xl bg-[#FCE8E3] text-[#D93636] flex items-center justify-center font-bold shadow-2xs">
             <Target className="w-6 h-6" />
           </div>
-          <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#33251F]">Our Mission</h2>
-          <p className="text-xs sm:text-sm text-[#8A817A] leading-relaxed">
-            AutoFeast AI was created to make food discovery and ordering radically accessible, autonomous, and transparent. We bridge language barriers through native speech recognition in English, தமிழ் (Tamil), and हिन्दी (Hindi), enabling every individual to order their favorite meals effortlessly.
+          <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#302720]">
+            Our Mission
+          </h2>
+          <p className="text-sm sm:text-base text-[#786E64] leading-relaxed flex-1 font-sans">
+            Our mission is to simplify everyday food decisions by bringing intelligent technology and convenience together. We aim to help users discover suitable meals, make informed food choices, manage their food budgets, and organize their meal schedules effortlessly.
           </p>
         </div>
 
-        <div className={`p-6 sm:p-8 rounded-2xl border shadow-xs space-y-4 ${
-          currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#F0E5DC]'
+        {/* Vision Card */}
+        <div className={`p-6 sm:p-8 rounded-3xl border shadow-xs space-y-4 flex flex-col transition-all hover:border-[#D93636]/40 ${
+          isHighContrast
+            ? 'bg-black border-yellow-400'
+            : 'bg-white border-[#E9DED5]'
         }`}>
-          <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center font-bold">
-            <Utensils className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-2xl bg-[#FCE8E3] text-[#D93636] flex items-center justify-center font-bold shadow-2xs">
+            <Eye className="w-6 h-6" />
           </div>
-          <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#33251F]">Project Purpose</h2>
-          <p className="text-xs sm:text-sm text-[#8A817A] leading-relaxed">
-            Many traditional delivery applications are complex, text-heavy, and difficult for elderly family members to navigate independently. AutoFeast AI introduces nominee protection, automated weekly meal scheduling, and natural speech-driven ordering so anyone can arrange meals safely with full guardian visibility.
+          <h2 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#302720]">
+            Our Vision
+          </h2>
+          <p className="text-sm sm:text-base text-[#786E64] leading-relaxed flex-1 font-sans">
+            To create a smarter and more accessible food ordering experience where technology helps people discover food, manage their meals, and make everyday dining decisions with confidence.
           </p>
         </div>
       </div>
 
-      {/* AI Food Discovery Concept */}
-      <div className={`p-6 sm:p-8 rounded-2xl border ${
-        currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-[#FBE9E5] border-[#F0E5DC]'
-      } space-y-4`}>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#FBE9E5] text-[#D93636] text-xs font-bold">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Core Concept</span>
+      {/* 4. What Makes AutoFeast AI Special? */}
+      <div className="space-y-6 sm:space-y-8">
+        <div className="text-center space-y-2 max-w-2xl mx-auto">
+          <h2 className="font-serif-editorial text-2xl sm:text-4xl font-bold text-[#302720] tracking-tight">
+            What Makes AutoFeast AI Special?
+          </h2>
+          <p className="text-xs sm:text-sm text-[#786E64] leading-relaxed font-sans">
+            Explore the core features that bring intelligence, convenience, and peace of mind to every meal.
+          </p>
         </div>
-        <h2 className="font-serif-editorial text-xl sm:text-2xl font-bold text-[#33251F]">
-          AI-Powered Food Discovery & Semantics
-        </h2>
-        <p className="text-xs sm:text-sm text-[#8A817A] leading-relaxed">
-          When users search for dishes like &quot;dosa&quot;, &quot;தோசை&quot;, &quot;इडली&quot;, or &quot;biryani&quot;, AutoFeast AI leverages an intelligent tri-layer query pipeline:
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div className="p-4 rounded-xl bg-white border border-[#F0E5DC] space-y-2">
-            <span className="text-xs font-black text-[#D93636]">Layer 1</span>
-            <h4 className="text-sm font-bold text-[#33251F]">Phonetic & Cross-Script Match</h4>
-            <p className="text-xs text-[#8A817A]">Matches spoken Tamil and Hindi sounds to catalog dishes accurately.</p>
-          </div>
-          <div className="p-4 rounded-xl bg-white border border-[#F0E5DC] space-y-2">
-            <span className="text-xs font-black text-[#D93636]">Layer 2</span>
-            <h4 className="text-sm font-bold text-[#33251F]">Gemini AI Semantic NLU</h4>
-            <p className="text-xs text-[#8A817A]">Extracts dietary intent, quantities, and restaurant preferences when online.</p>
-          </div>
-          <div className="p-4 rounded-xl bg-white border border-[#F0E5DC] space-y-2">
-            <span className="text-xs font-black text-[#D93636]">Layer 3</span>
-            <h4 className="text-sm font-bold text-[#33251F]">Local Whisper Offline Engine</h4>
-            <p className="text-xs text-[#8A817A]">Processes speech locally inside the browser even when internet disconnects.</p>
-          </div>
-        </div>
-      </div>
 
-      {/* Main Capabilities */}
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-[#33251F] text-center">
-          Key Platform Capabilities
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {capabilities.map((cap) => {
-            const Icon = cap.icon;
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {specialFeatures.map((feat) => {
+            const Icon = feat.icon;
             return (
               <div
-                key={cap.title}
-                className={`p-6 rounded-2xl border shadow-xs flex items-start space-x-4 ${
-                  currentTheme === 'dark' ? 'bg-zinc-800 border-zinc-700' : 'bg-white border-[#F0E5DC]'
+                key={feat.title}
+                className={`p-6 sm:p-7 rounded-3xl border shadow-xs hover:shadow-md transition-all space-y-3.5 group hover:border-[#D93636]/40 flex flex-col ${
+                  isHighContrast
+                    ? 'bg-black border-yellow-400'
+                    : 'bg-white border-[#E9DED5]'
                 }`}
               >
-                <div className="w-10 h-10 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center shrink-0">
-                  <Icon className="w-5 h-5" />
+                <div className="w-12 h-12 rounded-2xl bg-[#FCE8E3] text-[#D93636] flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <Icon className="w-6 h-6" />
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-[#33251F] mb-1">{cap.title}</h3>
-                  <p className="text-xs sm:text-sm text-[#8A817A] leading-relaxed">{cap.desc}</p>
-                </div>
+                <h3 className="font-serif-editorial text-lg sm:text-xl font-bold text-[#302720] leading-snug">
+                  {feat.title}
+                </h3>
+                <p className="text-xs sm:text-sm text-[#786E64] leading-relaxed font-sans flex-1">
+                  {feat.description}
+                </p>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* CTA Box */}
-      <div className="text-center p-8 rounded-2xl bg-gradient-to-r from-[#D93636] to-[#33251F] text-white space-y-4 shadow-xl">
-        <h2 className="text-2xl sm:text-3xl font-black">Ready to explore intelligent food ordering?</h2>
-        <p className="text-xs sm:text-sm text-rose-100 max-w-xl mx-auto leading-relaxed">
-          Experience real-time price comparisons, hands-free voice search, and seamless autonomous scheduling.
+      {/* 6. Closing Section */}
+      <div className={`text-center p-8 sm:p-12 rounded-3xl border-2 space-y-4 shadow-sm max-w-4xl mx-auto ${
+        isHighContrast
+          ? 'bg-black border-yellow-400 text-white'
+          : 'bg-gradient-to-br from-[#FFF8EF] via-[#FCE8E3] to-[#FFF8EF] border-[#E9DED5]'
+      }`}>
+        <h2 className="font-serif-editorial text-2xl sm:text-4xl font-bold text-[#302720] tracking-tight">
+          Experience a Smarter Way to Order Food
+        </h2>
+        <p className="text-sm sm:text-base text-[#786E64] max-w-xl mx-auto leading-relaxed font-sans">
+          Discover, plan, and enjoy your meals with AutoFeast AI.
         </p>
         <div className="pt-2">
           <button
             type="button"
-            onClick={() => setActiveView('home')}
-            className="px-6 py-3 rounded-lg bg-white text-[#33251F] font-bold text-xs sm:text-sm shadow-md hover:bg-[#FBE9E5] transition-colors inline-flex items-center gap-2 cursor-pointer"
+            onClick={() => setActiveView('features')}
+            className="px-8 py-3.5 rounded-2xl bg-[#D93636] hover:bg-[#B9252D] text-white font-black text-sm shadow-md hover:shadow-lg active:scale-98 transition-all inline-flex items-center gap-2 cursor-pointer"
           >
-            <span>Start Exploring Now</span>
+            <span>Explore Features</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -166,4 +188,3 @@ export const AboutPage: React.FC = () => {
     </div>
   );
 };
-
