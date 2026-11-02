@@ -130,7 +130,7 @@ export const WelcomeMessageModal: React.FC = () => {
     if (handledRef.current) return;
     handledRef.current = true;
 
-    console.log('[Welcome] auto-continue fired: navigating to location step');
+    console.log('[Welcome] auto-continue fired: navigating to home page');
 
     clearAllTimers();
 
@@ -144,7 +144,7 @@ export const WelcomeMessageModal: React.FC = () => {
     // Release STT mic lock
     SpeechController.releaseMic('welcome_modal');
 
-    // Go straight into website / location step
+    // Go straight into website / home page
     handleWelcomeComplete();
   }, [handleWelcomeComplete]);
 
@@ -369,10 +369,10 @@ export const WelcomeMessageModal: React.FC = () => {
         >
           <span>
             {t('welcome.proceedBtn') || (activeLang === 'ta'
-              ? 'தொடரவும் (Proceed to Location)'
+              ? 'தொடரவும்'
               : activeLang === 'hi'
-              ? 'आगे बढ़ें (Proceed to Location)'
-              : 'Continue to Location Access')}
+              ? 'आगे बढ़ें'
+              : 'Continue')}
           </span>
           <ArrowRight className="w-5 h-5 text-white" />
         </button>

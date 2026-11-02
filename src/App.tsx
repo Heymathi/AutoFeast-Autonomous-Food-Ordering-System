@@ -17,7 +17,6 @@ import { OrderPinConfirmationModal } from './components/OrderPinConfirmationModa
 import { PreOrderBillModal } from './components/PreOrderBillModal';
 import { LanguageSelectionModal } from './components/LanguageSelectionModal';
 import { WelcomeMessageModal } from './components/WelcomeMessageModal';
-import { LocationPermissionModal } from './components/LocationPermissionModal';
 import { HealthDietaryVoiceModal } from './components/HealthDietaryVoiceModal';
 import { NomineeControlModal } from './components/NomineeControlModal';
 import { NomineeApprovalWaitingModal } from './components/NomineeApprovalWaitingModal';
@@ -154,13 +153,12 @@ const MainLayout: React.FC = () => {
         )}
       </main>
 
-      {/* EXACT 5-STEP ENTRY SEQUENCE MODALS (Only for user app flow, suppressed for Nominee portal) */}
+      {/* EXACT ONBOARDING SEQUENCE MODALS: Auth -> Language -> Welcome -> Home (Suppressed for Nominee portal) */}
       {!isNomineeFlow && (
         <>
           <AuthModal isOpen={entryStep === 'auth'} />
           <LanguageSelectionModal />
           <WelcomeMessageModal />
-          <LocationPermissionModal />
         </>
       )}
 

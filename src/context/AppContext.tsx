@@ -539,7 +539,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const handleWelcomeComplete = () => {
-    setEntryStep('location_permission');
+    setEntryStep('dashboard');
+    setActiveView('home');
   };
 
   const handleLocationPermissionResponse = async (allowed: boolean) => {
@@ -755,10 +756,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   useEffect(() => {
-    // If language is already set from past session, run initial silent location sync
-    const storedLang = localStorage.getItem('autofeast_language_preference');
-    if (storedLang) {
-      detectGPSLocation(true);
+    // Only query live GPS if permission was already granted previously (avoids unprompted browser permission popups on initial load)
+    if (typeof navigator !== 'undefined' && 'permissions' in navigator) {
+      navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((res) => {
+        if (res.state === 'granted') {
+          detectGPSLocation(true);
+        }
+      }).catch(() => {});
     }
   }, []);
 

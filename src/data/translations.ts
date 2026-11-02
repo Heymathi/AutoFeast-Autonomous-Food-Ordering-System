@@ -569,7 +569,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'welcome.title': 'Welcome to AutoFeast, {name}! 🎉',
     'welcome.subtitle': 'Your accessibility-first smart food ordering & auto-scheduling system is ready!',
     'welcome.langSet': 'Language preference successfully set!',
-    'welcome.proceedBtn': 'Continue to Location Access',
+    'welcome.proceedBtn': 'Continue',
     'welcome.micDenied': 'Microphone permission denied',
     'welcome.langUnsupported': 'Speech recognition not supported for this language'
   },
@@ -1126,7 +1126,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'welcome.title': 'AutoFeast-க்கு வரவேற்கிறோம், {name}! 🎉',
     'welcome.subtitle': 'உங்கள் குரல் வழி உணவு ஆர்டர் மற்றும் அட்டவணை அமைப்பு தயாராக உள்ளது!',
     'welcome.langSet': 'மொழி வெற்றிகரமாகப் பயன்படுத்தப்பட்டது!',
-    'welcome.proceedBtn': 'தொடரவும் (Proceed to Location)',
+    'welcome.proceedBtn': 'தொடரவும்',
     'welcome.micDenied': 'மைக் அணுகல் மறுக்கப்பட்டது',
     'welcome.langUnsupported': 'இந்த மொழிக்கு குரல் அறிதல் ஆதரிக்கப்படவில்லை'
   },
@@ -1683,7 +1683,7 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'welcome.title': 'AutoFeast में आपका स्वागत है, {name}! 🎉',
     'welcome.subtitle': 'आपकी आवाज से भोजन ऑर्डर और शेड्यूल प्रणाली तैयार है!',
     'welcome.langSet': 'भाषा सफलतापूर्वक लागू की गई!',
-    'welcome.proceedBtn': 'आगे बढ़ें (Proceed to Location)',
+    'welcome.proceedBtn': 'आगे बढ़ें',
     'welcome.micDenied': 'माइक्रोफ़ोन अनुमति अस्वीकृत',
     'welcome.langUnsupported': 'इस भाषा के लिए आवाज पहचान समर्थित नहीं है'
   }
