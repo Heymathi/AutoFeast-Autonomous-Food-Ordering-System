@@ -8,10 +8,6 @@ import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { CategoryVoiceService } from '../services/categoryVoiceService';
 import { DynamicFoodSearchEngine } from '../services/dynamicFoodSearch';
 import { detectFoodFamilyIntent } from '../services/foodFamilyTable';
-import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
-import { ItemActionChooser } from './ItemActionChooser';
-import { PriceComparisonModal } from './PriceComparisonModal';
-import { SearchGuidedOrderModal as _SearchGuidedOrderModal } from './SearchGuidedOrderModal'; // mounted in App.tsx
 import { Search, MapPin, Utensils, Leaf, Star, Clock, Sparkles, AlertCircle, ShieldCheck, ShieldAlert, Calendar, Zap, Navigation, Mic, MicOff, Volume2, BarChart2, ArrowLeft, ArrowRight } from 'lucide-react';
 
 export const DynamicFoodSearch: React.FC = () => {
@@ -43,17 +39,15 @@ export const DynamicFoodSearch: React.FC = () => {
     processNaturalLanguageVoiceCommand,
     setIsNomineeModalOpen,
     setIsHealthModalOpen,
-    setIsVoiceModalOpen
+    setIsVoiceModalOpen,
+    openGuidedSearch,
+    openPriceComparison
   } = useApp();
 
   const [isMicListening, setIsMicListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [categoryStatusText, setCategoryStatusText] = useState('');
   const [topSuggestions, setTopSuggestions] = useState<{ items: FoodItem[]; prompt?: string } | null>(null);
-  const [schedulingItem, setSchedulingItem] = useState<FoodItem | null>(null);
-  const [chooserItem, setChooserItem] = useState<FoodItem | null>(null);
-  const [priceCompareItem, setPriceCompareItem] = useState<FoodItem | null>(null);
-  const chooserItems = useMemo(() => (chooserItem ? [chooserItem] : []), [chooserItem]);
 
   useEffect(() => {
     return () => {
@@ -93,7 +87,7 @@ export const DynamicFoodSearch: React.FC = () => {
         if (matchedVariety) {
           console.log(`[Category Follow-up SUCCESS]: Matched specific variety -> "${matchedVariety.name}"`);
           setCategoryStatusText('');
-          setChooserItem(matchedVariety);
+          openGuidedSearch(matchedVariety.name, [matchedVariety]);
           SpeechController.releaseMic('dynamic_search_followup');
         }
       },
@@ -721,7 +715,7 @@ export const DynamicFoodSearch: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setPriceCompareItem(item)}
+                    onClick={() => openPriceComparison(item)}
                     className="w-full py-2 px-2.5 rounded-xl border border-[#F0E5DC] hover:border-[#D93636] text-zinc-700 hover:text-[#D93636] text-xs font-bold flex items-center justify-center gap-1 transition-all bg-white hover:bg-[#FBE9E5] cursor-pointer"
                   >
                     <BarChart2 className="w-3.5 h-3.5" />
@@ -730,7 +724,7 @@ export const DynamicFoodSearch: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => setChooserItem(item)}
+                    onClick={() => openGuidedSearch(item.name, [item])}
                     className="w-full py-2 px-2.5 rounded-xl bg-[#D93636] hover:bg-[#C02B2B] text-white text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-xs hover:scale-105 active:scale-95 cursor-pointer"
                   >
                     <Zap className="w-3.5 h-3.5" />
@@ -751,52 +745,6 @@ export const DynamicFoodSearch: React.FC = () => {
           ))}
         </div>
       </section>
-
-      {/* Modal Dialogs */}
-      {priceCompareItem && (
-        <PriceComparisonModal
-          item={priceCompareItem}
-          isOpen={Boolean(priceCompareItem)}
-          onClose={() => setPriceCompareItem(null)}
-          onSelectPlatform={(platformName) => {
-            console.log(`Platform ${platformName} chosen for ${priceCompareItem.name}`);
-            setPriceCompareItem(null);
-            setChooserItem(priceCompareItem);
-          }}
-        />
-      )}
-
-      {chooserItem && (
-        <ItemActionChooser
-          isOpen={Boolean(chooserItem)}
-          items={chooserItems}
-          item={chooserItem}
-          onClose={() => setChooserItem(null)}
-          onOrderNow={(items) => {
-            const it = items?.[0] || chooserItem;
-            setChooserItem(null);
-            placeInstantOrder(it);
-          }}
-          onSchedule={(items) => {
-            const it = items?.[0] || chooserItem;
-            setChooserItem(null);
-            setSchedulingItem(it);
-          }}
-          onAddToCart={(items) => {
-            const it = items?.[0] || chooserItem;
-            setChooserItem(null);
-            addToCart(it, 1, 'dynamic_search');
-          }}
-        />
-      )}
-
-      {schedulingItem && (
-        <ScheduleCheckoutModal
-          isOpen={Boolean(schedulingItem)}
-          onClose={() => setSchedulingItem(null)}
-          foodItem={schedulingItem}
-        />
-      )}
     </div>
   );
 };

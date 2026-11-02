@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
 import { HealthDietaryNluService, HealthDietaryAnalysisResult, HealthFoodSuggestion } from '../services/healthDietaryNluService';
@@ -33,6 +34,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
     t,
     showToast,
     currentUser,
+    vegOnly,
     checkIsItemRestrictedByNominee,
     handleNomineeRestrictedInterception
   } = useApp();
@@ -46,6 +48,17 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
   const [isSchedulingModalOpen, setIsSchedulingModalOpen] = useState(false);
   const [chooserItem, setChooserItem] = useState<FoodItem | null>(null);
   const chooserItems = useMemo(() => (chooserItem ? [chooserItem] : []), [chooserItem]);
+
+  const savedHealthCondition = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const stored = localStorage.getItem('autofeast_health_condition_details') ||
+                   localStorage.getItem('autofeast_health_conditions');
+    if (stored && stored.trim()) return stored.trim();
+    if ((currentUser as any)?.healthConditions && Array.isArray((currentUser as any).healthConditions) && (currentUser as any).healthConditions.length > 0) {
+      return (currentUser as any).healthConditions.join(', ').trim();
+    }
+    return '';
+  }, [currentUser]);
 
   const stepRef = useRef<HealthModalStep>('speak_condition');
   const isComponentMounted = useRef(true);
@@ -113,12 +126,25 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
     console.log(`[HealthDietaryVoiceModal]: Processing spoken health input: "${text}"`);
     const primaryInput = candidates[0] || text;
     const result = await HealthDietaryNluService.analyzeHealthContextAndSuggestFood(primaryInput, language);
-    
-    setAnalysisResult(result);
+
+    // Safety check: Filter out any suggestions restricted by nominee or conflicting with dietary restrictions / allergies
+    const safeSuggestions = result.suggestions.filter(s => {
+      const isRestricted = checkIsItemRestrictedByNominee(s.foodItem.id, s.foodItem.name);
+      if (isRestricted) return false;
+      if (vegOnly && !s.foodItem.isVeg) return false;
+      return true;
+    });
+
+    const safeResult: HealthDietaryAnalysisResult = {
+      ...result,
+      suggestions: safeSuggestions.length > 0 ? safeSuggestions : result.suggestions
+    };
+
+    setAnalysisResult(safeResult);
     setStep('view_suggestions');
     stepRef.current = 'view_suggestions';
 
-    speakSuggestionsAloud(result);
+    speakSuggestionsAloud(safeResult);
   };
 
   const speakSuggestionsAloud = (result: HealthDietaryAnalysisResult) => {
@@ -219,12 +245,19 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
 
   useEffect(() => {
     if (isOpen) {
-      setStep('speak_condition');
-      stepRef.current = 'speak_condition';
       setLiveTranscript('');
-      setAnalysisResult(null);
       setSelectedItem(null);
       setPriceComparison(null);
+
+      // If user has saved health conditions, automatically analyze them
+      if (savedHealthCondition) {
+        handleAnalyzeHealthText(savedHealthCondition);
+        return;
+      }
+
+      setStep('speak_condition');
+      stepRef.current = 'speak_condition';
+      setAnalysisResult(null);
 
       const promptMsg = language === 'ta'
         ? 'உங்கள் உடல்நிலை அல்லது உணவுக் தேவையை குரல் மூலம் சொல்லுங்கள். எ.கா: "எனக்கு காய்ச்சல் இருக்கு என்ன சாப்பிடலாம்?"'
@@ -244,12 +277,12 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
     } else {
       SpeechController.releaseMic('healthy_food');
     }
-  }, [isOpen, language]);
+  }, [isOpen, language, savedHealthCondition]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#302720]/40 backdrop-blur-sm p-4 animate-fade-in overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-[#302720]/40 backdrop-blur-sm p-4 animate-fade-in overflow-y-auto">
       <div className="bg-[#FFF8EF] text-[#302720] rounded-3xl max-w-xl w-full p-6 shadow-2xl border-2 border-[#E9DED5] relative space-y-5 my-8">
         
         {/* Close Button */}
@@ -300,6 +333,37 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         {/* STEP 1: Speak Condition */}
         {step === 'speak_condition' && (
           <div className="space-y-4">
+            {!savedHealthCondition ? (
+              <div className="bg-[#FFF8F0] p-4 rounded-2xl border border-[#F0E5DC] text-center space-y-1">
+                <span className="text-xs font-bold text-[#D93636] uppercase tracking-wider block">
+                  {language === 'ta' ? 'உடல்நல விவரங்கள் பதிவு செய்யப்படவில்லை' : language === 'hi' ? 'स्वास्थ्य विवरण उपलब्ध नहीं हैं' : 'No Saved Health Condition Details Found'}
+                </span>
+                <p className="text-xs text-[#8A817A] leading-relaxed">
+                  {language === 'ta'
+                    ? 'உங்கள் உடல்நிலை விவரங்களை முடிக்கவும் அல்லது கீழே உள்ள மைக்ரோஃபோன் வழியாக பேசி உணவுப் பரிந்துரைகளைப் பெறவும்.'
+                    : language === 'hi'
+                    ? 'कृपया अपने स्वास्थ्य विवरण पूर्ण करें या नीचे बोलकर उपयुक्त आहार सुझाव प्राप्त करें।'
+                    : 'Please complete your Health Condition Details or speak your condition below to receive tailored dietary recommendations.'}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-[#43845C]/10 p-4 rounded-2xl border border-[#43845C]/20 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#43845C] block">
+                    {language === 'ta' ? 'பதிவு செய்யப்பட்ட உடல்நிலை' : language === 'hi' ? 'சहेजी गई स्वास्थ्य स्थिति' : 'Saved Health Condition'}
+                  </span>
+                  <p className="text-sm font-bold text-[#302720] mt-0.5">{savedHealthCondition}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAnalyzeHealthText(savedHealthCondition)}
+                  className="px-3 py-1.5 bg-[#43845C] text-white rounded-xl text-xs font-bold hover:bg-[#356848] transition-colors cursor-pointer"
+                >
+                  {language === 'ta' ? 'ஆய்வு செய்' : language === 'hi' ? 'सुझाव देखें' : 'View Suggestions'}
+                </button>
+              </div>
+            )}
+
             <div className="bg-[#F7F3EB] p-5 rounded-2xl border border-[#E9DED5] text-center space-y-2">
               <p className="text-base font-black text-[#302720] leading-relaxed">
                 {language === 'ta'
@@ -618,6 +682,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         initialSlotName={selectedItem ? `${selectedItem.name} Healthy Schedule` : 'Healthy Schedule'}
       />
 
-    </div>
+    </div>,
+    document.body
   );
 };

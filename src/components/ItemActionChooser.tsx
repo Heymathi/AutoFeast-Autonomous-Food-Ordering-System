@@ -57,6 +57,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
   const spokenTurnKeyRef = useRef<string>('');
   const handledActionRef = useRef<boolean>(false);
   const failedCountRef = useRef<number>(0);
+  const handleSelectActionRef = useRef<(action: ChooserAction) => void>(() => {});
 
   const itemIdsKey = itemsList.length > 0 ? itemsList.map(i => i.id).join(',') : '';
 
@@ -271,6 +272,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
     }
     onClose();
   };
+  handleSelectActionRef.current = handleSelectAction;
 
   const lastActionTimeRef = useRef<{ [key: string]: number }>({});
   const handleUserAction = (action: ChooserAction) => {

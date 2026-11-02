@@ -61,20 +61,20 @@ describe('AutoFeast AI – Food Card Action Buttons Suite', () => {
     );
 
     // Food item details rendered
-    expect(screen.getByText(testItem.name)).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(testItem.restaurant, 'i'))).toBeInTheDocument();
+    expect(screen.getByText(testItem.name)).toBeDefined();
+    expect(screen.getByText(new RegExp(testItem.restaurant, 'i'))).toBeDefined();
 
     // Platforms rendered
-    expect(screen.getAllByText(/Swiggy/i)[0]).toBeInTheDocument();
-    expect(screen.getAllByText(/Zomato/i)[0]).toBeInTheDocument();
-    expect(screen.getAllByText(/EatSure/i)[0]).toBeInTheDocument();
-    expect(screen.getAllByText(/MagicPin/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Swiggy/i)[0]).toBeDefined();
+    expect(screen.getAllByText(/Zomato/i)[0]).toBeDefined();
+    expect(screen.getAllByText(/EatSure/i)[0]).toBeDefined();
+    expect(screen.getAllByText(/MagicPin/i)[0]).toBeDefined();
 
     // Best Value banner rendered
-    expect(screen.getByText(/BEST VALUE/i)).toBeInTheDocument();
+    expect(screen.getByText(/BEST VALUE/i)).toBeDefined();
 
     // Savings banner
-    expect(screen.getByText(/Save up to/i)).toBeInTheDocument();
+    expect(screen.getByText(/Save up to/i)).toBeDefined();
   });
 
   it('2. COMPARE: Selecting a platform triggers onSelectPlatform callback with platform details', () => {
@@ -94,7 +94,7 @@ describe('AutoFeast AI – Food Card Action Buttons Suite', () => {
 
     // Find and click one of the platform order buttons
     const orderSwiggyBtn = screen.getByRole('button', { name: /Order on Swiggy/i });
-    expect(orderSwiggyBtn).toBeInTheDocument();
+    expect(orderSwiggyBtn).toBeDefined();
     fireEvent.click(orderSwiggyBtn);
 
     expect(onSelectMock).toHaveBeenCalledWith('swiggy', expect.any(Number));
@@ -120,17 +120,17 @@ describe('AutoFeast AI – Food Card Action Buttons Suite', () => {
     );
 
     // Verifies the modal rendered with food item details (using getAllByText since name appears in header and item card)
-    expect(screen.getAllByText(testItem.name)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(testItem.name)[0]).toBeDefined();
 
     // Order Now button
     const orderNowBtn = screen.getByRole('button', { name: /orderNow|Order Now/i });
-    expect(orderNowBtn).toBeInTheDocument();
+    expect(orderNowBtn).toBeDefined();
     fireEvent.click(orderNowBtn);
     expect(orderNowMock).toHaveBeenCalledWith([testItem]);
 
     // Schedule button
     const scheduleBtn = screen.getByRole('button', { name: /scheduleCart|Schedule/i });
-    expect(scheduleBtn).toBeInTheDocument();
+    expect(scheduleBtn).toBeDefined();
     fireEvent.click(scheduleBtn);
     expect(scheduleMock).toHaveBeenCalledWith([testItem]);
   });

@@ -135,6 +135,11 @@ interface AppContextType {
   openGuidedSearch: (query: string, items: FoodItem[]) => void;
   closeGuidedSearch: () => void;
 
+  // Live Multi-Platform Price Comparison Modal
+  priceComparisonItem: FoodItem | null;
+  openPriceComparison: (item: FoodItem) => void;
+  closePriceComparison: () => void;
+
   // Schedules & Orders
   schedules: AutoOrderSchedule[];
   overrides: ScheduleOverride[];
@@ -793,6 +798,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const closeGuidedSearch = () => {
     setIsGuidedSearchOpen(false);
+  };
+
+  // Live Multi-Platform Price Comparison State
+  const [priceComparisonItem, setPriceComparisonItem] = useState<FoodItem | null>(null);
+
+  const openPriceComparison = (item: FoodItem) => {
+    console.log(`[openPriceComparison] Opening price comparison for ${item.name} (${item.restaurant})`);
+    setPriceComparisonItem(item);
+  };
+
+  const closePriceComparison = () => {
+    setPriceComparisonItem(null);
   };
 
   const [searchResult, setSearchResult] = useState<SearchResult>(() => 
@@ -3184,6 +3201,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isGuidedSearchOpen,
       openGuidedSearch,
       closeGuidedSearch,
+      priceComparisonItem,
+      openPriceComparison,
+      closePriceComparison,
       schedules,
       overrides,
       saveSchedule,

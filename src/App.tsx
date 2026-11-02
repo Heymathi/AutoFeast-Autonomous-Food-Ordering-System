@@ -24,6 +24,7 @@ import { NomineeApprovalWaitingModal } from './components/NomineeApprovalWaiting
 import { CenteredToastContainer } from './components/CenteredToastContainer';
 import { ScheduleCheckoutModal } from './components/ScheduleCheckoutModal';
 import { ScheduleCartModal } from './components/ScheduleCartModal';
+import { PriceComparisonModal } from './components/PriceComparisonModal';
 import { SpeechDebugPanel } from './components/SpeechDebugPanel';
 import { NomineeSetupScreen } from './components/NomineeSetupScreen';
 import { NomineePortalPage } from './components/NomineePortalPage';
@@ -70,6 +71,9 @@ const MainLayout: React.FC = () => {
     clearScheduleCart,
     isScheduleCartModalOpen,
     setIsScheduleCartModalOpen,
+    openGuidedSearch,
+    priceComparisonItem,
+    closePriceComparison,
     language
   } = useApp();
 
@@ -234,6 +238,22 @@ const MainLayout: React.FC = () => {
         isOpen={isScheduleCartModalOpen}
         onClose={() => setIsScheduleCartModalOpen(false)}
       />
+
+      {/* Live Multi-Platform Price Comparison Modal */}
+      {priceComparisonItem && (
+        <PriceComparisonModal
+          item={priceComparisonItem}
+          isOpen={Boolean(priceComparisonItem)}
+          onClose={closePriceComparison}
+          onSelectPlatform={(platformName) => {
+            const it = priceComparisonItem;
+            closePriceComparison();
+            if (it) {
+              openGuidedSearch(it.name, [it]);
+            }
+          }}
+        />
+      )}
 
 
       {/* Footer */}

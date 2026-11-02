@@ -27,6 +27,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { FoodItem, AutoOrderSchedule, ScheduleDuration } from '../types';
 import { SpeechController } from '../services/speechController';
@@ -763,9 +764,21 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     const currentStep = stepRef.current;
 
     if (currentStep === 'variety') {
+      if (varieties.length === 1) {
+        const conf = SttMatcherService.matchConfirmation(candidates, language);
+        if (conf.matchedValue === 'NO') {
+          handleCancel();
+          return;
+        } else if (conf.matchedValue === 'YES') {
+          handleVarietyChosen(varieties[0]);
+          return;
+        }
+      }
       const decision = matchOptionByTokens(raw, varieties, language);
       if (decision.chosen) {
         handleVarietyChosen(decision.chosen as FoodItem);
+      } else if (varieties.length === 1) {
+        handleVarietyChosen(varieties[0]);
       } else if (decision.isTie && decision.tieCandidates) {
         const [a, b] = decision.tieCandidates as [FoodItem, FoodItem];
         const nameA = a.nativeNames?.[language] || a.name;
@@ -953,13 +966,8 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     setPinDigits(['', '', '', '']);
     setPinError(null);
 
-    if (matchedItems.length === 1) {
-      setSelectedItem(matchedItems[0]);
-      setStep('restaurant');
-    } else {
-      setSelectedItem(null);
-      setStep('variety');
-    }
+    setSelectedItem(matchedItems.length === 1 ? matchedItems[0] : null);
+    setStep('variety');
   }, [isOpen, matchedItems]);
 
   // Speak prompt when step changes
@@ -1072,12 +1080,14 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
     })()
     : [];
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  // ── Render ────────────────────────────────────────────────────────────────
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-[#302720]/40 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-lg bg-[#FFF8EF] text-[#302720] rounded-3xl shadow-2xl border-2 border-[#E9DED5] overflow-hidden relative">
+  // ── Render with Portal to document.body ──────────────────────────────────
+  return createPortal(
+    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+      onClick={e => e.target === e.currentTarget && handleCancel()}
+    >
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-[#FFF8EF] text-[#302720] rounded-3xl shadow-2xl border-2 border-[#E9DED5] relative">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[#E9DED5] bg-[#FFF8EF]">
@@ -1694,6 +1704,7 @@ export const SearchGuidedOrderModal: React.FC<SearchGuidedOrderModalProps> = ({
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

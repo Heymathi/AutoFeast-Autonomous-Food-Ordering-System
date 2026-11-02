@@ -98,13 +98,19 @@ export const FeaturesPage: React.FC = () => {
               </div>
               <h3 className="font-bold text-base text-[#33251F]">Recommendation System</h3>
               <p className="text-xs text-[#8A817A] leading-relaxed">
-                Personalized dietary and taste suggestions based on past orders and nutrition.
+                Personalized food recommendations based on your past orders, favourites, and dining preferences.
               </p>
             </div>
             <div className="pt-4">
               <button
                 type="button"
-                onClick={() => setIsHealthModalOpen(true)}
+                onClick={() => {
+                  setActiveView('home');
+                  setTimeout(() => {
+                    const el = document.getElementById('recommended-dishes-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 100);
+                }}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
               >
                 <span>Open</span>
@@ -121,19 +127,13 @@ export const FeaturesPage: React.FC = () => {
               </div>
               <h3 className="font-bold text-base text-[#33251F]">Healthy Food Recommendations</h3>
               <p className="text-xs text-[#8A817A] leading-relaxed">
-                Nutrient-balanced vegetarian dishes vetted against personal health guidelines.
+                Nutrient-balanced dishes vetted against personal health guidelines and condition details.
               </p>
             </div>
             <div className="pt-4">
               <button
                 type="button"
-                onClick={() => {
-                  setActiveView('home');
-                  setTimeout(() => {
-                    const el = document.getElementById('recommended-dishes-section');
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }, 100);
-                }}
+                onClick={() => setIsHealthModalOpen(true)}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
               >
                 <span>Open</span>

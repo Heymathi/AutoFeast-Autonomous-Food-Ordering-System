@@ -32,9 +32,6 @@ import {
   BarChart2,
   Zap
 } from 'lucide-react';
-import { ItemActionChooser } from './ItemActionChooser';
-import { PriceComparisonModal } from './PriceComparisonModal';
-import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
 
 export const HomePage: React.FC = () => {
   const {
@@ -42,7 +39,9 @@ export const HomePage: React.FC = () => {
     setSearchQuery,
     executeSearch,
     setSelectedCuisine,
+    vegOnly,
     setVegOnly,
+    orderHistory,
     setIsHealthModalOpen,
     setIsVoiceModalOpen,
     setIsNomineeModalOpen,
@@ -56,13 +55,12 @@ export const HomePage: React.FC = () => {
     addToCart,
     placeInstantOrder,
     showToast,
+    openGuidedSearch,
+    openPriceComparison,
     t
   } = useApp();
 
   const [isPreferencesExpanded, setIsPreferencesExpanded] = useState(false);
-  const [selectedDishForOrder, setSelectedDishForOrder] = useState<FoodItem | null>(null);
-  const [priceCompareDish, setPriceCompareDish] = useState<FoodItem | null>(null);
-  const [schedulingDish, setSchedulingDish] = useState<FoodItem | null>(null);
 
   const currentTheme =
     accessibilitySettings.themeMode ||
@@ -78,15 +76,47 @@ export const HomePage: React.FC = () => {
     { id: 'Beverages', name: 'Beverages', icon: '🥤', count: '4 dishes', cuisine: 'Beverages' }
   ];
 
-  // 4 Featured dishes for "Recommended For You" matching PDF Page 1
+  // Personalized recommendations based on past orders, preferences, and curated dishes
   const recommendedDishes = useMemo(() => {
-    return [
+    const picks: FoodItem[] = [];
+    const seen = new Set<string>();
+
+    // 1. Previous orders from order history
+    if (orderHistory && orderHistory.length > 0) {
+      for (const order of orderHistory) {
+        if (!order) continue;
+        const matched = INDIAN_FOOD_CATALOG.find(
+          item => (order.foodItemId && item.id === order.foodItemId) ||
+                  (order.foodName && item.name.toLowerCase() === order.foodName.toLowerCase())
+        );
+        if (matched && !seen.has(matched.id) && (!vegOnly || matched.isVeg)) {
+          picks.push(matched);
+          seen.add(matched.id);
+        }
+        if (picks.length >= 4) break;
+      }
+    }
+
+    // 2. Curated popular favorites
+    const defaultCatalog = [
       INDIAN_FOOD_CATALOG.find(i => i.name.toLowerCase().includes('masala dosa')) || INDIAN_FOOD_CATALOG[0],
       INDIAN_FOOD_CATALOG.find(i => i.name.toLowerCase().includes('biryani')) || INDIAN_FOOD_CATALOG[1],
       INDIAN_FOOD_CATALOG.find(i => i.name.toLowerCase().includes('idli')) || INDIAN_FOOD_CATALOG[2],
       INDIAN_FOOD_CATALOG.find(i => i.name.toLowerCase().includes('parotta')) || INDIAN_FOOD_CATALOG[3],
+      INDIAN_FOOD_CATALOG[4],
+      INDIAN_FOOD_CATALOG[5],
     ].filter(Boolean) as FoodItem[];
-  }, []);
+
+    for (const item of defaultCatalog) {
+      if (!seen.has(item.id) && (!vegOnly || item.isVeg)) {
+        picks.push(item);
+        seen.add(item.id);
+      }
+      if (picks.length >= 4) break;
+    }
+
+    return picks.slice(0, 4);
+  }, [orderHistory, vegOnly]);
 
   // Authentic restaurants
   const restaurants = useMemo(() => {
@@ -209,7 +239,7 @@ export const HomePage: React.FC = () => {
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setPriceCompareDish(dish)}
+                      onClick={() => openPriceComparison(dish)}
                       className="py-1.5 px-2.5 rounded-xl border border-[#F0E5DC] hover:border-[#D93636] text-[#33251F] hover:text-[#D93636] text-xs font-bold flex items-center gap-1 transition-all bg-white hover:bg-[#FBE9E5] cursor-pointer"
                       title="Compare platform prices"
                     >
@@ -219,7 +249,7 @@ export const HomePage: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => setSelectedDishForOrder(dish)}
+                      onClick={() => openGuidedSearch(dish.name, [dish])}
                       className="py-1.5 px-2.5 rounded-xl bg-[#D93636] hover:bg-[#C02B2B] text-white text-xs font-bold transition-all flex items-center gap-1 shadow-xs hover:scale-105 active:scale-95 cursor-pointer"
                       title="Order now or schedule for later"
                     >
@@ -514,52 +544,6 @@ export const HomePage: React.FC = () => {
           </div>
         )}
       </section>
-
-      {/* Modals for Food Card Actions: Compare, Order/Schedule */}
-      {priceCompareDish && (
-        <PriceComparisonModal
-          isOpen={Boolean(priceCompareDish)}
-          item={priceCompareDish}
-          onClose={() => setPriceCompareDish(null)}
-          onSelectPlatform={(platformName) => {
-            const dish = priceCompareDish;
-            setPriceCompareDish(null);
-            setSelectedDishForOrder(dish);
-          }}
-        />
-      )}
-
-      {selectedDishForOrder && (
-        <ItemActionChooser
-          isOpen={Boolean(selectedDishForOrder)}
-          onClose={() => setSelectedDishForOrder(null)}
-          items={[selectedDishForOrder]}
-          item={selectedDishForOrder}
-          onOrderNow={(items) => {
-            const it = items?.[0] || selectedDishForOrder;
-            setSelectedDishForOrder(null);
-            placeInstantOrder(it);
-          }}
-          onSchedule={(items) => {
-            const it = items?.[0] || selectedDishForOrder;
-            setSelectedDishForOrder(null);
-            setSchedulingDish(it);
-          }}
-          onAddToCart={(items) => {
-            const it = items?.[0] || selectedDishForOrder;
-            setSelectedDishForOrder(null);
-            addToCart(it, 1, 'home_recommendation');
-          }}
-        />
-      )}
-
-      {schedulingDish && (
-        <ScheduleCheckoutModal
-          isOpen={Boolean(schedulingDish)}
-          onClose={() => setSchedulingDish(null)}
-          foodItem={schedulingDish}
-        />
-      )}
     </div>
   );
 };

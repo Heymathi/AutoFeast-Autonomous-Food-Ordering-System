@@ -3,9 +3,11 @@
  * Live real-time price comparison across Swiggy, Zomato, EatSure & Magicpin.
  * Auto-refreshes every 30s. Uses /api/prices/live (backend) + Yelp API.
  * Styled in AutoFeast Tomato Red + Warm Cream theme.
+ * Rendered via createPortal to guarantee it sits above all views.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, RefreshCw, TrendingDown, Star, Clock, Zap, ShieldCheck,
   ChevronDown, ChevronUp, Award, Flame, ExternalLink, AlertTriangle
@@ -241,18 +243,51 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
   userLongitude,
   userCity,
 }) => {
-  const [platforms, setPlatforms] = useState<PlatformLiveData[]>([]);
+  // Initialize platforms immediately from item if available, or generate safely
+  const initialPlatforms = useMemo(() => {
+    if (!item) return [];
+    if (item.platforms && item.platforms.length > 0) {
+      return item.platforms.map(p => ({
+        ...p,
+        surgeActive: false,
+        surgeMultiplier: 1.0,
+        estimatedArrival: `${p.deliveryTime || 30} mins`,
+        lastRefreshed: new Date(),
+      }));
+    }
+    return PriceComparisonService.generateLivePlatformPrices(item);
+  }, [item]);
+
+  const [platforms, setPlatforms] = useState<PlatformLiveData[]>(initialPlatforms);
   const [yelpResults, setYelpResults] = useState<YelpRestaurant[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [countdown, setCountdown] = useState(30);
-  const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+  const [refreshedAt, setRefreshedAt] = useState<Date | null>(new Date());
   const [error, setError] = useState<string | null>(null);
   const [showYelp, setShowYelp] = useState(false);
   const [isYelpLoading, setIsYelpLoading] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Sync platforms state when item changes
+  useEffect(() => {
+    if (item) {
+      if (item.platforms && item.platforms.length > 0) {
+        setPlatforms(item.platforms.map(p => ({
+          ...p,
+          surgeActive: false,
+          surgeMultiplier: 1.0,
+          estimatedArrival: `${p.deliveryTime || 30} mins`,
+          lastRefreshed: new Date(),
+        })));
+      } else {
+        setPlatforms(PriceComparisonService.generateLivePlatformPrices(item));
+      }
+      setRefreshedAt(new Date());
+    }
+  }, [item]);
 
   // ── Fetch live prices from /api/prices/live ────────────────────────────────
   const fetchLivePrices = useCallback(async (silent = false) => {
@@ -276,7 +311,7 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
         throw new Error('No live platforms returned');
       }
     } catch (err) {
-      // Fallback: use item.platforms if available or client-side generation
+      // Fallback: keep existing platforms or regenerate client-side
       console.warn('[PriceComparisonModal] Live API unavailable, using verified catalog prices:', err);
       if (item.platforms && item.platforms.length > 0) {
         setPlatforms(item.platforms.map(p => ({
@@ -287,8 +322,7 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
           lastRefreshed: new Date(),
         })));
       } else {
-        const generated = PriceComparisonService.generateLivePlatformPrices(item);
-        setPlatforms(generated);
+        setPlatforms(PriceComparisonService.generateLivePlatformPrices(item));
       }
       setRefreshedAt(new Date());
       setCountdown(secondsUntilNextBucket());
@@ -321,18 +355,6 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
   // ── On open ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (isOpen && item) {
-      // Populate immediately if item has platforms
-      if (item.platforms && item.platforms.length > 0) {
-        setPlatforms(item.platforms.map(p => ({
-          ...p,
-          surgeActive: false,
-          surgeMultiplier: 1.0,
-          estimatedArrival: `${p.deliveryTime || 30} mins`,
-          lastRefreshed: new Date(),
-        })));
-        setRefreshedAt(new Date());
-      }
-
       fetchLivePrices(false);
       fetchYelp();
 
@@ -351,22 +373,42 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
     };
   }, [isOpen, item, fetchLivePrices, fetchYelp]);
 
+  // ── Summary Calculation with Fallback ──────────────────────────────────────
+  const summary = useMemo(() => {
+    if (!platforms || platforms.length === 0) return null;
+    try {
+      return PriceComparisonService.compare(platforms);
+    } catch {
+      const available = platforms.filter(p => p.available);
+      if (available.length === 0) return null;
+      const cheapest = [...available].sort((a, b) => (a.price + a.deliveryFee) - (b.price + b.deliveryFee))[0];
+      const highestRated = [...available].sort((a, b) => b.rating - a.rating)[0];
+      const fastest = [...available].sort((a, b) => a.deliveryTime - b.deliveryTime)[0];
+      const maxPrice = Math.max(...available.map(p => p.price + p.deliveryFee));
+      const minPrice = Math.min(...available.map(p => p.price + p.deliveryFee));
+      return {
+        bestValue: cheapest,
+        cheapest,
+        highestRated,
+        fastest,
+        maxSavings: Math.max(0, maxPrice - minPrice),
+        allPlatforms: available,
+        refreshedAt: new Date()
+      };
+    }
+  }, [platforms]);
+
   if (!isOpen || !item) return null;
+  if (typeof document === 'undefined') return null;
 
-  // ── Summary ────────────────────────────────────────────────────────────────
-  let summary = null;
-  try {
-    summary = platforms.length ? PriceComparisonService.compare(platforms) : null;
-  } catch { /* no available platforms yet */ }
-
-  // ─── Render ────────────────────────────────────────────────────────────────
-  return (
+  // ─── Render with Portal to document.body ──────────────────────────────────
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+      className="fixed inset-0 z-[9995] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="relative w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-[#FDFBF7] border border-[#F0E5DC] shadow-2xl text-[#33251F]"
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-[#FDFBF7] border border-[#F0E5DC] shadow-2xl text-[#33251F]"
       >
         {/* Header */}
         <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between bg-[#FDFBF7]/95 backdrop-blur-md border-b border-[#F0E5DC]">
@@ -443,17 +485,8 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
             </div>
           )}
 
-          {/* Loading skeleton */}
-          {isLoading && platforms.length === 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[0, 1, 2, 3].map(i => (
-                <div key={i} className="rounded-2xl h-52 animate-pulse bg-white border border-[#F0E5DC]" />
-              ))}
-            </div>
-          )}
-
-          {/* Platform Cards */}
-          {platforms.length > 0 && summary && (
+          {/* Platform Cards: Always displayed if platforms exist */}
+          {platforms.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {platforms
                 .filter(p => p.available)
@@ -466,10 +499,10 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
                   <PlatformCard
                     key={p.platform}
                     data={p}
-                    isBest={summary.bestValue.platform === p.platform}
-                    isCheapest={summary.cheapest.platform === p.platform}
-                    isFastest={summary.fastest.platform === p.platform}
-                    isHighestRated={summary.highestRated.platform === p.platform}
+                    isBest={summary?.bestValue?.platform === p.platform}
+                    isCheapest={summary?.cheapest?.platform === p.platform}
+                    isFastest={summary?.fastest?.platform === p.platform}
+                    isHighestRated={summary?.highestRated?.platform === p.platform}
                     onSelect={() => onSelectPlatform?.(p.platform, p.price)}
                   />
                 ))}
@@ -532,7 +565,8 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
           50% { opacity: 0.4; }
         }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 };
 
