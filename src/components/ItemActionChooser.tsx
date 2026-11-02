@@ -14,20 +14,27 @@ import { debounceHandler } from '../utils/debounce';
 export interface ItemActionChooserProps {
   isOpen: boolean;
   onClose: () => void;
-  items: FoodItem[];
-  onOrderNow: (items: FoodItem[]) => void;
-  onSchedule: (items: FoodItem[]) => void;
-  onAddToCart: (items: FoodItem[]) => void;
+  items?: FoodItem[];
+  item?: FoodItem;
+  onOrderNow?: (items: FoodItem[]) => void;
+  onSchedule?: (items: FoodItem[]) => void;
+  onAddToCart?: (items: FoodItem[]) => void;
+  onAddInstantCart?: (items: FoodItem[]) => void;
+  onScheduleRecurring?: (items: FoodItem[]) => void;
 }
 
 export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
   isOpen,
   onClose,
   items,
+  item,
   onOrderNow,
   onSchedule,
-  onAddToCart
+  onAddToCart,
+  onAddInstantCart,
+  onScheduleRecurring
 }) => {
+  const itemsList = (items && items.length > 0) ? items : (item ? [item] : []);
   const {
     language,
     speakText,
@@ -51,7 +58,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
   const handledActionRef = useRef<boolean>(false);
   const failedCountRef = useRef<number>(0);
 
-  const itemIdsKey = items && items.length > 0 ? items.map(i => i.id).join(',') : '';
+  const itemIdsKey = itemsList.length > 0 ? itemsList.map(i => i.id).join(',') : '';
 
   useEffect(() => {
     isComponentMounted.current = true;
@@ -88,15 +95,15 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
   };
 
   const getPromptText = (): string => {
-    if (!items || items.length === 0) return '';
-    if (items.length === 1) {
-      const item = items[0];
-      const itemName = item.nativeNames?.[language] || item.name;
+    if (!itemsList || itemsList.length === 0) return '';
+    if (itemsList.length === 1) {
+      const it = itemsList[0];
+      const itemName = it.nativeNames?.[language] || it.name;
       return t('chooserAsk')
         .replace('{item}', itemName)
-        .replace('{restaurant}', item.restaurant);
+        .replace('{restaurant}', it.restaurant);
     } else {
-      return t('chooserAskMulti').replace('{n}', String(items.length));
+      return t('chooserAskMulti').replace('{n}', String(itemsList.length));
     }
   };
 
@@ -214,9 +221,9 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
 
   const handleSelectAction = (action: ChooserAction) => {
     cleanupSpeech();
-    console.log('[ItemActionChooser]: handleSelectAction triggered -> action:', action, 'items count:', items?.length);
+    console.log('[ItemActionChooser]: handleSelectAction triggered -> action:', action, 'items count:', itemsList?.length);
 
-    if (!items || items.length === 0) {
+    if (!itemsList || itemsList.length === 0) {
       console.warn('[ItemActionChooser]: handleSelectAction called with empty items!');
       onClose();
       return;
@@ -224,67 +231,68 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
 
     if (action === 'add_to_cart') {
       // Add to Cart: Allowed even if restricted (item is marked "Needs helper approval" in cart)
-      console.log('[ItemActionChooser]: Calling onAddToCart with items:', items);
-      onAddToCart(items);
+      console.log('[ItemActionChooser]: Calling onAddToCart with items:', itemsList);
+      if (onAddToCart) {
+        onAddToCart(itemsList);
+      } else if (onAddInstantCart) {
+        onAddInstantCart(itemsList);
+      }
       onClose();
       return;
     }
 
     const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
-    for (const item of items) {
-      const isRestrictedByNominee = checkIsItemRestrictedByNominee(item.id, item.name);
+    for (const it of itemsList) {
+      const isRestrictedByNominee = checkIsItemRestrictedByNominee(it.id, it.name);
       if (isRestrictedByNominee) {
         // Block restricted order if nominee restricted item list could not be verified
         if (NomineeNotificationService.hasRestrictedFetchError()) {
-          console.warn('[ItemActionChooser]: Restricted load error for restricted item:', item.name);
+          console.warn('[ItemActionChooser]: Restricted load error for restricted item:', it.name);
           showToast(t('nominee.restrictedLoadError'), 'warning');
           SpeechController.speak(t('nominee.restrictedLoadError'), language);
           onClose();
           return;
         }
 
-        console.log('[ItemActionChooser]: Intercepting restricted item for nominee approval:', item.name);
-        handleNomineeRestrictedInterception(item, action === 'schedule' ? 'scheduled' : 'instant');
+        console.log('[ItemActionChooser]: Intercepting restricted item for nominee approval:', it.name);
+        handleNomineeRestrictedInterception(it, action === 'schedule' ? 'scheduled' : 'instant');
         onClose();
         return;
       }
     }
 
     if (action === 'order_now') {
-      console.log('[ItemActionChooser]: Calling onOrderNow with items:', items);
-      onOrderNow(items);
+      console.log('[ItemActionChooser]: Calling onOrderNow with items:', itemsList);
+      if (onOrderNow) onOrderNow(itemsList);
     } else if (action === 'schedule') {
-      console.log('[ItemActionChooser]: Calling onSchedule with items:', items);
-      onSchedule(items);
+      console.log('[ItemActionChooser]: Calling onSchedule with items:', itemsList);
+      if (onSchedule) onSchedule(itemsList);
+      else if (onScheduleRecurring) onScheduleRecurring(itemsList);
     }
     onClose();
   };
 
-  // Keep a ref to the latest handleSelectAction so the debounceHandler closure never becomes stale
-  const handleSelectActionRef = useRef(handleSelectAction);
-  handleSelectActionRef.current = handleSelectAction;
-  useEffect(() => {
-    handleSelectActionRef.current = handleSelectAction;
-  }, [handleSelectAction]);
-
-  const debouncedSelectAction = useRef(
-    debounceHandler((act: ChooserAction) => {
-      handleSelectActionRef.current(act);
-    }, 1000)
-  ).current;
+  const lastActionTimeRef = useRef<{ [key: string]: number }>({});
+  const handleUserAction = (action: ChooserAction) => {
+    const now = Date.now();
+    const last = lastActionTimeRef.current[action] || 0;
+    if (now - last < 200) return;
+    lastActionTimeRef.current[action] = now;
+    handleSelectAction(action);
+  };
 
   const handleClose = () => {
     cleanupSpeech();
     onClose();
   };
 
-  if (!isOpen || !items || items.length === 0) return null;
+  if (!isOpen || !itemsList || itemsList.length === 0) return null;
 
-  const primaryItem = items[0];
+  const primaryItem = itemsList[0];
 
   const restrictedCatalogItems = INDIAN_FOOD_CATALOG.filter(i => currentUser?.restrictedFoodIds?.includes(i.id));
-  const isAnyRestricted = items.some(item => checkIsItemRestrictedByNominee(item.id, item.name));
-  const isApproved = items.every(item => !checkIsItemRestrictedByNominee(item.id, item.name) || isItemApprovedByNominee(item.id));
+  const isAnyRestricted = itemsList.some(it => checkIsItemRestrictedByNominee(it.id, it.name));
+  const isApproved = itemsList.every(it => !checkIsItemRestrictedByNominee(it.id, it.name) || isItemApprovedByNominee(it.id));
   const showOrderAndSchedule = !isAnyRestricted || isApproved;
 
   return (
@@ -312,11 +320,11 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
 
           <h3 className="text-xl sm:text-2xl font-black text-[#302720] flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-[#D93636]" />
-            {items.length === 1 ? primaryItem.name : `${items.length} Items Selected`}
+            {itemsList.length === 1 ? primaryItem.name : `${itemsList.length} Items Selected`}
           </h3>
 
           <p className="text-xs sm:text-sm font-semibold text-[#786E64]">
-            {items.length === 1 ? `${primaryItem.restaurant} • ₹${primaryItem.basePrice}` : items.map(i => i.name).join(', ')}
+            {itemsList.length === 1 ? `${primaryItem.restaurant} • ₹${primaryItem.basePrice}` : itemsList.map(i => i.name).join(', ')}
           </p>
         </div>
 
@@ -340,7 +348,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
         </div>
 
         {/* Item Preview Card */}
-        {items.length === 1 && (
+        {itemsList.length === 1 && (
           <div className="flex items-center space-x-3 bg-[#FFFFFF] p-3 rounded-2xl border border-[#E9DED5] mb-4">
             <img src={primaryItem.image} alt={primaryItem.name} className="w-16 h-16 rounded-xl object-cover" />
             <div>
@@ -382,8 +390,8 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  console.log('[ItemActionChooser]: "Order Now" button clicked for items:', items);
-                  debouncedSelectAction('order_now');
+                  console.log('[ItemActionChooser]: "Order Now" button clicked for items:', itemsList);
+                  handleUserAction('order_now');
                 }}
                 className="w-full min-h-[48px] bg-[#D93636] hover:bg-[#B9252D] text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
               >
@@ -395,8 +403,8 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  console.log('[ItemActionChooser]: "Schedule" button clicked for items:', items);
-                  debouncedSelectAction('schedule');
+                  console.log('[ItemActionChooser]: "Schedule" button clicked for items:', itemsList);
+                  handleUserAction('schedule');
                 }}
                 className="w-full min-h-[48px] bg-[#FFFFFF] hover:bg-[#F7F3EB] text-[#302720] font-black py-3.5 px-4 rounded-2xl border-2 border-[#E9DED5] shadow-sm transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
               >
@@ -424,8 +432,8 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
           <button
             type="button"
             onClick={() => {
-              console.log('[ItemActionChooser]: "Add to Cart" button clicked for items:', items);
-              debouncedSelectAction('add_to_cart');
+              console.log('[ItemActionChooser]: "Add to Cart" button clicked for items:', itemsList);
+              handleUserAction('add_to_cart');
             }}
             className="w-full min-h-[48px] bg-[#43845C] hover:bg-[#326646] text-white font-black py-3.5 px-4 rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm sm:text-base cursor-pointer"
           >

@@ -394,13 +394,13 @@ export const FeaturesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 2. Cart & Order History */}
+          {/* 2. Order History */}
           <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
             <div className="space-y-3">
               <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
                 <ShoppingBag className="w-6 h-6 text-[#D93636]" />
               </div>
-              <h3 className="font-bold text-base text-[#33251F]">Cart & Order History</h3>
+              <h3 className="font-bold text-base text-[#33251F]">Order History</h3>
               <p className="text-xs text-[#8A817A] leading-relaxed">
                 Instant cart, schedule weekly orders, and past transaction receipts.
               </p>
@@ -408,7 +408,7 @@ export const FeaturesPage: React.FC = () => {
             <div className="pt-4">
               <button
                 type="button"
-                onClick={() => setIsScheduleCartModalOpen(true)}
+                onClick={() => setActiveView('orders')}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
               >
                 <span>Open</span>

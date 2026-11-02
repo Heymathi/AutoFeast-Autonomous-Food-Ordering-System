@@ -15,7 +15,10 @@ import {
   Utensils,
   Sparkles,
   ArrowRight,
-  Receipt
+  Receipt,
+  ChevronDown,
+  ChevronUp,
+  ShieldCheck
 } from 'lucide-react';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { ExecutedOrder } from '../types';
@@ -24,19 +27,63 @@ type HistoryCategory = 'pending' | 'successful' | 'cancelled';
 
 export const OrderHistoryModal: React.FC = () => {
   const {
-    orderHistory,
+    orderHistory = [],
     cancelOrder,
     reorderItem,
     setActiveView,
+    orderHistoryTab,
+    setOrderHistoryTab,
     t
   } = useApp();
 
-  const [activeCategory, setActiveCategory] = useState<HistoryCategory>('pending');
+  const [activeCategory, setActiveCategory] = useState<HistoryCategory>(() => {
+    if (orderHistoryTab === 'successful') return 'successful';
+    if (orderHistoryTab === 'cancelled') return 'cancelled';
+    return 'pending';
+  });
+
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [expandedReceiptId, setExpandedReceiptId] = useState<string | null>(null);
+
+  // Helper to safely format currency amounts without throwing TypeError on null/undefined/NaN
+  const formatCurrency = (val: any, decimals = 0): string => {
+    if (val === null || val === undefined) {
+      return decimals > 0 ? '₹0.00' : '₹0';
+    }
+    const n = Number(val);
+    if (isNaN(n)) {
+      return decimals > 0 ? '₹0.00' : '₹0';
+    }
+    return `₹${n.toFixed(decimals)}`;
+  };
+
+  // Safe savings calculator
+  const getSavings = (ord: ExecutedOrder): number => {
+    if (ord?.savings !== null && ord?.savings !== undefined && !isNaN(Number(ord.savings))) {
+      return Number(ord.savings);
+    }
+    if (ord?.originalPrice && ord?.amountPaid && Number(ord.originalPrice) > Number(ord.amountPaid)) {
+      return Number(ord.originalPrice) - Number(ord.amountPaid);
+    }
+    return 0;
+  };
+
+  // Safe date-time formatter
+  const formatDateTime = (isoString?: string | null): string => {
+    if (!isoString) return 'Date not available';
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return String(isoString);
+      return `${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
+    } catch {
+      return String(isoString || 'Date not available');
+    }
+  };
 
   // Helper to resolve food item image
-  const getFoodImage = (foodName: string, existingImage?: string): string => {
+  const getFoodImage = (foodName?: string, existingImage?: string): string => {
     if (existingImage) return existingImage;
+    if (!foodName) return 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=500&auto=format&fit=crop&q=60';
     const found = INDIAN_FOOD_CATALOG.find(
       f => f.name.toLowerCase() === foodName.toLowerCase() ||
            foodName.toLowerCase().includes(f.name.toLowerCase())
@@ -45,21 +92,33 @@ export const OrderHistoryModal: React.FC = () => {
   };
 
   // Categorize orders accurately based on actual status
-  const pendingOrders = orderHistory.filter(ord =>
-    ord.status === 'pending' ||
-    ord.status === 'placed' ||
-    ord.status === 'processing' ||
-    (ord.status === 'scheduled' && !ord.completedAt)
-  );
+  const getNormalizedStatus = (ord: ExecutedOrder): HistoryCategory => {
+    if (!ord) return 'pending';
+    const s = String(ord.status || '').toLowerCase().trim();
+    if (s === 'delivered' || s === 'completed' || s === 'successful' || s === 'success') {
+      return 'successful';
+    }
+    if (s === 'cancelled' || s === 'canceled') {
+      return 'cancelled';
+    }
+    if (s === 'scheduled') {
+      return ord.completedAt ? 'successful' : 'pending';
+    }
+    // 'placed', 'pending', 'processing', 'preparing', 'on_the_way', etc.
+    return 'pending';
+  };
 
-  const successfulOrders = orderHistory.filter(ord =>
-    ord.status === 'delivered' ||
-    ord.status === 'completed'
-  );
+  const safeOrders = Array.isArray(orderHistory) ? orderHistory : [];
+  const pendingOrders = safeOrders.filter(ord => getNormalizedStatus(ord) === 'pending');
+  const successfulOrders = safeOrders.filter(ord => getNormalizedStatus(ord) === 'successful');
+  const cancelledOrders = safeOrders.filter(ord => getNormalizedStatus(ord) === 'cancelled');
 
-  const cancelledOrders = orderHistory.filter(ord =>
-    ord.status === 'cancelled'
-  );
+  const handleTabChange = (category: HistoryCategory) => {
+    setActiveCategory(category);
+    if (setOrderHistoryTab) {
+      setOrderHistoryTab(category === 'pending' ? 'pending' : category === 'successful' ? 'instant' : 'all');
+    }
+  };
 
   const handleCancel = async (orderId: string) => {
     if (window.confirm('Are you sure you want to cancel this order?')) {
@@ -77,14 +136,44 @@ export const OrderHistoryModal: React.FC = () => {
     reorderItem(order);
   };
 
-  const formatDateTime = (isoString?: string) => {
-    if (!isoString) return 'Just now';
-    try {
-      const d = new Date(isoString);
-      return `${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
-    } catch (e) {
-      return isoString;
-    }
+  const renderBillBreakdown = (ord: ExecutedOrder) => {
+    const qty = ord.quantity && ord.quantity > 0 ? ord.quantity : 1;
+    const amountPaid = typeof ord.amountPaid === 'number' && !isNaN(ord.amountPaid) ? ord.amountPaid : (Number(ord.amountPaid) || 0);
+    const itemPrice = ord.itemPrice ?? (qty > 0 ? amountPaid / qty : amountPaid);
+    const subtotal = ord.subtotal ?? (itemPrice * qty);
+    const deliveryFee = ord.deliveryFee ?? 0;
+    const platformFee = ord.platformFee ?? 0;
+    const gst = ord.gst ?? 0;
+    const grandTotal = ord.grandTotal ?? amountPaid;
+
+    return (
+      <div className="mt-3 p-3.5 rounded-2xl bg-[#F7F3EB] border border-[#E9DED5] space-y-1.5 text-xs text-[#302720] animate-fade-in">
+        <div className="flex items-center justify-between text-[#786E64] font-bold">
+          <span>Item Price</span>
+          <span>{formatCurrency(itemPrice, 2)}</span>
+        </div>
+        <div className="flex items-center justify-between text-[#786E64] font-bold">
+          <span>Subtotal ({qty} item{qty > 1 ? 's' : ''})</span>
+          <span>{formatCurrency(subtotal, 2)}</span>
+        </div>
+        <div className="flex items-center justify-between text-[#786E64] font-bold">
+          <span>Delivery Fee</span>
+          <span>{deliveryFee > 0 ? formatCurrency(deliveryFee, 2) : 'FREE'}</span>
+        </div>
+        <div className="flex items-center justify-between text-[#786E64] font-bold">
+          <span>Platform Fee</span>
+          <span>{platformFee > 0 ? formatCurrency(platformFee, 2) : 'FREE'}</span>
+        </div>
+        <div className="flex items-center justify-between text-[#786E64] font-bold">
+          <span>GST (5%)</span>
+          <span>{gst > 0 ? formatCurrency(gst, 2) : 'Included'}</span>
+        </div>
+        <div className="pt-2 border-t border-[#E9DED5] flex items-center justify-between text-sm font-black text-[#302720]">
+          <span className="text-[#D93636]">Grand Total:</span>
+          <span className="font-mono text-[#33251F]">{formatCurrency(grandTotal, 2)}</span>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -124,7 +213,7 @@ export const OrderHistoryModal: React.FC = () => {
             {/* 1. Pending Tab */}
             <button
               type="button"
-              onClick={() => setActiveCategory('pending')}
+              onClick={() => handleTabChange('pending')}
               className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
                 activeCategory === 'pending'
                   ? 'bg-amber-600 text-white shadow-xs font-black'
@@ -138,7 +227,7 @@ export const OrderHistoryModal: React.FC = () => {
             {/* 2. Successful Tab */}
             <button
               type="button"
-              onClick={() => setActiveCategory('successful')}
+              onClick={() => handleTabChange('successful')}
               className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
                 activeCategory === 'successful'
                   ? 'bg-emerald-600 text-white shadow-xs font-black'
@@ -152,7 +241,7 @@ export const OrderHistoryModal: React.FC = () => {
             {/* 3. Cancelled Tab */}
             <button
               type="button"
-              onClick={() => setActiveCategory('cancelled')}
+              onClick={() => handleTabChange('cancelled')}
               className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
                 activeCategory === 'cancelled'
                   ? 'bg-[#D93636] text-white shadow-xs font-black'
@@ -195,16 +284,17 @@ export const OrderHistoryModal: React.FC = () => {
             pendingOrders.map(ord => {
               const image = getFoodImage(ord.foodName, ord.foodImage);
               const isScheduled = ord.orderType === 'scheduled' || ord.isAutoOrder || ord.status === 'scheduled';
+              const isReceiptOpen = expandedReceiptId === ord.id;
               return (
                 <div
                   key={ord.id}
                   className="bg-white rounded-3xl p-5 sm:p-6 border border-[#F0E5DC] shadow-xs space-y-4 hover:border-amber-300 transition-all"
                 >
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[#F0E5DC]/60">
-                    <div className="flex items-center space-x-2.5">
+                    <div className="flex items-center space-x-2.5 flex-wrap gap-y-1">
                       <span className="text-xs font-mono font-bold text-[#8A817A]">#{ord.id}</span>
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#FBE9E5] text-[#D93636] uppercase">
-                        {ord.platformName || 'AutoFeast Direct'}
+                        {ord.platformName || (ord.platform ? String(ord.platform).toUpperCase() : 'AutoFeast Direct')}
                       </span>
                       {isScheduled && (
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
@@ -214,7 +304,7 @@ export const OrderHistoryModal: React.FC = () => {
                     </div>
 
                     {/* Status Badge: Orange / Amber */}
-                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1.5">
+                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1.5 shrink-0">
                       <Hourglass className="w-3.5 h-3.5 animate-spin" />
                       <span>{isScheduled ? 'Scheduled (In Queue)' : 'Order Placed (In Progress)'}</span>
                     </span>
@@ -224,25 +314,25 @@ export const OrderHistoryModal: React.FC = () => {
                     {/* Food Image */}
                     <img
                       src={image}
-                      alt={ord.foodName}
+                      alt={ord.foodName || 'Food Item'}
                       className="w-20 h-20 rounded-2xl object-cover shrink-0 border border-[#F0E5DC]"
                     />
 
                     {/* Details */}
                     <div className="flex-1 space-y-1.5">
                       <h3 className="font-bold text-base sm:text-lg text-[#33251F]">
-                        {ord.foodName}
+                        {ord.foodName || 'Food Item'}
                       </h3>
-                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
+                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5 flex-wrap">
                         <Utensils className="w-3.5 h-3.5 text-[#D93636]" />
-                        <span>Restaurant: <strong className="text-[#33251F]">{ord.restaurant}</strong></span>
+                        <span>Restaurant: <strong className="text-[#33251F]">{ord.restaurant || 'AutoFeast Partner'}</strong></span>
                         <span className="text-[#8A817A]">•</span>
-                        <span>Qty: <strong className="text-[#33251F]">{ord.quantity || 1}</strong></span>
+                        <span>Qty: <strong className="text-[#33251F]">{ord.quantity && ord.quantity > 0 ? ord.quantity : 1}</strong></span>
                       </p>
 
                       <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-[#8A817A]" />
-                        <span>Placed: {formatDateTime(ord.timestamp)}</span>
+                        <span>Placed: <strong className="text-[#33251F]">{formatDateTime(ord.timestamp)}</strong></span>
                       </p>
 
                       {ord.deliveryAddress && (
@@ -256,17 +346,29 @@ export const OrderHistoryModal: React.FC = () => {
                         <Clock className="w-3.5 h-3.5 text-amber-600" />
                         <span>Expected Delivery: <strong>{ord.expectedDeliveryTime || '25-30 minutes'}</strong></span>
                       </p>
+
+                      <button
+                        type="button"
+                        onClick={() => setExpandedReceiptId(isReceiptOpen ? null : ord.id)}
+                        className="text-xs font-bold text-[#8A817A] hover:text-[#D93636] flex items-center gap-1 transition-colors cursor-pointer pt-1"
+                      >
+                        <Receipt className="w-3.5 h-3.5 text-[#D93636]" />
+                        <span>{isReceiptOpen ? 'Hide Bill Breakdown' : 'View Bill Breakdown'}</span>
+                        {isReceiptOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+
+                      {isReceiptOpen && renderBillBreakdown(ord)}
                     </div>
 
                     {/* Total & Action Buttons */}
                     <div className="sm:text-right w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-[#F0E5DC] flex sm:flex-col justify-between items-end gap-3">
                       <div>
                         <span className="text-lg sm:text-xl font-bold text-[#33251F] block">
-                          ₹{ord.amountPaid.toFixed(0)}
+                          {formatCurrency(ord.amountPaid, 0)}
                         </span>
-                        {ord.savings > 0 && (
+                        {getSavings(ord) > 0 && (
                           <span className="text-[10px] font-bold text-emerald-600 block">
-                            Saved ₹{ord.savings.toFixed(0)}
+                            Saved {formatCurrency(getSavings(ord), 0)}
                           </span>
                         )}
                       </div>
@@ -329,21 +431,22 @@ export const OrderHistoryModal: React.FC = () => {
           ) : (
             successfulOrders.map(ord => {
               const image = getFoodImage(ord.foodName, ord.foodImage);
+              const isReceiptOpen = expandedReceiptId === ord.id;
               return (
                 <div
                   key={ord.id}
                   className="bg-white rounded-3xl p-5 sm:p-6 border border-[#F0E5DC] shadow-xs space-y-4 hover:border-emerald-300 transition-all"
                 >
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[#F0E5DC]/60">
-                    <div className="flex items-center space-x-2.5">
+                    <div className="flex items-center space-x-2.5 flex-wrap gap-y-1">
                       <span className="text-xs font-mono font-bold text-[#8A817A]">#{ord.id}</span>
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#FBE9E5] text-[#D93636] uppercase">
-                        {ord.platformName || 'AutoFeast Direct'}
+                        {ord.platformName || (ord.platform ? String(ord.platform).toUpperCase() : 'AutoFeast Direct')}
                       </span>
                     </div>
 
                     {/* Status Badge: Green */}
-                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 shrink-0">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Delivered Successfully</span>
                     </span>
@@ -353,33 +456,36 @@ export const OrderHistoryModal: React.FC = () => {
                     {/* Food Image */}
                     <img
                       src={image}
-                      alt={ord.foodName}
+                      alt={ord.foodName || 'Food Item'}
                       className="w-20 h-20 rounded-2xl object-cover shrink-0 border border-[#F0E5DC]"
                     />
 
                     {/* Details */}
                     <div className="flex-1 space-y-1.5">
                       <h3 className="font-bold text-base sm:text-lg text-[#33251F]">
-                        {ord.foodName}
+                        {ord.foodName || 'Food Item'}
                       </h3>
-                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
+                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5 flex-wrap">
                         <Utensils className="w-3.5 h-3.5 text-[#D93636]" />
-                        <span>Restaurant: <strong className="text-[#33251F]">{ord.restaurant}</strong></span>
+                        <span>Restaurant: <strong className="text-[#33251F]">{ord.restaurant || 'AutoFeast Partner'}</strong></span>
                         <span className="text-[#8A817A]">•</span>
-                        <span>Qty: <strong className="text-[#33251F]">{ord.quantity || 1}</strong></span>
+                        <span>Qty: <strong className="text-[#33251F]">{ord.quantity && ord.quantity > 0 ? ord.quantity : 1}</strong></span>
                       </p>
 
                       <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-[#8A817A]" />
-                        <span>Ordered: {formatDateTime(ord.timestamp)}</span>
+                        <span>Ordered: <strong className="text-[#33251F]">{formatDateTime(ord.timestamp)}</strong></span>
                       </p>
 
-                      {ord.completedAt && (
-                        <p className="text-xs text-emerald-700 flex items-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Delivered at: {formatDateTime(ord.completedAt)}</span>
-                        </p>
-                      )}
+                      <p className="text-xs text-emerald-700 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Delivered at: <strong>{formatDateTime(ord.completedAt || ord.timestamp)}</strong></span>
+                      </p>
+
+                      <p className="text-xs text-emerald-800 flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Payment Status: <strong className="text-[#33251F]">Paid via Wallet (Auto-Debited)</strong></span>
+                      </p>
 
                       {ord.deliveryAddress && (
                         <p className="text-xs text-[#8A817A] flex items-center gap-1.5 truncate">
@@ -387,17 +493,29 @@ export const OrderHistoryModal: React.FC = () => {
                           <span className="truncate">Delivered to: <strong className="text-[#33251F]">{ord.deliveryAddress}</strong></span>
                         </p>
                       )}
+
+                      <button
+                        type="button"
+                        onClick={() => setExpandedReceiptId(isReceiptOpen ? null : ord.id)}
+                        className="text-xs font-bold text-[#8A817A] hover:text-[#D93636] flex items-center gap-1 transition-colors cursor-pointer pt-1"
+                      >
+                        <Receipt className="w-3.5 h-3.5 text-[#D93636]" />
+                        <span>{isReceiptOpen ? 'Hide Bill Breakdown' : 'View Bill Breakdown'}</span>
+                        {isReceiptOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+
+                      {isReceiptOpen && renderBillBreakdown(ord)}
                     </div>
 
                     {/* Total & Reorder Button */}
                     <div className="sm:text-right w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-[#F0E5DC] flex sm:flex-col justify-between items-end gap-3">
                       <div>
                         <span className="text-lg sm:text-xl font-bold text-[#33251F] block">
-                          ₹{ord.amountPaid.toFixed(0)}
+                          {formatCurrency(ord.amountPaid, 0)}
                         </span>
-                        {ord.savings > 0 && (
+                        {getSavings(ord) > 0 && (
                           <span className="text-[10px] font-bold text-emerald-600 block">
-                            Saved ₹{ord.savings.toFixed(0)}
+                            Saved {formatCurrency(getSavings(ord), 0)}
                           </span>
                         )}
                       </div>
@@ -448,21 +566,22 @@ export const OrderHistoryModal: React.FC = () => {
           ) : (
             cancelledOrders.map(ord => {
               const image = getFoodImage(ord.foodName, ord.foodImage);
+              const isReceiptOpen = expandedReceiptId === ord.id;
               return (
                 <div
                   key={ord.id}
                   className="bg-white rounded-3xl p-5 sm:p-6 border border-[#F0E5DC] shadow-xs space-y-4 hover:border-rose-300 transition-all opacity-90"
                 >
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[#F0E5DC]/60">
-                    <div className="flex items-center space-x-2.5">
+                    <div className="flex items-center space-x-2.5 flex-wrap gap-y-1">
                       <span className="text-xs font-mono font-bold text-[#8A817A]">#{ord.id}</span>
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#FBE9E5] text-[#D93636] uppercase">
-                        {ord.platformName || 'AutoFeast Direct'}
+                        {ord.platformName || (ord.platform ? String(ord.platform).toUpperCase() : 'AutoFeast Direct')}
                       </span>
                     </div>
 
                     {/* Status Badge: Muted Red */}
-                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1.5">
+                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1.5 shrink-0">
                       <XCircle className="w-3.5 h-3.5" />
                       <span>Cancelled & Refunded</span>
                     </span>
@@ -472,44 +591,56 @@ export const OrderHistoryModal: React.FC = () => {
                     {/* Food Image */}
                     <img
                       src={image}
-                      alt={ord.foodName}
+                      alt={ord.foodName || 'Food Item'}
                       className="w-20 h-20 rounded-2xl object-cover shrink-0 border border-[#F0E5DC] grayscale-30"
                     />
 
                     {/* Details */}
                     <div className="flex-1 space-y-1.5">
                       <h3 className="font-bold text-base sm:text-lg text-[#33251F]">
-                        {ord.foodName}
+                        {ord.foodName || 'Food Item'}
                       </h3>
-                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
+                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5 flex-wrap">
                         <Utensils className="w-3.5 h-3.5 text-[#D93636]" />
-                        <span>Restaurant: <strong className="text-[#33251F]">{ord.restaurant}</strong></span>
+                        <span>Restaurant: <strong className="text-[#33251F]">{ord.restaurant || 'AutoFeast Partner'}</strong></span>
                         <span className="text-[#8A817A]">•</span>
-                        <span>Qty: <strong className="text-[#33251F]">{ord.quantity || 1}</strong></span>
+                        <span>Qty: <strong className="text-[#33251F]">{ord.quantity && ord.quantity > 0 ? ord.quantity : 1}</strong></span>
                       </p>
 
                       <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-[#8A817A]" />
-                        <span>Original Order: {formatDateTime(ord.timestamp)}</span>
+                        <span>Original Order: <strong className="text-[#33251F]">{formatDateTime(ord.timestamp)}</strong></span>
                       </p>
 
-                      {ord.cancelledAt && (
-                        <p className="text-xs text-rose-700 flex items-center gap-1.5">
-                          <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                          <span>Cancelled on: {formatDateTime(ord.cancelledAt)}</span>
-                        </p>
-                      )}
+                      <p className="text-xs text-rose-700 flex items-center gap-1.5">
+                        <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Cancelled on: <strong className="text-[#33251F]">{formatDateTime(ord.cancelledAt || ord.timestamp)}</strong></span>
+                      </p>
 
                       <p className="text-xs text-[#8A817A] bg-[#FBE9E5]/60 p-2 rounded-xl border border-[#F0E5DC] inline-block">
-                        Reason: <strong className="text-[#33251F]">{ord.cancellationReason || 'Customer requested cancellation'}</strong>
+                        Reason: <strong className="text-[#33251F]">{ord.cancellationReason || 'Cancelled by customer'}</strong>
                       </p>
+
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedReceiptId(isReceiptOpen ? null : ord.id)}
+                          className="text-xs font-bold text-[#8A817A] hover:text-[#D93636] flex items-center gap-1 transition-colors cursor-pointer pt-1"
+                        >
+                          <Receipt className="w-3.5 h-3.5 text-[#D93636]" />
+                          <span>{isReceiptOpen ? 'Hide Bill Breakdown' : 'View Bill Breakdown'}</span>
+                          {isReceiptOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        </button>
+
+                        {isReceiptOpen && renderBillBreakdown(ord)}
+                      </div>
                     </div>
 
                     {/* Amount & Reorder */}
                     <div className="sm:text-right w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-[#F0E5DC] flex sm:flex-col justify-between items-end gap-3">
                       <div>
                         <span className="text-lg sm:text-xl font-bold text-[#8A817A] line-through block">
-                          ₹{ord.amountPaid.toFixed(0)}
+                          {formatCurrency(ord.amountPaid, 0)}
                         </span>
                         <span className="text-[10px] font-bold text-emerald-600 block">
                           Amount Credited to Wallet

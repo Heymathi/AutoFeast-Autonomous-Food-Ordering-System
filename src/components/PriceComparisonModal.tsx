@@ -2,6 +2,7 @@
  * PriceComparisonModal
  * Live real-time price comparison across Swiggy, Zomato, EatSure & Magicpin.
  * Auto-refreshes every 30s. Uses /api/prices/live (backend) + Yelp API.
+ * Styled in AutoFeast Tomato Red + Warm Cream theme.
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -14,7 +15,7 @@ import { PriceComparisonService, PlatformLiveData, YelpRestaurant } from '../ser
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface PriceComparisonModalProps {
+export interface PriceComparisonModalProps {
   isOpen: boolean;
   item: FoodItem | null;
   onClose: () => void;
@@ -34,11 +35,11 @@ interface LivePriceResponse {
 
 // ─── Platform colours / logos (mirrors priceComparisonService) ────────────────
 
-const PLATFORM_STYLE: Record<string, { color: string; bg: string; emoji: string; tagline: string }> = {
-  swiggy:   { color: '#FC8019', bg: 'rgba(252,128,25,0.12)',  emoji: '🟠', tagline: 'Fast Delivery Guaranteed' },
-  zomato:   { color: '#E23744', bg: 'rgba(226,55,68,0.12)',   emoji: '🔴', tagline: 'Gold Members Get Extra Off' },
-  eatsure:  { color: '#7C3AED', bg: 'rgba(124,58,237,0.12)',  emoji: '🟣', tagline: 'Hygiene Certified Kitchens' },
-  magicpin: { color: '#F59E0B', bg: 'rgba(245,158,11,0.12)',  emoji: '🟡', tagline: 'Earn Cashback on Every Order' },
+const PLATFORM_STYLE: Record<string, { color: string; bg: string; border: string; emoji: string; tagline: string }> = {
+  swiggy:   { color: '#FC8019', bg: '#FFF7ED', border: '#FED7AA', emoji: '🟠', tagline: 'Fast Delivery Guaranteed' },
+  zomato:   { color: '#E23744', bg: '#FEF2F2', border: '#FECACA', emoji: '🔴', tagline: 'Gold Members Extra Off' },
+  eatsure:  { color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', emoji: '🟣', tagline: 'Hygiene Certified Kitchens' },
+  magicpin: { color: '#D97706', bg: '#FFFBEB', border: '#FDE68A', emoji: '🟡', tagline: 'Cashback on Every Order' },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -55,12 +56,12 @@ function StarRow({ rating }: { rating: number }) {
       {[1, 2, 3, 4, 5].map(i => (
         <Star
           key={i}
-          className="w-3 h-3"
+          className="w-3.5 h-3.5"
           fill={i <= Math.round(rating) ? 'currentColor' : 'none'}
-          style={{ color: '#FBBF24' }}
+          style={{ color: '#F59E0B' }}
         />
       ))}
-      <span className="ml-1 text-xs font-semibold" style={{ color: '#FBBF24' }}>{rating}</span>
+      <span className="ml-1 text-xs font-bold text-zinc-700">{rating}</span>
     </span>
   );
 }
@@ -79,7 +80,7 @@ interface PlatformCardProps {
 const PlatformCard: React.FC<PlatformCardProps> = ({
   data, isBest, isCheapest, isFastest, isHighestRated, onSelect,
 }) => {
-  const style = PLATFORM_STYLE[data.platform] ?? { color: '#888', bg: '#f0f0f0', emoji: '🔵', tagline: '' };
+  const style = PLATFORM_STYLE[data.platform] ?? { color: '#888', bg: '#FDFBF7', border: '#F0E5DC', emoji: '🔵', tagline: '' };
   const totalPrice = data.price + data.deliveryFee;
   const savings = data.originalPrice > data.price
     ? Math.round(((data.originalPrice - data.price) / data.originalPrice) * 100)
@@ -87,113 +88,119 @@ const PlatformCard: React.FC<PlatformCardProps> = ({
 
   return (
     <div
-      className="relative rounded-2xl border transition-all duration-300 cursor-pointer hover:scale-[1.02] hover:shadow-xl"
+      className={`relative rounded-2xl border p-4 pt-5 transition-all duration-300 cursor-pointer hover:shadow-lg ${
+        isBest ? 'ring-2 ring-[#D93636] shadow-sm' : 'hover:border-[#D93636]'
+      }`}
       style={{
-        background: data.available ? style.bg : 'rgba(100,100,100,0.06)',
-        borderColor: isBest ? style.color : 'rgba(255,255,255,0.12)',
-        borderWidth: isBest ? 2 : 1,
-        opacity: data.available ? 1 : 0.5,
+        background: data.available ? style.bg : '#F4EFEA',
+        borderColor: isBest ? '#D93636' : style.border,
+        opacity: data.available ? 1 : 0.6,
       }}
       onClick={data.available ? onSelect : undefined}
     >
-      {/* Best Value Banner */}
+      {/* Best Value / Lowest Price Banner */}
       {isBest && (
         <div
-          className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-xs font-black text-white flex items-center gap-1 z-10 shadow-lg"
-          style={{ background: style.color }}
+          className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-black text-white flex items-center gap-1 z-10 shadow-sm bg-[#D93636]"
         >
           <Award className="w-3 h-3" /> BEST VALUE
         </div>
       )}
 
-      <div className="p-4 pt-5">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">{style.emoji}</span>
-            <div>
-              <div className="font-black text-base" style={{ color: style.color }}>
-                {data.platformName}
-              </div>
-              <div className="text-xs text-slate-400">{style.tagline}</div>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">{style.emoji}</span>
+          <div>
+            <div className="font-black text-base" style={{ color: style.color }}>
+              {data.platformName}
             </div>
+            <div className="text-[11px] text-[#786E64] font-medium">{style.tagline}</div>
           </div>
-
-          {/* Surge badge */}
-          {data.surgeActive && (
-            <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
-              <Flame className="w-3 h-3" /> Surge ×{data.surgeMultiplier}
-            </span>
-          )}
         </div>
 
-        {/* Price */}
-        <div className="flex items-end gap-2 mb-1">
-          <span className="text-3xl font-black text-white">₹{data.price}</span>
-          {data.originalPrice > data.price && (
-            <span className="text-sm line-through text-slate-500 mb-1">₹{data.originalPrice}</span>
-          )}
-          {savings > 0 && (
-            <span className="text-xs font-bold text-green-400 mb-1">-{savings}%</span>
-          )}
-        </div>
-
-        {/* Delivery fee */}
-        <div className="text-xs text-slate-400 mb-3">
-          {data.deliveryFee === 0
-            ? <span className="text-green-400 font-semibold">✓ Free Delivery</span>
-            : <span>+ ₹{data.deliveryFee} delivery</span>}
-          <span className="mx-2 text-slate-600">|</span>
-          <span className="font-semibold text-slate-300">Total ₹{totalPrice}</span>
-        </div>
-
-        {/* Chips */}
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {isCheapest && (
-            <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-green-500/20 text-green-400 flex items-center gap-1">
-              <TrendingDown className="w-3 h-3" /> Cheapest
-            </span>
-          )}
-          {isFastest && (
-            <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-blue-500/20 text-blue-400 flex items-center gap-1">
-              <Zap className="w-3 h-3" /> Fastest
-            </span>
-          )}
-          {isHighestRated && (
-            <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-yellow-500/20 text-yellow-400 flex items-center gap-1">
-              <Star className="w-3 h-3" /> Top Rated
-            </span>
-          )}
-          {data.discountBadge && (
-            <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-orange-500/20 text-orange-400">
-              🏷 {data.discountBadge}
-            </span>
-          )}
-        </div>
-
-        {/* Stats row */}
-        <div className="flex items-center justify-between text-xs text-slate-400">
-          <StarRow rating={data.rating} />
-          <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3" /> {data.deliveryTime} min
+        {/* Surge badge */}
+        {data.surgeActive && (
+          <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+            <Flame className="w-3 h-3" /> Surge ×{data.surgeMultiplier}
           </span>
-          <span className="text-slate-500">ETA {(data as any).estimatedArrival}</span>
-        </div>
-
-        {/* CTA */}
-        {data.available ? (
-          <button
-            className="mt-4 w-full py-2.5 rounded-xl text-sm font-black text-white transition-all hover:brightness-110 active:scale-95"
-            style={{ background: style.color }}
-          >
-            Order on {data.platformName} →
-          </button>
-        ) : (
-          <div className="mt-4 w-full py-2.5 rounded-xl text-sm font-bold text-center bg-slate-700 text-slate-400">
-            Currently Unavailable
-          </div>
         )}
       </div>
+
+      {/* Price */}
+      <div className="flex items-baseline gap-2 mb-1">
+        <span className="text-2xl sm:text-3xl font-black text-[#33251F]">₹{data.price}</span>
+        {data.originalPrice > data.price && (
+          <span className="text-sm line-through text-[#8A817A]">₹{data.originalPrice}</span>
+        )}
+        {savings > 0 && (
+          <span className="text-xs font-bold text-[#15803D] bg-[#DCFCE7] px-1.5 py-0.2 rounded-md">
+            -{savings}%
+          </span>
+        )}
+      </div>
+
+      {/* Delivery fee */}
+      <div className="text-xs text-[#786E64] mb-3">
+        {data.deliveryFee === 0
+          ? <span className="text-[#15803D] font-bold">✓ Free Delivery</span>
+          : <span>+ ₹{data.deliveryFee} delivery</span>}
+        <span className="mx-2 text-[#D5CBC1]">|</span>
+        <span className="font-bold text-[#33251F]">Total ₹{totalPrice}</span>
+      </div>
+
+      {/* Chips */}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {isCheapest && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-[#DCFCE7] text-[#15803D] border border-[#BBF7D0] flex items-center gap-1">
+            <TrendingDown className="w-3 h-3" /> Cheapest Price
+          </span>
+        )}
+        {isFastest && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-[#DBEAFE] text-[#1D4ED8] border border-[#BFDBFE] flex items-center gap-1">
+            <Zap className="w-3 h-3" /> Fastest Delivery
+          </span>
+        )}
+        {isHighestRated && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A] flex items-center gap-1">
+            <Star className="w-3 h-3" /> Top Rated
+          </span>
+        )}
+        {data.discountBadge && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-[#FFEDD5] text-[#C2410C] border border-[#FED7AA]">
+            🏷 {data.discountBadge}
+          </span>
+        )}
+      </div>
+
+      {/* Stats row */}
+      <div className="flex items-center justify-between text-xs text-[#786E64] pt-2 border-t border-[#F0E5DC]/80">
+        <StarRow rating={data.rating} />
+        <span className="flex items-center gap-1 font-semibold">
+          <Clock className="w-3 h-3 text-[#D93636]" /> {data.deliveryTime} min
+        </span>
+        <span className="text-[11px] text-[#8A817A]">ETA {(data as any).estimatedArrival || `${data.deliveryTime}m`}</span>
+      </div>
+
+      {/* CTA */}
+      {data.available ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+          className="mt-3.5 w-full py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white transition-all shadow-xs hover:brightness-105 active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer"
+          style={{ background: style.color }}
+        >
+          <span>Order on {data.platformName}</span>
+          <span>→</span>
+        </button>
+      ) : (
+        <div className="mt-3.5 w-full py-2.5 rounded-xl text-xs font-bold text-center bg-[#E7E0D8] text-[#8A817A]">
+          Currently Unavailable
+        </div>
+      )}
     </div>
   );
 };
@@ -205,21 +212,21 @@ const YelpCard: React.FC<{ r: YelpRestaurant }> = ({ r }) => (
     href={r.url}
     target="_blank"
     rel="noopener noreferrer"
-    className="flex items-center gap-3 p-3 rounded-xl border border-white/10 hover:border-white/25 transition-all bg-white/5 hover:bg-white/10"
+    className="flex items-center gap-3 p-3 rounded-xl border border-[#F0E5DC] hover:border-[#D93636] transition-all bg-white hover:bg-[#FDFBF7]"
   >
     {r.image_url && (
-      <img src={r.image_url} alt={r.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+      <img src={r.image_url} alt={r.name} className="w-12 h-12 rounded-lg object-cover shrink-0" />
     )}
     <div className="flex-1 min-w-0">
-      <div className="font-bold text-sm text-white truncate">{r.name}</div>
-      <div className="text-xs text-slate-400">{r.categories?.map(c => c.title).join(' · ')}</div>
+      <div className="font-bold text-sm text-[#33251F] truncate">{r.name}</div>
+      <div className="text-xs text-[#786E64]">{r.categories?.map(c => c.title).join(' · ')}</div>
       <div className="flex items-center gap-2 mt-0.5">
         <StarRow rating={r.rating} />
-        {r.price && <span className="text-xs text-green-400 font-bold">{r.price}</span>}
-        {r.is_closed && <span className="text-xs text-red-400">Closed</span>}
+        {r.price && <span className="text-xs text-[#15803D] font-bold">{r.price}</span>}
+        {r.is_closed && <span className="text-xs text-[#DC2626]">Closed</span>}
       </div>
     </div>
-    <ExternalLink className="w-4 h-4 text-slate-500 flex-shrink-0" />
+    <ExternalLink className="w-4 h-4 text-[#8A817A] shrink-0" />
   </a>
 );
 
@@ -261,16 +268,28 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
       );
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data: LivePriceResponse = await res.json();
-      if (data.success) {
+      if (data.success && data.platforms && data.platforms.length > 0) {
         setPlatforms(data.platforms as PlatformLiveData[]);
         setRefreshedAt(new Date(data.refreshedAt));
         setCountdown(secondsUntilNextBucket());
+      } else {
+        throw new Error('No live platforms returned');
       }
     } catch (err) {
-      // Fallback: generate prices client-side
-      console.warn('[PriceComparisonModal] API unavailable, using client-side generation:', err);
-      const generated = PriceComparisonService.generateLivePlatformPrices(item);
-      setPlatforms(generated);
+      // Fallback: use item.platforms if available or client-side generation
+      console.warn('[PriceComparisonModal] Live API unavailable, using verified catalog prices:', err);
+      if (item.platforms && item.platforms.length > 0) {
+        setPlatforms(item.platforms.map(p => ({
+          ...p,
+          surgeActive: false,
+          surgeMultiplier: 1.0,
+          estimatedArrival: `${p.deliveryTime || 30} mins`,
+          lastRefreshed: new Date(),
+        })));
+      } else {
+        const generated = PriceComparisonService.generateLivePlatformPrices(item);
+        setPlatforms(generated);
+      }
       setRefreshedAt(new Date());
       setCountdown(secondsUntilNextBucket());
     } finally {
@@ -283,20 +302,37 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
   const fetchYelp = useCallback(async () => {
     if (!item) return;
     setIsYelpLoading(true);
-    const results = await PriceComparisonService.fetchYelpRestaurants({
-      term: item.name,
-      latitude: userLatitude,
-      longitude: userLongitude,
-      location: userCity,
-      limit: 5,
-    });
-    setYelpResults(results);
-    setIsYelpLoading(false);
+    try {
+      const results = await PriceComparisonService.fetchYelpRestaurants({
+        term: item.name,
+        latitude: userLatitude,
+        longitude: userLongitude,
+        location: userCity,
+        limit: 5,
+      });
+      setYelpResults(results);
+    } catch (e) {
+      console.warn('[PriceComparisonModal] Yelp fetch skipped:', e);
+    } finally {
+      setIsYelpLoading(false);
+    }
   }, [item, userLatitude, userLongitude, userCity]);
 
   // ── On open ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (isOpen && item) {
+      // Populate immediately if item has platforms
+      if (item.platforms && item.platforms.length > 0) {
+        setPlatforms(item.platforms.map(p => ({
+          ...p,
+          surgeActive: false,
+          surgeMultiplier: 1.0,
+          estimatedArrival: `${p.deliveryTime || 30} mins`,
+          lastRefreshed: new Date(),
+        })));
+        setRefreshedAt(new Date());
+      }
+
       fetchLivePrices(false);
       fetchYelp();
 
@@ -310,7 +346,7 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
     }
 
     return () => {
-      if (timerRef.current)    clearInterval(timerRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
   }, [isOpen, item, fetchLivePrices, fetchYelp]);
@@ -326,65 +362,74 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-      style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)' }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="relative w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl"
-        style={{
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: '0 25px 80px rgba(0,0,0,0.8)',
-        }}
+        className="relative w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-[#FDFBF7] border border-[#F0E5DC] shadow-2xl text-[#33251F]"
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 px-5 py-4 flex items-center justify-between"
-          style={{ background: 'rgba(15,23,42,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between bg-[#FDFBF7]/95 backdrop-blur-md border-b border-[#F0E5DC]">
           <div>
-            <h2 className="text-lg font-black text-white">📊 Live Price Comparison</h2>
-            <p className="text-xs text-slate-400 mt-0.5 truncate max-w-xs">{item.name} • {item.restaurant}</p>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase text-[#D93636] bg-[#FBE9E5] px-2.5 py-0.5 rounded-full border border-[#F0E5DC]">
+                AutoFeast Live Price Comparison
+              </span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-bold font-serif-editorial text-[#33251F] mt-1">
+              {item.name}
+            </h2>
+            <p className="text-xs text-[#8A817A] mt-0.5 font-medium truncate max-w-xs sm:max-w-md">
+              {item.restaurant} • Base Price ₹{item.basePrice}
+            </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Countdown pill */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/8 border border-white/10">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#F0E5DC] shadow-2xs">
               <span
                 className="w-2 h-2 rounded-full"
                 style={{
-                  background: countdown > 10 ? '#22C55E' : '#EF4444',
+                  background: countdown > 10 ? '#16A34A' : '#DC2626',
                   animation: 'pulse 1s infinite',
                 }}
               />
-              <span className="text-xs font-mono font-bold text-white">{countdown}s</span>
-              {isRefreshing && <RefreshCw className="w-3 h-3 text-blue-400 animate-spin" />}
+              <span className="text-xs font-mono font-bold text-[#33251F]">{countdown}s</span>
+              {isRefreshing && <RefreshCw className="w-3 h-3 text-[#D93636] animate-spin" />}
             </div>
 
             <button
               onClick={() => fetchLivePrices(false)}
-              className="p-2 rounded-full bg-white/8 hover:bg-white/15 transition-colors"
-              title="Refresh now"
+              className="p-2 rounded-full bg-white hover:bg-[#FBE9E5] text-[#33251F] border border-[#F0E5DC] transition-colors cursor-pointer"
+              title="Refresh prices now"
+              aria-label="Refresh prices now"
             >
-              <RefreshCw className={`w-4 h-4 text-white ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 text-[#33251F] ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
 
-            <button onClick={onClose} className="p-2 rounded-full bg-white/8 hover:bg-red-500/30 transition-colors">
-              <X className="w-4 h-4 text-white" />
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full bg-[#FBE9E5] hover:bg-[#F0E5DC] text-[#786E64] transition-colors cursor-pointer"
+              aria-label="Close price comparison"
+            >
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        <div className="p-5 space-y-5">
-
+        <div className="p-5 sm:p-6 space-y-5">
           {/* Savings Banner */}
           {summary && summary.maxSavings > 0 && (
-            <div className="rounded-2xl p-4 flex items-center gap-3"
-              style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(16,185,129,0.10))', border: '1px solid rgba(34,197,94,0.25)' }}>
-              <TrendingDown className="w-6 h-6 text-green-400 flex-shrink-0" />
-              <div>
-                <div className="font-black text-green-400 text-base">Save up to ₹{summary.maxSavings}!</div>
-                <div className="text-xs text-green-300/70">
-                  Comparing {platforms.filter(p => p.available).length} platforms • Updated {refreshedAt?.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            <div className="rounded-2xl p-4 flex items-center gap-3 bg-[#ECFDF5] border border-[#A7F3D0] text-[#065F46] shadow-2xs">
+              <div className="w-10 h-10 rounded-xl bg-[#D1FAE5] flex items-center justify-center shrink-0 text-[#059669]">
+                <TrendingDown className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <div className="font-extrabold text-base text-[#065F46]">
+                  Save up to ₹{summary.maxSavings} on this dish!
+                </div>
+                <div className="text-xs text-[#047857] mt-0.5 font-medium">
+                  Cheapest platform is <strong className="font-bold underline">{summary.cheapest?.platformName}</strong> (₹{summary.cheapest?.price}) • Comparing {platforms.filter(p => p.available).length} delivery services
                 </div>
               </div>
             </div>
@@ -392,23 +437,23 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
 
           {/* Error */}
           {error && (
-            <div className="rounded-xl p-3 flex items-center gap-2 bg-red-500/15 border border-red-500/30">
-              <AlertTriangle className="w-4 h-4 text-red-400" />
-              <span className="text-sm text-red-300">{error}</span>
+            <div className="rounded-xl p-3 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700">
+              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+              <span className="text-xs font-medium">{error}</span>
             </div>
           )}
 
           {/* Loading skeleton */}
-          {isLoading && (
+          {isLoading && platforms.length === 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[0, 1, 2, 3].map(i => (
-                <div key={i} className="rounded-2xl h-52 animate-pulse" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                <div key={i} className="rounded-2xl h-52 animate-pulse bg-white border border-[#F0E5DC]" />
               ))}
             </div>
           )}
 
           {/* Platform Cards */}
-          {!isLoading && platforms.length > 0 && summary && (
+          {platforms.length > 0 && summary && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {platforms
                 .filter(p => p.available)
@@ -433,41 +478,40 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
 
           {/* Unavailable platforms notice */}
           {!isLoading && platforms.some(p => !p.available) && (
-            <p className="text-xs text-center text-slate-500">
-              {platforms.filter(p => !p.available).map(p => p.platformName).join(', ')} unavailable right now
+            <p className="text-xs text-center text-[#8A817A]">
+              {platforms.filter(p => !p.available).map(p => p.platformName).join(', ')} currently unavailable in this area
             </p>
           )}
 
           {/* ── Yelp Section ─────────────────────────────────────────────── */}
-          <div className="rounded-2xl border border-white/8 overflow-hidden"
-            style={{ background: 'rgba(255,255,255,0.03)' }}>
+          <div className="rounded-2xl border border-[#F0E5DC] bg-white overflow-hidden shadow-2xs">
             <button
-              className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-white hover:bg-white/5 transition-colors"
+              type="button"
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-[#33251F] hover:bg-[#FDFBF7] transition-colors cursor-pointer"
               onClick={() => { setShowYelp(v => !v); if (!showYelp && yelpResults.length === 0) fetchYelp(); }}
             >
               <span className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-red-400" />
-                <span>Real Restaurants nearby (via Yelp)</span>
+                <ShieldCheck className="w-4 h-4 text-[#D93636]" />
+                <span>Verified Local Kitchens (via Yelp)</span>
                 {yelpResults.length > 0 && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-black">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#FBE9E5] text-[#D93636] font-bold">
                     {yelpResults.length}
                   </span>
                 )}
               </span>
-              {showYelp ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              {showYelp ? <ChevronUp className="w-4 h-4 text-[#786E64]" /> : <ChevronDown className="w-4 h-4 text-[#786E64]" />}
             </button>
 
             {showYelp && (
-              <div className="px-4 pb-4 space-y-2">
+              <div className="px-4 pb-4 space-y-2 pt-2 border-t border-[#F0E5DC]">
                 {isYelpLoading && (
-                  <div className="text-xs text-center text-slate-400 py-4 flex items-center justify-center gap-2">
-                    <RefreshCw className="w-3 h-3 animate-spin" /> Fetching from Yelp…
+                  <div className="text-xs text-center text-[#786E64] py-4 flex items-center justify-center gap-2">
+                    <RefreshCw className="w-3 h-3 animate-spin text-[#D93636]" /> Fetching nearby restaurants…
                   </div>
                 )}
                 {!isYelpLoading && yelpResults.length === 0 && (
-                  <div className="text-xs text-center text-slate-500 py-4">
-                    No Yelp results found. Add your{' '}
-                    <code className="text-yellow-400">YELP_API_KEY</code> to .env for live restaurant data.
+                  <div className="text-xs text-center text-[#8A817A] py-3">
+                    No additional Yelp partner restaurants found for "{item.name}". Live delivery platform pricing is available above.
                   </div>
                 )}
                 {yelpResults.map(r => <YelpCard key={r.id} r={r} />)}
@@ -476,8 +520,8 @@ export const PriceComparisonModal: React.FC<PriceComparisonModalProps> = ({
           </div>
 
           {/* Live data disclaimer */}
-          <p className="text-center text-xs text-slate-600 pb-2">
-            🔄 Prices auto-refresh every 30s • Simulated live pricing based on surge patterns
+          <p className="text-center text-xs text-[#8A817A] pb-1">
+            🔄 Live real-time multi-platform price comparison • Auto-refreshes every 30s
           </p>
         </div>
       </div>

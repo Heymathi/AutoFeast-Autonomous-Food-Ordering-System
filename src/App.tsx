@@ -66,6 +66,7 @@ const MainLayout: React.FC = () => {
     handleNomineeApprovalApproved,
     handleNomineeApprovalDenied,
     scheduleCart,
+    cart,
     clearScheduleCart,
     isScheduleCartModalOpen,
     setIsScheduleCartModalOpen,
@@ -111,14 +112,16 @@ const MainLayout: React.FC = () => {
       <Navbar />
 
       {/* Floating Schedule Cart Action Button */}
-      {scheduleCart.length > 0 && !isNomineeFlow && (
+      {(cart.length > 0 || scheduleCart.length > 0) && !isNomineeFlow && (
         <div className="fixed bottom-6 right-6 z-40 animate-bounce">
           <button
             onClick={() => setIsScheduleCartModalOpen(true)}
             className="px-6 py-3.5 bg-[#D93636] hover:bg-[#C02B2B] text-white font-bold rounded-lg shadow-xl border border-white flex items-center space-x-3 cursor-pointer hover:scale-105 transition-all"
           >
             <ShoppingBag className="w-5 h-5 text-white" />
-            <span className="text-xs sm:text-sm">Checkout Schedule Cart ({scheduleCart.length} items)</span>
+            <span className="text-xs sm:text-sm">
+              Checkout Cart ({cart.reduce((sum, item) => sum + (item.qty || 1), 0) || scheduleCart.length} items)
+            </span>
           </button>
         </div>
       )}

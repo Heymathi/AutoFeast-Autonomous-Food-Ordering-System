@@ -900,6 +900,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       cancellationReason: reason
     });
 
+    if (activeLiveOrder && activeLiveOrder.orderId === orderId) {
+      setActiveLiveOrder(null);
+      try {
+        localStorage.removeItem('smart_food_active_live_order');
+      } catch (e) {}
+    }
+
     // Notify backend if authenticated
     try {
       const token = localStorage.getItem('smart_food_auth_token');
@@ -1414,14 +1421,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
-  // 🚀 SERVER-SIDE PERSISTENT CART STATE (DB + CartService API)
-  const [cart, setCart] = useState<CartItem[]>([]);
+  // 🚀 SERVER-SIDE PERSISTENT CART STATE (DB + CartService API + LocalStorage)
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('autofeast_cart');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Failed to parse autofeast_cart from localStorage', e);
+    }
+    return [];
+  });
+
+  // Sync cart changes to localStorage for offline and refresh persistence
+  useEffect(() => {
+    try {
+      localStorage.setItem('autofeast_cart', JSON.stringify(cart));
+    } catch (e) {
+      console.warn('Failed to save autofeast_cart to localStorage', e);
+    }
+  }, [cart]);
 
   // Fetch server-side cart on mount & user login
   useEffect(() => {
     const uid = currentUser?.id || 'user_karthik_001';
     CartService.fetchCart(uid).then(serverCart => {
-      if (serverCart) {
+      if (serverCart && serverCart.length > 0) {
         setCart(serverCart.map(item => {
           const matchedFood = INDIAN_FOOD_CATALOG.find(f => f.id === item.itemId || f.name.toLowerCase() === item.name.toLowerCase());
           return {
@@ -1430,6 +1454,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           };
         }));
       }
+    }).catch(err => {
+      console.warn('[AppContext] CartService.fetchCart failed, keeping local cart:', err);
     });
   }, [currentUser?.id]);
 
@@ -1445,10 +1471,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return;
     }
 
-    // Idempotency per click burst (~1s throttle per itemId)
+    // Debounce fast double-clicks (~200ms throttle per itemId)
     const lastTime = lastAddToCartTimeMap.current.get(foodItem.id) || 0;
     const now = Date.now();
-    if (now - lastTime < 1000) {
+    if (now - lastTime < 200) {
       return;
     }
     lastAddToCartTimeMap.current.set(foodItem.id, now);
@@ -2455,10 +2481,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           savings: 35,
           rating: 4.9,
           timestamp: new Date().toISOString(),
-          status: 'delivered',
+          status: 'placed',
           isAutoOrder: false,
           orderType: 'instant',
-          deliveryAddress: bill.deliveryAddress
+          deliveryAddress: bill.deliveryAddress,
+          quantity: 1,
+          subtotal: resTotal - 35 > 0 ? resTotal - 35 : resTotal,
+          deliveryFee: 30,
+          platformFee: 5,
+          gst: parseFloat((resTotal * 0.05).toFixed(2)),
+          grandTotal: resTotal
         };
 
         newExecutedOrders.push(executedOrder);

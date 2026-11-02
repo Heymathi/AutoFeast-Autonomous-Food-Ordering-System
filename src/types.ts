@@ -188,6 +188,13 @@ export interface ExecutedOrder {
   cancellationReason?: string;
   expectedDeliveryTime?: string;
   userId?: string;
+  itemPrice?: number;
+  subtotal?: number;
+  deliveryFee?: number;
+  platformFee?: number;
+  gst?: number;
+  grandTotal?: number;
+  paymentStatus?: string;
 }
 
 import { ParsedOrderBill } from './services/nlpParserService';

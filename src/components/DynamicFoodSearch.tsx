@@ -673,9 +673,18 @@ export const DynamicFoodSearch: React.FC = () => {
                   <div className="pt-3 border-t border-[#F0E5DC] space-y-2">
                     <div className="flex items-center justify-between text-xs font-bold text-zinc-800">
                       <span>Live Platform Comparison:</span>
-                      <span className="text-[#D93636] font-bold bg-[#FBE9E5] px-2 py-0.5 rounded-full border border-[#F0E5DC]">
-                        Save ₹{item.platforms[0].originalPrice - item.platforms[3].price}
-                      </span>
+                      {(() => {
+                        const originalPrices = (item.platforms || []).map(p => p.originalPrice || p.price);
+                        const currentPrices = (item.platforms || []).map(p => p.price);
+                        const maxP = originalPrices.length > 0 ? Math.max(...originalPrices) : item.basePrice;
+                        const minP = currentPrices.length > 0 ? Math.min(...currentPrices) : item.basePrice;
+                        const savings = Math.max(0, maxP - minP);
+                        return savings > 0 ? (
+                          <span className="text-[#D93636] font-bold bg-[#FBE9E5] px-2 py-0.5 rounded-full border border-[#F0E5DC]">
+                            Save ₹{savings}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs">
@@ -760,17 +769,23 @@ export const DynamicFoodSearch: React.FC = () => {
       {chooserItem && (
         <ItemActionChooser
           isOpen={Boolean(chooserItem)}
+          items={chooserItems}
           item={chooserItem}
           onClose={() => setChooserItem(null)}
-          onOrderNow={() => {
-            const it = chooserItem;
+          onOrderNow={(items) => {
+            const it = items?.[0] || chooserItem;
             setChooserItem(null);
             placeInstantOrder(it);
           }}
-          onSchedule={() => {
-            const it = chooserItem;
+          onSchedule={(items) => {
+            const it = items?.[0] || chooserItem;
             setChooserItem(null);
             setSchedulingItem(it);
+          }}
+          onAddToCart={(items) => {
+            const it = items?.[0] || chooserItem;
+            setChooserItem(null);
+            addToCart(it, 1, 'dynamic_search');
           }}
         />
       )}

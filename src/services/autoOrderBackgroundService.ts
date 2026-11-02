@@ -308,13 +308,89 @@ export class AutoOrderBackgroundService {
   }
 
   /**
+   * Safely normalize order records from persistence, handling missing, null, or undefined values.
+   */
+  public static normalizeOrderRecord(raw: any): ExecutedOrder {
+    if (!raw || typeof raw !== 'object') {
+      return {
+        id: `ord_${Date.now()}`,
+        foodName: 'Food Item',
+        restaurant: 'AutoFeast Partner',
+        platform: 'swiggy',
+        platformName: 'AutoFeast Direct',
+        amountPaid: 0,
+        originalPrice: 0,
+        savings: 0,
+        rating: 4.8,
+        timestamp: new Date().toISOString(),
+        status: 'placed',
+        isAutoOrder: false,
+        quantity: 1
+      };
+    }
+
+    const rawStatus = String(raw.status || '').toLowerCase().trim();
+    let normalizedStatus: ExecutedOrder['status'] = 'placed';
+    if (rawStatus === 'delivered' || rawStatus === 'completed' || rawStatus === 'successful' || rawStatus === 'success') {
+      normalizedStatus = 'delivered';
+    } else if (rawStatus === 'cancelled' || rawStatus === 'canceled') {
+      normalizedStatus = 'cancelled';
+    } else if (rawStatus === 'scheduled') {
+      normalizedStatus = raw.completedAt ? 'delivered' : 'scheduled';
+    } else if (rawStatus === 'processing' || rawStatus === 'preparing' || rawStatus === 'on_the_way' || rawStatus === 'pending') {
+      normalizedStatus = 'pending';
+    } else {
+      normalizedStatus = 'placed';
+    }
+
+    const parseNum = (val: any, fallback = 0): number => {
+      if (val === null || val === undefined) return fallback;
+      const n = Number(val);
+      return isNaN(n) ? fallback : n;
+    };
+
+    const amountPaid = parseNum(raw.amountPaid, parseNum(raw.total, parseNum(raw.grandTotal, 0)));
+    const originalPrice = parseNum(raw.originalPrice, amountPaid);
+    const savings = parseNum(raw.savings, Math.max(0, originalPrice - amountPaid));
+    const quantity = Math.max(1, parseNum(raw.quantity, 1));
+    const rating = parseNum(raw.rating, 4.8);
+
+    return {
+      ...raw,
+      id: String(raw.id || `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`),
+      foodName: String(raw.foodName || raw.itemName || raw.name || 'Food Item'),
+      restaurant: String(raw.restaurant || raw.restaurantName || 'AutoFeast Partner'),
+      platform: raw.platform || 'swiggy',
+      platformName: String(raw.platformName || (raw.platform ? String(raw.platform).toUpperCase() : 'AutoFeast Direct')),
+      amountPaid,
+      originalPrice,
+      savings,
+      rating,
+      timestamp: raw.timestamp || raw.createdAt || new Date().toISOString(),
+      status: normalizedStatus,
+      isAutoOrder: Boolean(raw.isAutoOrder),
+      orderType: raw.orderType || (raw.isAutoOrder ? 'scheduled' : 'instant'),
+      quantity,
+      completedAt: raw.completedAt || (normalizedStatus === 'delivered' ? raw.timestamp : undefined),
+      cancelledAt: raw.cancelledAt || (normalizedStatus === 'cancelled' ? raw.timestamp : undefined),
+      cancellationReason: raw.cancellationReason || (normalizedStatus === 'cancelled' ? 'Cancelled by customer' : undefined),
+      deliveryAddress: raw.deliveryAddress,
+      foodImage: raw.foodImage,
+      expectedDeliveryTime: raw.expectedDeliveryTime || '25-30 minutes'
+    };
+  }
+
+  /**
    * Retrieve order history.
    */
   public static getOrderHistory(): ExecutedOrder[] {
     const stored = localStorage.getItem(ORDER_HISTORY_KEY);
     if (stored !== null) {
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return parsed.map(ord => this.normalizeOrderRecord(ord));
+        }
       } catch (e) {
         console.error('Error reading order history', e);
       }

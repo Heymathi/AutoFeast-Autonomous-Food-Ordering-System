@@ -28,9 +28,13 @@ import {
   Eye,
   Type,
   MapPin,
-  ShieldAlert
+  ShieldAlert,
+  BarChart2,
+  Zap
 } from 'lucide-react';
 import { ItemActionChooser } from './ItemActionChooser';
+import { PriceComparisonModal } from './PriceComparisonModal';
+import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
 
 export const HomePage: React.FC = () => {
   const {
@@ -50,12 +54,15 @@ export const HomePage: React.FC = () => {
     setThemeMode,
     setHighContrast,
     addToCart,
+    placeInstantOrder,
     showToast,
     t
   } = useApp();
 
   const [isPreferencesExpanded, setIsPreferencesExpanded] = useState(false);
   const [selectedDishForOrder, setSelectedDishForOrder] = useState<FoodItem | null>(null);
+  const [priceCompareDish, setPriceCompareDish] = useState<FoodItem | null>(null);
+  const [schedulingDish, setSchedulingDish] = useState<FoodItem | null>(null);
 
   const currentTheme =
     accessibilitySettings.themeMode ||
@@ -120,7 +127,7 @@ export const HomePage: React.FC = () => {
   };
 
   const handleAddToCartClick = (dish: FoodItem) => {
-    setSelectedDishForOrder(dish);
+    addToCart(dish, 1, 'home_recommendation');
   };
 
   return (
@@ -191,20 +198,44 @@ export const HomePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Bottom Price & Add to Cart Button matching PDF */}
-              <div className="p-4 pt-2 border-t border-[#F0E5DC] flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-[#8A817A]">Price</span>
-                  <p className="text-base font-bold text-[#D93636]">₹{dish.basePrice}</p>
+              {/* Bottom Actions: Compare, Order/Schedule, Add to Cart */}
+              <div className="p-4 pt-2 border-t border-[#F0E5DC] space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-[#8A817A] uppercase font-bold">Best Price</span>
+                    <p className="text-base font-black text-[#D93636]">₹{dish.basePrice}</p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPriceCompareDish(dish)}
+                      className="py-1.5 px-2.5 rounded-xl border border-[#F0E5DC] hover:border-[#D93636] text-[#33251F] hover:text-[#D93636] text-xs font-bold flex items-center gap-1 transition-all bg-white hover:bg-[#FBE9E5] cursor-pointer"
+                      title="Compare platform prices"
+                    >
+                      <BarChart2 className="w-3.5 h-3.5 text-[#D93636]" />
+                      <span>Compare</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDishForOrder(dish)}
+                      className="py-1.5 px-2.5 rounded-xl bg-[#D93636] hover:bg-[#C02B2B] text-white text-xs font-bold transition-all flex items-center gap-1 shadow-xs hover:scale-105 active:scale-95 cursor-pointer"
+                      title="Order now or schedule for later"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Order</span>
+                    </button>
+                  </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => handleAddToCartClick(dish)}
-                  className="px-4 py-2 rounded-full bg-[#D93636] hover:bg-[#C02B2B] text-white text-xs font-bold transition-all hover:scale-105 active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer"
+                  className="w-full py-2 px-3 rounded-xl bg-[#FBE9E5] hover:bg-[#D93636] text-[#D93636] hover:text-white border border-[#F0E5DC] text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <ShoppingCart className="w-3.5 h-3.5" />
-                  <span>Add to cart</span>
+                  <span>Add to Cart (₹{dish.basePrice})</span>
                 </button>
               </div>
             </div>
@@ -484,20 +515,49 @@ export const HomePage: React.FC = () => {
         )}
       </section>
 
-      {/* Item Action Chooser Dialog when adding item to cart */}
+      {/* Modals for Food Card Actions: Compare, Order/Schedule */}
+      {priceCompareDish && (
+        <PriceComparisonModal
+          isOpen={Boolean(priceCompareDish)}
+          item={priceCompareDish}
+          onClose={() => setPriceCompareDish(null)}
+          onSelectPlatform={(platformName) => {
+            const dish = priceCompareDish;
+            setPriceCompareDish(null);
+            setSelectedDishForOrder(dish);
+          }}
+        />
+      )}
+
       {selectedDishForOrder && (
         <ItemActionChooser
-          isOpen={!!selectedDishForOrder}
+          isOpen={Boolean(selectedDishForOrder)}
           onClose={() => setSelectedDishForOrder(null)}
           items={[selectedDishForOrder]}
-          onAddInstantCart={() => {
-            addToCart(selectedDishForOrder);
-            showToast(`${selectedDishForOrder.name} added to cart!`);
+          item={selectedDishForOrder}
+          onOrderNow={(items) => {
+            const it = items?.[0] || selectedDishForOrder;
             setSelectedDishForOrder(null);
+            placeInstantOrder(it);
           }}
-          onScheduleRecurring={() => {
+          onSchedule={(items) => {
+            const it = items?.[0] || selectedDishForOrder;
             setSelectedDishForOrder(null);
+            setSchedulingDish(it);
           }}
+          onAddToCart={(items) => {
+            const it = items?.[0] || selectedDishForOrder;
+            setSelectedDishForOrder(null);
+            addToCart(it, 1, 'home_recommendation');
+          }}
+        />
+      )}
+
+      {schedulingDish && (
+        <ScheduleCheckoutModal
+          isOpen={Boolean(schedulingDish)}
+          onClose={() => setSchedulingDish(null)}
+          foodItem={schedulingDish}
         />
       )}
     </div>

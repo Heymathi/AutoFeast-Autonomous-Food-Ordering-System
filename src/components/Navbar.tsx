@@ -946,11 +946,16 @@ export const Navbar: React.FC = () => {
               aria-label="View Schedule Cart"
             >
               <ShoppingBag className="w-4 h-4" />
-              {scheduleCart.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-[#D93636] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                  {scheduleCart.length}
-                </span>
-              )}
+              {(() => {
+                const badgeCount = (cart && cart.length > 0)
+                  ? cart.reduce((sum, item) => sum + (item.qty || 1), 0)
+                  : (scheduleCart?.length || 0);
+                return badgeCount > 0 ? (
+                  <span className="absolute -top-1.5 -right-1.5 bg-[#D93636] text-white text-[10px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
+                    {badgeCount}
+                  </span>
+                ) : null;
+              })()}
             </button>
 
             {/* Mobile Hamburger Toggle Button (md:hidden, placed before profile so profile is at extreme right) */}
