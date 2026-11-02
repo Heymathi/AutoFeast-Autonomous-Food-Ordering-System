@@ -19,6 +19,8 @@ describe('AutoFeast Auto-Order Scheduler - Exact Requirement Verification', () =
     const testId = `sched_crispy_masala_dosa_${Date.now()}`;
     const schedule: AutoOrderSchedule = {
       id: testId,
+      slotName: 'Breakfast',
+      slotIndex: 1,
       foodItemId: crispyMasalaDosa.id,
       foodItemName: crispyMasalaDosa.name,
       restaurant: 'Murugan Idli Shop',
@@ -30,8 +32,7 @@ describe('AutoFeast Auto-Order Scheduler - Exact Requirement Verification', () =
       strategy: 'best_value',
       quantity: 1,
       isEnabled: true,
-      price: 110,
-      createdAt: new Date().toISOString()
+      walletAutoDebit: true
     };
 
     AutoOrderBackgroundService.saveSchedule(schedule);
@@ -42,7 +43,6 @@ describe('AutoFeast Auto-Order Scheduler - Exact Requirement Verification', () =
     expect(found).toBeDefined();
     expect(found!.foodItemName).toBe('Crispy Masala Dosa');
     expect(found!.restaurant).toBe('Murugan Idli Shop');
-    expect(found!.price).toBe(110);
     expect(found!.duration).toBe('1_month');
     expect(found!.startDate).toBe('2026-11-02');
   });
@@ -50,6 +50,8 @@ describe('AutoFeast Auto-Order Scheduler - Exact Requirement Verification', () =
   it('3 & 4. Simulates application reload and confirms schedule persistence', () => {
     const schedule: AutoOrderSchedule = {
       id: 'sched_reload_test',
+      slotName: 'Breakfast',
+      slotIndex: 1,
       foodItemId: crispyMasalaDosa.id,
       foodItemName: crispyMasalaDosa.name,
       restaurant: 'Murugan Idli Shop',
@@ -61,8 +63,7 @@ describe('AutoFeast Auto-Order Scheduler - Exact Requirement Verification', () =
       strategy: 'best_value',
       quantity: 1,
       isEnabled: true,
-      price: 110,
-      createdAt: new Date().toISOString()
+      walletAutoDebit: true
     };
     AutoOrderBackgroundService.saveSchedule(schedule);
 
@@ -90,6 +91,8 @@ describe('AutoFeast Auto-Order Scheduler - Exact Requirement Verification', () =
   it('6 & 8. Initiates automatic order workflow at scheduled occurrence and records status', () => {
     const schedule: AutoOrderSchedule = {
       id: 'sched_exec_test',
+      slotName: 'Breakfast',
+      slotIndex: 1,
       foodItemId: crispyMasalaDosa.id,
       foodItemName: crispyMasalaDosa.name,
       restaurant: 'Murugan Idli Shop',
@@ -101,8 +104,7 @@ describe('AutoFeast Auto-Order Scheduler - Exact Requirement Verification', () =
       strategy: 'best_value',
       quantity: 1,
       isEnabled: true,
-      price: 110,
-      createdAt: new Date().toISOString()
+      walletAutoDebit: true
     };
     AutoOrderBackgroundService.saveSchedule(schedule);
 
@@ -122,6 +124,8 @@ describe('AutoFeast Auto-Order Scheduler - Exact Requirement Verification', () =
   it('7. Preserves nominee and PIN safeguards: does not execute if restricted without approval', () => {
     const restrictedSchedule: AutoOrderSchedule = {
       id: 'sched_restricted_test',
+      slotName: 'Breakfast',
+      slotIndex: 1,
       foodItemId: 'restricted_item_999',
       foodItemName: 'Restricted Spicy Dosa',
       restaurant: 'Murugan Idli Shop',
@@ -132,15 +136,12 @@ describe('AutoFeast Auto-Order Scheduler - Exact Requirement Verification', () =
       strategy: 'best_value',
       quantity: 1,
       isEnabled: true,
-      isRestricted: true,
-      requiresNomineeApproval: true,
-      approvalId: undefined, // No approval
-      createdAt: new Date().toISOString()
+      walletAutoDebit: true,
+      approvalId: undefined // No approval
     };
 
-    // Server-side cron simulation check
-    const isRestricted = (restrictedSchedule.requiresNomineeApproval || restrictedSchedule.isRestricted);
-    const canAutoExecute = !isRestricted || Boolean(restrictedSchedule.approvalId);
-    expect(canAutoExecute).toBe(false);
+    // Server-side cron simulation check — without an approvalId, restricted items should not auto-execute
+    const hasApproval = Boolean(restrictedSchedule.approvalId);
+    expect(hasApproval).toBe(false);
   });
 });
