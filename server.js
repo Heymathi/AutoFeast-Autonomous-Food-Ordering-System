@@ -794,7 +794,7 @@ app.post('/api/voice/nlu', async (req, res) => {
 
     if (isLocationStep) {
       const response = await voiceNluClient.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
         contents: `You are the NLU engine for AutoFeast food delivery app. Interpret this user voice turn during the delivery location choice/permission step.
 The user was asked: "Can we use your live location, or do you want to change the address?"
 Intents:
@@ -822,7 +822,7 @@ Context: ${JSON.stringify(context)}`,
     }
 
     const response = await voiceNluClient.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
       contents: `Interpret this voice turn only within the given step and expected options. Do not infer an unrelated action. Return JSON only with exactly these fields: {"intent":"order_now|schedule|yes|no|search|repeat|stop|cancel|back|unknown","item":string|null,"quantity":number|null,"time":string|null,"language":"en|ta|hi","confidence":number}. If unsure use intent "unknown", item null, quantity null, and low confidence. Context: ${JSON.stringify(context)}`,
       config: { responseMimeType: 'application/json', maxOutputTokens: 160 }
     });
@@ -856,12 +856,22 @@ app.post('/api/voice/health-nlu', async (req, res) => {
 
   try {
     voiceNluClient ||= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    const catalog = INDIAN_FOOD_CATALOG.map(food => ({ id: food.id, name: food.name }));
-    const response = await voiceNluClient.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: `Suggest 2 or 3 mild food options for this general dietary context. Do not diagnose or claim to treat disease. Select only catalog IDs. Return JSON only: {"healthContextSummary":string,"targetPerson":"self|appa|amma|thatha|paati|relative","suggestedItemIds":[{"itemId":string,"reasonEn":string,"reasonTa":string,"reasonHi":string}]}. Language: ${['en', 'ta', 'hi'].includes(language) ? language : 'en'}. Catalog: ${JSON.stringify(catalog)}. User: ${JSON.stringify(transcript.trim())}`,
+    const catalog = INDIAN_FOOD_CATALOG.map(food => ({ id: food.id, name: food.name, isVeg: food.isVeg, tags: food.tags }));
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
+    // 4.5-second server timeout
+    const abortTimeout = new Promise((_, reject) => {
+      const timer = setTimeout(() => reject(new Error('Health NLU timed out after 4500ms')), 4500);
+      if (typeof timer.unref === 'function') timer.unref();
+    });
+
+    const geminiCall = voiceNluClient.models.generateContent({
+      model: modelName,
+      contents: `Suggest 2 or 3 healthy or mild food options from the catalog for this dietary/health context. Do not diagnose or claim to treat disease. Select only valid catalog IDs. Return JSON only: {"healthContextSummary":string,"targetPerson":"self|appa|amma|thatha|paati|relative","suggestedItemIds":[{"itemId":string,"reasonEn":string,"reasonTa":string,"reasonHi":string}]}. Language: ${['en', 'ta', 'hi'].includes(language) ? language : 'en'}. Catalog: ${JSON.stringify(catalog)}. User: ${JSON.stringify(transcript.trim())}`,
       config: { responseMimeType: 'application/json', maxOutputTokens: 350 }
     });
+
+    const response = await Promise.race([geminiCall, abortTimeout]);
     const parsed = JSON.parse(response.text || '');
     const targetPeople = ['self', 'appa', 'amma', 'thatha', 'paati', 'relative'];
     const suggestions = Array.isArray(parsed?.suggestedItemIds)

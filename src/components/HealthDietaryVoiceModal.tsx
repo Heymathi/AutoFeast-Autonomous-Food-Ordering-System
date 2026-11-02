@@ -1,16 +1,36 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { FoodItem } from '../types';
 import { HealthDietaryNluService, HealthDietaryAnalysisResult, HealthFoodSuggestion } from '../services/healthDietaryNluService';
 import { PriceComparisonService, PriceComparisonSummary } from '../services/priceComparisonService';
-import { SttMatcherService, CONFIRMATION_VOCABULARY } from '../services/sttMatcherService';
+import { SttMatcherService } from '../services/sttMatcherService';
 import { VoiceIntentRouter } from '../services/voiceIntentRouter';
-import { NomineeNotificationService } from '../services/nomineeNotificationService';
 import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
 import { ItemActionChooser } from './ItemActionChooser';
-import { Mic, MicOff, X, HeartPulse, AlertTriangle, ShieldAlert, Sparkles, CheckCircle2, Zap, Clock, Volume2, Store, Star, Award, ChevronRight, ShoppingBag } from 'lucide-react';
+import { SpeechController } from '../services/speechController';
+import {
+  Mic,
+  MicOff,
+  X,
+  HeartPulse,
+  AlertTriangle,
+  ShieldAlert,
+  Sparkles,
+  CheckCircle2,
+  Zap,
+  Clock,
+  Volume2,
+  Store,
+  Star,
+  Award,
+  ChevronRight,
+  ShoppingBag,
+  Search,
+  RotateCcw,
+  Scale
+} from 'lucide-react';
 
 interface HealthDietaryVoiceModalProps {
   isOpen: boolean;
@@ -18,8 +38,6 @@ interface HealthDietaryVoiceModalProps {
 }
 
 type HealthModalStep = 'speak_condition' | 'analyzing' | 'view_suggestions' | 'view_price_comparison';
-
-import { SpeechController } from '../services/speechController';
 
 export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = ({
   isOpen,
@@ -29,18 +47,18 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
     language,
     speakText,
     placeInstantOrder,
-    setVoiceDialogItem,
     addToCart,
     t,
     showToast,
     currentUser,
     vegOnly,
     checkIsItemRestrictedByNominee,
-    handleNomineeRestrictedInterception
+    openPriceComparison
   } = useApp();
 
   const [step, setStep] = useState<HealthModalStep>('speak_condition');
   const [liveTranscript, setLiveTranscript] = useState('');
+  const [manualInput, setManualInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<HealthDietaryAnalysisResult | null>(null);
   const [selectedItem, setSelectedItem] = useState<FoodItem | null>(null);
@@ -48,30 +66,38 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
   const [isSchedulingModalOpen, setIsSchedulingModalOpen] = useState(false);
   const [chooserItem, setChooserItem] = useState<FoodItem | null>(null);
   const chooserItems = useMemo(() => (chooserItem ? [chooserItem] : []), [chooserItem]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const stepRef = useRef<HealthModalStep>('speak_condition');
+  const isComponentMounted = useRef(true);
+  const watchdogTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const savedHealthCondition = useMemo(() => {
     if (typeof window === 'undefined') return '';
-    const stored = localStorage.getItem('autofeast_health_condition_details') ||
-                   localStorage.getItem('autofeast_health_conditions');
+    const stored =
+      localStorage.getItem('autofeast_health_condition_details') ||
+      localStorage.getItem('autofeast_health_conditions');
     if (stored && stored.trim()) return stored.trim();
-    if ((currentUser as any)?.healthConditions && Array.isArray((currentUser as any).healthConditions) && (currentUser as any).healthConditions.length > 0) {
+    if (
+      (currentUser as any)?.healthConditions &&
+      Array.isArray((currentUser as any).healthConditions) &&
+      (currentUser as any).healthConditions.length > 0
+    ) {
       return (currentUser as any).healthConditions.join(', ').trim();
     }
     return '';
   }, [currentUser]);
 
-  const stepRef = useRef<HealthModalStep>('speak_condition');
-  const isComponentMounted = useRef(true);
-
   useEffect(() => {
     isComponentMounted.current = true;
     return () => {
       isComponentMounted.current = false;
+      if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
       SpeechController.releaseMic('healthy_food');
     };
   }, []);
 
-  const getDisclaimerText = () => {
+  const getDisclaimerText = useCallback(() => {
     if (language === 'ta') {
       return 'இது ஒரு பொதுவான உணவுப் பரிந்துரை மட்டுமே, மருத்துவ ஆலோசனை அல்ல. உங்கள் உடல்நலக் கோளாறுக்கு மருத்துவரை அணுகவும்.';
     }
@@ -79,6 +105,132 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
       return 'यह एक सामान्य आहार सुझाव है, चिकित्सीय सलाह नहीं — कृपया अपनी स्थिति के लिए डॉक्टर से परामर्श लें।';
     }
     return 'This is a general dietary suggestion, not medical advice — please consult a doctor for your condition.';
+  }, [language]);
+
+  /**
+   * Main Analysis Handler:
+   * Accepts text or voice input, enforces timeout protection, never blocks indefinitely.
+   */
+  const handleAnalyzeHealthText = useCallback(
+    async (text: string, candidates: string[] = [text]) => {
+      const query = (text || '').trim();
+      if (!query && !savedHealthCondition) return;
+
+      SpeechController.stopListening('healthy_food');
+      setIsListening(false);
+      setErrorMessage(null);
+      setStep('analyzing');
+      stepRef.current = 'analyzing';
+
+      console.log(`[HealthDietaryVoiceModal] Analyzing health query: "${query}" (saved: "${savedHealthCondition}")`);
+
+      const effectiveQuery = query || savedHealthCondition;
+
+      // Watchdog timeout timer: guarantees step never hangs past 4.5 seconds
+      if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = setTimeout(() => {
+        if (stepRef.current === 'analyzing' && isComponentMounted.current) {
+          console.warn('[HealthDietaryVoiceModal] Watchdog fired: forcing immediate catalog suggestions.');
+          const directFallback = HealthDietaryNluService.generateCatalogHealthSuggestions(
+            effectiveQuery,
+            language,
+            savedHealthCondition
+          );
+          setAnalysisResult(directFallback);
+          setStep('view_suggestions');
+          stepRef.current = 'view_suggestions';
+        }
+      }, 4500);
+
+      try {
+        const primaryInput = candidates[0] || effectiveQuery;
+        const result = await HealthDietaryNluService.analyzeHealthContextAndSuggestFood(
+          primaryInput,
+          language,
+          savedHealthCondition
+        );
+
+        if (!isComponentMounted.current) return;
+
+        // Filter restricted items
+        const safeSuggestions = result.suggestions.filter(s => {
+          const isRestricted = checkIsItemRestrictedByNominee(s.foodItem.id, s.foodItem.name);
+          if (isRestricted) return false;
+          if (vegOnly && !s.foodItem.isVeg) return false;
+          return true;
+        });
+
+        const safeResult: HealthDietaryAnalysisResult = {
+          ...result,
+          suggestions: safeSuggestions.length > 0 ? safeSuggestions : result.suggestions
+        };
+
+        if (safeResult.suggestions.length === 0) {
+          setErrorMessage(
+            language === 'ta'
+              ? 'உங்கள் தேவைகளுக்கு ஏற்ற உணவுகள் பட்டியலில் கிடைக்கவில்லை. தயவுசெய்து வேறு வினவலை முயற்சிக்கவும்.'
+              : language === 'hi'
+              ? 'आपकी आवश्यकताओं के अनुसार कैटलॉग में कोई व्यंजन नहीं मिला। कृपया अन्य खोज करें।'
+              : 'No matching dishes found in catalog matching all requirements. Please try another request.'
+          );
+        } else {
+          setAnalysisResult(safeResult);
+        }
+
+        setStep('view_suggestions');
+        stepRef.current = 'view_suggestions';
+
+        // Read suggestions aloud gently
+        speakSuggestionsAloud(safeResult);
+      } catch (err: any) {
+        console.error('[HealthDietaryVoiceModal] Analysis error, recovering via deterministic catalog:', err);
+        if (!isComponentMounted.current) return;
+
+        const fallback = HealthDietaryNluService.generateCatalogHealthSuggestions(
+          effectiveQuery,
+          language,
+          savedHealthCondition
+        );
+        setAnalysisResult(fallback);
+        setStep('view_suggestions');
+        stepRef.current = 'view_suggestions';
+      } finally {
+        if (watchdogTimerRef.current) {
+          clearTimeout(watchdogTimerRef.current);
+          watchdogTimerRef.current = null;
+        }
+      }
+    },
+    [language, savedHealthCondition, checkIsItemRestrictedByNominee, vegOnly]
+  );
+
+  const speakSuggestionsAloud = (result: HealthDietaryAnalysisResult) => {
+    if (!result || !result.suggestions || result.suggestions.length === 0) return;
+    const disclaimer = getDisclaimerText();
+
+    const introMsg =
+      language === 'ta'
+        ? `${disclaimer} உங்களுக்கான லேசான உணவுப் பரிந்துரைகள்:`
+        : language === 'hi'
+        ? `${disclaimer} आपके लिए सुपाच्य आहार सुझाव:`
+        : `${disclaimer} Here are general food suggestions for your situation:`;
+
+    const itemsSummary = result.suggestions
+      .slice(0, 3)
+      .map(s => {
+        const name = s.foodItem.nativeNames?.[language] || s.foodItem.name;
+        const reason = language === 'ta' ? s.reasonTa : language === 'hi' ? s.reasonHi : s.reasonEn;
+        return `${name}. ${reason}`;
+      })
+      .join('. ');
+
+    const fullSpeechText = `${introMsg} ${itemsSummary}`;
+
+    speakText(fullSpeechText, () => {
+      if (isComponentMounted.current && isOpen && stepRef.current === 'view_suggestions') {
+        startListeningForItemSelection(result.suggestions.map(s => s.foodItem));
+      }
+    });
   };
 
   const startListeningForCondition = () => {
@@ -105,7 +257,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         const candidates = nBest && nBest.length > 0 ? nBest : [text];
         handleAnalyzeHealthText(text, candidates);
       },
-      onError: (err) => {
+      onError: err => {
         console.warn('[HealthDietaryVoiceModal Mic Error]:', err);
         setIsListening(false);
       },
@@ -115,72 +267,10 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
     });
   };
 
-  const handleAnalyzeHealthText = async (text: string, candidates: string[] = [text]) => {
-    if (!text || !text.trim()) return;
-
-    SpeechController.stopListening('healthy_food');
-    setIsListening(false);
-    setStep('analyzing');
-    stepRef.current = 'analyzing';
-
-    console.log(`[HealthDietaryVoiceModal]: Processing spoken health input: "${text}"`);
-    const primaryInput = candidates[0] || text;
-    const result = await HealthDietaryNluService.analyzeHealthContextAndSuggestFood(primaryInput, language);
-
-    // Safety check: Filter out any suggestions restricted by nominee or conflicting with dietary restrictions / allergies
-    const safeSuggestions = result.suggestions.filter(s => {
-      const isRestricted = checkIsItemRestrictedByNominee(s.foodItem.id, s.foodItem.name);
-      if (isRestricted) return false;
-      if (vegOnly && !s.foodItem.isVeg) return false;
-      return true;
-    });
-
-    const safeResult: HealthDietaryAnalysisResult = {
-      ...result,
-      suggestions: safeSuggestions.length > 0 ? safeSuggestions : result.suggestions
-    };
-
-    setAnalysisResult(safeResult);
-    setStep('view_suggestions');
-    stepRef.current = 'view_suggestions';
-
-    speakSuggestionsAloud(safeResult);
-  };
-
-  const speakSuggestionsAloud = (result: HealthDietaryAnalysisResult) => {
-    const disclaimer = getDisclaimerText();
-
-    const introMsg = language === 'ta'
-      ? `${disclaimer} உங்களுக்கான லேசான உணவுப் பரிந்துரைகள்:`
-      : language === 'hi'
-      ? `${disclaimer} आपके लिए सुपाच्य आहार सुझाव:`
-      : `${disclaimer} Here are general food suggestions for your situation:`;
-
-    const itemsSummary = result.suggestions.map(s => {
-      const name = s.foodItem.nativeNames?.[language] || s.foodItem.name;
-      const reason = language === 'ta' ? s.reasonTa : language === 'hi' ? s.reasonHi : s.reasonEn;
-      return `${name}. ${reason}`;
-    }).join('. ');
-
-    const selectionPrompt = language === 'ta'
-      ? 'எந்த உணவைத் தேர்ந்தெடுக்க விரும்புகிறீர்கள் என்று சொல்லுங்கள்!'
-      : language === 'hi'
-      ? 'कृपया बताएं कि आप कौन सा भोजन चुनना चाहते हैं।'
-      : 'Please say which food you would like to choose.';
-    const fullSpeechText = `${introMsg} ${itemsSummary}. ${selectionPrompt}`;
-
-    speakText(fullSpeechText, () => {
-      if (isComponentMounted.current && isOpen) {
-        startListeningForItemSelection(result.suggestions.map(s => s.foodItem));
-      }
-    });
-  };
-
   const startListeningForItemSelection = (availableCatalog: FoodItem[]) => {
     if (!isOpen) return;
 
     stepRef.current = 'view_suggestions';
-    console.log('[HealthDietaryVoiceModal]: Listening for spoken item choice selection via SpeechController...');
 
     SpeechController.startListening({
       owner: 'healthy_food',
@@ -221,7 +311,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
           handleSelectItem(matchedFood);
         }
       },
-      onError: (err) => {
+      onError: err => {
         console.warn('[Health Choice Listening Error]:', err);
         setIsListening(false);
       },
@@ -243,41 +333,33 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
     setChooserItem(item);
   };
 
+  const prevOpenRef = useRef<boolean>(false);
+
+  // Reset modal state strictly on opening transition
   useEffect(() => {
-    if (isOpen) {
+    const wasOpen = prevOpenRef.current;
+    prevOpenRef.current = isOpen;
+
+    if (!wasOpen && isOpen) {
       setLiveTranscript('');
+      setManualInput('');
       setSelectedItem(null);
       setPriceComparison(null);
+      setErrorMessage(null);
 
-      // If user has saved health conditions, automatically analyze them
+      // If user has saved health condition profile, automatically trigger analysis
       if (savedHealthCondition) {
         handleAnalyzeHealthText(savedHealthCondition);
-        return;
+      } else {
+        setStep('speak_condition');
+        stepRef.current = 'speak_condition';
+        setAnalysisResult(null);
       }
-
-      setStep('speak_condition');
-      stepRef.current = 'speak_condition';
-      setAnalysisResult(null);
-
-      const promptMsg = language === 'ta'
-        ? 'உங்கள் உடல்நிலை அல்லது உணவுக் தேவையை குரல் மூலம் சொல்லுங்கள். எ.கா: "எனக்கு காய்ச்சல் இருக்கு என்ன சாப்பிடலாம்?"'
-        : language === 'hi'
-        ? 'अपनी स्वास्थ्य स्थिति या आहार संबंधी आवश्यकता बोलें। जैसे: "मुझे बुखार है, क्या खाएं?"'
-        : 'Describe your health situation or dietary preference by voice. (e.g. "I have fever, what should I eat?")';
-
-      const timer = setTimeout(() => {
-        speakText(promptMsg, () => {
-          if (isComponentMounted.current && isOpen) {
-            startListeningForCondition();
-          }
-        });
-      }, 100);
-
-      return () => clearTimeout(timer);
-    } else {
+    } else if (wasOpen && !isOpen) {
+      if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
       SpeechController.releaseMic('healthy_food');
     }
-  }, [isOpen, language, savedHealthCondition]);
+  }, [isOpen, savedHealthCondition, handleAnalyzeHealthText]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
@@ -293,6 +375,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
             onClose();
           }}
           className="absolute top-4 right-4 p-2 rounded-full bg-[#FCE8E3] hover:bg-[#E9DED5] text-[#786E64] z-10 cursor-pointer"
+          aria-label="Close Health Recommendations"
         >
           <X className="w-5 h-5" />
         </button>
@@ -305,24 +388,36 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
           <div>
             <div className="flex items-center space-x-2">
               <span className="text-xs font-black uppercase text-[#D93636] tracking-wider">
-                {language === 'ta' ? 'உடல்நல & உணவு வழிகாட்டி' : language === 'hi' ? 'स्वास्थ्य और आहार सलाहकार' : 'Health & Dietary AI Guide'}
+                {language === 'ta'
+                  ? 'உடல்நல & உணவு வழிகாட்டி'
+                  : language === 'hi'
+                  ? 'स्वास्थ्य और आहार सलाहकार'
+                  : 'Health & Dietary AI Guide'}
               </span>
               <span className="bg-[#43845C] text-white text-[10px] font-black px-2.5 py-0.5 rounded-full border border-[#43845C]/40 flex items-center gap-1">
-                <Mic className="w-3 h-3 text-white" /> Catalog Verified
+                <CheckCircle2 className="w-3 h-3 text-white" /> Catalog Verified
               </span>
             </div>
             <h2 className="text-xl font-black text-[#302720] mt-0.5">
-              {language === 'ta' ? 'உடல்நலக்கேற்ப உணவு பரிந்துரை' : language === 'hi' ? 'स्वास्थ्य के अनुसार आहार सुझाव' : 'Voice Food Suggestions by Health Context'}
+              {language === 'ta'
+                ? 'உடல்நலக்கேற்ப உணவு பரிந்துரை'
+                : language === 'hi'
+                ? 'स्वास्थ्य के अनुसार आहार सुझाव'
+                : 'Health & Dietary Food Recommendations'}
             </h2>
           </div>
         </div>
 
-        {/* 🚀 MANDATORY MEDICAL SAFETY DISCLAIMER BANNER */}
+        {/* Mandatory Medical Safety Disclaimer Notice */}
         <div className="bg-[#FCE8E3] border border-[#E9DED5] rounded-2xl p-4 flex items-start space-x-3 shadow-inner">
           <ShieldAlert className="w-6 h-6 text-[#D93636] shrink-0 mt-0.5" />
           <div>
             <span className="text-xs font-black uppercase tracking-wider text-[#D93636] block">
-              {language === 'ta' ? 'மருத்துவ எச்சரிக்கை (General Dietary Note)' : language === 'hi' ? 'चिकित्सीय ध्यान दें' : 'Medical Disclaimer Notice'}
+              {language === 'ta'
+                ? 'மருத்துவ எச்சரிக்கை (General Dietary Note)'
+                : language === 'hi'
+                ? 'चिकित्सीय ध्यान दें'
+                : 'Medical Disclaimer Notice'}
             </span>
             <p className="text-xs font-bold text-[#302720] mt-0.5 leading-relaxed">
               {getDisclaimerText()}
@@ -330,9 +425,11 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
           </div>
         </div>
 
-        {/* STEP 1: Speak Condition */}
+        {/* STEP 1: Enter / Speak Condition */}
         {step === 'speak_condition' && (
           <div className="space-y-4">
+            
+            {/* Saved Profile Banner if available, or helper banner if missing */}
             {!savedHealthCondition ? (
               <div className="bg-[#FFF8F0] p-4 rounded-2xl border border-[#F0E5DC] text-center space-y-1">
                 <span className="text-xs font-bold text-[#D93636] uppercase tracking-wider block">
@@ -340,189 +437,382 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                 </span>
                 <p className="text-xs text-[#8A817A] leading-relaxed">
                   {language === 'ta'
-                    ? 'உங்கள் உடல்நிலை விவரங்களை முடிக்கவும் அல்லது கீழே உள்ள மைக்ரோஃபோன் வழியாக பேசி உணவுப் பரிந்துரைகளைப் பெறவும்.'
+                    ? 'உங்கள் உடல்நிலை விவரங்களை முடிக்கவும் அல்லது கீழே உள்ள உள்ளீட்டுப் பெட்டி அல்லது மைக் வழியாக பேசி உணவுப் பரிந்துரைகளைப் பெறவும்.'
                     : language === 'hi'
-                    ? 'कृपया अपने स्वास्थ्य विवरण पूर्ण करें या नीचे बोलकर उपयुक्त आहार सुझाव प्राप्त करें।'
+                    ? 'कृपया अपने स्वास्थ्य विवरण पूर्ण करें या नीचे लिखकर/बोलकर उपयुक्त आहार सुझाव प्राप्त करें।'
                     : 'Please complete your Health Condition Details or speak your condition below to receive tailored dietary recommendations.'}
                 </p>
               </div>
             ) : (
-              <div className="bg-[#43845C]/10 p-4 rounded-2xl border border-[#43845C]/20 flex items-center justify-between">
-                <div>
+              <div className="bg-[#43845C]/10 p-3.5 rounded-2xl border border-[#43845C]/25 flex items-center justify-between gap-3">
+                <div className="min-w-0">
                   <span className="text-[10px] font-black uppercase tracking-wider text-[#43845C] block">
-                    {language === 'ta' ? 'பதிவு செய்யப்பட்ட உடல்நிலை' : language === 'hi' ? 'சहेजी गई स्वास्थ्य स्थिति' : 'Saved Health Condition'}
+                    {language === 'ta' ? 'பதிவு செய்யப்பட்ட உடல்நிலை' : language === 'hi' ? 'सहेजी गई स्वास्थ्य स्थिति' : 'Saved Health Profile'}
                   </span>
-                  <p className="text-sm font-bold text-[#302720] mt-0.5">{savedHealthCondition}</p>
+                  <p className="text-xs font-bold text-[#302720] truncate mt-0.5">{savedHealthCondition}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleAnalyzeHealthText(savedHealthCondition)}
-                  className="px-3 py-1.5 bg-[#43845C] text-white rounded-xl text-xs font-bold hover:bg-[#356848] transition-colors cursor-pointer"
+                  className="px-3 py-1.5 bg-[#43845C] hover:bg-[#356848] text-white rounded-xl text-xs font-bold shrink-0 transition-colors cursor-pointer"
                 >
-                  {language === 'ta' ? 'ஆய்வு செய்' : language === 'hi' ? 'सुझाव देखें' : 'View Suggestions'}
+                  {language === 'ta' ? 'சுயவிவரப் பரிந்துரை' : language === 'hi' ? 'सुझाव देखें' : 'View Profile Picks'}
                 </button>
               </div>
             )}
 
-            <div className="bg-[#F7F3EB] p-5 rounded-2xl border border-[#E9DED5] text-center space-y-2">
-              <p className="text-base font-black text-[#302720] leading-relaxed">
+            {/* Natural Language Text Search Input */}
+            <div className="space-y-2">
+              <label htmlFor="health-condition-input" className="text-xs font-black text-[#302720] block">
                 {language === 'ta'
-                  ? 'உங்களுக்கு அல்லது உங்கள் குடும்பத்தினருக்கு (அப்பா/அம்மா/தாத்தா/பாட்டி) என்ன உடல்நல சவால்கள் உள்ளன? பேசவும்!'
+                  ? 'உடல்நிலை அல்லது உணவுத் தேவையை உள்ளிடவும் (டைப் செய்யவும் அல்லது பேசவும்):'
                   : language === 'hi'
-                  ? 'आपके या आपके परिवार (माता/पिता/दादा/दादी) के लिए क्या स्वास्थ्य स्थिति है? बोलें!'
-                  : 'Describe your health situation or dietary preference out loud (e.g., "I have fever", "heart condition", "stomach pain for appa").'}
-              </p>
+                  ? 'अपनी स्वास्थ्य स्थिति या आहार संबंधी आवश्यकता लिखें या बोलें:'
+                  : 'Enter your health requirement or dietary preference (Type or Speak):'}
+              </label>
+
+              <form
+                onSubmit={e => {
+                  e.preventDefault();
+                  if (manualInput.trim()) {
+                    handleAnalyzeHealthText(manualInput);
+                  }
+                }}
+                className="flex items-center gap-2"
+              >
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-[#786E64] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    id="health-condition-input"
+                    type="text"
+                    value={manualInput}
+                    onChange={e => setManualInput(e.target.value)}
+                    placeholder={
+                      language === 'ta'
+                        ? 'எ.கா: "இதய நோயாளிக்கான உணவு", "60 வயது", "காரமில்லாத உணவு"...'
+                        : language === 'hi'
+                        ? 'उदा: "हृदय रोगी के लिए आहार", "60 वर्ष बुजुर्ग", "कम तीखा खाना"...'
+                        : 'e.g. "Food for a heart patient", "60 years old", "mild food"...'
+                    }
+                    className="w-full pl-10 pr-3 py-3 bg-white border border-[#E9DED5] rounded-xl text-xs sm:text-sm font-semibold text-[#302720] focus:outline-none focus:border-[#D93636] focus:ring-1 focus:ring-[#D93636] shadow-inner"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={!manualInput.trim()}
+                  onClick={e => {
+                    e.preventDefault();
+                    if (manualInput.trim()) {
+                      handleAnalyzeHealthText(manualInput);
+                    }
+                  }}
+                  className="px-4 py-3 bg-[#D93636] hover:bg-[#C02B2B] disabled:opacity-50 text-white font-bold text-xs sm:text-sm rounded-xl cursor-pointer transition-colors shadow-sm shrink-0"
+                >
+                  {language === 'ta' ? 'ஆய்வு செய்' : language === 'hi' ? 'खोजें' : 'Analyze'}
+                </button>
+              </form>
             </div>
 
-            <div className="flex flex-col items-center justify-center space-y-2">
+            {/* Voice Mic Button */}
+            <div className="flex flex-col items-center justify-center space-y-2 pt-1">
               <button
                 type="button"
                 onClick={startListeningForCondition}
-                className={`p-4 rounded-2xl flex items-center space-x-3 font-black shadow-md border cursor-pointer transition-all ${
+                className={`w-full py-3.5 px-4 rounded-xl flex items-center justify-center space-x-2 font-black shadow-sm border cursor-pointer transition-all ${
                   isListening
                     ? 'bg-slate-900 text-white border-rose-500 ring-2 ring-rose-400'
-                    : 'bg-rose-600 hover:bg-rose-700 text-white border-rose-700'
+                    : 'bg-[#FBE9E5] hover:bg-[#F8D5CE] text-[#D93636] border-[#F0E5DC]'
                 }`}
               >
-                <Mic className={`w-6 h-6 ${isListening ? 'text-rose-400 animate-pulse' : 'text-yellow-300'}`} />
-                <span className="text-sm">
+                <Mic className={`w-5 h-5 ${isListening ? 'text-rose-400 animate-pulse' : 'text-[#D93636]'}`} />
+                <span className="text-xs sm:text-sm">
                   {isListening
                     ? (language === 'ta' ? 'தானியங்கியாகக் கேட்கிறது... பேசுங்கள்' : 'Listening... Speak your condition now')
-                    : (language === 'ta' ? 'மைக் தொடங்க தட்டவும் (Tap to Speak)' : 'Tap to Start Speaking')}
+                    : (language === 'ta' ? 'குரல் மூலம் சொல்ல மைக் அழுத்தவும்' : 'Or Tap to Speak Health Request')}
                 </span>
               </button>
 
               {liveTranscript && (
-                <p className="text-xs text-center text-[#D93636] font-black bg-[#FCE8E3] p-2 rounded-xl w-full border border-[#E9DED5]">
+                <p className="text-xs text-center text-[#D93636] font-bold bg-[#FCE8E3] p-2 rounded-xl w-full border border-[#E9DED5]">
                   Detected Speech: "{liveTranscript}"
                 </p>
               )}
             </div>
 
-            {/* Quick Prompt Suggestions */}
-            <div className="space-y-1.5 pt-2">
-              <span className="text-[11px] font-black uppercase text-[#786E64]">
-                {language === 'ta' ? 'எடுத்துக்காட்டு கேள்விகள் (Tap to test):' : 'Example Spoken Queries:'}
+            {/* Quick Example Chips for One-Tap Testing */}
+            <div className="space-y-1.5 pt-1">
+              <span className="text-[11px] font-black uppercase tracking-wider text-[#786E64] block">
+                {language === 'ta' ? 'விரைவுத் தேர்வுகள் (Quick Prompts):' : 'Suggested Health Queries (Tap to test):'}
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 {[
-                  { labelEn: '"I have fever, is idli or pongal good?"', labelTa: '"எனக்கு காய்ச்சல் இருக்கு, இட்லி சாப்பிடாலாமா?"' },
-                  { labelEn: '"I have stomach pain, need tablet food"', labelTa: '"வயிறு வலிக்குது, மாத்திரை சாப்பிட உணவு வேணும்"' },
-                  { labelEn: '"Heart patient, 60 yrs old, mild food"', labelTa: '"60 வயது அப்பாவுக்கு இதயப் பிரச்சனை, காரமில்லாத உணவு"' },
-                  { labelEn: '"Fever for paati, less spicy food"', labelTa: '"பாட்டிக்கு காய்ச்சல், காரமில்லாத லேசான உணவு"' }
-                ].map((ex, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleAnalyzeHealthText(language === 'ta' ? ex.labelTa : ex.labelEn)}
-                    className="p-2.5 bg-[#FFFFFF] hover:bg-[#FCE8E3] text-[#302720] rounded-xl font-bold text-left cursor-pointer transition-all border border-[#E9DED5]"
-                  >
-                    {language === 'ta' ? ex.labelTa : ex.labelEn}
-                  </button>
-                ))}
+                  {
+                    en: 'Food for a heart patient',
+                    ta: 'இதய நோயாளிக்கான உணவு',
+                    hi: 'हृदय रोगी के लिए उपयुक्त भोजन'
+                  },
+                  {
+                    en: 'Food suitable for a 60-year-old person',
+                    ta: '60 வயது நபருக்கு ஏற்ற உணவு',
+                    hi: '60 वर्ष के बुजुर्ग के लिए सुपाच्य आहार'
+                  },
+                  {
+                    en: 'Mild vegetarian food',
+                    ta: 'காரமில்லாத சைவ உணவு',
+                    hi: 'कम तीखा शाकाहारी भोजन'
+                  },
+                  {
+                    en: 'Diabetic-friendly breakfast',
+                    ta: 'நீரிழிவு நோயாளிகளுக்கான காலை உணவு',
+                    hi: 'डायबिटीज के लिए सुरक्षित नाश्ता'
+                  },
+                  {
+                    en: 'Low-oil & low-salt food for BP',
+                    ta: 'குறைந்த எண்ணெய் மற்றும் உப்பு உணவு',
+                    hi: 'कम तेल और कम नमक वाला आहार'
+                  },
+                  {
+                    en: 'Easily digestible meals',
+                    ta: 'எளிதில் செரிக்கும் லேசான உணவு',
+                    hi: 'पचने में आसान और हल्का खाना'
+                  }
+                ].map((item, idx) => {
+                  const queryText = language === 'ta' ? item.ta : language === 'hi' ? item.hi : item.en;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleAnalyzeHealthText(queryText)}
+                      className="p-2.5 bg-white hover:bg-[#FCE8E3] text-[#302720] rounded-xl font-semibold text-left cursor-pointer transition-all border border-[#E9DED5] text-[11px] sm:text-xs truncate shadow-2xs"
+                    >
+                      💡 {queryText}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
         )}
 
-        {/* STEP 2: Analyzing */}
+        {/* STEP 2: Analyzing (With Timeout & Cancel Safety) */}
         {step === 'analyzing' && (
-          <div className="py-12 flex flex-col items-center justify-center space-y-4 text-center">
+          <div className="py-10 flex flex-col items-center justify-center space-y-4 text-center">
             <div className="p-4 bg-[#FCE8E3] rounded-full animate-bounce">
               <Sparkles className="w-10 h-10 text-[#D93636]" />
             </div>
-            <p className="text-lg font-black text-[#302720]">
-              {language === 'ta'
-                ? 'உங்கள் உடல்நிலைக்கு ஏற்ற கட்லாக் உணவுகளை AI ஆய்வு செய்கிறது...'
-                : language === 'hi'
-                ? 'AI आपके स्वास्थ्य के लिए उपयुक्त आहार खोज रहा है...'
-                : 'AI Analyzing your health context & selecting safe food from catalog...'}
-            </p>
+            <div className="space-y-1">
+              <p className="text-base sm:text-lg font-black text-[#302720]">
+                {language === 'ta'
+                  ? 'உங்கள் உடல்நிலைக்கு ஏற்ற கட்லாக் உணவுகளை AI ஆய்வு செய்கிறது...'
+                  : language === 'hi'
+                  ? 'AI आपके स्वास्थ्य के लिए उपयुक्त आहार खोज रहा है...'
+                  : 'AI Analyzing your health context & selecting safe food from catalog...'}
+              </p>
+              <p className="text-xs text-[#8A817A]">
+                {language === 'ta'
+                  ? 'கட்லாக் சரிபார்ப்பு & செரிமான பகுப்பாய்வு நடக்கிறது...'
+                  : language === 'hi'
+                  ? 'कैटलॉग सत्यापन और पोषण संतुलन की जांच जारी है...'
+                  : 'Verifying nutrition profiles, spice levels, and digestibility...'}
+              </p>
+            </div>
+
+            {/* User Safety Control: Never trapped on loading */}
+            <div className="pt-2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
+                  setStep('speak_condition');
+                  stepRef.current = 'speak_condition';
+                }}
+                className="px-4 py-2 bg-white border border-[#E9DED5] rounded-xl text-xs font-bold text-[#786E64] hover:bg-[#FCE8E3] transition-colors cursor-pointer"
+              >
+                {language === 'ta' ? 'ரத்து செய்' : language === 'hi' ? 'रद्द करें' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (watchdogTimerRef.current) clearTimeout(watchdogTimerRef.current);
+                  const directFallback = HealthDietaryNluService.generateCatalogHealthSuggestions(
+                    manualInput || savedHealthCondition || 'mild food',
+                    language,
+                    savedHealthCondition
+                  );
+                  setAnalysisResult(directFallback);
+                  setStep('view_suggestions');
+                  stepRef.current = 'view_suggestions';
+                }}
+                className="px-4 py-2 bg-[#D93636] text-white rounded-xl text-xs font-bold hover:bg-[#C02B2B] transition-colors cursor-pointer shadow-sm"
+              >
+                {language === 'ta' ? 'உடனடி பரிந்துரைகளைக் காட்டு' : language === 'hi' ? 'तुरंत देखें' : 'Show Results Immediately'}
+              </button>
+            </div>
           </div>
         )}
 
         {/* STEP 3: View Suggestions */}
-        {step === 'view_suggestions' && analysisResult && (
+        {step === 'view_suggestions' && (
           <div className="space-y-4">
-            <div className="bg-[#43845C]/10 p-4 rounded-2xl border border-[#43845C]/20">
-              <span className="text-[11px] font-black uppercase tracking-wider text-[#43845C] block">
-                ✓ {analysisResult.healthContextSummary} ({analysisResult.targetPerson.toUpperCase()})
-              </span>
-              <p className="text-xs font-bold text-[#302720] mt-1">
-                {language === 'ta'
-                  ? '📢 குரல் மூலம் உணவைத் தேர்ந்தெடுக்கவும் (எ.கா: "இட்லி" அல்லது "பொங்கல்"): '
-                  : '📢 Speak item name out loud (e.g. "Idli" or "Pongal") or tap a card below:'}
-              </p>
-            </div>
-
-            {/* Mic Listening Status */}
-            <div className="flex flex-col items-center justify-center space-y-2">
-              <div className="p-3 bg-[#FCE8E3] text-[#302720] rounded-2xl flex items-center space-x-3 font-black shadow-sm border border-[#E9DED5] w-full justify-center">
-                <Mic className="w-5 h-5 text-[#D93636] animate-pulse" />
-                <span className="text-xs">
-                  {language === 'ta'
-                    ? 'தானியங்கியாகக் கேட்கிறது: உணவின் பெயரைச் சொல்லுங்கள்...'
-                    : 'Listening automatically: Speak food item choice name...'}
+            
+            {/* Header Status & New Search Button */}
+            <div className="bg-[#43845C]/10 p-3.5 rounded-2xl border border-[#43845C]/20 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#43845C] block">
+                  ✓ {analysisResult?.healthContextSummary || 'Health Context Matched'}
                 </span>
-              </div>
-
-              {liveTranscript && (
-                <p className="text-xs text-center text-[#43845C] font-black">
-                  Detected Voice Speech: "{liveTranscript}"
+                <p className="text-xs text-[#302720] font-bold mt-0.5">
+                  {language === 'ta'
+                    ? 'கீழே உள்ள உணவுகளை ஆர்டர் அல்லது விலை ஒப்பீடு செய்யலாம்:'
+                    : 'Select a suitable dish below for instant order, scheduling, or comparison:'}
                 </p>
-              )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('speak_condition');
+                  stepRef.current = 'speak_condition';
+                  setManualInput('');
+                }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-[#E9DED5] rounded-xl text-xs font-bold text-[#D93636] hover:bg-[#FCE8E3] shrink-0 transition-colors cursor-pointer shadow-2xs"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>{language === 'ta' ? 'புதிய தேடல்' : language === 'hi' ? 'नई खोज' : 'New Query'}</span>
+              </button>
             </div>
 
-            {/* Food Suggestions List */}
-            <div className="space-y-3">
-              {analysisResult.suggestions.map((sug, idx) => {
-                const item = sug.foodItem;
-                const nativeName = item.nativeNames?.[language] || item.name;
-                const reason = language === 'ta' ? sug.reasonTa : language === 'hi' ? sug.reasonHi : sug.reasonEn;
+            {/* Error / Empty State */}
+            {errorMessage ? (
+              <div className="p-6 bg-white border border-[#E9DED5] rounded-2xl text-center space-y-3">
+                <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
+                <p className="text-xs sm:text-sm font-bold text-[#302720]">{errorMessage}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMessage(null);
+                    setStep('speak_condition');
+                    stepRef.current = 'speak_condition';
+                  }}
+                  className="px-4 py-2 bg-[#D93636] text-white rounded-xl text-xs font-bold hover:bg-[#C02B2B] transition-colors cursor-pointer"
+                >
+                  {language === 'ta' ? 'மீண்டும் முயலவும்' : language === 'hi' ? 'पुनः प्रयास करें' : 'Try Another Search'}
+                </button>
+              </div>
+            ) : analysisResult && analysisResult.suggestions.length > 0 ? (
+              <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+                {analysisResult.suggestions.map((sug, idx) => {
+                  const item = sug.foodItem;
+                  const nativeName = item.nativeNames?.[language] || item.name;
+                  const reason = language === 'ta' ? sug.reasonTa : language === 'hi' ? sug.reasonHi : sug.reasonEn;
+                  const badges = sug.dietaryAttributes || HealthDietaryNluService.deriveDietaryAttributes(item);
 
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => handleSelectItem(item)}
-                    className="p-4 bg-[#FFFFFF] rounded-2xl border-2 border-[#E9DED5] hover:border-[#D93636] hover:shadow-lg transition-all cursor-pointer flex items-center space-x-4"
-                  >
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-16 h-16 rounded-xl object-cover shrink-0 border border-[#E9DED5]"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-black text-[#302720] text-base">
-                          {nativeName}
-                        </span>
-                        <span className="text-xs font-bold bg-[#43845C]/15 text-[#43845C] px-2 py-0.5 rounded-full">
-                          ₹{item.basePrice}
-                        </span>
+                  return (
+                    <div
+                      key={idx}
+                      className="p-4 bg-white rounded-2xl border border-[#E9DED5] hover:border-[#D93636] hover:shadow-md transition-all space-y-3"
+                    >
+                      {/* Top Item Row */}
+                      <div className="flex items-start gap-3.5">
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-18 h-18 sm:w-20 sm:h-20 rounded-xl object-cover shrink-0 border border-[#E9DED5]"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="font-black text-[#302720] text-sm sm:text-base truncate">
+                              {nativeName}
+                            </h4>
+                            <span className="text-xs font-black bg-[#43845C]/15 text-[#43845C] px-2.5 py-0.5 rounded-full shrink-0">
+                              ₹{item.basePrice}
+                            </span>
+                          </div>
+
+                          <p className="text-[11px] text-[#786E64] line-clamp-1 mt-0.5">
+                            {item.description}
+                          </p>
+
+                          <div className="flex items-center gap-2 text-[10px] text-[#8A817A] font-semibold mt-1">
+                            <span className="truncate">📍 {item.restaurant}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-0.5 text-amber-700">⭐ {item.rating}</span>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-xs font-bold text-[#43845C] mt-0.5">
-                        💡 {reason}
-                      </p>
-                      <span className="text-[10px] text-[#786E64] font-bold block mt-1">
-                        📍 {item.restaurant} • ⭐ {item.rating}
-                      </span>
+
+                      {/* Why this matches requirement */}
+                      <div className="bg-[#FFF8F0] p-2.5 rounded-xl border border-[#F0E5DC] text-[11px] sm:text-xs text-[#302720] font-semibold leading-relaxed">
+                        <span className="text-[#D93636] font-black mr-1">💡 Why this fits:</span>
+                        {reason}
+                      </div>
+
+                      {/* Dietary Attribute Badges */}
+                      {badges.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {badges.map((b, bIdx) => (
+                            <span
+                              key={bIdx}
+                              className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FBE9E5] text-[#D93636] border border-[#F0E5DC]"
+                            >
+                              {b}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Food Card Actions: Compare, Order/Schedule, Add to Cart */}
+                      <div className="grid grid-cols-3 gap-2 pt-1 border-t border-[#F0E5DC]">
+                        <button
+                          type="button"
+                          onClick={() => openPriceComparison(item)}
+                          className="py-2 px-2 bg-white hover:bg-[#FBE9E5] text-[#302720] border border-[#E9DED5] hover:border-[#D93636] rounded-xl font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                          title="Compare prices across Swiggy, Zomato, MagicPin, EatSure"
+                        >
+                          <Scale className="w-3.5 h-3.5 text-[#D93636]" />
+                          <span>Compare</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setChooserItem(item)}
+                          className="py-2 px-2 bg-[#D93636] hover:bg-[#C02B2B] text-white rounded-xl font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                        >
+                          <Zap className="w-3.5 h-3.5 text-white" />
+                          <span>Order / Schedule</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addToCart(item, 1, 'healthy_food');
+                            const itemName = item.nativeNames?.[language] || item.name;
+                            const addedMsg = t('addedNext').replace('{item}', itemName);
+                            showToast(addedMsg);
+                          }}
+                          className="py-2 px-2 bg-[#43845C] hover:bg-[#356848] text-white rounded-xl font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5 text-white" />
+                          <span>Add to Cart</span>
+                        </button>
+                      </div>
+
                     </div>
-                    <ChevronRight className="w-5 h-5 text-[#786E64] shrink-0" />
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         )}
 
-        {/* STEP 4: Price Comparison & Order/Schedule Handoff */}
+        {/* STEP 4: Price Comparison (if user selected item via voice) */}
         {step === 'view_price_comparison' && selectedItem && priceComparison && (
           <div className="space-y-4">
-            <div className="bg-[#43845C]/10 p-4 rounded-2xl border border-[#43845C]/20 flex items-center justify-between">
+            <div className="bg-[#43845C]/10 p-3.5 rounded-2xl border border-[#43845C]/20 flex items-center justify-between">
               <div>
                 <span className="text-xs font-black uppercase text-[#43845C]">
                   {language === 'ta' ? 'தேர்ந்தெடுக்கப்பட்ட உணவு:' : 'Selected Food Item:'}
                 </span>
-                <h3 className="text-lg font-black text-[#302720]">
+                <h3 className="text-base sm:text-lg font-black text-[#302720]">
                   {selectedItem.nativeNames?.[language] || selectedItem.name}
                 </h3>
               </div>
@@ -530,13 +820,10 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                 onClick={() => {
                   setStep('view_suggestions');
                   stepRef.current = 'view_suggestions';
-                  if (analysisResult) {
-                    startListeningForItemSelection(analysisResult.suggestions.map(s => s.foodItem));
-                  }
                 }}
                 className="text-xs font-bold text-[#D93636] underline cursor-pointer"
               >
-                {language === 'ta' ? 'மாற்று' : 'Change Item'}
+                {language === 'ta' ? 'மாற்று' : 'Back to Picks'}
               </button>
             </div>
 
@@ -550,7 +837,6 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                 {priceComparison.allPlatforms.map((p, idx) => {
                   const isCheapest = p.platform === priceComparison.cheapest.platform;
                   const isFastest = p.platform === priceComparison.fastest.platform;
-                  const isBestValue = p.platform === priceComparison.bestValue.platform;
 
                   return (
                     <div
@@ -558,7 +844,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                       className={`p-3.5 rounded-2xl border-2 flex flex-col justify-between ${
                         isCheapest
                           ? 'bg-[#43845C]/10 border-[#43845C]'
-                          : 'bg-[#FFFFFF] border-[#E9DED5]'
+                          : 'bg-white border-[#E9DED5]'
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -578,10 +864,10 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
                       </div>
 
                       <div className="mt-2">
-                        <div className="text-lg font-black text-[#302720]">
+                        <div className="text-base font-black text-[#302720]">
                           ₹{p.price} <span className="text-[10px] text-[#786E64] font-bold">+ ₹{p.deliveryFee} Fee</span>
                         </div>
-                        <span className="text-[10px] font-bold text-[#786E64] block">
+                        <span className="text-[10px] font-bold text-[#786E64] block mt-0.5">
                           ⏱ {p.deliveryTime} mins • ⭐ {p.rating}
                         </span>
                       </div>
@@ -591,50 +877,42 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
               </div>
             </div>
 
-            {/* Voice Intent Listener Bar */}
-            <div className="p-3 bg-[#FCE8E3] text-[#302720] rounded-2xl flex items-center space-x-3 font-black shadow-sm border border-[#E9DED5] justify-center">
-              <Mic className="w-5 h-5 text-[#D93636] animate-pulse" />
-              <span className="text-xs">
-                {language === 'ta'
-                  ? 'பேசுங்கள்: "இப்போதே ஆர்டர் செய்" அல்லது "அட்டவணைப்படுத்து"'
-                  : 'Listening automatically: Say "Order Now" or "Schedule for Later"'}
-              </span>
-            </div>
-
-            {/* Action Handoff Buttons (3 Actions: Add to Cart, Order Now, Schedule) */}
+            {/* Action Handoff Buttons */}
             <div className="grid grid-cols-3 gap-2 pt-1">
               <button
                 onClick={() => {
-                  if (selectedItem) setChooserItem(selectedItem);
+                  if (selectedItem) {
+                    addToCart(selectedItem, 1, 'healthy_food');
+                    showToast(t('addedNext').replace('{item}', selectedItem.name));
+                  }
                 }}
-                className="p-3 bg-[#FFFFFF] hover:bg-[#F7F3EB] text-[#302720] border border-[#E9DED5] rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
-                title={t('addToCart')}
+                className="p-3 bg-white hover:bg-[#F7F3EB] text-[#302720] border border-[#E9DED5] rounded-2xl font-black text-xs shadow-sm flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
               >
                 <ShoppingBag className="w-5 h-5 text-[#D93636]" />
                 <span>{t('addToCart')}</span>
-                <span className="text-[10px] opacity-90 text-[#786E64]">+ Shared Cart</span>
               </button>
 
               <button
                 onClick={() => {
                   if (selectedItem) setChooserItem(selectedItem);
                 }}
-                className="p-3 bg-[#D93636] hover:bg-[#B9252D] text-white rounded-2xl font-black text-xs shadow-md flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
+                className="p-3 bg-[#D93636] hover:bg-[#B9252D] text-white rounded-2xl font-black text-xs shadow-sm flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
               >
                 <Zap className="w-5 h-5 text-white" />
                 <span>{t('orderNow')}</span>
-                <span className="text-[10px] opacity-90">Instant Order</span>
               </button>
 
               <button
                 onClick={() => {
-                  if (selectedItem) setChooserItem(selectedItem);
+                  if (selectedItem) {
+                    setSelectedItem(selectedItem);
+                    setIsSchedulingModalOpen(true);
+                  }
                 }}
-                className="p-3 bg-[#FCE8E3] hover:bg-[#E9DED5] text-[#302720] rounded-2xl font-black text-xs shadow-md border border-[#E9DED5] flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
+                className="p-3 bg-[#FCE8E3] hover:bg-[#E9DED5] text-[#302720] rounded-2xl font-black text-xs shadow-sm border border-[#E9DED5] flex flex-col items-center justify-center space-y-1 cursor-pointer transition-all active:scale-95"
               >
                 <Clock className="w-5 h-5 text-white" />
                 <span>{t('scheduleCart')}</span>
-                <span className="text-[10px] opacity-90">Schedule Order</span>
               </button>
             </div>
           </div>
@@ -642,28 +920,26 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
 
       </div>
 
-      {/* SHARED ITEM ACTION CHOOSER MODAL */}
+      {/* Shared Item Action Chooser Modal */}
       <ItemActionChooser
         isOpen={Boolean(chooserItem)}
         onClose={() => setChooserItem(null)}
         items={chooserItems}
-        onOrderNow={(items) => {
+        onOrderNow={items => {
           if (items[0]) {
             placeInstantOrder(items[0]);
             onClose();
           }
         }}
-        onSchedule={(items) => {
+        onSchedule={items => {
           if (items[0]) {
             setSelectedItem(items[0]);
             setIsSchedulingModalOpen(true);
           }
         }}
-        onAddToCart={(items) => {
-          console.log('[HealthDietaryVoiceModal onAddToCart]: Callback invoked with items:', items);
+        onAddToCart={items => {
           if (items && items.length > 0) {
             items.forEach(itm => {
-              console.log('[HealthDietaryVoiceModal onAddToCart]: Calling addToCart for item:', itm.name, 'id:', itm.id);
               addToCart(itm, 1, 'healthy_food');
               const itemName = itm.nativeNames?.[language] || itm.name;
               const addedMsg = t('addedNext').replace('{item}', itemName);
@@ -674,7 +950,7 @@ export const HealthDietaryVoiceModal: React.FC<HealthDietaryVoiceModalProps> = (
         }}
       />
 
-      {/* SHARED SCHEDULE CHECKOUT MODAL */}
+      {/* Shared Schedule Checkout Modal */}
       <ScheduleCheckoutModal
         isOpen={isSchedulingModalOpen}
         onClose={() => setIsSchedulingModalOpen(false)}
