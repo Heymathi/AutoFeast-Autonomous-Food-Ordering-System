@@ -8,7 +8,7 @@ import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { CategoryVoiceService } from '../services/categoryVoiceService';
 import { DynamicFoodSearchEngine } from '../services/dynamicFoodSearch';
 import { detectFoodFamilyIntent } from '../services/foodFamilyTable';
-import { Search, MapPin, Utensils, Leaf, Star, Clock, Sparkles, AlertCircle, ShieldCheck, ShieldAlert, Calendar, Zap, Navigation, Mic, MicOff, Volume2, BarChart2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Search, MapPin, Utensils, Leaf, Star, Clock, Sparkles, AlertCircle, ShieldCheck, ShieldAlert, Calendar, Zap, Navigation, Mic, MicOff, Volume2, BarChart2, ArrowLeft, ArrowRight, HeartPulse } from 'lucide-react';
 
 export const DynamicFoodSearch: React.FC = () => {
   const {
@@ -373,10 +373,10 @@ export const DynamicFoodSearch: React.FC = () => {
         </div>
       </section>
 
-      {/* 2. FOUR FEATURE CARDS – BETWEEN SEARCH AND FOOD CATALOG (Order: Nominee, Recommendation, Scheduler, Voice) */}
-      <section aria-label="Feature Shortcuts" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      {/* 2. FOUR FEATURE CARDS – DISPLAYED IN ONE ROW ON DESKTOP (Order: Nominee, Health-Based Recommendation, Scheduler, Voice) */}
+      <section aria-label="Feature Shortcuts" className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* 1. Nominee Management */}
-        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between h-full">
           <div className="space-y-3">
             <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
               <ShieldAlert className="w-6 h-6 text-[#D93636]" />
@@ -398,28 +398,21 @@ export const DynamicFoodSearch: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. Recommendation System */}
-        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+        {/* 2. Health-Based Recommendation */}
+        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between h-full">
           <div className="space-y-3">
             <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-[#D93636]" />
+              <HeartPulse className="w-6 h-6 text-[#D93636]" />
             </div>
-            <h3 className="font-serif-editorial font-bold text-base sm:text-lg text-[#33251F]">Recommendation System</h3>
+            <h3 className="font-serif-editorial font-bold text-base sm:text-lg text-[#33251F]">Health-Based Recommendation System</h3>
             <p className="text-xs text-[#8A817A] leading-relaxed">
-              Dishes tailored to your dietary profile, past orders, and preferences.
+              Dishes tailored to your health conditions, dietary restrictions, and allergies.
             </p>
           </div>
           <div className="pt-4">
             <button
               type="button"
-              onClick={() => {
-                const el = document.getElementById('recommended-dishes-section');
-                if (el) {
-                  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                } else {
-                  setIsHealthModalOpen(true);
-                }
-              }}
+              onClick={() => setIsHealthModalOpen(true)}
               className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D93636] hover:text-[#C02B2B] transition-colors cursor-pointer group"
             >
               <span>See picks</span>
@@ -429,7 +422,7 @@ export const DynamicFoodSearch: React.FC = () => {
         </div>
 
         {/* 3. Auto Scheduler */}
-        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between h-full">
           <div className="space-y-3">
             <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
               <Calendar className="w-6 h-6 text-[#D93636]" />
@@ -452,7 +445,7 @@ export const DynamicFoodSearch: React.FC = () => {
         </div>
 
         {/* 4. Voice Search */}
-        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-5 border border-[#F0E5DC] shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between h-full">
           <div className="space-y-3">
             <div className="w-12 h-12 rounded-xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center">
               <Mic className="w-6 h-6 text-[#D93636]" />
