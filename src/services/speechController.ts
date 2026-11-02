@@ -1296,10 +1296,11 @@ class SpeechControllerManager {
 
     const success = await OfflineSpeechEngine.startRecording({
       language: opt.language,
-      maxDurationMs: 6000,
+      maxDurationMs: 4500,
+      silenceThresholdMs: 800,
       onStateChange: (engineStatus) => {
         if (sessionTurnId !== this.currentTurnId || this.isIntentionallyStopped) return;
-        if (engineStatus === 'transcribing') {
+        if (engineStatus === 'processing_audio' || engineStatus === 'transcribing') {
           this.currentState = 'processing';
           this.setTurnState('HANDLING', `${opt.owner}_whisper`);
           this.notifyStateChange();

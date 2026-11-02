@@ -18,6 +18,7 @@ export type OfflineEngineStatus =
   | 'downloading'
   | 'ready'
   | 'recording'
+  | 'processing_audio'
   | 'transcribing'
   | 'error';
 
@@ -55,6 +56,13 @@ export class OfflineSpeechEngine {
   private static cachedModelVerified: boolean | null = null;
   private static isInferenceInFlight: boolean = false;
   private static isRecording: boolean = false;
+  private static vadAudioContext: AudioContext | null = null;
+  private static vadAnalyser: AnalyserNode | null = null;
+  private static vadIntervalTimer: any = null;
+  private static vadSpeechDetected: boolean = false;
+  private static vadSpeechStartTime: number = 0;
+  private static vadLastSpeechTime: number = 0;
+  private static micRequestStartTime: number = 0;
 
   /**
    * Reset engine state for testing or clean re-initialization
@@ -72,6 +80,19 @@ export class OfflineSpeechEngine {
       clearTimeout(this.recordingTimeoutTimer);
       this.recordingTimeoutTimer = null;
     }
+    if (this.vadIntervalTimer) {
+      clearInterval(this.vadIntervalTimer);
+      this.vadIntervalTimer = null;
+    }
+    if (this.vadAudioContext) {
+      try { this.vadAudioContext.close(); } catch {}
+      this.vadAudioContext = null;
+    }
+    this.vadAnalyser = null;
+    this.vadSpeechDetected = false;
+    this.vadSpeechStartTime = 0;
+    this.vadLastSpeechTime = 0;
+    this.micRequestStartTime = 0;
     this.cachedModelVerified = null;
     this.isInferenceInFlight = false;
     this.isRecording = false;
@@ -348,11 +369,34 @@ export class OfflineSpeechEngine {
   }
 
   /**
+   * Warm up the offline Whisper pipeline in advance using cached weights.
+   * This prevents cold-start delays when the user presses the microphone.
+   */
+  public static async warmupPipeline(): Promise<void> {
+    if (this.pipelineInstance) return;
+    const status = this.getModelStatus();
+    if (!status.isDownloaded) return;
+
+    try {
+      console.log('[STT Diagnostic] Warming up offline Whisper pipeline in background...');
+      const pipe = await this.getPipeline();
+      if (pipe && typeof pipe === 'function') {
+        const dummyAudio = new Float32Array(1600); // 0.1s silence
+        await pipe(dummyAudio, { task: 'transcribe', temperature: 0.0 });
+        console.log('[STT Diagnostic] Whisper pipeline warmed up successfully');
+      }
+    } catch (warmupErr) {
+      console.warn('[OfflineSpeechEngine] Pipeline warmup warning:', warmupErr);
+    }
+  }
+
+  /**
    * Start recording audio and transcribing via the offline engine.
    * Handles mic permissions, recording lifecycle, silence timeouts, and returns transcripts.
    */
   public static async startRecording(options: OfflineSpeechOptions): Promise<boolean> {
     this.lastOptions = options;
+    this.micRequestStartTime = performance.now();
 
     if (!this.isSupported()) {
       const err = this.getLocalizedError('not-supported', options.language);
@@ -388,6 +432,10 @@ export class OfflineSpeechEngine {
         }
       });
 
+      const micAcquiredTime = performance.now();
+      const stage1StartupLatency = micAcquiredTime - this.micRequestStartTime;
+      console.log(`[STT Latency][Stage 1: Mic & Recording Startup]: ${stage1StartupLatency.toFixed(1)} ms`);
+
       this.activeStream = stream;
       this.recordedChunks = [];
 
@@ -409,10 +457,67 @@ export class OfflineSpeechEngine {
         await this.processRecordedAudio(options);
       };
 
-      recorder.start(250);
+      recorder.start(200);
 
-      // Auto-stop after max duration (default: 6 seconds for food queries)
-      const maxDuration = options.maxDurationMs || 6000;
+      // Real-time Voice Activity Detection (VAD) and silence endpointing
+      try {
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtxClass) {
+          const vadCtx = new AudioCtxClass();
+          this.vadAudioContext = vadCtx;
+          const source = vadCtx.createMediaStreamSource(stream);
+          const analyser = vadCtx.createAnalyser();
+          analyser.fftSize = 512;
+          source.connect(analyser);
+          this.vadAnalyser = analyser;
+
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          this.vadSpeechDetected = false;
+          this.vadSpeechStartTime = 0;
+          this.vadLastSpeechTime = 0;
+          const recStart = performance.now();
+          const endpointSilenceMs = options.silenceThresholdMs || 800;
+
+          this.vadIntervalTimer = setInterval(() => {
+            if (!this.isRecording || !this.vadAnalyser) return;
+            try {
+              this.vadAnalyser.getByteTimeDomainData(dataArray);
+              let sumSq = 0;
+              for (let i = 0; i < dataArray.length; i++) {
+                const normVal = (dataArray[i] - 128) / 128;
+                sumSq += normVal * normVal;
+              }
+              const rms = Math.sqrt(sumSq / dataArray.length);
+              const now = performance.now();
+
+              if (rms >= 0.012) {
+                if (!this.vadSpeechDetected) {
+                  this.vadSpeechDetected = true;
+                  this.vadSpeechStartTime = now;
+                  console.log(`[STT Latency][Stage 2: Speech Activity Detected]: ${(now - recStart).toFixed(1)} ms from start`);
+                }
+                this.vadLastSpeechTime = now;
+              } else if (this.vadSpeechDetected) {
+                const silenceDur = now - this.vadLastSpeechTime;
+                if (silenceDur >= endpointSilenceMs) {
+                  console.log(`[STT Latency][Stage 3: Speech End to Recording Stop]: ${silenceDur.toFixed(1)} ms (endpointed)`);
+                  this.stopRecording();
+                }
+              } else {
+                if (now - recStart > 3500) {
+                  // No speech after 3.5s of pure silence -> stop recording early
+                  this.stopRecording();
+                }
+              }
+            } catch {}
+          }, 50);
+        }
+      } catch (vadInitErr) {
+        console.warn('[OfflineSpeechEngine] VAD initialization warning:', vadInitErr);
+      }
+
+      // Auto-stop after max duration (safety cap: 4500ms max for food queries)
+      const maxDuration = Math.min(options.maxDurationMs || 4500, 6000);
       this.recordingTimeoutTimer = setTimeout(() => {
         this.stopRecording();
       }, maxDuration);
@@ -441,6 +546,15 @@ export class OfflineSpeechEngine {
       clearTimeout(this.recordingTimeoutTimer);
       this.recordingTimeoutTimer = null;
     }
+    if (this.vadIntervalTimer) {
+      clearInterval(this.vadIntervalTimer);
+      this.vadIntervalTimer = null;
+    }
+    if (this.vadAudioContext) {
+      try { this.vadAudioContext.close(); } catch {}
+      this.vadAudioContext = null;
+    }
+    this.vadAnalyser = null;
 
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
       try {
@@ -651,8 +765,9 @@ export class OfflineSpeechEngine {
     }
 
     this.isInferenceInFlight = true;
-    this.status = 'transcribing';
-    options.onStateChange?.('transcribing');
+    this.status = 'processing_audio';
+    options.onStateChange?.('processing_audio');
+    const tStartPreprocessing = performance.now();
 
     try {
       const audioBlob = new Blob(this.recordedChunks, { type: 'audio/webm' });
@@ -677,6 +792,8 @@ export class OfflineSpeechEngine {
 
       // Silence trimming, pre-roll/post-roll cushion, and dynamic RMS normalization
       const processedAudio = this.trimAndNormalizeSpeech(float32Pcm);
+      const tEndPreprocessing = performance.now();
+      console.log(`[STT Latency][Stage 4: Audio Decoding & Preprocessing]: ${(tEndPreprocessing - tStartPreprocessing).toFixed(1)} ms`);
 
       if (!processedAudio) {
         console.warn('[STT Diagnostic] Audio duration too short (< 0.4s) or silent, treating as no-speech');
@@ -706,18 +823,28 @@ export class OfflineSpeechEngine {
       // When Tanglish or auto -> pass undefined to let Whisper detect code-mixed multilingual speech naturally
       const langParam = isTanglish ? undefined : isTa ? 'ta' : isHi ? 'hi' : 'en';
 
+      const FOOD_VOCABULARY_PROMPT =
+        'AutoFeast food order: parotta, biryani, masala dosa, kothu parotta, chicken biryani, mutton biryani, idli, pongal, ghee dosa, curd rice, chapati, naan, paneer butter masala, chole bhature, vada, medu vada, appam, 1, 2, 3, 4, 5, rendu, moonu, naalu, oru, anju, venum, kudu, parcel, schedule, order.';
+
       const decodeOptions: any = {
         task: 'transcribe',
         chunk_length_s: 30,
         temperature: 0.0,
         repetition_penalty: 1.2,
-        no_repeat_ngram_size: 3
+        no_repeat_ngram_size: 3,
+        prompt: FOOD_VOCABULARY_PROMPT
       };
       if (langParam) {
         decodeOptions.language = langParam;
       }
 
+      this.status = 'transcribing';
+      options.onStateChange?.('transcribing');
+      const tStartInference = performance.now();
+
       const output = await this.pipelineInstance(processedAudio, decodeOptions);
+      const tEndInference = performance.now();
+      console.log(`[STT Latency][Stage 5: Whisper Model Inference]: ${(tEndInference - tStartInference).toFixed(1)} ms`);
 
       console.log('[STT Diagnostic] Whisper result object structure', {
         resultType: typeof output,
@@ -727,8 +854,11 @@ export class OfflineSpeechEngine {
         hasChunks: Boolean(output && output.chunks)
       });
 
+      const tStartCleanup = performance.now();
       const rawExtracted = this.extractTranscriptFromOutput(output);
       const recognizedText = this.cleanWhisperTranscript(rawExtracted);
+      const tEndCleanup = performance.now();
+      console.log(`[STT Latency][Stage 6: Transcript Cleanup]: ${(tEndCleanup - tStartCleanup).toFixed(1)} ms`);
 
       console.log('[STT Diagnostic] Extracted transcript length', {
         rawLength: rawExtracted.length,
@@ -736,6 +866,9 @@ export class OfflineSpeechEngine {
         isEmpty: recognizedText.length === 0
       });
       console.log('[STT Diagnostic] Whisper inference completed', { transcript: recognizedText });
+
+      const totalPipelineMs = performance.now() - (this.micRequestStartTime || tStartPreprocessing);
+      console.log(`[STT Latency][Total Pipeline Duration]: ${totalPipelineMs.toFixed(1)} ms`);
 
       this.status = 'ready';
       this.isRecording = false;
@@ -802,6 +935,15 @@ export class OfflineSpeechEngine {
   }
 
   private static cleanupMicStream(): void {
+    if (this.vadIntervalTimer) {
+      clearInterval(this.vadIntervalTimer);
+      this.vadIntervalTimer = null;
+    }
+    if (this.vadAudioContext) {
+      try { this.vadAudioContext.close(); } catch {}
+      this.vadAudioContext = null;
+    }
+    this.vadAnalyser = null;
     if (this.activeStream) {
       try {
         this.activeStream.getTracks().forEach(t => t.stop());

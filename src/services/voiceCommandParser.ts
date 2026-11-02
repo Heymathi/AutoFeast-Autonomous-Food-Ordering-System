@@ -4,6 +4,7 @@ import { CANONICAL_FOOD_ALIASES } from '../config/fuzzyConfig';
 import { FuzzyMatchEngine } from './fuzzyMatchService';
 import { RESTAURANT_TRANSLITERATIONS } from './sttMatcherService';
 import { TanglishNormalizer } from './tanglishNormalizer';
+import { FoodCatalogueCorrectionLayer } from './foodCatalogueCorrection';
 
 export interface ParsedVoiceCommandItem {
   name: string;
@@ -48,8 +49,8 @@ const POLITE_FILLER_WORDS = [
 // Number word map across English, Tamil, Hindi, Tanglish, Hinglish
 const QUANTITY_WORD_MAP: Array<{ value: number; tokens: string[] }> = [
   { value: 1, tokens: ['one', 'a', 'an', 'oru', 'onnu', 'onpathu', 'ondru', 'ஒன்று', 'ஒன்னு', 'ஒரு', 'ek', 'एक'] },
-  { value: 2, tokens: ['two', 'rendu', 'erandu', 'irandu', 'இரண்டு', 'ரெண்டு', 'do', 'दो'] },
-  { value: 3, tokens: ['three', 'moonu', 'moondru', 'மூன்று', 'மூணு', 'teen', 'तीन'] },
+  { value: 2, tokens: ['two', 'rendu', 'rendo', 'renu', 'rend', 'erandu', 'irandu', 'இரண்டு', 'ரெண்டு', 'do', 'दो'] },
+  { value: 3, tokens: ['three', 'moonu', 'monu', 'moondru', 'மூன்று', 'மூணு', 'teen', 'तीन'] },
   { value: 4, tokens: ['four', 'naalu', 'naangu', 'நான்கு', 'நாலு', 'char', 'chaar', 'चार'] },
   { value: 5, tokens: ['five', 'anju', 'ainthu', 'ஐந்து', 'அஞ்சு', 'paanch', 'panch', 'पांच', 'पाँच'] },
   { value: 6, tokens: ['six', 'aaru', 'ஆறு', 'che', 'chhah', 'छह', 'छः'] },
@@ -79,8 +80,9 @@ export class VoiceCommandParser {
    */
   public static parse(transcript: string, currentLang: Language = 'en'): ParsedVoiceCommandResult {
     const rawTranscript = (transcript || '').trim();
-    const tanglish = TanglishNormalizer.normalize(rawTranscript);
-    const norm = this.normalize(tanglish.isTanglish ? tanglish.normalized : rawTranscript);
+    const phoneticallyCorrected = FoodCatalogueCorrectionLayer.normalizePhoneticFoodWords(rawTranscript);
+    const tanglish = TanglishNormalizer.normalize(phoneticallyCorrected);
+    const norm = this.normalize(tanglish.isTanglish ? tanglish.normalized : phoneticallyCorrected);
 
     // 1. Detect Explicit Language clues or keep current
     const lang = this.detectLanguage(norm, currentLang);
@@ -644,6 +646,16 @@ export class VoiceCommandParser {
             matchedName = aliasEntry.canonicalName;
           }
         }
+      }
+    }
+
+    // 2. Context-aware food catalogue correction fallback if score is moderate or low
+    if (bestScore < 0.75) {
+      const correction = FoodCatalogueCorrectionLayer.matchFoodFromTranscript(itemCandidate, lang);
+      if (correction.matchedFoodItem && correction.score > bestScore) {
+        bestFood = correction.matchedFoodItem;
+        bestScore = correction.score;
+        matchedName = correction.matchedFoodName;
       }
     }
 

@@ -22,7 +22,7 @@ export class TanglishNormalizer {
   // Key Tanglish vocabulary patterns
   private static TANGLISH_MARKERS = [
     /\b(naalaiku|nalaiku|naalaiki|nalaki|inniku|innaiku|innaiki|iniku|nethu|netru)\b/i,
-    /\b(rendu|rendo|moonu|monu|oru|onnu|naalu|anju)\b/i,
+    /\b(rendu|rendo|renu|rend|moonu|monu|oru|onnu|naalu|anju)\b/i,
     /\b(maniku|mani\s*ku|kaalaila|kalaila|kaalai|madhiyam|mathiyam|mathiyanam|madhiyanam|saayangaalam|saayankalam|sayankalam|sayantharam|raathiri|iravu)\b/i,
     /\b(order\s*pannu|order\s*podu|add\s*pannu|cart\s*la|schedule\s*pannu|venum|vaenum|thevai|enakku)\b/i
   ];
@@ -62,9 +62,9 @@ export class TanglishNormalizer {
 
     // 2. Normalize Spoken Number / Quantity Words (only if NOT followed by mani/maniku/baje)
     let quantity: number | undefined;
-    if (/\b(rendu|rendo|erandu|irandu)(?!\s*mani(?:ku|\s*ku)?)\b/i.test(norm)) {
+    if (/\b(rendu|rendo|renu|rend|erandu|irandu)(?!\s*mani(?:ku|\s*ku)?)\b/i.test(norm)) {
       quantity = 2;
-      norm = norm.replace(/\b(rendu|rendo|erandu|irandu)(?!\s*mani(?:ku|\s*ku)?)\b/gi, '2');
+      norm = norm.replace(/\b(rendu|rendo|renu|rend|erandu|irandu)(?!\s*mani(?:ku|\s*ku)?)\b/gi, '2');
     } else if (/\b(moonu|monu|moondru)(?!\s*mani(?:ku|\s*ku)?)\b/i.test(norm)) {
       quantity = 3;
       norm = norm.replace(/\b(moonu|monu|moondru)(?!\s*mani(?:ku|\s*ku)?)\b/gi, '3');

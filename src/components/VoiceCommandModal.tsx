@@ -1,13 +1,19 @@
 export type VoicePipelineUIState =
   | 'idle'
+  | 'initializing'
+  | 'ready'
   | 'listening'
+  | 'processing_audio'
   | 'recognizing'
   | 'food_identified'
+  | 'confirming'
   | 'clarifying'
   | 'processing'
   | 'waiting_nominee'
   | 'waiting_pin'
+  | 'completed'
   | 'order_placed'
+  | 'error'
   | 'network_unavailable'
   | 'not_found';
 
@@ -97,19 +103,37 @@ export const VoiceCommandModal: React.FC = () => {
   const [downloadSuccessMessage, setDownloadSuccessMessage] = useState<string | null>(null);
   const [showConsentPrompt, setShowConsentPrompt] = useState<boolean>(false);
 
-  // Synchronize Offline Voice model status when modal opens
+  // Synchronize Offline Voice model status & warm up pipeline when modal opens
   useEffect(() => {
     if (isVoiceModalOpen) {
       const current = OfflineSpeechEngine.getModelStatus();
       setOfflineStatus(current);
       if (current.isDownloaded) {
         setDownloadError(null);
+        OfflineSpeechEngine.warmupPipeline().catch(() => {});
       }
       // Check actual Cache API files to verify status is accurate
       OfflineSpeechEngine.verifyCacheState().then(verified => {
         setOfflineStatus(verified);
+        if (verified.isDownloaded) {
+          OfflineSpeechEngine.warmupPipeline().catch(() => {});
+        }
       }).catch(() => {});
     }
+  }, [isVoiceModalOpen]);
+
+  // Sync SpeechController states to ensure LISTENING never lingers after recording stops
+  useEffect(() => {
+    if (!isVoiceModalOpen) return;
+    const unsub = SpeechController.subscribe(state => {
+      if (state.voiceState === 'processing') {
+        setIsListening(false);
+        setPipelineState(prev => (prev === 'listening' ? 'processing_audio' : prev));
+      } else if (state.voiceState === 'idle' && !awaitingConfirmationRef.current) {
+        setIsListening(false);
+      }
+    });
+    return () => unsub();
   }, [isVoiceModalOpen]);
 
   const handleInitiateDownload = () => {
@@ -244,6 +268,7 @@ export const VoiceCommandModal: React.FC = () => {
     const allowDuringTts = opts?.allowDuringTts ?? (awaitingConfirmationRef.current || !!restaurantStepRef.current || !!singleRestaurantPromptRef.current);
 
     setIsListening(true);
+    setPipelineState('listening');
     SpeechController.startListening({
       owner: 'VoiceCommandModal',
       language,
@@ -281,6 +306,7 @@ export const VoiceCommandModal: React.FC = () => {
       },
       onStart: () => {
         setIsListening(true);
+        setPipelineState('listening');
         setMicErrorHint(null);
       },
       onResult: (text, isFinal, nBestTranscripts) => {
@@ -292,6 +318,10 @@ export const VoiceCommandModal: React.FC = () => {
             isFinal
           });
           setTranscript(cleanText);
+          if (isFinal) {
+            setIsListening(false);
+            setPipelineState('recognizing');
+          }
 
           // Cancel active speech synthesis on first speech detection
           if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -391,6 +421,7 @@ export const VoiceCommandModal: React.FC = () => {
       onError: (errorCode, errorMessage) => {
         console.warn('[VoiceCommandModal Error]:', errorCode, errorMessage);
         setIsListening(false);
+        setPipelineState('error');
         if (errorCode === 'not-allowed' || errorCode === 'not-supported') {
           const hint = t('voice.micUnavailableHint');
           setMicErrorHint(hint);
@@ -548,8 +579,12 @@ export const VoiceCommandModal: React.FC = () => {
       return;
     }
 
-    // Unified Voice Command Parser
+    // Unified Voice Command Parser with Context-Aware Food Catalogue Alignment
+    const tStartMatching = performance.now();
     const parsed = VoiceCommandParser.parse(spokenText, language);
+    const tEndMatching = performance.now();
+    console.log(`[STT Latency][Stage 7: Food Item Matching]: ${(tEndMatching - tStartMatching).toFixed(1)} ms`);
+
     voiceDebug('[VoiceCommandParser Result]', parsed);
 
     if (parsed.matchedFoodItem) {
@@ -564,6 +599,7 @@ export const VoiceCommandModal: React.FC = () => {
         : 'Search';
       setIdentifiedActionName(actionLabel);
       setPipelineState('food_identified');
+      console.log(`[STT Latency][Stage 8: UI Update]: ${(performance.now() - tEndMatching).toFixed(1)} ms`);
     }
 
     // If variant suggestions are active and user spoke a variety name
@@ -1032,41 +1068,52 @@ export const VoiceCommandModal: React.FC = () => {
             onClick={toggleListening}
             className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95 cursor-pointer ${
               isListening
-                ? 'bg-[#D93636] text-white animate-ping'
+                ? 'bg-[#D93636] text-white animate-pulse ring-4 ring-red-300'
                 : 'bg-[#D93636] hover:bg-[#B9252D] text-white hover:scale-105'
             }`}
           >
             {isListening ? <Mic className="w-8 h-8 text-white" /> : <MicOff className="w-8 h-8 text-white" />}
           </button>
           <span className="mt-2 text-xs font-extrabold text-[#302720]">
-            {isListening ? 'Mic Active - Listening...' : 'Tap Mic to Speak'}
+            {isListening
+              ? (language === 'ta' ? 'கேட்கிறது... பேசுங்கள்' : language === 'hi' ? 'सुन रहा है... बोलें' : 'Listening... Speak now')
+              : pipelineState === 'processing_audio'
+              ? (language === 'ta' ? 'ஆடியோ செயலாக்கப்படுகிறது...' : language === 'hi' ? 'ऑडियो संसाधित हो रहा है...' : 'Processing audio...')
+              : pipelineState === 'recognizing'
+              ? (language === 'ta' ? 'குரல் அங்கீகரிக்கப்படுகிறது...' : language === 'hi' ? 'आवाज़ पहचानी जा रही है...' : 'Recognizing speech...')
+              : (language === 'ta' ? 'மைக்கைத் தொட்டுப் பேசவும்' : language === 'hi' ? 'बोलने के लिए माइक दबाएं' : 'Tap Mic to Speak')}
           </span>
         </div>
 
         {/* Pipeline State Status Pill */}
         <div className="flex items-center justify-center gap-2 mb-3">
           <span className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-black shadow-sm transition-all ${
+            pipelineState === 'initializing' ? 'bg-indigo-100 text-indigo-900 border border-indigo-300 animate-pulse' :
             pipelineState === 'listening' ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse' :
+            pipelineState === 'processing_audio' ? 'bg-sky-100 text-sky-900 border border-sky-300 animate-pulse' :
             pipelineState === 'recognizing' || pipelineState === 'processing' ? 'bg-blue-100 text-blue-900 border border-blue-300 animate-pulse' :
-            pipelineState === 'food_identified' || pipelineState === 'order_placed' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
-            pipelineState === 'clarifying' ? 'bg-indigo-100 text-indigo-900 border border-indigo-300' :
+            pipelineState === 'confirming' || pipelineState === 'clarifying' ? 'bg-amber-50 text-amber-950 border border-amber-300' :
+            pipelineState === 'food_identified' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+            pipelineState === 'completed' || pipelineState === 'order_placed' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
             pipelineState === 'waiting_nominee' ? 'bg-purple-100 text-purple-900 border border-purple-300 animate-pulse' :
             pipelineState === 'waiting_pin' ? 'bg-rose-100 text-rose-900 border border-rose-300 animate-pulse' :
-            pipelineState === 'network_unavailable' ? 'bg-red-100 text-red-900 border border-red-300' :
-            pipelineState === 'not_found' ? 'bg-slate-100 text-slate-800 border border-slate-300' :
+            pipelineState === 'error' || pipelineState === 'network_unavailable' || pipelineState === 'not_found' ? 'bg-red-100 text-red-900 border border-red-300' :
             'bg-slate-100 text-slate-700 border border-slate-200'
           }`}>
-            {pipelineState === 'listening' && '🎙️ Listening...'}
-            {pipelineState === 'recognizing' && '⚡ Recognizing Speech...'}
+            {pipelineState === 'initializing' && '⚙️ Initializing model'}
+            {(pipelineState === 'ready' || pipelineState === 'idle') && '✨ Ready'}
+            {pipelineState === 'listening' && '🎙️ Listening'}
+            {pipelineState === 'processing_audio' && '🎧 Processing audio'}
+            {pipelineState === 'recognizing' && '⚡ Recognizing speech'}
+            {(pipelineState === 'confirming' || pipelineState === 'clarifying') && '❓ Confirming food item'}
             {pipelineState === 'food_identified' && '🍽️ Food Identified'}
-            {pipelineState === 'clarifying' && '❓ Clarifying Choice'}
             {pipelineState === 'processing' && '⏳ Processing Action...'}
             {pipelineState === 'waiting_nominee' && '🔒 Nominee Approval Required'}
             {pipelineState === 'waiting_pin' && '🔐 PIN Verification Required'}
-            {pipelineState === 'order_placed' && '✅ Order Executed!'}
+            {(pipelineState === 'completed' || pipelineState === 'order_placed') && '✅ Completed'}
             {pipelineState === 'network_unavailable' && '🌐 Network Unavailable'}
             {pipelineState === 'not_found' && '🔍 Food Not Found'}
-            {pipelineState === 'idle' && '✨ Ready'}
+            {pipelineState === 'error' && '⚠️ Error'}
           </span>
         </div>
 

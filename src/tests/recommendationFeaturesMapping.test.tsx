@@ -166,3 +166,4 @@ describe('AutoFeast AI – Recommendation System vs Healthy Food Recommendations
     expect(amburBiryani.length).toBeGreaterThan(0);
   });
 });
+
