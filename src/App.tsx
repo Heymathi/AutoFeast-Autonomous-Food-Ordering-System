@@ -97,7 +97,7 @@ const MainLayout: React.FC = () => {
       currentTheme === 'high-contrast'
         ? 'high-contrast-mode bg-black text-white'
         : currentTheme === 'dark'
-        ? 'bg-zinc-900 text-zinc-100'
+        ? 'dark bg-[#171717] text-[#FFF8EF]'
         : 'bg-[#FFF8F0] text-[#33251F]'
     }`}>
 

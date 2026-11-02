@@ -176,10 +176,17 @@ export interface ExecutedOrder {
   savings: number;
   rating: number;
   timestamp: string;
-  status: 'delivered' | 'processing' | 'scheduled';
+  status: 'delivered' | 'completed' | 'processing' | 'placed' | 'pending' | 'scheduled' | 'cancelled';
   isAutoOrder: boolean;
   orderType?: 'instant' | 'scheduled';
   deliveryAddress?: string;
+  foodImage?: string;
+  quantity?: number;
+  completedAt?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  expectedDeliveryTime?: string;
+  userId?: string;
 }
 
 import { ParsedOrderBill } from './services/nlpParserService';

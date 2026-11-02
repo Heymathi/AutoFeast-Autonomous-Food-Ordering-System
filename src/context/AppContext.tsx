@@ -70,6 +70,9 @@ interface AppContextType {
   t: (key: string) => string;
   accessibilitySettings: AccessibilitySettings;
   setAccessibilitySettings: React.Dispatch<React.SetStateAction<AccessibilitySettings>>;
+  setTextSize: (size: 'sm' | 'md' | 'lg' | 'xl') => void;
+  setThemeMode: (mode: 'light' | 'dark' | 'high-contrast') => void;
+  setHighContrast: (enabled: boolean) => void;
   activeView: AppView;
   setActiveView: (view: AppView) => void;
   
@@ -159,6 +162,9 @@ interface AppContextType {
   orderHistoryTab: 'all' | 'instant' | 'scheduled' | 'pending' | 'monthly_bill';
   setOrderHistoryTab: (tab: 'all' | 'instant' | 'scheduled' | 'pending' | 'monthly_bill') => void;
   openOrderHistoryTab: (tab: 'all' | 'instant' | 'scheduled' | 'pending' | 'monthly_bill') => void;
+  cancelOrder: (orderId: string, reason?: string) => Promise<boolean>;
+  reorderItem: (order: ExecutedOrder) => void;
+  updateOrderStatus: (orderId: string, newStatus: ExecutedOrder['status'], extra?: { completedAt?: string; cancelledAt?: string; cancellationReason?: string }) => void;
 
   // Nominee Control & Restricted Items
   isNomineeModalOpen: boolean;
@@ -570,7 +576,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       localStorage.setItem('autofeast_accessibility_settings', JSON.stringify(accessibilitySettings));
     } catch (e) {}
+
+    if (typeof document !== 'undefined') {
+      const mode = accessibilitySettings.themeMode || (accessibilitySettings.highContrast ? 'high-contrast' : 'light');
+      const size = accessibilitySettings.textSize || 'md';
+
+      document.documentElement.setAttribute('data-theme', mode);
+      document.documentElement.setAttribute('data-typography', size);
+
+      if (mode === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.documentElement.classList.remove('high-contrast-mode');
+      } else if (mode === 'high-contrast') {
+        document.documentElement.classList.add('high-contrast-mode');
+        document.documentElement.classList.remove('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.remove('high-contrast-mode');
+      }
+
+      document.documentElement.classList.remove('text-scale-sm', 'text-scale-md', 'text-scale-lg', 'text-scale-xl');
+      document.documentElement.classList.add(`text-scale-${size}`);
+    }
   }, [accessibilitySettings]);
+
+  const setTextSize = (size: 'sm' | 'md' | 'lg' | 'xl') => {
+    setAccessibilitySettings(prev => ({ ...prev, textSize: size }));
+  };
+
+  const setThemeMode = (mode: 'light' | 'dark' | 'high-contrast') => {
+    setAccessibilitySettings(prev => ({
+      ...prev,
+      themeMode: mode,
+      highContrast: mode === 'high-contrast'
+    }));
+  };
+
+  const setHighContrast = (enabled: boolean) => {
+    setAccessibilitySettings(prev => ({
+      ...prev,
+      highContrast: enabled,
+      themeMode: enabled ? 'high-contrast' : (prev.themeMode === 'high-contrast' ? 'light' : prev.themeMode)
+    }));
+  };
 
   const [activeView, setActiveView] = useState<AppView>('search');
   const [searchQuery, setSearchQuery] = useState('');
@@ -804,6 +852,57 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const openOrderHistoryTab = (tab: 'all' | 'instant' | 'scheduled' | 'pending' | 'monthly_bill') => {
     setOrderHistoryTab(tab);
     setActiveView('orders');
+  };
+
+  const updateOrderStatus = (
+    orderId: string,
+    newStatus: ExecutedOrder['status'],
+    extra?: { completedAt?: string; cancelledAt?: string; cancellationReason?: string }
+  ) => {
+    setOrderHistory(prev => {
+      const updated = prev.map(ord => {
+        if (ord.id === orderId) {
+          return {
+            ...ord,
+            status: newStatus,
+            ...(extra?.completedAt ? { completedAt: extra.completedAt } : {}),
+            ...(extra?.cancelledAt ? { cancelledAt: extra.cancelledAt } : {}),
+            ...(extra?.cancellationReason ? { cancellationReason: extra.cancellationReason } : {})
+          };
+        }
+        return ord;
+      });
+      try {
+        const userKey = currentUser?.id ? `smart_food_order_history_${currentUser.id}` : 'smart_food_order_history';
+        localStorage.setItem(userKey, JSON.stringify(updated));
+        localStorage.setItem('smart_food_order_history', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const cancelOrder = async (orderId: string, reason: string = 'Cancelled by customer'): Promise<boolean> => {
+    updateOrderStatus(orderId, 'cancelled', {
+      cancelledAt: new Date().toISOString(),
+      cancellationReason: reason
+    });
+    showToast(`Order #${orderId} has been cancelled.`, 'info');
+    return true;
+  };
+
+  const reorderItem = (order: ExecutedOrder) => {
+    const foundFood: FoodItem = INDIAN_FOOD_CATALOG.find(f => f.name.toLowerCase() === order.foodName.toLowerCase()) || {
+      ...INDIAN_FOOD_CATALOG[0],
+      id: `food_${Date.now()}`,
+      name: order.foodName,
+      restaurant: order.restaurant,
+      basePrice: order.amountPaid,
+      image: order.foodImage || INDIAN_FOOD_CATALOG[0].image,
+      description: order.foodName
+    };
+    addToCart(foundFood, order.quantity || 1);
+    showToast(`Added ${order.foodName} to cart for reorder!`, 'success');
+    setActiveView('search');
   };
 
   // Nominee Control & Restricted Items State
@@ -2483,7 +2582,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         savings: Math.max(0, (chosenPlatform.originalPrice || totalCost) - (chosenPlatform.price || totalCost)),
         rating: chosenPlatform.rating || 4.8,
         timestamp: new Date().toISOString(),
-        status: 'delivered',
+        status: 'placed',
         isAutoOrder: false,
         orderType: 'instant',
         deliveryAddress: trackingObj.deliveryAddress
@@ -2885,6 +2984,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       t,
       accessibilitySettings,
       setAccessibilitySettings,
+      setTextSize,
+      setThemeMode,
+      setHighContrast,
       activeView,
       setActiveView,
       userLocation,
@@ -2950,6 +3052,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       orderHistoryTab,
       setOrderHistoryTab,
       openOrderHistoryTab,
+      cancelOrder,
+      reorderItem,
+      updateOrderStatus,
       speakText,
       toastMessage,
       toasts,

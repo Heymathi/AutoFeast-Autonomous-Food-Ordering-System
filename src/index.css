@@ -380,3 +380,195 @@ header.app-header .header-label-responsive {
     padding: 8px 10px !important;
   }
 }
+
+
+/* ==========================================================================
+   Centralized Typography Scale (A- = sm, A = md, A+ = lg, A++ = xl)
+   ========================================================================== */
+html[data-typography="sm"],
+html.text-scale-sm {
+  font-size: 14px !important;
+  --font-scale-factor: 0.875;
+}
+
+html[data-typography="md"],
+html.text-scale-md {
+  font-size: 16px !important;
+  --font-scale-factor: 1.0;
+}
+
+html[data-typography="lg"],
+html.text-scale-lg {
+  font-size: 18.5px !important;
+  --font-scale-factor: 1.15;
+}
+
+html[data-typography="xl"],
+html.text-scale-xl {
+  font-size: 21px !important;
+  --font-scale-factor: 1.30;
+}
+
+/* Ensure body and major elements scale smoothly */
+.text-scale-sm body, .text-scale-sm #root { font-size: 14px; }
+.text-scale-md body, .text-scale-md #root { font-size: 16px; }
+.text-scale-lg body, .text-scale-lg #root { font-size: 18.5px; }
+.text-scale-xl body, .text-scale-xl #root { font-size: 21px; }
+
+/* Scale headings proportionally */
+.text-scale-sm h1 { font-size: 1.75rem !important; }
+.text-scale-sm h2 { font-size: 1.45rem !important; }
+.text-scale-sm h3 { font-size: 1.2rem !important; }
+
+.text-scale-md h1 { font-size: 2.25rem !important; }
+.text-scale-md h2 { font-size: 1.75rem !important; }
+.text-scale-md h3 { font-size: 1.4rem !important; }
+
+.text-scale-lg h1 { font-size: 2.6rem !important; }
+.text-scale-lg h2 { font-size: 2.05rem !important; }
+.text-scale-lg h3 { font-size: 1.6rem !important; }
+
+.text-scale-xl h1 { font-size: 3rem !important; }
+.text-scale-xl h2 { font-size: 2.35rem !important; }
+.text-scale-xl h3 { font-size: 1.85rem !important; }
+
+/* ==========================================================================
+   Centralized Dark Mode Palette (Tomato Red + Dark Charcoal)
+   Main bg: #171717 | Card bg: #242424 | Secondary bg: #303030
+   Primary accent: #F05252 | Main text: #FFF8EF | Secondary text: #C7BDB5 | Border: #45403D
+   ========================================================================== */
+[data-theme="dark"],
+html.dark,
+.dark {
+  --color-warm-cream: #171717;
+  --color-card-bg: #242424;
+  --color-soft-peach: #303030;
+  --color-tomato-red: #F05252;
+  --color-tomato-hover: #E03E3E;
+  --color-dark-brown: #FFF8EF;
+  --color-secondary-text: #C7BDB5;
+  --color-border: #45403D;
+
+  background-color: #171717 !important;
+  color: #FFF8EF !important;
+}
+
+[data-theme="dark"] body,
+html.dark body {
+  background-color: #171717 !important;
+  color: #FFF8EF !important;
+}
+
+/* Background Overrides */
+[data-theme="dark"] .bg-\[\#FFF8F0\],
+[data-theme="dark"] .bg-\[\#FFF8EF\],
+[data-theme="dark"] .bg-warm-cream,
+[data-theme="dark"] .bg-light-rose,
+[data-theme="dark"] .bg-warm-ivory,
+[data-theme="dark"] .bg-pale-green {
+  background-color: #171717 !important;
+}
+
+[data-theme="dark"] .bg-white,
+[data-theme="dark"] .bg-\[\#FFFFFF\],
+[data-theme="dark"] .bg-pure-white,
+[data-theme="dark"] .bg-app-card {
+  background-color: #242424 !important;
+}
+
+[data-theme="dark"] .bg-\[\#F7F3EB\],
+[data-theme="dark"] .bg-\[\#FBE9E5\],
+[data-theme="dark"] .bg-\[\#FCE8E3\],
+[data-theme="dark"] .bg-soft-peach,
+[data-theme="dark"] .bg-soft-sand,
+[data-theme="dark"] .bg-sand-tint,
+[data-theme="dark"] .bg-pale-rose {
+  background-color: #303030 !important;
+}
+
+/* Text Overrides */
+[data-theme="dark"] .text-\[\#33251F\],
+[data-theme="dark"] .text-\[\#302720\],
+[data-theme="dark"] .text-dark-brown,
+[data-theme="dark"] .text-espresso,
+[data-theme="dark"] .text-espresso-black,
+[data-theme="dark"] .text-charcoal-primary,
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] h5,
+[data-theme="dark"] h6 {
+  color: #FFF8EF !important;
+}
+
+[data-theme="dark"] .text-\[\#8A817A\],
+[data-theme="dark"] .text-\[\#786E64\],
+[data-theme="dark"] .text-muted-grey,
+[data-theme="dark"] .text-sand-muted,
+[data-theme="dark"] .text-charcoal-secondary,
+[data-theme="dark"] .text-charcoal-slate {
+  color: #C7BDB5 !important;
+}
+
+/* Border Overrides */
+[data-theme="dark"] .border-\[\#F0E5DC\],
+[data-theme="dark"] .border-\[\#E9DED5\],
+[data-theme="dark"] .border-cream-grey,
+[data-theme="dark"] .border-app,
+[data-theme="dark"] .border-sand,
+[data-theme="dark"] .border-rose,
+[data-theme="dark"] .border-pale-rose {
+  border-color: #45403D !important;
+}
+
+[data-theme="dark"] .divide-\[\#F0E5DC\] > :not([hidden]) ~ :not([hidden]),
+[data-theme="dark"] .divide-\[\#F0E5DC\]\/60 > :not([hidden]) ~ :not([hidden]),
+[data-theme="dark"] .divide-\[\#E9DED5\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #45403D !important;
+}
+
+/* Primary Accents */
+[data-theme="dark"] .text-\[\#D93636\],
+[data-theme="dark"] .text-tomato-red,
+[data-theme="dark"] .text-wine-red {
+  color: #F05252 !important;
+}
+
+[data-theme="dark"] .bg-\[\#D93636\],
+[data-theme="dark"] .bg-tomato-red,
+[data-theme="dark"] .bg-wine-red {
+  background-color: #F05252 !important;
+}
+
+[data-theme="dark"] .border-\[\#D93636\],
+[data-theme="dark"] .border-tomato-red,
+[data-theme="dark"] .border-wine-red {
+  border-color: #F05252 !important;
+}
+
+/* Hover States */
+[data-theme="dark"] .hover\:bg-\[\#FFF8F0\]:hover,
+[data-theme="dark"] .hover\:bg-\[\#FBE9E5\]:hover,
+[data-theme="dark"] .hover\:bg-white:hover {
+  background-color: #383838 !important;
+}
+
+/* Inputs & Form Elements */
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background-color: #242424 !important;
+  color: #FFF8EF !important;
+  border-color: #45403D !important;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: #8A817A !important;
+}
+
+/* Modal Backdrops & Cards */
+[data-theme="dark"] .bg-\[\#302720\]\/40 {
+  background-color: rgba(0, 0, 0, 0.75) !important;
+}

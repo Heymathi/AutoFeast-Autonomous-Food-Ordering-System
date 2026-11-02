@@ -9,7 +9,8 @@ import {
   LogOut,
   ChevronDown,
   CheckCircle2,
-  Wallet
+  Wallet,
+  Receipt
 } from 'lucide-react';
 import { UserDetailsModal } from './UserDetailsModal';
 
@@ -91,6 +92,11 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
   const handleOpenNominee = () => {
     setIsOpen(false);
     setIsNomineeModalOpen(true);
+  };
+
+  const handleOpenOrderHistory = () => {
+    setIsOpen(false);
+    setActiveView('orders');
   };
 
   const handleLogout = () => {
@@ -231,6 +237,26 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
                 </p>
                 <p className="text-[11px] text-[#8A817A] truncate">
                   {currentUser?.nomineeName ? `Guardian: ${currentUser.nomineeName}` : 'Approval & food safety restrictions'}
+                </p>
+              </div>
+            </button>
+
+            {/* 4.5. Order History */}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleOpenOrderHistory}
+              className="w-full flex items-center px-4 py-3 text-left hover:bg-[#FFF8F0] transition-colors group cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-lg bg-[#FBE9E5] text-[#D93636] flex items-center justify-center mr-3 shrink-0">
+                <Receipt className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-[#33251F] group-hover:text-[#D93636]">
+                  {t('profile.orderHistory') || 'Order History'}
+                </p>
+                <p className="text-[11px] text-[#8A817A] truncate">
+                  View and manage past and active food orders
                 </p>
               </div>
             </button>

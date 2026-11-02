@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom';
 import React from 'react';
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
@@ -163,19 +164,19 @@ describe('Toast Notification Policy: Restrict Toasts to Important Events Only', 
     act(() => {
       fireEvent.click(screen.getByTestId('btn-addr-changed'));
     });
-    expect(screen.getByText('Location successfully updated to Suramangalam, Salem')).toBeInTheDocument();
+    expect(screen.getByText('Location successfully updated to Suramangalam, Salem')).toBeTruthy();
 
     // 2. Order Placed
     act(() => {
       fireEvent.click(screen.getByTestId('btn-order-placed'));
     });
-    expect(screen.getByText('Your order has been placed successfully!')).toBeInTheDocument();
+    expect(screen.getByText('Your order has been placed successfully!')).toBeTruthy();
 
     // 3. Security Alert
     act(() => {
       fireEvent.click(screen.getByTestId('btn-security-alert'));
     });
-    expect(screen.getByText('⛔ Four incorrect PIN attempts. Retry becomes available in 30s.')).toBeInTheDocument();
+    expect(screen.getByText('⛔ Four incorrect PIN attempts. Retry becomes available in 30s.')).toBeTruthy();
   });
 
   test('Ordinary conversational messages and voice assistant questions NEVER appear as toasts', () => {
@@ -240,10 +241,10 @@ describe('Toast Notification Policy: Restrict Toasts to Important Events Only', 
     act(() => {
       fireEvent.click(screen.getByTestId('btn-order-scheduled'));
     });
-    expect(screen.getByText('Your food order has been scheduled successfully!')).toBeInTheDocument();
+    expect(screen.getByText('Your food order has been scheduled successfully!')).toBeTruthy();
 
     const dismissButton = screen.getByTitle('Dismiss Notification');
-    expect(dismissButton).toBeInTheDocument();
+    expect(dismissButton).toBeTruthy();
 
     act(() => {
       fireEvent.click(dismissButton);

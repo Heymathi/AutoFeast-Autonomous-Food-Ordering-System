@@ -122,6 +122,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
     nextSlotTime: string;
   } | null>(null);
   const [isValidating, setIsValidating] = useState<boolean>(false);
+  const [isListeningStep1, setIsListeningStep1] = useState(false);
 
   useEffect(() => {
     if (pinLockSecondsLeft <= 0) return;
@@ -168,56 +169,53 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
     }
   }, [isOpen, initialTime, initialSlotName, language]);
 
-  if (!isOpen || items.length === 0) return null;
-
   // Group cart items by restaurant using shared helper
-  const cartSummary = groupCartByRestaurant(items);
+  const cartSummary = groupCartByRestaurant(items || []);
   const { groups, subtotal, totalDeliveryFee, platformFee, gstTax, perOrderTotal } = cartSummary;
   const grandTotal = perOrderTotal;
 
   // Step 2 Bill Voice Confirmation Effect (Yes -> Proceed to PIN, No -> Go back to Step 1)
   useEffect(() => {
-    if (isOpen && step === 2) {
-      const billMsg = language === 'ta'
-        ? `மொத்த அட்டவணை பில் ${grandTotal} ரூபாய். உறுதி செய்து தொடரவா? ஆம் அல்லது இல்லை என்று சொல்லுங்கள்.`
-        : language === 'hi'
-        ? `कुल शेड्यूल बिल ${grandTotal} रुपये है। क्या आप पुष्टि करना चाहते हैं? हाँ या नहीं बोलें।`
-        : `Schedule total bill is ${grandTotal} rupees. Confirm schedule? Say yes to proceed or no to cancel.`;
+    if (!isOpen || !items || items.length === 0 || step !== 2) return;
 
-      speakText(billMsg, () => {
-        if (isOpen && step === 2 && SpeechController.isSupported()) {
-          SpeechController.startListening({
-            owner: 'schedule_bill_confirm',
-            language,
-            continuous: false,
-            interimResults: true,
-            maxAlternatives: 5,
-            silenceTimeoutMs: 8000,
-            onResult: (transcript, isFinal, nBest) => {
-              if (!transcript || !isFinal) return;
-              const candidates = nBest && nBest.length > 0 ? nBest : [transcript];
-              const match = SttMatcherService.matchConfirmation(candidates, language);
-              if (match.isMatched) {
-                if (match.matchedValue === 'YES') {
-                  SpeechController.releaseMic('schedule_bill_confirm');
-                  handleProceedToPin();
-                } else if (match.matchedValue === 'NO') {
-                  SpeechController.releaseMic('schedule_bill_confirm');
-                  setStep(1);
-                }
+    const billMsg = language === 'ta'
+      ? `மொத்த அட்டவணை பில் ${grandTotal} ரூபாய். உறுதி செய்து தொடரவா? ஆம் அல்லது இல்லை என்று சொல்லுங்கள்.`
+      : language === 'hi'
+      ? `कुल शेड्यूल बिल ${grandTotal} रुपये है। क्या आप पुष्टि करना चाहते हैं? हाँ या नहीं बोलें।`
+      : `Schedule total bill is ${grandTotal} rupees. Confirm schedule? Say yes to proceed or no to cancel.`;
+
+    speakText(billMsg, () => {
+      if (isOpen && step === 2 && SpeechController.isSupported()) {
+        SpeechController.startListening({
+          owner: 'schedule_bill_confirm',
+          language,
+          continuous: false,
+          interimResults: true,
+          maxAlternatives: 5,
+          silenceTimeoutMs: 8000,
+          onResult: (transcript, isFinal, nBest) => {
+            if (!transcript || !isFinal) return;
+            const candidates = nBest && nBest.length > 0 ? nBest : [transcript];
+            const match = SttMatcherService.matchConfirmation(candidates, language);
+            if (match.isMatched) {
+              if (match.matchedValue === 'YES') {
+                SpeechController.releaseMic('schedule_bill_confirm');
+                handleProceedToPin();
+              } else if (match.matchedValue === 'NO') {
+                SpeechController.releaseMic('schedule_bill_confirm');
+                setStep(1);
               }
             }
-          });
-        }
-      }, language);
-    }
+          }
+        });
+      }
+    }, language);
 
     return () => {
       SpeechController.releaseMic('schedule_bill_confirm');
     };
-  }, [isOpen, step, grandTotal, language]);
+  }, [isOpen, step, grandTotal, language, items]);
 
-  const [isListeningStep1, setIsListeningStep1] = useState(false);
   const startListeningForStep1 = () => {
     if (!SpeechController.isSupported()) return;
     setIsListeningStep1(true);
@@ -554,6 +552,8 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
       showToast(err, 'error');
     }
   };
+
+  if (!isOpen || !items || items.length === 0) return null;
 
   return (
     <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-[#302720]/40 backdrop-blur-sm p-4 animate-fade-in">

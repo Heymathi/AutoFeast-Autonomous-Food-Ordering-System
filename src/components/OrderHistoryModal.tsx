@@ -1,377 +1,537 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { ShoppingBag, CheckCircle, Sparkles, Tag, Zap, Clock, Calendar, Hourglass, PlayCircle, FileText, Printer, ArrowDownToLine } from 'lucide-react';
-import { toTimeText } from '../utils/scheduleCalculator';
+import {
+  ShoppingBag,
+  CheckCircle2,
+  Clock,
+  Calendar,
+  Hourglass,
+  FileText,
+  Printer,
+  RotateCcw,
+  XCircle,
+  Navigation,
+  MapPin,
+  Utensils,
+  Sparkles,
+  ArrowRight,
+  Receipt
+} from 'lucide-react';
+import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
+import { ExecutedOrder } from '../types';
+
+type HistoryCategory = 'pending' | 'successful' | 'cancelled';
 
 export const OrderHistoryModal: React.FC = () => {
   const {
     orderHistory,
-    schedules,
-    executeScheduleNow,
-    orderHistoryTab,
-    setOrderHistoryTab,
-    t,
-    language,
-    showToast
+    cancelOrder,
+    reorderItem,
+    setActiveView,
+    t
   } = useApp();
 
-  const instantOrders = orderHistory.filter(ord => ord.orderType === 'instant' || (!ord.orderType && !ord.isAutoOrder));
-  const scheduledExecutedOrders = orderHistory.filter(ord => ord.orderType === 'scheduled' || (!ord.orderType && ord.isAutoOrder));
-  const pendingSchedules = schedules.filter(s => s.isEnabled);
+  const [activeCategory, setActiveCategory] = useState<HistoryCategory>('pending');
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
 
-  const activeTab = orderHistoryTab;
-  const setActiveTab = setOrderHistoryTab;
+  // Helper to resolve food item image
+  const getFoodImage = (foodName: string, existingImage?: string): string => {
+    if (existingImage) return existingImage;
+    const found = INDIAN_FOOD_CATALOG.find(
+      f => f.name.toLowerCase() === foodName.toLowerCase() ||
+           foodName.toLowerCase().includes(f.name.toLowerCase())
+    );
+    return found?.image || 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=500&auto=format&fit=crop&q=60';
+  };
 
-  const displayedHistoryOrders = activeTab === 'instant'
-    ? instantOrders
-    : activeTab === 'scheduled'
-    ? scheduledExecutedOrders
-    : orderHistory;
+  // Categorize orders accurately based on actual status
+  const pendingOrders = orderHistory.filter(ord =>
+    ord.status === 'pending' ||
+    ord.status === 'placed' ||
+    ord.status === 'processing' ||
+    (ord.status === 'scheduled' && !ord.completedAt)
+  );
 
-  // Monthly Bill Calculations
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
+  const successfulOrders = orderHistory.filter(ord =>
+    ord.status === 'delivered' ||
+    ord.status === 'completed'
+  );
 
-  const currentMonthOrders = orderHistory.filter(ord => {
-    const d = new Date(ord.timestamp);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  });
+  const cancelledOrders = orderHistory.filter(ord =>
+    ord.status === 'cancelled'
+  );
 
-  const totalMonthSpent = currentMonthOrders.reduce((sum, ord) => sum + ord.amountPaid, 0);
-  const totalMonthSaved = currentMonthOrders.reduce((sum, ord) => sum + (ord.savings || 0), 0);
+  const handleCancel = async (orderId: string) => {
+    if (window.confirm('Are you sure you want to cancel this order?')) {
+      setCancellingOrderId(orderId);
+      await cancelOrder(orderId, 'Cancelled by customer via Order History');
+      setCancellingOrderId(null);
+    }
+  };
 
-  const handlePrintReceipt = () => {
-    const printMsg = language === 'ta'
-      ? 'மாத பில் அறிக்கை அச்சிட தயாரிக்கப்படுகிறது...'
-      : language === 'hi'
-      ? 'मासिक रसीद प्रिंट की जा रही है...'
-      : 'Preparing monthly bill receipt for print/download...';
-    showToast(printMsg);
-    window.print();
+  const handleTrack = () => {
+    setActiveView('tracking');
+  };
+
+  const handleReorder = (order: ExecutedOrder) => {
+    reorderItem(order);
+  };
+
+  const formatDateTime = (isoString?: string) => {
+    if (!isoString) return 'Just now';
+    try {
+      const d = new Date(isoString);
+      return `${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
+    } catch (e) {
+      return isoString;
+    }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-5xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-6 animate-fade-in pb-16">
       
-      <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
-        
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+      {/* Page Header */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#F0E5DC] shadow-xs space-y-2">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <ShoppingBag className="w-7 h-7 text-orange-600" />
-              {t('nav.orders')} ({orderHistory.length + pendingSchedules.length})
-            </h2>
-            <p className="text-xs text-slate-500 font-bold mt-1">
-              {t('orders.headerSubtitle')}
+            <div className="flex items-center space-x-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-[#FBE9E5] text-[#D93636] flex items-center justify-center shrink-0">
+                <Receipt className="w-5 h-5" />
+              </div>
+              <h1 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#33251F]">
+                My Order History
+              </h1>
+            </div>
+            <p className="text-xs sm:text-sm text-[#8A817A] mt-1 pl-12.5">
+              View and manage all your food orders in one place.
             </p>
           </div>
 
-          <span className="text-xs bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-black px-3.5 py-1.5 rounded-full border border-emerald-300">
-            {t('orders.autoDebited')}
-          </span>
+          <button
+            type="button"
+            onClick={() => setActiveView('search')}
+            className="flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#FBE9E5] hover:bg-[#FBE9E5]/80 text-[#D93636] border border-[#F0E5DC] transition-all cursor-pointer"
+          >
+            <Utensils className="w-3.5 h-3.5" />
+            <span>Discover Food</span>
+          </button>
         </div>
 
-        {/* ORDER TYPE TABS NAVIGATION */}
-        <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
-          
-          {/* Instant Orders Tab */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('instant')}
-            className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-              activeTab === 'instant'
-                ? 'bg-emerald-600 text-white shadow-md scale-102'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            <Zap className="w-4 h-4 text-yellow-300" />
-            <span>{t('orders.tabInstant')} ({instantOrders.length})</span>
-          </button>
+        {/* 3 CATEGORY TABS: Pending | Successful | Cancelled */}
+        <div className="pt-4 border-t border-[#F0E5DC]/70">
+          <div className="grid grid-cols-3 gap-2 bg-[#FBE9E5] p-1.5 rounded-2xl border border-[#F0E5DC]">
+            
+            {/* 1. Pending Tab */}
+            <button
+              type="button"
+              onClick={() => setActiveCategory('pending')}
+              className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+                activeCategory === 'pending'
+                  ? 'bg-amber-600 text-white shadow-xs font-black'
+                  : 'text-[#33251F] hover:bg-white/60'
+              }`}
+            >
+              <Hourglass className="w-4 h-4 shrink-0 text-amber-200" />
+              <span>Pending ({pendingOrders.length})</span>
+            </button>
 
-          {/* Pending Orders Tab */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('pending')}
-            className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-              activeTab === 'pending'
-                ? 'bg-amber-600 text-white shadow-md scale-102 animate-pulse'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            <Hourglass className="w-4 h-4 text-yellow-300" />
-            <span>{t('orders.tabPending')} ({pendingSchedules.length})</span>
-          </button>
+            {/* 2. Successful Tab */}
+            <button
+              type="button"
+              onClick={() => setActiveCategory('successful')}
+              className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+                activeCategory === 'successful'
+                  ? 'bg-emerald-600 text-white shadow-xs font-black'
+                  : 'text-[#33251F] hover:bg-white/60'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-200" />
+              <span>Successful ({successfulOrders.length})</span>
+            </button>
 
-          {/* Scheduled Executed Orders Tab */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('scheduled')}
-            className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-              activeTab === 'scheduled'
-                ? 'bg-purple-600 text-white shadow-md scale-102'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            <Clock className="w-4 h-4 text-white" />
-            <span>{t('orders.tabExecuted')} ({scheduledExecutedOrders.length})</span>
-          </button>
-
-          {/* Monthly Bill Summary Tab */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('monthly_bill')}
-            className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-              activeTab === 'monthly_bill'
-                ? 'bg-blue-600 text-white shadow-md scale-102'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            <FileText className="w-4 h-4 text-sky-200" />
-            <span>{t('orders.tabMonthlyBill')}</span>
-          </button>
-
-          {/* All Orders Tab */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('all')}
-            className={`py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-              activeTab === 'all'
-                ? 'bg-orange-600 text-white shadow-md scale-102'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span>{t('orders.tabAll')} ({orderHistory.length})</span>
-          </button>
-
-        </div>
-
-        {/* PENDING ORDERS TAB CONTENT */}
-        {activeTab === 'pending' && (
-          <div className="space-y-4">
-            {pendingSchedules.length === 0 ? (
-              <div className="p-10 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-sm">
-                {t('orders.noPending')}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {pendingSchedules.map(sched => {
-                  const strategyKey = `strategy.${sched.strategy}`;
-                  const simpleStrategy = t(strategyKey) !== strategyKey ? t(strategyKey) : sched.strategy;
-                  return (
-                    <div
-                      key={sched.id}
-                      className="p-5 rounded-2xl border-2 border-amber-400/60 bg-amber-500/5 dark:bg-amber-950/20 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                          <span className="text-xs font-bold text-slate-400 font-mono">#{sched.id}</span>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 flex items-center gap-1 border border-amber-300 animate-pulse">
-                            <Hourglass className="w-3 h-3 text-amber-600 dark:text-amber-400" /> {t('orders.pendingDelivery')}
-                          </span>
-                        </div>
-
-                        <h4 className="text-lg font-black text-slate-900 dark:text-white">
-                          {sched.foodItemName} (x{sched.quantity})
-                        </h4>
-
-                        <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold flex items-center gap-2">
-                          <span>{t('orders.slot')} <strong className="text-orange-600 dark:text-orange-400">{sched.slotName}</strong></span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-amber-600" /> {t('orders.time')} <strong className="text-slate-900 dark:text-white">{toTimeText(sched.time)}</strong></span>
-                        </p>
-                      </div>
-
-                      <div className="flex items-center space-x-4 text-right w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-amber-200 dark:border-slate-700 pt-3 sm:pt-0">
-                        <div>
-                          <span className="text-xs text-slate-500 font-bold block">{t('orders.autoDebitsWallet')}</span>
-                          <span className="text-xs font-black text-amber-700 dark:text-amber-400 uppercase">
-                            {simpleStrategy}
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => executeScheduleNow(sched.id)}
-                          className="py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-md flex items-center space-x-1.5 cursor-pointer transform active:scale-95"
-                          title="Execute order right now"
-                        >
-                          <PlayCircle className="w-4 h-4 text-yellow-300" />
-                          <span>{t('orders.triggerNow')}</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* 3. Cancelled Tab */}
+            <button
+              type="button"
+              onClick={() => setActiveCategory('cancelled')}
+              className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+                activeCategory === 'cancelled'
+                  ? 'bg-[#D93636] text-white shadow-xs font-black'
+                  : 'text-[#33251F] hover:bg-white/60'
+              }`}
+            >
+              <XCircle className="w-4 h-4 shrink-0 text-rose-200" />
+              <span>Cancelled ({cancelledOrders.length})</span>
+            </button>
           </div>
-        )}
+        </div>
+      </div>
 
-        {/* MONTHLY BILL SUMMARY TAB */}
-        {activeTab === 'monthly_bill' && (
-          <div className="space-y-6">
-            <div className="p-6 bg-slate-900 text-white rounded-3xl border-2 border-blue-500/40 shadow-xl space-y-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-700 pb-4">
-                <div>
-                  <h3 className="text-xl font-black text-white flex items-center gap-2">
-                    <FileText className="w-6 h-6 text-blue-400" />
-                    {t('bill.summaryTitle')}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-bold mt-1">
-                    {t('bill.summarySubtitle')} ({now.toLocaleString('default', { month: 'long', year: 'numeric' })})
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handlePrintReceipt}
-                  className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-md flex items-center space-x-2 cursor-pointer transition-all active:scale-95"
-                >
-                  <Printer className="w-4 h-4 text-white" />
-                  <span>{t('bill.printReceipt')}</span>
-                </button>
+      {/* =========================================================================
+          CATEGORY 1: PENDING ORDERS
+          ========================================================================= */}
+      {activeCategory === 'pending' && (
+        <div className="space-y-4">
+          {pendingOrders.length === 0 ? (
+            <div className="bg-white rounded-3xl p-10 sm:p-14 text-center border border-[#F0E5DC] shadow-xs space-y-4">
+              <div className="w-14 h-14 rounded-full bg-[#FBE9E5] text-[#D93636] flex items-center justify-center mx-auto">
+                <Hourglass className="w-7 h-7 text-amber-600" />
               </div>
-
-              {/* Monthly Stats Summary Boxes */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                <div className="p-4 bg-slate-800/80 rounded-2xl border border-slate-700 text-center">
-                  <span className="text-xs font-extrabold text-slate-400 block">{t('bill.totalSpent')}</span>
-                  <span className="text-2xl font-black text-emerald-400 mt-1 block">₹{totalMonthSpent.toFixed(2)}</span>
-                </div>
-
-                <div className="p-4 bg-slate-800/80 rounded-2xl border border-slate-700 text-center">
-                  <span className="text-xs font-extrabold text-slate-400 block">{t('bill.totalSaved')}</span>
-                  <span className="text-2xl font-black text-amber-400 mt-1 block">₹{totalMonthSaved.toFixed(2)}</span>
-                </div>
-
-                <div className="p-4 bg-slate-800/80 rounded-2xl border border-slate-700 text-center">
-                  <span className="text-xs font-extrabold text-slate-400 block">{t('bill.totalOrders')}</span>
-                  <span className="text-2xl font-black text-blue-400 mt-1 block">{currentMonthOrders.length}</span>
-                </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-lg text-[#33251F]">You have no pending orders.</h3>
+                <p className="text-xs text-[#8A817A] max-w-sm mx-auto">
+                  When you place an order, it will appear here with live tracking updates until it is delivered.
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setActiveView('search')}
+                className="px-5 py-2.5 rounded-xl bg-[#D93636] hover:bg-[#C02B2B] text-white font-bold text-xs shadow-xs transition-all cursor-pointer inline-flex items-center space-x-2"
+              >
+                <span>Order Food Now</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
+          ) : (
+            pendingOrders.map(ord => {
+              const image = getFoodImage(ord.foodName, ord.foodImage);
+              const isScheduled = ord.orderType === 'scheduled' || ord.isAutoOrder || ord.status === 'scheduled';
+              return (
+                <div
+                  key={ord.id}
+                  className="bg-white rounded-3xl p-5 sm:p-6 border border-[#F0E5DC] shadow-xs space-y-4 hover:border-amber-300 transition-all"
+                >
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[#F0E5DC]/60">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="text-xs font-mono font-bold text-[#8A817A]">#{ord.id}</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#FBE9E5] text-[#D93636] uppercase">
+                        {ord.platformName || 'AutoFeast Direct'}
+                      </span>
+                      {isScheduled && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-purple-600" /> Auto-Scheduled
+                        </span>
+                      )}
+                    </div>
 
-            {/* Itemized Receipt Table */}
-            {currentMonthOrders.length === 0 ? (
-              <div className="p-10 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-sm">
-                {t('bill.noOrdersMonth')}
-              </div>
-            ) : (
-              <div className="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-md">
-                <div className="p-4 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-black text-xs text-slate-700 dark:text-slate-300 flex justify-between items-center">
-                  <span>ITEM & RESTAURANT</span>
-                  <span>AMOUNT PAID</span>
-                </div>
+                    {/* Status Badge: Orange / Amber */}
+                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1.5">
+                      <Hourglass className="w-3.5 h-3.5 animate-spin" />
+                      <span>{isScheduled ? 'Scheduled (In Queue)' : 'Order Placed (In Progress)'}</span>
+                    </span>
+                  </div>
 
-                <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {currentMonthOrders.map(ord => (
-                    <div key={ord.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                      <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-black text-slate-900 dark:text-white">{ord.foodName}</span>
-                          <span className="text-[10px] font-extrabold bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300 px-2 py-0.5 rounded-full uppercase">
-                            {ord.platformName}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 font-semibold">
-                          {t('orders.restaurantLabel')} <strong className="text-slate-700 dark:text-slate-300">{ord.restaurant}</strong> • {new Date(ord.timestamp).toLocaleDateString()} {new Date(ord.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <div className="flex flex-col sm:flex-row items-start gap-4">
+                    {/* Food Image */}
+                    <img
+                      src={image}
+                      alt={ord.foodName}
+                      className="w-20 h-20 rounded-2xl object-cover shrink-0 border border-[#F0E5DC]"
+                    />
+
+                    {/* Details */}
+                    <div className="flex-1 space-y-1.5">
+                      <h3 className="font-bold text-base sm:text-lg text-[#33251F]">
+                        {ord.foodName}
+                      </h3>
+                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
+                        <Utensils className="w-3.5 h-3.5 text-[#D93636]" />
+                        <span>Restaurant: <strong className="text-[#33251F]">{ord.restaurant}</strong></span>
+                        <span className="text-[#8A817A]">•</span>
+                        <span>Qty: <strong className="text-[#33251F]">{ord.quantity || 1}</strong></span>
+                      </p>
+
+                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-[#8A817A]" />
+                        <span>Placed: {formatDateTime(ord.timestamp)}</span>
+                      </p>
+
+                      {ord.deliveryAddress && (
+                        <p className="text-xs text-[#8A817A] flex items-center gap-1.5 truncate">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="truncate">Deliver to: <strong className="text-[#33251F]">{ord.deliveryAddress}</strong></span>
                         </p>
-                      </div>
+                      )}
 
-                      <div className="text-right">
-                        <span className="text-base font-black text-slate-900 dark:text-white block">₹{ord.amountPaid.toFixed(2)}</span>
+                      <p className="text-xs text-amber-700 font-semibold flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Expected Delivery: <strong>{ord.expectedDeliveryTime || '25-30 minutes'}</strong></span>
+                      </p>
+                    </div>
+
+                    {/* Total & Action Buttons */}
+                    <div className="sm:text-right w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-[#F0E5DC] flex sm:flex-col justify-between items-end gap-3">
+                      <div>
+                        <span className="text-lg sm:text-xl font-bold text-[#33251F] block">
+                          ₹{ord.amountPaid.toFixed(0)}
+                        </span>
                         {ord.savings > 0 && (
-                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                            {t('orders.savedLabel')} ₹{ord.savings.toFixed(2)}
+                          <span className="text-[10px] font-bold text-emerald-600 block">
+                            Saved ₹{ord.savings.toFixed(0)}
                           </span>
                         )}
                       </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Track Button */}
+                        <button
+                          type="button"
+                          onClick={handleTrack}
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                        >
+                          <Navigation className="w-3.5 h-3.5" />
+                          <span>Track Order</span>
+                        </button>
+
+                        {/* Cancel Button */}
+                        <button
+                          type="button"
+                          disabled={cancellingOrderId === ord.id}
+                          onClick={() => handleCancel(ord.id)}
+                          className="px-3 py-1.5 rounded-xl bg-[#FBE9E5] hover:bg-rose-100 text-[#D93636] font-bold text-xs border border-[#F0E5DC] transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          <span>{cancellingOrderId === ord.id ? 'Cancelling...' : 'Cancel'}</span>
+                        </button>
+                      </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* =========================================================================
+          CATEGORY 2: SUCCESSFUL ORDERS
+          ========================================================================= */}
+      {activeCategory === 'successful' && (
+        <div className="space-y-4">
+          {successfulOrders.length === 0 ? (
+            <div className="bg-white rounded-3xl p-10 sm:p-14 text-center border border-[#F0E5DC] shadow-xs space-y-4">
+              <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-7 h-7 text-emerald-600" />
               </div>
-            )}
-          </div>
-        )}
-
-        {/* EXECUTED ORDER HISTORY CONTENT (INSTANT / SCHEDULED / ALL) */}
-        {activeTab !== 'pending' && activeTab !== 'monthly_bill' && (
-          <div>
-            {displayedHistoryOrders.length === 0 ? (
-              <div className="p-10 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-sm">
-                {activeTab === 'instant'
-                  ? t('orders.noInstant')
-                  : activeTab === 'scheduled'
-                  ? t('orders.noExecuted')
-                  : t('orders.noOrdersYet')}
+              <div className="space-y-1">
+                <h3 className="font-bold text-lg text-[#33251F]">Your completed orders will appear here.</h3>
+                <p className="text-xs text-[#8A817A] max-w-sm mx-auto">
+                  Once your food has been delivered, you can find the complete receipt and one-click reorder options here.
+                </p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {displayedHistoryOrders.map(ord => {
-                  const isScheduled = ord.orderType === 'scheduled' || (!ord.orderType && ord.isAutoOrder);
-                  return (
-                    <div
-                      key={ord.id}
-                      className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 shadow-sm hover:shadow-md transition-shadow flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                          <span className="text-xs font-bold text-slate-400 font-mono">#{ord.id}</span>
-                          
-                          {/* Platform Tag */}
-                          <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300 uppercase">
-                            {ord.platformName}
-                          </span>
-
-                          {/* Order Type Badge */}
-                          {isScheduled ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-300 flex items-center gap-1 border border-purple-300">
-                              <Sparkles className="w-3 h-3 text-purple-600 dark:text-purple-300" /> {t('orders.autoScheduledBadge')}
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 flex items-center gap-1 border border-emerald-300">
-                              <Zap className="w-3 h-3 text-emerald-600 dark:text-emerald-300" /> {t('orders.instantGpsBadge')}
-                            </span>
-                          )}
-                        </div>
-
-                        <h4 className="text-lg font-black text-slate-900 dark:text-white">
-                          {ord.foodName}
-                        </h4>
-
-                        <p className="text-xs text-slate-500 font-semibold">
-                          {t('orders.restaurantLabel')} <span className="font-extrabold text-slate-700 dark:text-slate-300">{ord.restaurant}</span> • {new Date(ord.timestamp).toLocaleString()}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center space-x-6 text-right w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-slate-200 dark:border-slate-700 pt-3 sm:pt-0">
-                        <div>
-                          <span className="text-lg font-black text-slate-900 dark:text-white block">
-                            ₹{ord.amountPaid.toFixed(2)}
-                          </span>
-                          {ord.savings > 0 && (
-                            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 justify-end">
-                              <Tag className="w-3 h-3" /> {t('orders.savedLabel')} ₹{ord.savings.toFixed(2)}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center space-x-1 text-emerald-600 dark:text-emerald-400 text-xs font-black bg-emerald-50 dark:bg-emerald-950 px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800">
-                          <CheckCircle className="w-4 h-4" />
-                          <span>{t('orders.deliveredBadge')}</span>
-                        </div>
-                      </div>
+              <button
+                type="button"
+                onClick={() => setActiveView('search')}
+                className="px-5 py-2.5 rounded-xl bg-[#D93636] hover:bg-[#C02B2B] text-white font-bold text-xs shadow-xs transition-all cursor-pointer inline-flex items-center space-x-2"
+              >
+                <span>Explore Menu</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            successfulOrders.map(ord => {
+              const image = getFoodImage(ord.foodName, ord.foodImage);
+              return (
+                <div
+                  key={ord.id}
+                  className="bg-white rounded-3xl p-5 sm:p-6 border border-[#F0E5DC] shadow-xs space-y-4 hover:border-emerald-300 transition-all"
+                >
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[#F0E5DC]/60">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="text-xs font-mono font-bold text-[#8A817A]">#{ord.id}</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#FBE9E5] text-[#D93636] uppercase">
+                        {ord.platformName || 'AutoFeast Direct'}
+                      </span>
                     </div>
-                  );
-                })}
+
+                    {/* Status Badge: Green */}
+                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Delivered Successfully</span>
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-start gap-4">
+                    {/* Food Image */}
+                    <img
+                      src={image}
+                      alt={ord.foodName}
+                      className="w-20 h-20 rounded-2xl object-cover shrink-0 border border-[#F0E5DC]"
+                    />
+
+                    {/* Details */}
+                    <div className="flex-1 space-y-1.5">
+                      <h3 className="font-bold text-base sm:text-lg text-[#33251F]">
+                        {ord.foodName}
+                      </h3>
+                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
+                        <Utensils className="w-3.5 h-3.5 text-[#D93636]" />
+                        <span>Restaurant: <strong className="text-[#33251F]">{ord.restaurant}</strong></span>
+                        <span className="text-[#8A817A]">•</span>
+                        <span>Qty: <strong className="text-[#33251F]">{ord.quantity || 1}</strong></span>
+                      </p>
+
+                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-[#8A817A]" />
+                        <span>Ordered: {formatDateTime(ord.timestamp)}</span>
+                      </p>
+
+                      {ord.completedAt && (
+                        <p className="text-xs text-emerald-700 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Delivered at: {formatDateTime(ord.completedAt)}</span>
+                        </p>
+                      )}
+
+                      {ord.deliveryAddress && (
+                        <p className="text-xs text-[#8A817A] flex items-center gap-1.5 truncate">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="truncate">Delivered to: <strong className="text-[#33251F]">{ord.deliveryAddress}</strong></span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Total & Reorder Button */}
+                    <div className="sm:text-right w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-[#F0E5DC] flex sm:flex-col justify-between items-end gap-3">
+                      <div>
+                        <span className="text-lg sm:text-xl font-bold text-[#33251F] block">
+                          ₹{ord.amountPaid.toFixed(0)}
+                        </span>
+                        {ord.savings > 0 && (
+                          <span className="text-[10px] font-bold text-emerald-600 block">
+                            Saved ₹{ord.savings.toFixed(0)}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Reorder Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleReorder(ord)}
+                        className="px-4 py-2 rounded-xl bg-[#D93636] hover:bg-[#C02B2B] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Reorder</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* =========================================================================
+          CATEGORY 3: CANCELLED ORDERS
+          ========================================================================= */}
+      {activeCategory === 'cancelled' && (
+        <div className="space-y-4">
+          {cancelledOrders.length === 0 ? (
+            <div className="bg-white rounded-3xl p-10 sm:p-14 text-center border border-[#F0E5DC] shadow-xs space-y-4">
+              <div className="w-14 h-14 rounded-full bg-rose-50 text-[#D93636] flex items-center justify-center mx-auto">
+                <XCircle className="w-7 h-7 text-[#D93636]" />
               </div>
-            )}
-          </div>
-        )}
-      </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-lg text-[#33251F]">You have no cancelled orders.</h3>
+                <p className="text-xs text-[#8A817A] max-w-sm mx-auto">
+                  Any orders cancelled by you or refunded will be recorded here with cancellation details.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveView('search')}
+                className="px-5 py-2.5 rounded-xl bg-[#D93636] hover:bg-[#C02B2B] text-white font-bold text-xs shadow-xs transition-all cursor-pointer inline-flex items-center space-x-2"
+              >
+                <span>Explore Menu</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            cancelledOrders.map(ord => {
+              const image = getFoodImage(ord.foodName, ord.foodImage);
+              return (
+                <div
+                  key={ord.id}
+                  className="bg-white rounded-3xl p-5 sm:p-6 border border-[#F0E5DC] shadow-xs space-y-4 hover:border-rose-300 transition-all opacity-90"
+                >
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[#F0E5DC]/60">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="text-xs font-mono font-bold text-[#8A817A]">#{ord.id}</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#FBE9E5] text-[#D93636] uppercase">
+                        {ord.platformName || 'AutoFeast Direct'}
+                      </span>
+                    </div>
+
+                    {/* Status Badge: Muted Red */}
+                    <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1.5">
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>Cancelled & Refunded</span>
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-start gap-4">
+                    {/* Food Image */}
+                    <img
+                      src={image}
+                      alt={ord.foodName}
+                      className="w-20 h-20 rounded-2xl object-cover shrink-0 border border-[#F0E5DC] grayscale-30"
+                    />
+
+                    {/* Details */}
+                    <div className="flex-1 space-y-1.5">
+                      <h3 className="font-bold text-base sm:text-lg text-[#33251F]">
+                        {ord.foodName}
+                      </h3>
+                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
+                        <Utensils className="w-3.5 h-3.5 text-[#D93636]" />
+                        <span>Restaurant: <strong className="text-[#33251F]">{ord.restaurant}</strong></span>
+                        <span className="text-[#8A817A]">•</span>
+                        <span>Qty: <strong className="text-[#33251F]">{ord.quantity || 1}</strong></span>
+                      </p>
+
+                      <p className="text-xs text-[#8A817A] flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-[#8A817A]" />
+                        <span>Original Order: {formatDateTime(ord.timestamp)}</span>
+                      </p>
+
+                      {ord.cancelledAt && (
+                        <p className="text-xs text-rose-700 flex items-center gap-1.5">
+                          <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                          <span>Cancelled on: {formatDateTime(ord.cancelledAt)}</span>
+                        </p>
+                      )}
+
+                      <p className="text-xs text-[#8A817A] bg-[#FBE9E5]/60 p-2 rounded-xl border border-[#F0E5DC] inline-block">
+                        Reason: <strong className="text-[#33251F]">{ord.cancellationReason || 'Customer requested cancellation'}</strong>
+                      </p>
+                    </div>
+
+                    {/* Amount & Reorder */}
+                    <div className="sm:text-right w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-[#F0E5DC] flex sm:flex-col justify-between items-end gap-3">
+                      <div>
+                        <span className="text-lg sm:text-xl font-bold text-[#8A817A] line-through block">
+                          ₹{ord.amountPaid.toFixed(0)}
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-600 block">
+                          Amount Credited to Wallet
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleReorder(ord)}
+                        className="px-4 py-2 rounded-xl bg-[#D93636] hover:bg-[#C02B2B] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Reorder Item</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
 
     </div>
   );

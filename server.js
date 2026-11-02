@@ -472,6 +472,33 @@ export const RestrictedItem = mongoose.models.RestrictedItem || mongoose.model('
 export const ApprovalRequest = mongoose.models.ApprovalRequest || mongoose.model('ApprovalRequest', ApprovalRequestSchema);
 export const CartItemModel = mongoose.models.CartItem || mongoose.model('CartItem', CartItemSchema);
 
+const OrderRecordSchema = new mongoose.Schema({
+  id: { type: String, required: true, index: true },
+  userId: { type: String, required: true, index: true },
+  foodName: { type: String, required: true },
+  restaurant: { type: String, required: true },
+  platform: { type: String, default: 'swiggy' },
+  platformName: { type: String, default: 'Swiggy' },
+  amountPaid: { type: Number, required: true },
+  originalPrice: { type: Number, default: 0 },
+  savings: { type: Number, default: 0 },
+  rating: { type: Number, default: 4.8 },
+  timestamp: { type: String, default: () => new Date().toISOString() },
+  status: { type: String, default: 'placed' },
+  isAutoOrder: { type: Boolean, default: false },
+  orderType: { type: String, default: 'instant' },
+  deliveryAddress: { type: String },
+  foodImage: { type: String },
+  quantity: { type: Number, default: 1 },
+  completedAt: { type: String },
+  cancelledAt: { type: String },
+  cancellationReason: { type: String },
+  expectedDeliveryTime: { type: String }
+}, { timestamps: true });
+
+export const OrderRecordModel = mongoose.models.OrderRecord || mongoose.model('OrderRecord', OrderRecordSchema);
+const fallbackOrderRecordsDb = [];
+
 // In-Memory Database Fallbacks (Empty in Production, Populated in Test Fixtures)
 export const fallbackUsersDb = [];
 export const fallbackSchedulesDb = [];
@@ -3471,6 +3498,207 @@ app.post('/api/orders/create', async (req, res) => {
       await rollbackClaimedApprovals(procResult.claimedApprovalIds);
     }
     return res.status(503).json({ success: false, error: `Database error: ${err.message}` });
+  }
+});
+
+// SERVER-SIDE SCHEDULED CRON EXECUTION (Vercel Cron & Background Scheduler)
+app.all('/api/cron-execute-schedules', async (req, res) => {
+  try {
+    const now = new Date();
+    // India Standard Time (Asia/Kolkata)
+    const istTimeStr = now.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' });
+    const istDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+    const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][now.getDay()];
+
+    let schedules = [];
+    if (mongoose.connection.readyState === 1) {
+      schedules = await Schedule.find({ isEnabled: true });
+    } else {
+      schedules = fallbackSchedulesDb.filter(s => s.isEnabled);
+    }
+
+    const executionResults = [];
+
+    for (const schedule of schedules) {
+      const scheduleTime = schedule.time || '08:00';
+      const startDate = schedule.startDate || istDateStr;
+      const endDate = schedule.endDate;
+
+      // 1. Date window check
+      if (istDateStr < startDate) {
+        executionResults.push({ id: schedule.id, status: 'skipped_future_start_date', startDate });
+        continue;
+      }
+      if (endDate && istDateStr > endDate) {
+        executionResults.push({ id: schedule.id, status: 'skipped_schedule_expired', endDate });
+        continue;
+      }
+
+      // 2. Day of week check for custom/weekly frequencies
+      if (schedule.frequency === 'weekly' || schedule.frequency === 'custom') {
+        const selectedDays = schedule.selectedDays || [];
+        if (selectedDays.length > 0 && !selectedDays.includes(dayOfWeek)) {
+          executionResults.push({ id: schedule.id, status: 'skipped_day_mismatch', currentDay: dayOfWeek, selectedDays });
+          continue;
+        }
+      }
+
+      // 3. Time window check (prevent duplicate execution on same day)
+      const lastRunDate = schedule.lastRun ? schedule.lastRun.split('T')[0] : null;
+      if (lastRunDate === istDateStr) {
+        executionResults.push({ id: schedule.id, status: 'already_executed_today', lastRunDate });
+        continue;
+      }
+
+      // 4. Safeguards: Check if nominee restricted or requires PIN
+      const isRestricted = (schedule.requiresNomineeApproval || schedule.isRestricted);
+      if (isRestricted && !schedule.approvalId) {
+        executionResults.push({
+          id: schedule.id,
+          status: 'paused_awaiting_nominee_approval',
+          foodItem: schedule.foodItemName,
+          reason: 'Nominee approval required before automatic order placement'
+        });
+        continue;
+      }
+
+      // 5. Execute Auto-Order Initiation
+      const orderId = `ord_auto_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const orderRecord = {
+        id: orderId,
+        userId: schedule.userId || 'default_user',
+        foodName: schedule.foodItemName || 'Scheduled Meal',
+        restaurant: schedule.restaurant || 'AutoFeast Partner',
+        amountPaid: schedule.price || 110,
+        originalPrice: (schedule.price || 110) + 20,
+        savings: 20,
+        rating: 4.8,
+        timestamp: new Date().toISOString(),
+        status: 'placed',
+        isAutoOrder: true,
+        orderType: 'scheduled',
+        deliveryAddress: schedule.deliveryAddress || 'User Default Address'
+      };
+
+      if (mongoose.connection.readyState === 1) {
+        await OrderRecordModel.create(orderRecord);
+        await Schedule.updateOne({ id: schedule.id }, {
+          $set: {
+            lastRun: new Date().toISOString(),
+            lastRunDate: istDateStr
+          }
+        });
+      } else {
+        fallbackOrderRecordsDb.unshift(orderRecord);
+        schedule.lastRun = new Date().toISOString();
+        schedule.lastRunDate = istDateStr;
+      }
+
+      executionResults.push({
+        id: schedule.id,
+        status: 'order_initiated_successfully',
+        orderId,
+        foodName: schedule.foodItemName,
+        restaurant: schedule.restaurant,
+        amount: schedule.price || 110
+      });
+    }
+
+    return res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      timeZone: 'Asia/Kolkata',
+      istDate: istDateStr,
+      istTime: istTimeStr,
+      totalChecked: schedules.length,
+      results: executionResults
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET Order History (Requires Verified Auth Session or userId)
+app.get('/api/orders', async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserIdFromSession(req) || req.query?.userId || req.headers['x-user-id'] || 'default_user';
+
+    if (mongoose.connection.readyState === 1) {
+      const orders = await OrderRecordModel.find({ userId }).sort({ createdAt: -1 });
+      return res.json({ success: true, orders });
+    } else {
+      const orders = fallbackOrderRecordsDb.filter(o => o.userId === userId);
+      return res.json({ success: true, orders });
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST Save/Upsert Order in History
+app.post('/api/orders/save', async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserIdFromSession(req) || req.body?.userId || req.headers['x-user-id'] || 'default_user';
+    const orderData = req.body;
+    if (!orderData || !orderData.id) {
+      return res.status(400).json({ success: false, error: 'Order ID required' });
+    }
+
+    const payload = {
+      ...orderData,
+      userId
+    };
+
+    if (mongoose.connection.readyState === 1) {
+      const saved = await OrderRecordModel.findOneAndUpdate(
+        { id: orderData.id, userId },
+        payload,
+        { upsert: true, new: true }
+      );
+      return res.json({ success: true, order: saved });
+    } else {
+      const idx = fallbackOrderRecordsDb.findIndex(o => o.id === orderData.id && o.userId === userId);
+      if (idx >= 0) {
+        fallbackOrderRecordsDb[idx] = { ...fallbackOrderRecordsDb[idx], ...payload };
+      } else {
+        fallbackOrderRecordsDb.unshift(payload);
+      }
+      return res.json({ success: true, order: payload });
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH Update Order Status (placed -> cancelled, delivered, etc.)
+app.patch('/api/orders/:id/status', async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserIdFromSession(req) || req.body?.userId || req.headers['x-user-id'] || 'default_user';
+    const { id } = req.params;
+    const { status, cancellationReason, cancelledAt, completedAt } = req.body;
+
+    const updateFields = { status };
+    if (cancellationReason) updateFields.cancellationReason = cancellationReason;
+    if (cancelledAt) updateFields.cancelledAt = cancelledAt;
+    if (completedAt) updateFields.completedAt = completedAt;
+
+    if (mongoose.connection.readyState === 1) {
+      const updated = await OrderRecordModel.findOneAndUpdate(
+        { id, userId },
+        { $set: updateFields },
+        { new: true }
+      );
+      return res.json({ success: true, order: updated });
+    } else {
+      const idx = fallbackOrderRecordsDb.findIndex(o => o.id === id && o.userId === userId);
+      if (idx >= 0) {
+        fallbackOrderRecordsDb[idx] = { ...fallbackOrderRecordsDb[idx], ...updateFields };
+        return res.json({ success: true, order: fallbackOrderRecordsDb[idx] });
+      }
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

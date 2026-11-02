@@ -366,7 +366,7 @@ export class AutoOrderBackgroundService {
     const effectiveFoodItemId = (override && override.foodItemId) ? override.foodItemId : schedule.foodItemId;
     const effectiveFoodItemName = (override && override.foodItemName) ? override.foodItemName : schedule.foodItemName;
     const effectiveRestaurant = (override && override.restaurant) ? override.restaurant : schedule.restaurant;
-    const effectiveQuantity = (override && override.quantity) ? override.quantity : schedule.quantity;
+    const effectiveQuantity = (override && override.quantity) ? override.quantity : (schedule.quantity || 1);
     const effectiveStrategy = (override && override.strategy) ? override.strategy : schedule.strategy;
 
     const foodItem = INDIAN_FOOD_CATALOG.find(f => f.id === effectiveFoodItemId) || INDIAN_FOOD_CATALOG[0];
@@ -390,7 +390,7 @@ export class AutoOrderBackgroundService {
       );
     }
 
-    // Save executed order record
+    // Save executed order record (starts in placed/pending status)
     const executedOrder: ExecutedOrder = {
       id: orderId,
       foodName: `${effectiveFoodItemName} (x${effectiveQuantity})${override ? ' (Date Customised)' : ''}`,
@@ -402,7 +402,7 @@ export class AutoOrderBackgroundService {
       savings: Math.max(0, (chosenPlatform.originalPrice - chosenPlatform.price) * effectiveQuantity),
       rating: chosenPlatform.rating,
       timestamp: new Date().toISOString(),
-      status: 'delivered',
+      status: 'placed',
       isAutoOrder: true,
       orderType: 'scheduled'
     };
