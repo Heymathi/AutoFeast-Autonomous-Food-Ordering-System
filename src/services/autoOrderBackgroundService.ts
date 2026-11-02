@@ -411,8 +411,9 @@ export class AutoOrderBackgroundService {
     const updatedHistory = [executedOrder, ...history];
     localStorage.setItem(ORDER_HISTORY_KEY, JSON.stringify(updatedHistory));
 
-    // Update schedule's lastRun timestamp
+    // Update schedule's lastRun timestamp and lastRunDate
     schedule.lastRun = new Date().toISOString();
+    schedule.lastRunDate = todayStr;
     this.saveSchedule(schedule);
 
     // Notify listeners
@@ -454,17 +455,23 @@ export class AutoOrderBackgroundService {
         return; // Schedule duration has ended
       }
 
-      // 2. Check Recurrence Frequency
+      // 2. Check Recurrence Frequency (supporting both weekly and custom weekday selections)
       if (schedule.frequency === 'once' && todayStr !== startDate) {
         return;
       }
 
-      if (schedule.frequency === 'weekly' && schedule.selectedDays && schedule.selectedDays.length > 0) {
+      if ((schedule.frequency === 'weekly' || schedule.frequency === 'custom') && schedule.selectedDays && schedule.selectedDays.length > 0) {
         const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
         const currentDayName = dayNames[now.getDay()];
         if (!schedule.selectedDays.map(d => d.toLowerCase()).includes(currentDayName)) {
-          return;
+          return; // Today is not one of the selected recurrence weekdays
         }
+      }
+
+      // Check if already executed today (idempotency safeguard)
+      const existingLastRunDate = schedule.lastRunDate || (schedule.lastRun ? schedule.lastRun.split('T')[0] : null);
+      if (existingLastRunDate === todayStr) {
+        return; // Already executed today
       }
 
       // 3. Check Per-Date Override or Excluded Dates for Today
@@ -496,24 +503,31 @@ export class AutoOrderBackgroundService {
           console.log(`[AutoOrderBackgroundService]: Triggering 5-minute pre-order voice confirmation for schedule "${schedule.slotName}" (${schedule.foodItemName})`);
           this.preOrderListeners.forEach(cb => cb(schedule));
         }
-      }
 
-      if (targetTime === currentHoursMin) {
-        const lastRunDate = schedule.lastRun ? new Date(schedule.lastRun) : null;
-        const isSameMinute = lastRunDate && (now.getTime() - lastRunDate.getTime() < 60000);
+        // TIER 1 & TIER 2 EXECUTION LOGIC:
+        // Execute if exact minute matches, OR if within 30-minute catch-up grace period upon opening
+        const minutesSinceTarget = currentTotalMinutes - targetTotalMinutes;
+        const isExactMinute = targetTime === currentHoursMin;
+        const isCatchUpDue = minutesSinceTarget > 0 && minutesSinceTarget <= 30; // 30-minute grace period
 
-        if (!isSameMinute) {
+        if (isExactMinute || isCatchUpDue) {
           // Check Daily Order Limit before executing scheduled order
           if (this.isDailyLimitReachedToday()) {
-            console.warn(`[AutoOrderBackgroundService]: Daily order limit reached (6/6). Skipping auto-execution for schedule "${schedule.slotName}" until limit is renewed.`);
+            console.warn(`[AutoOrderBackgroundService]: Daily order limit reached (6/6). Skipping auto-execution for schedule "${schedule.slotName}".`);
             return;
           }
 
           try {
+            console.log(`[AutoOrderBackgroundService]: Auto-executing schedule "${schedule.slotName}" (mode: ${isExactMinute ? 'exact' : 'catch-up'})`);
             this.executeScheduleNow(schedule.id, todayStr);
           } catch (err) {
             console.error('Failed to auto-execute schedule:', err);
           }
+        } else if (minutesSinceTarget > 30) {
+          // Beyond 30-minute grace period — mark as missed for today to prevent ordering hours late
+          console.log(`[AutoOrderBackgroundService]: Schedule "${schedule.slotName}" was due at ${targetTime} (over 30m ago). Marking missed for today.`);
+          schedule.lastRunDate = todayStr;
+          this.saveSchedule(schedule);
         }
       }
     });
@@ -524,6 +538,19 @@ export class AutoOrderBackgroundService {
    */
   public static startService() {
     if (this.timerId !== null) return;
+
+    // Run immediate check upon startup
+    this.checkSchedules();
+
+    // Hook window focus / visibility change for instant catch-up when reopening tab
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', () => this.checkSchedules());
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          this.checkSchedules();
+        }
+      });
+    }
 
     this.timerId = setInterval(() => {
       this.checkSchedules();

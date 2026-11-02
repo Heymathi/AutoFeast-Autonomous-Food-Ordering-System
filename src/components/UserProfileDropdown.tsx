@@ -194,7 +194,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onNavi
                     {t('profile.linkedBankAccountDetails') || 'Linked Bank Account Details'}
                   </p>
                   <span className="text-[11px] font-bold text-[#D93636] bg-[#FBE9E5] px-1.5 py-0.5 rounded-sm">
-                    ₹{walletBalance.toFixed(0)}
+                    ₹{(Number.isFinite(walletBalance) ? walletBalance : 2500).toFixed(0)}
                   </span>
                 </div>
                 <p className="text-[11px] text-[#8A817A] truncate">

@@ -48,16 +48,24 @@ export const WalletModal: React.FC = () => {
             : 'bg-[#FBE9E5] text-[#33251F] border-2 border-[#F0E5DC]'
         }`}>
           <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <Wallet className="w-8 h-8 text-[#D93636]" />
-              <h2 className="text-xl font-black uppercase tracking-wider text-[#33251F]">{t('wallet.balance')}</h2>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Wallet className="w-8 h-8 text-[#D93636]" />
+                <h2 className="text-xl font-black uppercase tracking-wider text-[#33251F]">{t('wallet.balance')}</h2>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                Demo / Sandbox Credits
+              </span>
             </div>
             <div className="text-4xl sm:text-5xl font-black text-[#D93636]">
-              ₹{walletBalance.toFixed(2)}
+              ₹{(Number.isFinite(walletBalance) ? walletBalance : 2500).toFixed(2)}
             </div>
             <p className="text-xs text-[#4A5568] flex items-center gap-1 font-semibold">
               <ShieldCheck className="w-4 h-4 text-[#16A34A] inline" />
               Pre-recharged digital wallet active for automated food ordering
+            </p>
+            <p className="text-[11px] text-[#8A817A] mt-1 font-medium bg-amber-50/80 p-2 rounded-xl border border-amber-200/60 text-amber-900">
+              ℹ️ <strong>Simulated Balance:</strong> This wallet contains sandbox demo credits for testing autonomous food ordering. No real money is deposited, charged, or stored.
             </p>
           </div>
 
@@ -86,21 +94,24 @@ export const WalletModal: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Building2 className="w-6 h-6 text-[#D93636]" />
-                <span className="text-xs font-black uppercase tracking-wider text-[#D93636]">Linked Bank Account</span>
+                <span className="text-xs font-black uppercase tracking-wider text-[#D93636]">Bank Settlement Simulator</span>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-[#16A34A]/10 text-[#16A34A] border border-[#16A34A]/30 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Auto Refill Active
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Sandbox Mode
               </span>
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-2xl font-black text-[#33251F]">{linkedBank.bankName}</h3>
+              <h3 className="text-2xl font-black text-[#33251F]">{linkedBank.bankName} (Simulated)</h3>
               <p className="text-sm font-mono font-extrabold text-[#D93636] tracking-widest">{linkedBank.accountNumber}</p>
               <div className="flex items-center space-x-3 text-xs text-[#4A5568] font-bold pt-1">
                 <span>IFSC: {linkedBank.ifscCode}</span>
                 <span>•</span>
                 <span>UPI: {linkedBank.upiId}</span>
               </div>
+              <p className="text-[11px] text-[#8A817A] pt-1 italic">
+                Mock bank profile used for simulated order settlement. No actual bank accounts or credentials are connected.
+              </p>
             </div>
           </div>
 

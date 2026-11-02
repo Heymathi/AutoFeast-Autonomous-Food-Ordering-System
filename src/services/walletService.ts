@@ -3,7 +3,7 @@ import { WalletTransaction, PlatformName } from '../types';
 const WALLET_BALANCE_KEY = 'smart_food_wallet_balance';
 const WALLET_TX_KEY = 'smart_food_wallet_transactions';
 
-const INITIAL_BALANCE = 1250; // Initial demo wallet balance in Rupees
+const INITIAL_BALANCE = 2500; // Consistent default demo wallet balance in Rupees (aligned with UserSchema)
 
 const INITIAL_TRANSACTIONS: WalletTransaction[] = [
   {
@@ -31,9 +31,16 @@ export class WalletService {
    * Retrieve current wallet balance.
    */
   public static getBalance(): number {
-    const stored = localStorage.getItem(WALLET_BALANCE_KEY);
-    if (stored !== null) {
-      return parseFloat(stored);
+    try {
+      const stored = localStorage.getItem(WALLET_BALANCE_KEY);
+      if (stored !== null && stored !== '' && stored !== 'NaN' && stored !== 'undefined' && stored !== 'null') {
+        const parsed = parseFloat(stored);
+        if (!isNaN(parsed) && Number.isFinite(parsed) && parsed >= 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Error reading wallet balance from localStorage', e);
     }
     localStorage.setItem(WALLET_BALANCE_KEY, INITIAL_BALANCE.toString());
     return INITIAL_BALANCE;

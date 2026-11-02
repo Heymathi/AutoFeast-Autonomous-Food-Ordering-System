@@ -15,16 +15,20 @@ export const SpeechDebugPanel: React.FC<{ activeLanguage: string }> = ({ activeL
 
   useEffect(() => {
     const unsubscribe = SpeechController.subscribe((s) => {
-      setState(s || SpeechController.getState().voiceState);
-      setOwner(SpeechController.getOwner());
-      setMicMode(SpeechController.getMicMode());
-      setLogs([...SpeechController.getDebugLogs()]);
+      console.debug('[SpeechDebugPanel] Diagnostic snapshot:', s);
+      const voiceState = (typeof s === 'object' && s !== null && 'voiceState' in s)
+        ? (s as any).voiceState
+        : (typeof s === 'string' ? s : SpeechController.getState().voiceState);
+      setState(voiceState || 'idle');
+      setOwner(typeof s === 'object' && s !== null && 'owner' in s ? (s as any).owner : SpeechController.getOwner());
+      setMicMode(typeof s === 'object' && s !== null && 'micMode' in s ? (s as any).micMode : SpeechController.getMicMode());
+      setLogs(typeof s === 'object' && s !== null && Array.isArray((s as any).logs) ? [...(s as any).logs] : [...SpeechController.getDebugLogs()]);
       setVoices([...SpeechController.getSystemVoicesInfo()]);
     });
     return () => unsubscribe();
   }, []);
 
-  const getStateColor = (s: SpeechState) => {
+  const getStateColor = (s: SpeechState | string) => {
     switch (s) {
       case 'listening': return 'bg-emerald-500 text-white';
       case 'speaking': return 'bg-amber-500 text-white';
@@ -43,8 +47,8 @@ export const SpeechDebugPanel: React.FC<{ activeLanguage: string }> = ({ activeL
       >
         <Activity className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />
         <span className="font-bold uppercase tracking-wider text-[10px]">Speech Engine</span>
-        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${getStateColor(state)}`}>
-          {state}
+        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${getStateColor(typeof state === 'string' ? state : 'idle')}`}>
+          {typeof state === 'string' ? state : 'idle'}
         </span>
         {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
       </button>

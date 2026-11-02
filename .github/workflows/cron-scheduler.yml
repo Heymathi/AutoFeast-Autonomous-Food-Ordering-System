@@ -1,0 +1,18 @@
+name: AutoFeast Free Server-Side Cron Scheduler
+
+on:
+  schedule:
+    # Runs every 15 minutes 24/7 (100% free via GitHub Actions, independent of browser/laptop)
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  execute-schedules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger AutoFeast Cron Endpoint
+        run: |
+          echo "Pinging AutoFeast Serverless Cron Execution..."
+          curl --fail-with-body -s -S --connect-timeout 15 --max-time 60 -X POST "https://autonomous-food-ordering-system.vercel.app/api/cron-execute-schedules" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"

@@ -93,6 +93,7 @@ export interface AutoOrderSchedule {
   isEnabled: boolean;
   walletAutoDebit: boolean;
   lastRun?: string;
+  lastRunDate?: string; // YYYY-MM-DD
   nextRun?: string;
   notes?: string;
   duration?: ScheduleDuration;

@@ -37,6 +37,10 @@ export interface ScheduleCheckoutModalProps {
   items: ScheduleCheckoutItem[];
   initialSlotName?: string;
   initialTime?: string;
+  initialFrequency?: 'daily' | 'weekly' | 'custom' | 'once';
+  initialSelectedDays?: string[];
+  initialDuration?: ScheduleDuration;
+  initialStartDate?: string;
   onSuccess?: () => void;
 }
 
@@ -46,6 +50,10 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
   items,
   initialSlotName = 'Scheduled Slot',
   initialTime = '08:00',
+  initialFrequency,
+  initialSelectedDays,
+  initialDuration,
+  initialStartDate,
   onSuccess
 }) => {
   const {
@@ -90,10 +98,11 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
   const [timeInput, setTimeInput] = useState<string>(toTime24(initialTime) || '08:00');
   const [showAmPmChoice, setShowAmPmChoice] = useState<boolean>(false);
   const [pendingHour, setPendingHour] = useState<number | null>(null);
-  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'custom' | 'once'>('daily');
-  const [selectedDays, setSelectedDays] = useState<string[]>(['Mon', 'Wed', 'Fri']);
-  const [duration, setDuration] = useState<ScheduleDuration>('1_month');
+  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'custom' | 'once'>(initialFrequency || 'daily');
+  const [selectedDays, setSelectedDays] = useState<string[]>(initialSelectedDays || ['Mon', 'Wed', 'Fri']);
+  const [duration, setDuration] = useState<ScheduleDuration>(initialDuration || '1_month');
   const [startDate, setStartDate] = useState<string>(() => {
+    if (initialStartDate) return initialStartDate;
     const defaultTime = initialTime || '08:00';
     const todayISO = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
     if (checkIsDateTimePast(todayISO, defaultTime)) {
@@ -139,6 +148,9 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
       setStep(1);
       const initT = toTime24(initialTime) || '08:00';
       setTimeInput(initT);
+      if (initialFrequency) setFrequency(initialFrequency);
+      if (initialSelectedDays && initialSelectedDays.length > 0) setSelectedDays(initialSelectedDays);
+      if (initialDuration) setDuration(initialDuration);
       setShowAmPmChoice(false);
       setPendingHour(null);
       setPinDigits(['', '', '', '']);
@@ -158,16 +170,20 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
       const timer = setTimeout(() => speakText(guidance, undefined, language), 300);
 
       // Smart default: if today's default time has passed, start date defaults to TOMORROW
-      const todayISO = getTodayISO();
-      if (checkIsPastTime(initT, todayISO)) {
-        setStartDate(getTomorrowISO());
+      if (initialStartDate) {
+        setStartDate(initialStartDate);
       } else {
-        setStartDate(todayISO);
+        const todayISO = getTodayISO();
+        if (checkIsPastTime(initT, todayISO)) {
+          setStartDate(getTomorrowISO());
+        } else {
+          setStartDate(todayISO);
+        }
       }
 
       return () => clearTimeout(timer);
     }
-  }, [isOpen, initialTime, initialSlotName, language]);
+  }, [isOpen, initialTime, initialSlotName, initialFrequency, initialSelectedDays, initialDuration, initialStartDate, language]);
 
   // Group cart items by restaurant using shared helper
   const cartSummary = groupCartByRestaurant(items || []);
@@ -502,6 +518,7 @@ export const ScheduleCheckoutModal: React.FC<ScheduleCheckoutModalProps> = ({
           slotIndex: 1,
           time: normalizeTime(timeInput),
           frequency,
+          selectedDays: (frequency === 'weekly' || frequency === 'custom') ? selectedDays : undefined,
           foodItemId: item.foodItem.id || `item_${idx}`,
           foodItemName: item.foodItem.name || 'Food Item',
           restaurant: item.foodItem.restaurant || 'Saravana Bhavan',

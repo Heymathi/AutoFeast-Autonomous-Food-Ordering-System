@@ -9,7 +9,7 @@ import { ScheduleCheckoutModal } from './ScheduleCheckoutModal';
 import { NomineeNotificationService } from '../services/nomineeNotificationService';
 import { ItemActionChooser } from './ItemActionChooser';
 import { WeekdaySelector } from './WeekdaySelector';
-import { Clock, Calendar, CheckCircle2, ShieldCheck, Wallet, Plus, Trash2, Edit, AlertCircle, Sparkles, Utensils, Search, Zap, Star, X, Settings2, Ban, Check, ShoppingBag, Mic, MicOff, Volume2 } from 'lucide-react';
+import { Clock, Calendar, CheckCircle2, ShieldCheck, Wallet, Plus, Trash2, Edit, AlertCircle, Sparkles, Utensils, Search, Zap, Star, X, Settings2, Ban, Check, ShoppingBag, Mic, MicOff, Volume2, Pause, Play } from 'lucide-react';
 import { SpeechController } from '../services/speechController';
 import { SttMatcherService } from '../services/sttMatcherService';
 import { toTime24, toTimeText } from '../utils/scheduleCalculator';
@@ -355,7 +355,7 @@ const ScheduleOverrideModal: React.FC<ScheduleOverrideModalProps> = ({ schedule,
 };
 
 export const AutoOrderScheduler: React.FC = () => {
-  const { schedules, saveSchedule, deleteSchedule, executeScheduleNow, walletBalance, t, accessibilitySettings, language, overrides, getOverridesForSchedule, skipScheduleDate, restoreScheduleDate, addToCart, placeInstantOrder, showToast, speakText } = useApp();
+  const { schedules, saveSchedule, deleteSchedule, toggleSchedulePause, executeScheduleNow, walletBalance, t, accessibilitySettings, language, overrides, getOverridesForSchedule, skipScheduleDate, restoreScheduleDate, addToCart, placeInstantOrder, showToast, speakText } = useApp();
 
   const getTodayFormattedDate = (): string => {
     const today = new Date();
@@ -976,7 +976,7 @@ export const AutoOrderScheduler: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setChooserItem(selectedFoodItem)}
+              onClick={() => setIsCheckoutModalOpen(true)}
               className="px-5 py-2.5 bg-[#D93636] hover:bg-[#33251F] text-white font-black rounded-xl text-xs shadow-md transition-transform active:scale-95 flex items-center gap-1.5 cursor-pointer"
             >
               <Clock className="w-4 h-4 text-white" />
@@ -1011,6 +1011,15 @@ export const AutoOrderScheduler: React.FC = () => {
                         <span className="text-[10px] font-black uppercase bg-[#16A34A]/10 text-[#16A34A] px-2 py-0.5 rounded-full border border-[#16A34A]/20">
                           {formatDurationLabel(sch.duration)}
                         </span>
+                        {sch.isEnabled === false ? (
+                          <span className="text-[10px] font-black uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">
+                            ⏸️ Paused
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-300">
+                            ✓ Active
+                          </span>
+                        )}
                       </div>
                       <h4 className="text-lg font-black text-[#33251F] mt-0.5">{sch.foodItemName}</h4>
                       <p className="text-xs text-[#4A5568] font-bold">{sch.restaurant}</p>
@@ -1035,6 +1044,18 @@ export const AutoOrderScheduler: React.FC = () => {
                         Range: {sch.startDate || 'Started'} → {sch.endDate || 'Until Cancelled'}
                       </span>
                     </div>
+
+                    {/* Specific Weekdays Chips */}
+                    {sch.selectedDays && sch.selectedDays.length > 0 && (
+                      <div className="flex items-center gap-1 flex-wrap pt-1 border-t border-slate-200">
+                        <span className="text-[10px] font-black uppercase text-[#8A817A] mr-1">Scheduled Days:</span>
+                        {sch.selectedDays.map(d => (
+                          <span key={d} className="px-2 py-0.5 text-[10px] font-black bg-[#FBE9E5] text-[#D93636] rounded-lg border border-[#F0E5DC]">
+                            {d}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Excluded / Skipped Dates Badges */}
                     {((sch.excludedDates && sch.excludedDates.length > 0) || schOverrides.some(o => o.isSkipped)) && (
@@ -1103,6 +1124,19 @@ export const AutoOrderScheduler: React.FC = () => {
 
                     <div className="flex items-center space-x-2">
                       <button
+                        onClick={() => toggleSchedulePause(sch.id)}
+                        className={`px-3 py-1.5 rounded-xl font-black text-xs shadow-xs flex items-center space-x-1 cursor-pointer transition-colors ${
+                          sch.isEnabled === false
+                            ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                            : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                        }`}
+                        title={sch.isEnabled === false ? 'Resume schedule' : 'Pause schedule'}
+                      >
+                        {sch.isEnabled === false ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                        <span>{sch.isEnabled === false ? 'Resume' : 'Pause'}</span>
+                      </button>
+
+                      <button
                         onClick={() => executeScheduleNow(sch.id)}
                         className="px-3 py-1.5 bg-[#16A34A] hover:bg-[#15803D] text-white rounded-xl font-black text-xs shadow-md flex items-center space-x-1 cursor-pointer"
                       >
@@ -1169,6 +1203,10 @@ export const AutoOrderScheduler: React.FC = () => {
         items={[{ foodItem: selectedFoodItem, quantity: 1 }]}
         initialSlotName={`${presetSlots[activeSlotIndex - 1].name} Schedule`}
         initialTime={toTime24(scheduleTime)}
+        initialFrequency={frequency}
+        initialSelectedDays={selectedDays}
+        initialDuration={duration}
+        initialStartDate={startDate}
       />
 
     </div>

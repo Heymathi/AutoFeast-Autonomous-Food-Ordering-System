@@ -3,6 +3,7 @@ import { INDIAN_FOOD_CATALOG } from '../data/indianFoodCatalog';
 import { CANONICAL_FOOD_ALIASES } from '../config/fuzzyConfig';
 import { FuzzyMatchEngine } from './fuzzyMatchService';
 import { RESTAURANT_TRANSLITERATIONS } from './sttMatcherService';
+import { TanglishNormalizer } from './tanglishNormalizer';
 
 export interface ParsedVoiceCommandItem {
   name: string;
@@ -20,6 +21,7 @@ export interface ParsedVoiceCommandResult {
     isRecurring: boolean;
     frequency: 'daily' | 'weekly' | 'custom' | 'once';
     duration?: '1_week' | '1_month' | '3_months' | 'custom';
+    selectedDays?: string[];
     raw?: string;
   };
   language: Language;
@@ -77,29 +79,63 @@ export class VoiceCommandParser {
    */
   public static parse(transcript: string, currentLang: Language = 'en'): ParsedVoiceCommandResult {
     const rawTranscript = (transcript || '').trim();
-    const norm = this.normalize(rawTranscript);
+    const tanglish = TanglishNormalizer.normalize(rawTranscript);
+    const norm = this.normalize(tanglish.isTanglish ? tanglish.normalized : rawTranscript);
 
     // 1. Detect Explicit Language clues or keep current
     const lang = this.detectLanguage(norm, currentLang);
 
     // 2. Extract Time (respecting TIME vs QUANTITY rule)
-    const timeRes = this.extractTime(norm);
+    let timeRes = this.extractTime(norm);
+    if (!timeRes && tanglish.time24) {
+      const [h, m] = tanglish.time24.split(':').map(Number);
+      timeRes = this.formatTime(h, m, tanglish.timeRaw || tanglish.time24);
+    }
 
     // 3. Extract Date and Recurrence
-    const dateRes = this.extractDate(norm);
+    let dateRes = this.extractDate(norm);
+    if (!dateRes && tanglish.dateStr) {
+      const today = new Date();
+      if (tanglish.dateStr === 'tomorrow') {
+        const d = new Date(today);
+        d.setDate(d.getDate() + 1);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        dateRes = { dateStr: `${yyyy}-${mm}-${dd}`, displayDate: 'Tomorrow', isTomorrow: true };
+      } else if (tanglish.dateStr === 'today') {
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        dateRes = { dateStr: `${yyyy}-${mm}-${dd}`, displayDate: 'Today', isToday: true };
+      } else if ((tanglish.dateStr as any) === 'yesterday') {
+        const d = new Date(today);
+        d.setDate(d.getDate() - 1);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        dateRes = { dateStr: `${yyyy}-${mm}-${dd}`, displayDate: 'Yesterday', isYesterday: true } as any;
+      }
+    }
     const recurrenceRes = this.extractRecurrence(norm);
 
     // 4. Extract Restaurant if named
     const restaurant = this.extractRestaurant(norm);
 
-    // 5. Determine Action ('order' | 'schedule' | 'search' | 'unknown')
-    const action = this.determineAction(norm, timeRes, recurrenceRes, dateRes);
+    // 5. Determine Action ('order' | 'schedule' | 'search' | 'add_to_cart' | 'unknown')
+    let action = this.determineAction(norm, timeRes, recurrenceRes, dateRes);
+    if (action === 'unknown' && tanglish.detectedIntent) {
+      action = tanglish.detectedIntent;
+    }
 
     // 6. Clean sentence for item & quantity matching
     const cleanedForItems = this.cleanTranscriptForItems(norm, timeRes, restaurant);
 
     // 7. Extract Items & Quantities with Fuzzy Catalog Match
     const items = this.extractItems(cleanedForItems, norm, lang);
+    if (items.length > 0 && tanglish.quantity && items[0].quantity === 1 && tanglish.quantity > 1) {
+      items[0].quantity = tanglish.quantity;
+    }
 
     // 8. Identify primary matched item and check if generic (needs variety)
     let matchedFoodItem: FoodItem | undefined = items[0]?.foodItem;
@@ -160,9 +196,30 @@ export class VoiceCommandParser {
     raw: string;
     needsAmPmClarification?: boolean;
   } | null {
-    // Check named meal slots if no digits: morning, afternoon, evening, night
-    const isPM = /\b(pm|p\.m|evening|night|shaam|raat|dopahar|மதியம்|மாலை|இரவு)\b/i.test(norm);
-    const isAM = /\b(am|a\.m|morning|subah|காலை)\b/i.test(norm);
+    // Check named meal slots if no digits: morning, afternoon, evening, night (handling Indic non-ASCII boundaries)
+    const isPM = /(?:^|\s|\b)(pm|p\.m|evening|night|shaam|raat|dopahar|afternoon|மதியம்|பிற்பகல்|மாலை|இரவு|இரவில்|दोपहर|शाम|रात)(?:$|\s|\b)/i.test(norm);
+    const isAM = /(?:^|\s|\b)(am|a\.m|morning|subah|kaalai|காலை|காலையில்|மாலையில்|सुबह|प्रात:)(?:$|\s|\b)/i.test(norm);
+
+    // 0. Spoken words with thirty / half past: "six thirty ku", "8:30 ku", "six thirty pm"
+    const spokenThirtyMatch = norm.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d{1,2})\s*(thirty|30)\s*(?:mani\s*)?(?:ku|am|pm)?\b/i);
+    if (spokenThirtyMatch) {
+      let h = this.parseNumberToken(spokenThirtyMatch[1].toLowerCase());
+      if (h !== null) {
+        if ((isPM || spokenThirtyMatch[0].toLowerCase().includes('pm')) && h < 12) h += 12;
+        return this.formatTime(h, 30, spokenThirtyMatch[0]);
+      }
+    }
+
+    // 0.5. "1 PM ku", "8 AM ku", "1:00 PM ku"
+    const pmKuMatch = norm.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*(?:ku)?\b/i);
+    if (pmKuMatch) {
+      let h = parseInt(pmKuMatch[1], 10);
+      const m = pmKuMatch[2] ? parseInt(pmKuMatch[2], 10) : 0;
+      const ampm = pmKuMatch[3].toLowerCase();
+      if (ampm === 'pm' && h < 12) h += 12;
+      if (ampm === 'am' && h === 12) h = 0;
+      return this.formatTime(h, m, pmKuMatch[0]);
+    }
 
     // 1. Digits followed by colon: "8:30", "8:30 pm", "7:30 in the morning"
     const colonMatch = norm.match(/(\d{1,2})\s*:\s*(\d{2})\s*(am|pm)?/i);
@@ -178,9 +235,9 @@ export class VoiceCommandParser {
       return this.formatTime(h, m, colonMatch[0]);
     }
 
-    // 2. Number or Word followed by time markers: "8 am", "8 maniku", "8 மணிக்கு", "8 baje", "8 बजे", "2 maniku"
+    // 2. Number or Word followed by time markers: "8 am", "8 maniku", "8 மணிக்கு", "8 baje", "8 बजे", "2 maniku", "one mani ku"
     // Regex matches digits or number words right before a time unit (using non-word boundary for Indic script)
-    const timeUnitRegex = /(?:^|\s)(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|onnu|rendu|moonu|naalu|anju|aaru|ezhu|ettu|onpadhu|pathu|ek|do|teen|char|paanch|che|saat|aath|nau|das|gyarah|barah|ஒன்று|இரண்டு|மூன்று|நான்கு|ஐந்து|ஆறு|ஏழு|எட்டு|ஒன்பது|பத்து|ஒரு|ரெண்டு|மூணு|நாலு|அஞ்சு|एक|दो|तीन|चार|पांच|पाँच|छह|सात|आठ|नौ|दस|ग्यारह|बारह)\s*(மணிக்கு|maniku|mani|மணி|baje|बजे|o'clock|am|pm)(?:\s|$)/i;
+    const timeUnitRegex = /(?:^|\s)(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|onnu|rendu|moonu|naalu|anju|aaru|ezhu|ettu|onpadhu|pathu|ek|do|teen|char|paanch|che|saat|aath|nau|das|gyarah|barah|ஒன்று|இரண்டு|மூன்று|நான்கு|ஐந்து|ஆறு|ஏழு|எட்டு|ஒன்பது|பத்து|ஒரு|ரெண்டு|மூணு|நாலு|அஞ்சு|एक|दो|तीन|चार|पांच|पाँच|छह|सात|आठ|नौ|दस|ग्यारह|बारह)\s*(மணிக்கு|maniku|mani\s*ku|mani|மணி|baje|बजे|o'clock|am|pm)(?:\s|$)/i;
     const unitMatch = norm.match(timeUnitRegex);
 
     if (unitMatch) {
@@ -277,8 +334,8 @@ export class VoiceCommandParser {
     isToday?: boolean;
   } | null {
     const today = new Date();
-    const isTomorrow = /(?:^|\s)(tomorrow|naalaikku|nalaikku|naalai|kal|नालाई|நாளைக்கு|நாளை|कल)(?:\s|$)/i.test(norm);
-    const isToday = /(?:^|\s)(today|inru|indru|aaj|இன்று|இன்னைக்கு|आज)(?:\s|$)/i.test(norm);
+    const isTomorrow = /(?:^|\s)(tomorrow|naalaikku|naalaiku|nalaikku|nalaiku|naalai|kal|नालाई|நாளைக்கு|நாளை|कल)(?:\s|$)/i.test(norm);
+    const isToday = /(?:^|\s)(today|inniku|innaiku|iniku|inru|indru|aaj|இன்று|இன்னைக்கு|आज)(?:\s|$)/i.test(norm);
 
     if (isTomorrow) {
       const d = new Date(today);
@@ -300,18 +357,65 @@ export class VoiceCommandParser {
   }
 
   /**
+   * Extract Specific Weekdays (Mon, Tue, Wed, Thu, Fri, Sat, Sun) in English, Tamil & Hindi
+   */
+  public static extractWeekdays(norm: string): string[] {
+    const matchedDays: string[] = [];
+    const lower = norm.toLowerCase();
+
+    // Monday: English | Tamil (திங்கள்) | Hindi (सोमवार)
+    if (/(?:\b|_)(monday|mon|thingal|somwar|somvaar)(?:\b|_)|திங்க[ளட்க]|சோமவார|सोम/i.test(lower)) {
+      matchedDays.push('Mon');
+    }
+    // Tuesday: English | Tamil (செவ்வாய்) | Hindi (मंगलवार)
+    if (/(?:\b|_)(tuesday|tue|sevvai|mangalwar|mangalvaar)(?:\b|_)|செவ்வாய்|மங்களவார|मंगल/i.test(lower)) {
+      matchedDays.push('Tue');
+    }
+    // Wednesday: English | Tamil (புதன்) | Hindi (बुधवार)
+    if (/(?:\b|_)(wednesday|wed|budhan|budhwar|budhvaar)(?:\b|_)|புதன்|புதவார|बुध/i.test(lower)) {
+      matchedDays.push('Wed');
+    }
+    // Thursday: English | Tamil (வியாழன்) | Hindi (गुरुवार / बृहस्पतिवार)
+    if (/(?:\b|_)(thursday|thu|vyazhan|guruwar|guruvaar)(?:\b|_)|வியாழ[னன்]|குருவார|गुरु|बृहस्पति/i.test(lower)) {
+      matchedDays.push('Thu');
+    }
+    // Friday: English | Tamil (வெள்ளி) | Hindi (शुक्रवार)
+    if (/(?:\b|_)(friday|fri|velli|shukrawar|shukravaar)(?:\b|_)|வெள்ளி|சுக்ரவார|शुक्र/i.test(lower)) {
+      matchedDays.push('Fri');
+    }
+    // Saturday: English | Tamil (சனி) | Hindi (शनिवार)
+    if (/(?:\b|_)(saturday|sat|sani|shaniwar|shanivaar)(?:\b|_)|சனி|शनि/i.test(lower)) {
+      matchedDays.push('Sat');
+    }
+    // Sunday: English | Tamil (ஞாயிறு) | Hindi (रविवार / इतवार)
+    if (/(?:\b|_)(sunday|sun|nyayiru|raviwar|ravivaar|itwar)(?:\b|_)|ஞாயி[றறு]|ரவிவார|रवि|इतवार/i.test(lower)) {
+      matchedDays.push('Sun');
+    }
+
+    return matchedDays;
+  }
+
+  /**
    * Extract Recurrence:
-   * "daily / dhinamum / everyday / roz / रोज़", "for a week / month", "oru vaaram / oru masam / ek hafta / ek mahina", "3 months"
+   * "daily / dhinamum / everyday / roz / रोज़", "for a week / month", "oru vaaram / oru masam / ek hafta / ek mahina", "3 months", specific weekdays
    */
   public static extractRecurrence(norm: string): {
     isRecurring: boolean;
     frequency: 'daily' | 'weekly' | 'custom' | 'once';
     duration?: '1_week' | '1_month' | '3_months' | 'custom';
+    selectedDays?: string[];
     raw?: string;
   } | null {
     let isRecurring = false;
     let frequency: 'daily' | 'weekly' | 'custom' | 'once' = 'once';
     let duration: '1_week' | '1_month' | '3_months' | 'custom' | undefined;
+
+    // Check specific weekdays first (e.g. Monday and Wednesday / திங்கள் மற்றும் புதன் / सोमवार और बुधवार)
+    const selectedDays = this.extractWeekdays(norm);
+    if (selectedDays.length > 0) {
+      isRecurring = true;
+      frequency = 'custom';
+    }
 
     // Daily / Everyday keywords
     if (/\b(daily|everyday|every day|dhinamum|dinamum|roz|har roz|har din|தினமும்|ஒவ்வொரு நாளும்|रोज़|रोज|हर दिन|प्रतिदिन)\b/i.test(norm)) {
@@ -319,7 +423,7 @@ export class VoiceCommandParser {
       frequency = 'daily';
     } else if (/\b(weekly|every week|வாரம் ஒரு முறை|har hafte|हफ्ते)\b/i.test(norm)) {
       isRecurring = true;
-      frequency = 'weekly';
+      frequency = selectedDays.length > 0 ? 'custom' : 'weekly';
     }
 
     // Duration keywords
@@ -334,11 +438,12 @@ export class VoiceCommandParser {
       duration = '1_week';
     }
 
-    if (!isRecurring && !duration) return null;
+    if (!isRecurring && !duration && selectedDays.length === 0) return null;
     return {
       isRecurring: true,
-      frequency: frequency === 'once' ? 'daily' : frequency,
-      duration: duration || '1_week',
+      frequency: selectedDays.length > 0 ? 'custom' : (frequency === 'once' ? 'daily' : frequency),
+      duration: duration || '1_month',
+      selectedDays: selectedDays.length > 0 ? selectedDays : undefined,
       raw: norm
     };
   }
@@ -357,13 +462,13 @@ export class VoiceCommandParser {
     date: { isTomorrow?: boolean } | null
   ): 'order' | 'schedule' | 'search' | 'add_to_cart' | 'unknown' {
     // 1. Cart Actions
-    const hasCartWord = /(?:^|\s|\b)(add to cart|cart|kart|கார்ட்|கார்டில்|கார்ட்டில்|கார்ட்\s*சேர்|கூடை|கூடையில்\s*சேர்|कार्ट|कार्ट\s*में)(?:$|\s|\b)/i.test(norm);
+    const hasCartWord = /(?:^|\s|\b)(add to cart|add\s*pannu|cart\s*la\s*add\s*pannu|cart\s*la|cart|kart|கார்ட்|கார்டில்|கார்ட்டில்|கார்ட்\s*சேர்|கூடை|கூடையில்\s*சேர்|कार्ट|कार्ट\s*में)(?:$|\s|\b)/i.test(norm);
     if (hasCartWord) {
       return 'add_to_cart';
     }
 
     // 2. Schedule Actions
-    const hasScheduleWord = /\b(schedule|later|tomorrow|daily|everyday|every day|weekly|monthly|thittamidu|naalaikku|dhinamum|அட்டவணை|திட்டமிடு|நாளைக்கு|தினமும்|शेड्यूल|कल|रोज|प्रतिदिन|बाद में)\b/i.test(norm);
+    const hasScheduleWord = /\b(schedule|schedule\s*pannu|later|tomorrow|daily|everyday|every day|weekly|monthly|thittamidu|naalaikku|naalaiku|nalaikku|nalaiku|dhinamum|அட்டவணை|திட்டமிடு|நாளைக்கு|தினமும்|शेड्यूल|कल|रोज|प्रतिदिन|बाद में)\b/i.test(norm);
     if (time || recurrence || date?.isTomorrow || hasScheduleWord) {
       return 'schedule';
     }
@@ -381,7 +486,7 @@ export class VoiceCommandParser {
     }
 
     // 5. Explicit Order Keywords
-    const hasOrderWord = /(?:\b|(?:^|\s))(order|buy|send|want|need|get me|give me|ஆர்டர்|வாங்கு|வேணும்|வேண்டும்|குடு|மங்காओ|मंगाओ|चाहिए|दीजिए|लाओ|कर दो)(?:\b|(?:\s|$))/i.test(norm);
+    const hasOrderWord = /(?:\b|(?:^|\s))(order|order\s*pannu|buy|send|want|need|get me|give me|venum|vaenum|thevai|ஆர்டர்|வாங்கு|வேணும்|வேண்டும்|குடு|ऑर्डर|ऑर्डर\s*करो|करो|मंगाओ|चाहिए|दीजिए|लाओ|कर दो)(?:\b|(?:\s|$))/i.test(norm);
     if (hasOrderWord) {
       return 'order';
     }
@@ -395,7 +500,7 @@ export class VoiceCommandParser {
   }
 
   private static hasExplicitActionKeyword(norm: string): boolean {
-    return /(?:\b|(?:^|\s))(order|schedule|now|later|tomorrow|daily|weekly|month|at|am|pm|maniku|baje|cart|add|search|find|show|want|need|get|give|மணிக்கு|ஆர்டர்|திட்டமிடு|இப்போ|நாளைக்கு|கார்டில்|சேர்|தேடு|காட்டு|வேணும்|வேண்டும்|குடு|शेड्यूल|अभी|कल|कार्ट|ढूंढो|दिखाओ|चाहिए|दीजिए|मंगाओ)(?:\b|(?:\s|$))/i.test(norm);
+    return /(?:\b|(?:^|\s))(order|schedule|now|later|tomorrow|daily|weekly|month|at|am|pm|maniku|baje|cart|add|search|find|show|want|need|get|give|venum|vaenum|thevai|pannu|podu|மணிக்கு|ஆர்டர்|திட்டமிடு|இப்போ|நாளைக்கு|கார்டில்|சேர்|தேடு|காட்டு|வேணும்|வேண்டும்|குடு|ऑर्डर|करो|शेड्यूल|अभी|कल|कार्ट|ढूंढो|दिखाओ|चाहिए|दीजिए|मंगाओ)(?:\b|(?:\s|$))/i.test(norm);
   }
 
   /**
@@ -442,16 +547,19 @@ export class VoiceCommandParser {
       clean = clean.replace(time.raw.toLowerCase(), ' ');
     }
     // Remove standalone time tokens e.g. "காலை", "இரவு", "baje", "maniku", "மணிக்கு"
-    clean = clean.replace(/\b(maniku|mani|மணிக்கு|மணி|baje|बजे|am|pm|morning|evening|night|காலை|இரவு|மாலை|सुबह|शाम|रात|dopahar)\b/gi, ' ');
+    clean = clean.replace(/\b(mani\s*ku|maniku|mani|மணிக்கு|மணி|baje|बजे|am|pm|morning|evening|night|afternoon|six\s*thirty|ku)\b/gi, ' ');
 
-    // 3. Remove date & recurrence keywords
-    clean = clean.replace(/\b(tomorrow|naalaikku|kal|today|inru|aaj|daily|everyday|dhinamum|roz|நாளைக்கு|நாளை|இன்று|தினமும்|कल|आज|रोज|हर दिन)\b/gi, ' ');
+    // 3. Remove date & recurrence keywords & weekdays
+    clean = clean.replace(/\b(tomorrow|naalaikku|naalaiku|nalaikku|nalaiku|kal|today|inniku|innaiku|inru|indru|aaj|daily|everyday|dhinamum|roz|நாளைக்கு|நாளை|இன்று|தினமும்|कल|आज|रोज|हर दिन)\b/gi, ' ');
     clean = clean.replace(/\b(for a month|for a week|for 1 month|for 1 week|for 3 months|oru masathuku|oru masam|oru vaaram|ek mahina|ek hafta|1 month|1 week|3 months|ஒரு மாதம்|ஒரு வாரம்|3 மாதம்|एक महीना|एक हफ्ता|3 महीने)\b/gi, ' ');
+    clean = clean.replace(/\b(every|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b/gi, ' ');
+    clean = clean.replace(/(?:^|\s)(ஒவ்வொரு|திங்கள்|திங்கட்கிழமை|திங்கட்கிழமையும்|செவ்வாய்|செவ்வாய்க்கிழமை|செவ்வாய்க்கிழமையும்|புதன்|புதன்கிழமை|புதன்கிழமையும்|வியாழன்|வியாழக்கிழமை|வியாழக்கிழமையும்|வெள்ளி|வெள்ளிக்கிழமை|வெள்ளிக்கிழமையும்|சனி|சனிக்கிழமை|சனிக்கிழமையும்|ஞாயிறு|ஞாயிற்றுக்கிழமை|ஞாயிற்றுக்கிழமையும்)(?:\s|$)/gi, ' ');
+    clean = clean.replace(/(?:^|\s)(हर|सोमवार|मंगलवार|बुधवार|गुरुवार|बृहस्पतिवार|शुक्रवार|शनिवार|रविवार|इतवार)(?:\s|$)/gi, ' ');
 
     // 4. Remove order/schedule intent triggers and polite words
-    clean = clean.replace(/\b(order|schedule|instant|now|later|ippovae|udane|இப்போவே|ஆர்டர்|திட்டமிடு|शेड्यूल|अभी)\b/gi, ' ');
+    clean = clean.replace(/\b(order|schedule|instant|now|later|ippovae|udane|add to cart|cart\s*la\s*add\s*pannu|cart\s*la|add\s*pannu|cart|kart|add|want|need|venum|vaenum|thevai|enakku|konjam|la)\b/gi, ' ');
     // Handle Indic words without \b boundary
-    clean = clean.replace(/(?:^|\s)(இப்போவே|இப்பவே|இப்போதே|இப்போ|உடனே|ஆர்டர்|திட்டமிடு|शेड्यूल|अभी|ऑर्डर)(?:\s|$)/gi, ' ');
+    clean = clean.replace(/(?:^|\s)(இப்போவே|இப்பவே|இப்போதே|இப்போ|உடனே|ஆர்டர்|திட்டமிடு|शेड्यूल|अभी|ऑर्डर|கூடையில்|கார்ட்டில்|கார்டில்|கார்ட்|சேர்|வேண்டும்|வேணும்)(?:\s|$)/gi, ' ');
     for (const filler of POLITE_FILLER_WORDS) {
       clean = clean.replace(new RegExp(`(?:^|\\s)${filler}(?:\\s|$)`, 'gi'), ' ');
       clean = clean.replace(new RegExp(`\\b${filler}\\b`, 'gi'), ' ');

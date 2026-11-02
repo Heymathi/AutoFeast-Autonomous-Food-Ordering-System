@@ -53,6 +53,8 @@ export class OfflineSpeechEngine {
   private static lastOptions: OfflineSpeechOptions | null = null;
   private static recordingTimeoutTimer: any = null;
   private static cachedModelVerified: boolean | null = null;
+  private static isInferenceInFlight: boolean = false;
+  private static isRecording: boolean = false;
 
   /**
    * Reset engine state for testing or clean re-initialization
@@ -71,6 +73,8 @@ export class OfflineSpeechEngine {
       this.recordingTimeoutTimer = null;
     }
     this.cachedModelVerified = null;
+    this.isInferenceInFlight = false;
+    this.isRecording = false;
   }
 
   /**
@@ -364,8 +368,14 @@ export class OfflineSpeechEngine {
       return false;
     }
 
+    if (this.isInferenceInFlight) {
+      console.warn('[OfflineSpeechEngine] Inference currently in flight; skipping concurrent recording');
+      return false;
+    }
+
     this.stopRecording();
     this.status = 'recording';
+    this.isRecording = true;
     options.onStateChange?.('recording');
 
     try {
@@ -477,8 +487,9 @@ export class OfflineSpeechEngine {
   public static cleanWhisperTranscript(text: string): string {
     if (!text || typeof text !== 'string') return '';
 
-    // 1. Remove bracketed / parenthesized hallucination tokens
+    // 1. Remove bracketed / parenthesized hallucination tokens and Whisper special tokens (<|...|>)
     let cleaned = text
+      .replace(/<\|[^|>]+\|>/g, ' ')
       .replace(/\[[^\]]*\]/g, ' ')
       .replace(/\([^)]*\)/g, ' ')
       .replace(/\s+/g, ' ')
@@ -486,7 +497,7 @@ export class OfflineSpeechEngine {
 
     // 2. Remove common hallucination phrases
     cleaned = cleaned
-      .replace(/\b(blank audio|subtitles by|amara\.org|watching!|thank you)\b/gi, ' ')
+      .replace(/\b(blank audio|subtitles by|amara\.org|watching!|thank you|thank you for watching|please subscribe)\b/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -529,17 +540,117 @@ export class OfflineSpeechEngine {
   }
 
   /**
+   * Trims leading/trailing silence, applies adaptive RMS normalization with peak limiter,
+   * and cushions speech with 200ms pre-roll and 250ms post-roll padding.
+   * Returns null if audio is silent or too short.
+   */
+  public static trimAndNormalizeSpeech(float32Pcm: Float32Array): Float32Array | null {
+    // 1. Guard against empty or ultra-short input (< 0.4s / 6400 samples at 16kHz)
+    if (!float32Pcm || float32Pcm.length < 6400) {
+      return null;
+    }
+
+    const sampleRate = 16000;
+    const frameSize = 320; // 20ms frames
+    const numFrames = Math.floor(float32Pcm.length / frameSize);
+
+    let firstSpeechFrame = -1;
+    let lastSpeechFrame = -1;
+
+    for (let f = 0; f < numFrames; f++) {
+      const offset = f * frameSize;
+      let frameSumSq = 0;
+      let framePeak = 0;
+      for (let s = 0; s < frameSize; s++) {
+        const val = Math.abs(float32Pcm[offset + s]);
+        if (val > framePeak) framePeak = val;
+        frameSumSq += val * val;
+      }
+      const frameRms = Math.sqrt(frameSumSq / frameSize);
+
+      if (frameRms >= 0.003 && framePeak >= 0.010) {
+        if (firstSpeechFrame === -1) firstSpeechFrame = f;
+        lastSpeechFrame = f;
+      }
+    }
+
+    // Pure silence across entire buffer
+    if (firstSpeechFrame === -1 || lastSpeechFrame === -1) {
+      return null;
+    }
+
+    // 2. Add 200ms (3200 samples) pre-roll and 250ms (4000 samples) post-roll padding context
+    const preRollSamples = 3200;
+    const postRollSamples = 4000;
+
+    const speechStartIdx = Math.max(0, firstSpeechFrame * frameSize - preRollSamples);
+    const speechEndIdx = Math.min(float32Pcm.length, (lastSpeechFrame + 1) * frameSize + postRollSamples);
+
+    // Limit maximum recording length to 15s (240,000 samples) to prevent WASM heap exhaustion
+    const maxRecordingSamples = 240000;
+    const actualEndIdx = Math.min(speechEndIdx, speechStartIdx + maxRecordingSamples);
+    const segment = float32Pcm.slice(speechStartIdx, actualEndIdx);
+
+    if (segment.length < 6400) {
+      return null;
+    }
+
+    // 3. Peak energy & RMS analysis on active segment
+    let peak = 0;
+    let sumSq = 0;
+    for (let i = 0; i < segment.length; i++) {
+      const absVal = Math.abs(segment[i]);
+      if (absVal > peak) peak = absVal;
+      sumSq += absVal * absVal;
+    }
+    const rms = Math.sqrt(sumSq / segment.length);
+
+    if (peak < 0.008 || rms < 0.002) {
+      return null;
+    }
+
+    // 4. Dynamic RMS leveling with peak ceiling limiter (target RMS: ~0.09, peak max: 0.95)
+    let gain = 1.0;
+    if (rms > 0.002) {
+      gain = 0.09 / rms;
+      if (peak * gain > 0.95) {
+        gain = 0.95 / peak;
+      }
+      // Maximum gain clamp 6.0 (+15.5 dB) prevents amplifying background mic noise
+      gain = Math.max(0.2, Math.min(6.0, gain));
+    }
+
+    for (let i = 0; i < segment.length; i++) {
+      segment[i] = Math.max(-1, Math.min(1, segment[i] * gain));
+    }
+
+    // 5. Cushion speech with clean pre-roll (3200 samples) and post-roll (4000 samples)
+    const paddedPcm = new Float32Array(segment.length + preRollSamples + postRollSamples);
+    paddedPcm.set(segment, preRollSamples);
+
+    return paddedPcm;
+  }
+
+  /**
    * Convert captured audio blob into 16kHz Float32 mono PCM and run inference
    */
   private static async processRecordedAudio(options: OfflineSpeechOptions): Promise<void> {
     if (this.recordedChunks.length === 0) {
       this.status = 'ready';
+      this.isRecording = false;
+      this.isInferenceInFlight = false;
       options.onStateChange?.('ready');
       const noSpeechMsg = this.getLocalizedError('no-speech', options.language);
       options.onError?.('no-speech', noSpeechMsg);
       return;
     }
 
+    if (this.isInferenceInFlight) {
+      console.warn('[OfflineSpeechEngine] Inference currently in flight; skipping concurrent processing');
+      return;
+    }
+
+    this.isInferenceInFlight = true;
     this.status = 'transcribing';
     options.onStateChange?.('transcribing');
 
@@ -564,49 +675,18 @@ export class OfflineSpeechEngine {
         sampleRate: 16000
       });
 
-      // 1. Prevent empty or extremely short audio (< 0.4s / 6400 samples) from being submitted
-      if (float32Pcm.length < 6400) {
-        console.warn('[STT Diagnostic] Audio duration too short (< 0.4s), treating as no-speech');
+      // Silence trimming, pre-roll/post-roll cushion, and dynamic RMS normalization
+      const processedAudio = this.trimAndNormalizeSpeech(float32Pcm);
+
+      if (!processedAudio) {
+        console.warn('[STT Diagnostic] Audio duration too short (< 0.4s) or silent, treating as no-speech');
         this.status = 'ready';
+        this.isRecording = false;
         options.onStateChange?.('ready');
         const noSpeechMsg = this.getLocalizedError('no-speech', options.language);
         options.onError?.('no-speech', noSpeechMsg);
         return;
       }
-
-      // 2. Silence detection & Peak energy analysis
-      let peak = 0;
-      let sumSq = 0;
-      for (let i = 0; i < float32Pcm.length; i++) {
-        const absVal = Math.abs(float32Pcm[i]);
-        if (absVal > peak) peak = absVal;
-        sumSq += float32Pcm[i] * float32Pcm[i];
-      }
-      const rms = Math.sqrt(sumSq / float32Pcm.length);
-
-      if (peak < 0.008 || rms < 0.002) {
-        console.warn('[STT Diagnostic] Silence detected in captured audio, avoiding hallucination');
-        this.status = 'ready';
-        options.onStateChange?.('ready');
-        const noSpeechMsg = this.getLocalizedError('no-speech', options.language);
-        options.onError?.('no-speech', noSpeechMsg);
-        return;
-      }
-
-      // 3. Peak-normalize quiet speech to optimal dynamic range
-      if (peak > 0.008 && peak < 0.70) {
-        const gain = 0.85 / peak;
-        for (let i = 0; i < float32Pcm.length; i++) {
-          float32Pcm[i] = Math.max(-1, Math.min(1, float32Pcm[i] * gain));
-        }
-      }
-
-      // 4. Pre-roll & Post-roll silence padding (200ms = 3200 samples at 16kHz)
-      // This prevents STFT windowing from cutting off the initial plosive consonant ('ப' in 'பரோட்டா')
-      // and trailing phonemes, providing proper acoustic context for Whisper's convolutional encoder.
-      const padLength = 3200;
-      const paddedPcm = new Float32Array(float32Pcm.length + padLength * 2);
-      paddedPcm.set(float32Pcm, padLength);
 
       // Ensure model pipeline is initialized via local Vite bundle
       if (!this.pipelineInstance) {
@@ -614,21 +694,30 @@ export class OfflineSpeechEngine {
       }
       console.log('[STT Diagnostic] Whisper model pipeline loaded');
 
-      const rawLang = String(options.language).toLowerCase();
-      const langCode = rawLang.startsWith('ta')
-        ? 'ta'
-        : rawLang.startsWith('hi')
-        ? 'hi'
-        : 'en';
+      const rawLang = String(options.language || '').toLowerCase();
+      const isTanglish = rawLang.includes('tanglish') || rawLang === 'mixed' || rawLang === 'auto';
+      const isTa = rawLang.startsWith('ta');
+      const isHi = rawLang.startsWith('hi');
 
-      const output = await this.pipelineInstance(paddedPcm, {
-        language: langCode,
+      // Decoding configuration:
+      // When pure Tamil -> 'ta'
+      // When pure Hindi -> 'hi'
+      // When pure English -> 'en'
+      // When Tanglish or auto -> pass undefined to let Whisper detect code-mixed multilingual speech naturally
+      const langParam = isTanglish ? undefined : isTa ? 'ta' : isHi ? 'hi' : 'en';
+
+      const decodeOptions: any = {
         task: 'transcribe',
         chunk_length_s: 30,
         temperature: 0.0,
         repetition_penalty: 1.2,
         no_repeat_ngram_size: 3
-      });
+      };
+      if (langParam) {
+        decodeOptions.language = langParam;
+      }
+
+      const output = await this.pipelineInstance(processedAudio, decodeOptions);
 
       console.log('[STT Diagnostic] Whisper result object structure', {
         resultType: typeof output,
@@ -649,6 +738,7 @@ export class OfflineSpeechEngine {
       console.log('[STT Diagnostic] Whisper inference completed', { transcript: recognizedText });
 
       this.status = 'ready';
+      this.isRecording = false;
       options.onStateChange?.('ready');
 
       if (recognizedText && recognizedText.length > 0) {
@@ -660,16 +750,19 @@ export class OfflineSpeechEngine {
     } catch (err: any) {
       console.warn('[OfflineSpeechEngine]: Transcription error:', err?.message || err);
       this.status = 'error';
+      this.isRecording = false;
       options.onStateChange?.('error');
       const msg = this.getLocalizedError('transcription-failed', options.language);
       options.onError?.('transcription-failed', msg);
+    } finally {
+      this.isInferenceInFlight = false;
     }
   }
 
   /**
-   * Resamples AudioBuffer to 16kHz mono Float32Array for Whisper input
+   * Resamples AudioBuffer to 16kHz mono Float32Array using high-quality linear interpolation
    */
-  private static extractMono16kHz(buffer: AudioBuffer): Float32Array {
+  public static extractMono16kHz(buffer: AudioBuffer): Float32Array {
     const numChannels = buffer.numberOfChannels;
     const length = buffer.length;
     let rawData: Float32Array;
@@ -692,13 +785,17 @@ export class OfflineSpeechEngine {
       return rawData;
     }
 
+    // High quality linear interpolation downsampler: prevents acoustic aliasing in dental/retroflex consonants
     const ratio = sourceSampleRate / targetSampleRate;
-    const newLength = Math.round(rawData.length / ratio);
+    const newLength = Math.floor(rawData.length / ratio);
     const result = new Float32Array(newLength);
 
     for (let i = 0; i < newLength; i++) {
-      const index = Math.round(i * ratio);
-      result[i] = rawData[Math.min(index, rawData.length - 1)];
+      const position = i * ratio;
+      const index = Math.floor(position);
+      const fraction = position - index;
+      const nextIndex = Math.min(index + 1, rawData.length - 1);
+      result[i] = rawData[index] * (1 - fraction) + rawData[nextIndex] * fraction;
     }
 
     return result;

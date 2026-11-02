@@ -140,6 +140,7 @@ interface AppContextType {
   overrides: ScheduleOverride[];
   saveSchedule: (s: AutoOrderSchedule, verificationToken?: string) => Promise<void> | void;
   deleteSchedule: (id: string) => void;
+  toggleSchedulePause: (id: string) => void;
   saveOverride: (o: ScheduleOverride) => void;
   deleteOverride: (id: string) => void;
   getOverridesForSchedule: (scheduleId: string) => ScheduleOverride[];
@@ -882,11 +883,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const cancelOrder = async (orderId: string, reason: string = 'Cancelled by customer'): Promise<boolean> => {
+    const existing = orderHistory.find(o => o.id === orderId);
+    let refunded = false;
+    if (existing && existing.status !== 'cancelled' && existing.status !== 'delivered' && existing.status !== 'completed' && existing.amountPaid > 0) {
+      try {
+        WalletService.recharge(existing.amountPaid, `Refund for Cancelled Order #${orderId}`);
+        setWalletBalance(WalletService.getBalance());
+        refunded = true;
+      } catch (e) {
+        console.error('Failed to recharge wallet on cancel', e);
+      }
+    }
+
     updateOrderStatus(orderId, 'cancelled', {
       cancelledAt: new Date().toISOString(),
       cancellationReason: reason
     });
-    showToast(`Order #${orderId} has been cancelled.`, 'info');
+
+    // Notify backend if authenticated
+    try {
+      const token = localStorage.getItem('smart_food_auth_token');
+      await fetch(`/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          status: 'cancelled',
+          cancelledAt: new Date().toISOString(),
+          cancellationReason: reason
+        })
+      });
+    } catch (e) {}
+
+    showToast(refunded ? `Order #${orderId} cancelled & ₹${existing?.amountPaid} refunded to wallet.` : `Order #${orderId} has been cancelled.`, 'info');
     return true;
   };
 
@@ -949,6 +980,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       });
     }
+  }, [currentUser?.id]);
+
+  // Sync Schedules from MongoDB Backend for Authenticated User
+  useEffect(() => {
+    const syncServerSchedules = async () => {
+      const authToken = AuthService.getAuthToken();
+      if (!authToken) return;
+      try {
+        const res = await fetch('/api/schedules', {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.schedules) && data.schedules.length > 0) {
+            for (const s of data.schedules) {
+              AutoOrderBackgroundService.saveSchedule(s);
+            }
+            setSchedules(AutoOrderBackgroundService.getSchedules());
+          }
+        }
+      } catch (e) {
+        // Fail gracefully
+      }
+    };
+    syncServerSchedules();
   }, [currentUser?.id]);
 
   // Register 5-minute Pre-Order Voice Confirmation listener
@@ -2665,11 +2721,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsOrderPinModalOpen(true);
   };
 
-  const executeActualSaveSchedule = (s: AutoOrderSchedule) => {
+  const executeActualSaveSchedule = async (s: AutoOrderSchedule) => {
     const safeSchedule: AutoOrderSchedule = { ...s, time: toTime24(s.time) || '08:00' };
     const updated = AutoOrderBackgroundService.saveSchedule(safeSchedule);
     setSchedules([...updated]);
     incrementDailyOrderCount();
+
+    // 🚀 Sync to MongoDB Backend API
+    const authToken = AuthService.getAuthToken();
+    const currentUser = AuthService.getCurrentUser();
+    if (authToken || currentUser) {
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+        const res = await fetch('/api/schedules', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ ...safeSchedule, userId: currentUser?.id })
+        });
+        if (res.ok) {
+          console.log('[Schedule Sync]: Successfully synced schedule to server database');
+        } else {
+          console.warn('[Schedule Sync]: Server returned status', res.status);
+          showToast('Schedule saved locally. Server sync will retry automatically.', 'info');
+        }
+      } catch (err) {
+        console.warn('[Schedule Sync]: Network error during server sync', err);
+        showToast('Schedule saved locally. (Offline mode)', 'info');
+      }
+    }
 
     let durLabel = '1 Week';
     if (s.duration === 'today_only') {
@@ -2699,10 +2779,52 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, 200);
   };
 
-  const deleteSchedule = (id: string) => {
+  const deleteSchedule = async (id: string) => {
     const updated = AutoOrderBackgroundService.deleteSchedule(id);
     setSchedules([...updated]);
     showToast(`Schedule deleted.`);
+
+    const authToken = AuthService.getAuthToken();
+    if (authToken) {
+      try {
+        await fetch(`/api/schedules/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+      } catch (e) {
+        console.warn('[Schedule Sync]: Failed to delete from server', e);
+      }
+    }
+  };
+
+  const toggleSchedulePause = async (id: string) => {
+    const sch = schedules.find(s => s.id === id);
+    if (!sch) return;
+    const newStatus = !sch.isEnabled;
+    const updatedSchedule = {
+      ...sch,
+      isEnabled: newStatus
+    };
+    const updated = AutoOrderBackgroundService.saveSchedule(updatedSchedule);
+    setSchedules([...updated]);
+    const msg = newStatus
+      ? (language === 'ta' ? 'அட்டவணை மீண்டும் இயக்கப்பட்டது.' : language === 'hi' ? 'शेड्यूल फिर से सक्रिय किया गया।' : 'Schedule resumed.')
+      : (language === 'ta' ? 'அட்டவணை தற்காலிகமாக நிறுத்தப்பட்டது.' : language === 'hi' ? 'शेड्यूल रोका गया।' : 'Schedule paused.');
+    showToast(msg, 'info');
+
+    const authToken = AuthService.getAuthToken();
+    const currentUser = AuthService.getCurrentUser();
+    if (authToken) {
+      try {
+        await fetch('/api/schedules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+          body: JSON.stringify({ ...updatedSchedule, userId: currentUser?.id })
+        });
+      } catch (e) {
+        console.warn('[Schedule Sync]: Failed to update pause status on server', e);
+      }
+    }
   };
 
   const skipScheduleDate = (scheduleId: string, dateStr: string) => {
@@ -3034,6 +3156,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       overrides,
       saveSchedule,
       deleteSchedule,
+      toggleSchedulePause,
       saveOverride,
       deleteOverride,
       getOverridesForSchedule,

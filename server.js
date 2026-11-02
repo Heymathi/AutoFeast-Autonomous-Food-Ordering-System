@@ -368,11 +368,14 @@ const UserSchema = new mongoose.Schema({
   isFaceIdEnabled: { type: Boolean, default: false },
   webAuthnCredentials: { type: Array, default: [] },
   cart: { type: Array, default: [] },
+  walletBalance: { type: Number, default: 2500 },
+  walletTransactions: { type: Array, default: [] },
   createdAt: { type: Date, default: Date.now }
 });
 
 const ScheduleSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
+  userId: { type: String, index: true },
   slotName: { type: String, required: true },
   slotIndex: { type: Number, required: true },
   time: { type: String, required: true },
@@ -382,12 +385,18 @@ const ScheduleSchema = new mongoose.Schema({
   foodItemName: { type: String, required: true },
   restaurant: { type: String, required: true },
   quantity: { type: Number, default: 1 },
+  price: { type: Number, default: 110 },
   strategy: { type: String, default: 'best_value' },
   isEnabled: { type: Boolean, default: true },
   walletAutoDebit: { type: Boolean, default: true },
   duration: { type: String, default: '1_month' },
   startDate: { type: String },
   endDate: { type: String },
+  lastRunDate: { type: String, default: null },
+  lastRun: { type: String, default: null },
+  requiresNomineeApproval: { type: Boolean, default: false },
+  approvalId: { type: String, default: null },
+  deliveryAddress: { type: String, default: 'Home Default Address' },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -472,8 +481,32 @@ export const RestrictedItem = mongoose.models.RestrictedItem || mongoose.model('
 export const ApprovalRequest = mongoose.models.ApprovalRequest || mongoose.model('ApprovalRequest', ApprovalRequestSchema);
 export const CartItemModel = mongoose.models.CartItem || mongoose.model('CartItem', CartItemSchema);
 
+const ScheduleOccurrenceSchema = new mongoose.Schema({
+  occurrenceId: { type: String, required: true, unique: true },
+  scheduleId: { type: String, required: true, index: true },
+  userId: { type: String, required: true, index: true },
+  date: { type: String, required: true },
+  state: {
+    type: String,
+    enum: ['claimed', 'debited', 'order_created', 'completed', 'failed', 'refunded'],
+    default: 'claimed'
+  },
+  amount: { type: Number, required: true },
+  foodItemName: { type: String },
+  restaurant: { type: String },
+  orderId: { type: String, default: null },
+  debitTxId: { type: String, default: null },
+  refundTxId: { type: String, default: null },
+  errorMessage: { type: String, default: null }
+}, { timestamps: true });
+
+export const ScheduleOccurrence = mongoose.models.ScheduleOccurrence || mongoose.model('ScheduleOccurrence', ScheduleOccurrenceSchema);
+export const fallbackOccurrencesDb = [];
+
 const OrderRecordSchema = new mongoose.Schema({
   id: { type: String, required: true, index: true },
+  occurrenceId: { type: String, default: null, index: true },
+  refunded: { type: Boolean, default: false },
   userId: { type: String, required: true, index: true },
   foodName: { type: String, required: true },
   restaurant: { type: String, required: true },
@@ -665,6 +698,67 @@ app.post('/api/tts', async (req, res) => {
   } catch (err) {
     // Fail gracefully if quota exceeded or model unavailable — never cause client error loops
     return res.status(200).json({ success: false, fallback: true, reason: 'tts_failed' });
+  }
+});
+
+// Sarvam Saaras v4 STT Endpoint (Strict Free-Credits Guard)
+// Mode: 'codemix' provides the most reliable input for AutoFeast's command parser
+app.post('/api/sarvam/stt', async (req, res) => {
+  try {
+    const sarvamApiKey = process.env.SARVAM_API_KEY;
+    if (!sarvamApiKey || sarvamApiKey === 'MY_SARVAM_API_KEY') {
+      return res.json({ success: false, fallbackToLocal: true, reason: 'sarvam_key_not_configured' });
+    }
+
+    const { audioBase64, mimeType = 'audio/wav', language_code = 'ta-IN', prompt } = req.body || {};
+
+    if (!audioBase64 || typeof audioBase64 !== 'string') {
+      return res.status(400).json({ success: false, error: 'audio_required', fallbackToLocal: true });
+    }
+
+    const audioBuffer = Buffer.from(audioBase64, 'base64');
+    const formData = new FormData();
+    const blob = new Blob([audioBuffer], { type: mimeType });
+    formData.append('file', blob, 'audio.wav');
+    formData.append('model', 'saaras:v4');
+    formData.append('mode', 'codemix'); // Best mode evaluated for code-mixed Tanglish/Hinglish speech
+    if (language_code) {
+      formData.append('language_code', language_code);
+    }
+    if (prompt) {
+      formData.append('prompt', prompt);
+    }
+
+    const response = await fetch('https://api.sarvam.ai/speech-to-text', {
+      method: 'POST',
+      headers: {
+        'api-subscription-key': sarvamApiKey
+      },
+      body: formData
+    });
+
+    if (response.status === 402 || response.status === 403 || response.status === 429) {
+      console.warn('[Sarvam STT] Free credits exhausted or quota exceeded (HTTP ' + response.status + '). Safe fallback to offline Whisper.');
+      return res.json({ success: false, fallbackToLocal: true, reason: 'free_credits_exhausted' });
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      console.warn('[Sarvam STT] Non-OK response:', response.status, errText);
+      return res.json({ success: false, fallbackToLocal: true, reason: 'sarvam_api_error', status: response.status });
+    }
+
+    const data = await response.json();
+    return res.json({
+      success: true,
+      transcript: data.transcript || '',
+      language_code: data.language_code || language_code,
+      mode: 'codemix',
+      provider: 'sarvam-saaras-v4'
+    });
+  } catch (err) {
+    console.error('[Sarvam STT] Request error:', err?.message || err);
+    return res.json({ success: false, fallbackToLocal: true, reason: 'sarvam_network_error' });
   }
 });
 
@@ -3389,7 +3483,7 @@ export async function rollbackClaimedApprovals(claimedIds) {
   }
 }
 
-// GET All Schedules (Requires Verified Auth Session - FAIL CLOSED)
+// GET All Schedules (Requires Verified Auth Session - Scoped to User)
 app.get('/api/schedules', async (req, res) => {
   try {
     const userId = getAuthenticatedUserIdFromSession(req);
@@ -3397,19 +3491,19 @@ app.get('/api/schedules', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Unauthorized: Verified authentication session token or cookie required' });
     }
 
-    await connectDB();
-    if (!isConnected || mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ success: false, error: 'Database connection unavailable' });
+    if (mongoose.connection.readyState === 1) {
+      const schedules = await Schedule.find({ $or: [{ userId }, { userId: { $exists: false } }] });
+      return res.json({ success: true, schedules });
+    } else {
+      const userSchedules = fallbackSchedulesDb.filter(s => s.userId === userId || !s.userId);
+      return res.json({ success: true, schedules: userSchedules });
     }
-
-    const schedules = await Schedule.find({});
-    return res.json({ success: true, schedules });
   } catch (err) {
     return res.status(503).json({ success: false, error: `Database error: ${err.message}` });
   }
 });
 
-// POST Save Schedule (Requires Verified Auth Session - FAIL CLOSED, Atomic Approval Claiming)
+// POST Save Schedule (Requires Verified Auth Session - Scoped to User & Fail-Closed Atomic Approval)
 app.post('/api/schedules', async (req, res) => {
   let procResult = null;
   try {
@@ -3433,9 +3527,19 @@ app.post('/api/schedules', async (req, res) => {
       return res.status(procResult.status).json(procResult.body);
     }
 
-    await Schedule.findOneAndUpdate({ id: schedule.id }, schedule, { upsert: true, new: true });
-    const schedules = await Schedule.find({});
-    return res.json({ success: true, schedule, schedules });
+    const scheduleWithUser = { ...schedule, userId };
+
+    if (mongoose.connection.readyState === 1) {
+      await Schedule.findOneAndUpdate({ id: schedule.id }, scheduleWithUser, { upsert: true, new: true });
+      const schedules = await Schedule.find({ $or: [{ userId }, { userId: { $exists: false } }] });
+      return res.json({ success: true, schedule: scheduleWithUser, schedules });
+    } else {
+      const existingIdx = fallbackSchedulesDb.findIndex(s => s.id === schedule.id);
+      if (existingIdx >= 0) fallbackSchedulesDb[existingIdx] = scheduleWithUser;
+      else fallbackSchedulesDb.push(scheduleWithUser);
+      const userSchedules = fallbackSchedulesDb.filter(s => s.userId === userId || !s.userId);
+      return res.json({ success: true, schedule: scheduleWithUser, schedules: userSchedules });
+    }
   } catch (err) {
     if (procResult?.claimedApprovalIds) {
       await rollbackClaimedApprovals(procResult.claimedApprovalIds);
@@ -3501,9 +3605,21 @@ app.post('/api/orders/create', async (req, res) => {
   }
 });
 
-// SERVER-SIDE SCHEDULED CRON EXECUTION (Vercel Cron & Background Scheduler)
+// SERVER-SIDE SCHEDULED CRON EXECUTION (Vercel Cron & External Webhook Scheduler)
 app.all('/api/cron-execute-schedules', async (req, res) => {
   try {
+    // 1. Production & Secret Enforcement: Reject unauthorized requests
+    const cronSecret = process.env.CRON_SECRET;
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (cronSecret || isProduction) {
+      const authHeader = req.headers['authorization'];
+      const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+      const provided = bearer || req.query.secret;
+      if (!provided || (cronSecret && provided !== cronSecret)) {
+        return res.status(401).json({ success: false, error: 'Unauthorized: Valid CRON_SECRET required' });
+      }
+    }
+
     const now = new Date();
     // India Standard Time (Asia/Kolkata)
     const istTimeStr = now.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' });
@@ -3523,14 +3639,16 @@ app.all('/api/cron-execute-schedules', async (req, res) => {
       const scheduleTime = schedule.time || '08:00';
       const startDate = schedule.startDate || istDateStr;
       const endDate = schedule.endDate;
+      const occurrenceKey = `occ_${schedule.id}_${istDateStr}`;
+      const targetUserId = schedule.userId || 'default_user';
 
       // 1. Date window check
       if (istDateStr < startDate) {
-        executionResults.push({ id: schedule.id, status: 'skipped_future_start_date', startDate });
+        executionResults.push({ id: schedule.id, occurrenceKey, status: 'skipped_future_start_date', startDate });
         continue;
       }
       if (endDate && istDateStr > endDate) {
-        executionResults.push({ id: schedule.id, status: 'skipped_schedule_expired', endDate });
+        executionResults.push({ id: schedule.id, occurrenceKey, status: 'skipped_schedule_expired', endDate });
         continue;
       }
 
@@ -3538,23 +3656,155 @@ app.all('/api/cron-execute-schedules', async (req, res) => {
       if (schedule.frequency === 'weekly' || schedule.frequency === 'custom') {
         const selectedDays = schedule.selectedDays || [];
         if (selectedDays.length > 0 && !selectedDays.includes(dayOfWeek)) {
-          executionResults.push({ id: schedule.id, status: 'skipped_day_mismatch', currentDay: dayOfWeek, selectedDays });
+          executionResults.push({ id: schedule.id, occurrenceKey, status: 'skipped_day_mismatch', currentDay: dayOfWeek, selectedDays });
           continue;
         }
       }
 
-      // 3. Time window check (prevent duplicate execution on same day)
-      const lastRunDate = schedule.lastRun ? schedule.lastRun.split('T')[0] : null;
-      if (lastRunDate === istDateStr) {
-        executionResults.push({ id: schedule.id, status: 'already_executed_today', lastRunDate });
+      // 3. Timing Check: Is it time yet?
+      if (istTimeStr < scheduleTime) {
+        executionResults.push({ id: schedule.id, occurrenceKey, status: 'skipped_not_due_yet', scheduleTime, currentTime: istTimeStr });
         continue;
       }
 
-      // 4. Safeguards: Check if nominee restricted or requires PIN
+      // 4. Grace period check (30 minutes): Prevent placing orders hours late
+      const [schedH, schedM] = scheduleTime.split(':').map(n => parseInt(n, 10));
+      const [currH, currM] = istTimeStr.split(':').map(n => parseInt(n, 10));
+      const schedTotalM = (!isNaN(schedH) && !isNaN(schedM)) ? schedH * 60 + schedM : 0;
+      const currTotalM = (!isNaN(currH) && !isNaN(currM)) ? currH * 60 + currM : 0;
+      const diffM = currTotalM - schedTotalM;
+      if (diffM > 30) {
+        if (mongoose.connection.readyState === 1) {
+          await Schedule.updateOne({ id: schedule.id }, { $set: { lastRunDate: istDateStr } });
+        } else {
+          schedule.lastRunDate = istDateStr;
+        }
+        executionResults.push({ id: schedule.id, occurrenceKey, status: 'marked_missed_past_grace_period', scheduleTime, currentTime: istTimeStr, diffMinutes: diffM });
+        continue;
+      }
+
+      // 5. Check Incomplete Occurrence / Existing Occurrence State (CRASH RECOVERY)
+      let existingOccurrence = null;
+      if (mongoose.connection.readyState === 1) {
+        existingOccurrence = await ScheduleOccurrence.findOne({ occurrenceId: occurrenceKey });
+      } else {
+        existingOccurrence = fallbackOccurrencesDb.find(o => o.occurrenceId === occurrenceKey);
+      }
+
+      if (existingOccurrence) {
+        if (existingOccurrence.state === 'completed') {
+          executionResults.push({ id: schedule.id, occurrenceKey, status: 'already_executed_today', lastRunDate: istDateStr });
+          continue;
+        }
+        if (existingOccurrence.state === 'refunded' || existingOccurrence.state === 'failed') {
+          executionResults.push({ id: schedule.id, occurrenceKey, status: 'previously_failed_or_refunded', state: existingOccurrence.state });
+          continue;
+        }
+        if (existingOccurrence.state === 'debited') {
+          // CRASH RECOVERY: Crashed after debit, before order record was marked completed!
+          let existingOrder = null;
+          if (mongoose.connection.readyState === 1) {
+            existingOrder = await OrderRecordModel.findOne({ id: existingOccurrence.orderId });
+          } else {
+            existingOrder = fallbackOrderRecordsDb.find(o => o.id === existingOccurrence.orderId);
+          }
+
+          if (existingOrder) {
+            existingOccurrence.state = 'completed';
+            if (typeof existingOccurrence.save === 'function') await existingOccurrence.save();
+            executionResults.push({ id: schedule.id, occurrenceKey, status: 'recovered_order_completed', orderId: existingOccurrence.orderId });
+            continue;
+          }
+
+          // Order does not exist: attempt to persist order record or refund
+          try {
+            const recoveredOrder = {
+              id: existingOccurrence.orderId,
+              occurrenceId: occurrenceKey,
+              userId: existingOccurrence.userId,
+              foodName: existingOccurrence.foodItemName || schedule.foodItemName,
+              restaurant: existingOccurrence.restaurant || schedule.restaurant,
+              quantity: schedule.quantity || 1,
+              amountPaid: existingOccurrence.amount,
+              timestamp: new Date().toISOString(),
+              status: 'placed',
+              isAutoOrder: true,
+              orderType: 'scheduled',
+              platform: 'AutoFeast Dynamic Best-Value Partner (Direct Gateway)',
+              deliveryAddress: schedule.deliveryAddress || 'User Registered Address',
+              paymentMethod: 'AutoFeast Secure Wallet'
+            };
+            if (mongoose.connection.readyState === 1) {
+              await OrderRecordModel.create(recoveredOrder);
+            } else {
+              fallbackOrderRecordsDb.unshift(recoveredOrder);
+            }
+            existingOccurrence.state = 'completed';
+            if (typeof existingOccurrence.save === 'function') await existingOccurrence.save();
+            executionResults.push({ id: schedule.id, occurrenceKey, status: 'recovered_order_created_and_completed', orderId: existingOccurrence.orderId });
+            continue;
+          } catch (recErr) {
+            // Persistent order failure: issue safe one-time compensating refund
+            if (!existingOccurrence.refundTxId) {
+              const refundTxId = `tx_ref_${occurrenceKey}`;
+              if (mongoose.connection.readyState === 1) {
+                await User.findOneAndUpdate(
+                  { id: existingOccurrence.userId, 'walletTransactions.idempotencyKey': { $ne: `refund_${occurrenceKey}` } },
+                  {
+                    $inc: { walletBalance: existingOccurrence.amount },
+                    $push: {
+                      walletTransactions: {
+                        id: refundTxId,
+                        idempotencyKey: `refund_${occurrenceKey}`,
+                        type: 'refund',
+                        amount: existingOccurrence.amount,
+                        description: `Refund: Failed Auto-Order for ${existingOccurrence.foodItemName}`,
+                        timestamp: new Date(),
+                        orderId: existingOccurrence.orderId
+                      }
+                    }
+                  }
+                );
+              } else {
+                const u = fallbackUsersDb.find(user => user.id === existingOccurrence.userId);
+                if (u) {
+                  u.walletBalance = (u.walletBalance ?? 2500) + existingOccurrence.amount;
+                  u.walletTransactions = u.walletTransactions || [];
+                  u.walletTransactions.push({
+                    id: refundTxId,
+                    idempotencyKey: `refund_${occurrenceKey}`,
+                    type: 'refund',
+                    amount: existingOccurrence.amount,
+                    description: `Refund: Failed Auto-Order for ${existingOccurrence.foodItemName}`,
+                    timestamp: new Date(),
+                    orderId: existingOccurrence.orderId
+                  });
+                }
+              }
+              existingOccurrence.refundTxId = refundTxId;
+            }
+            existingOccurrence.state = 'refunded';
+            existingOccurrence.errorMessage = recErr.message;
+            if (typeof existingOccurrence.save === 'function') await existingOccurrence.save();
+            executionResults.push({ id: schedule.id, occurrenceKey, status: 'failed_refunded_compensating', orderId: existingOccurrence.orderId });
+            continue;
+          }
+        }
+      }
+
+      // 6. Check lastRunDate if no occurrence record exists
+      const lastRunDate = schedule.lastRunDate || (schedule.lastRun ? schedule.lastRun.split('T')[0] : null);
+      if (lastRunDate === istDateStr && !existingOccurrence) {
+        executionResults.push({ id: schedule.id, occurrenceKey, status: 'already_executed_today', lastRunDate });
+        continue;
+      }
+
+      // 7. Safeguards: Check if nominee restricted or requires approval
       const isRestricted = (schedule.requiresNomineeApproval || schedule.isRestricted);
       if (isRestricted && !schedule.approvalId) {
         executionResults.push({
           id: schedule.id,
+          occurrenceKey,
           status: 'paused_awaiting_nominee_approval',
           foodItem: schedule.foodItemName,
           reason: 'Nominee approval required before automatic order placement'
@@ -3562,46 +3812,278 @@ app.all('/api/cron-execute-schedules', async (req, res) => {
         continue;
       }
 
-      // 5. Execute Auto-Order Initiation
+      // 8. Dynamic Search Pricing & Order Calculation
+      const foodItem = INDIAN_FOOD_CATALOG.find(f => f.id === schedule.foodItemId || f.name.toLowerCase() === (schedule.foodItemName || '').toLowerCase()) || {
+        id: schedule.foodItemId || 'custom-item',
+        name: schedule.foodItemName || 'Scheduled Meal',
+        price: schedule.price || 110,
+        restaurant: schedule.restaurant || 'AutoFeast Partner',
+        rating: 4.8
+      };
+
+      const baseItemPrice = foodItem.price || schedule.price || 110;
+      const quantity = schedule.quantity || 1;
+      const subtotal = baseItemPrice * quantity;
+      const deliveryFee = subtotal >= 299 ? 0 : 35;
+      const taxesAndCharges = Math.round(subtotal * 0.05) + 15;
+      const totalAmount = subtotal + deliveryFee + taxesAndCharges;
+      const discountSavings = Math.min(50, Math.round(subtotal * 0.15));
+      const finalAmount = totalAmount - discountSavings;
+      const restaurant = schedule.restaurant || foodItem.restaurant || 'AutoFeast Partner';
       const orderId = `ord_auto_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+      // 9. Atomic Occurrence Claiming (Prevents concurrent duplicate triggers)
+      let occurrenceDoc = existingOccurrence;
+      if (!occurrenceDoc) {
+        if (mongoose.connection.readyState === 1) {
+          try {
+            occurrenceDoc = await ScheduleOccurrence.create({
+              occurrenceId: occurrenceKey,
+              scheduleId: schedule.id,
+              userId: targetUserId,
+              date: istDateStr,
+              state: 'claimed',
+              amount: finalAmount,
+              foodItemName: foodItem.name,
+              restaurant,
+              orderId
+            });
+            await Schedule.updateOne({ id: schedule.id }, { $set: { lastRunDate: istDateStr, lastRun: new Date().toISOString() } });
+          } catch (occErr) {
+            if (occErr.code === 11000) {
+              executionResults.push({ id: schedule.id, occurrenceKey, status: 'already_executed_today', lastRunDate: istDateStr });
+              continue;
+            }
+            throw occErr;
+          }
+        } else {
+          const claimed = schedule.lastRunDate !== istDateStr;
+          if (!claimed) {
+            executionResults.push({ id: schedule.id, occurrenceKey, status: 'already_executed_today', lastRunDate: istDateStr });
+            continue;
+          }
+          schedule.lastRunDate = istDateStr;
+          schedule.lastRun = new Date().toISOString();
+          occurrenceDoc = {
+            occurrenceId: occurrenceKey,
+            scheduleId: schedule.id,
+            userId: targetUserId,
+            date: istDateStr,
+            state: 'claimed',
+            amount: finalAmount,
+            foodItemName: foodItem.name,
+            restaurant,
+            orderId
+          };
+          fallbackOccurrencesDb.push(occurrenceDoc);
+        }
+      }
+
+      // 10. Authoritative Server Wallet Verification & Atomic Debit with Idempotency Key
+      const debitTxId = `tx_deb_${occurrenceKey}`;
+      let walletDebited = false;
+
+      if (mongoose.connection.readyState === 1 && targetUserId) {
+        const userDoc = await User.findOne({ id: targetUserId });
+        if (userDoc) {
+          const balance = typeof userDoc.walletBalance === 'number' ? userDoc.walletBalance : 2500;
+          if (balance < finalAmount) {
+            await Schedule.updateOne({ id: schedule.id }, { $set: { lastRunDate: null } });
+            if (occurrenceDoc) {
+              occurrenceDoc.state = 'failed';
+              occurrenceDoc.errorMessage = 'insufficient_wallet';
+              if (typeof occurrenceDoc.save === 'function') await occurrenceDoc.save();
+            }
+            executionResults.push({
+              id: schedule.id,
+              occurrenceKey,
+              status: 'failed_insufficient_wallet',
+              required: finalAmount,
+              available: balance
+            });
+            continue;
+          }
+
+          // Atomic debit ensuring idempotency (no duplicate debit on same occurrenceKey)
+          const debitedUser = await User.findOneAndUpdate(
+            {
+              id: targetUserId,
+              walletBalance: { $gte: finalAmount },
+              'walletTransactions.idempotencyKey': { $ne: occurrenceKey }
+            },
+            {
+              $inc: { walletBalance: -finalAmount },
+              $push: {
+                walletTransactions: {
+                  id: debitTxId,
+                  idempotencyKey: occurrenceKey,
+                  type: 'auto_debit',
+                  amount: finalAmount,
+                  description: `Auto-Order: ${foodItem.name} (${restaurant})`,
+                  timestamp: new Date(),
+                  orderId
+                }
+              }
+            },
+            { new: true }
+          );
+
+          if (!debitedUser) {
+            // Check if already debited by prior trigger
+            const recheck = await User.findOne({ id: targetUserId, 'walletTransactions.idempotencyKey': occurrenceKey });
+            if (!recheck) {
+              await Schedule.updateOne({ id: schedule.id }, { $set: { lastRunDate: null } });
+              if (occurrenceDoc) {
+                occurrenceDoc.state = 'failed';
+                occurrenceDoc.errorMessage = 'concurrent_wallet_conflict';
+                if (typeof occurrenceDoc.save === 'function') await occurrenceDoc.save();
+              }
+              executionResults.push({ id: schedule.id, occurrenceKey, status: 'failed_concurrent_wallet_debit' });
+              continue;
+            }
+          }
+          walletDebited = true;
+        }
+      } else {
+        const u = fallbackUsersDb.find(user => user.id === targetUserId);
+        if (u) {
+          u.walletBalance = (u.walletBalance ?? 2500) - finalAmount;
+          u.walletTransactions = u.walletTransactions || [];
+          u.walletTransactions.push({
+            id: debitTxId,
+            idempotencyKey: occurrenceKey,
+            type: 'auto_debit',
+            amount: finalAmount,
+            description: `Auto-Order: ${foodItem.name} (${restaurant})`,
+            timestamp: new Date(),
+            orderId
+          });
+        }
+        walletDebited = true;
+      }
+
+      // Persist state transition -> 'debited'
+      if (occurrenceDoc) {
+        occurrenceDoc.state = 'debited';
+        occurrenceDoc.debitTxId = debitTxId;
+        if (typeof occurrenceDoc.save === 'function') await occurrenceDoc.save();
+      }
+
+      // 11. Persist Full Order Record with Compensating Atomic Refund on Error
       const orderRecord = {
         id: orderId,
-        userId: schedule.userId || 'default_user',
-        foodName: schedule.foodItemName || 'Scheduled Meal',
-        restaurant: schedule.restaurant || 'AutoFeast Partner',
-        amountPaid: schedule.price || 110,
-        originalPrice: (schedule.price || 110) + 20,
-        savings: 20,
-        rating: 4.8,
+        occurrenceId: occurrenceKey,
+        userId: targetUserId,
+        foodName: foodItem.name,
+        foodItemId: foodItem.id,
+        restaurant,
+        quantity,
+        amountPaid: finalAmount,
+        originalPrice: totalAmount,
+        savings: discountSavings,
+        rating: foodItem.rating || 4.8,
         timestamp: new Date().toISOString(),
         status: 'placed',
         isAutoOrder: true,
         orderType: 'scheduled',
-        deliveryAddress: schedule.deliveryAddress || 'User Default Address'
+        platform: 'AutoFeast Dynamic Best-Value Partner (Direct Gateway)',
+        deliveryAddress: schedule.deliveryAddress || 'User Registered Address',
+        estimatedDeliveryTime: new Date(Date.now() + 35 * 60000).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }),
+        items: [{
+          foodItemId: foodItem.id,
+          name: foodItem.name,
+          quantity,
+          price: baseItemPrice
+        }],
+        paymentMethod: 'AutoFeast Secure Wallet',
+        breakdown: {
+          subtotal,
+          deliveryFee,
+          taxesAndCharges,
+          discount: discountSavings,
+          total: finalAmount
+        }
       };
 
-      if (mongoose.connection.readyState === 1) {
-        await OrderRecordModel.create(orderRecord);
-        await Schedule.updateOne({ id: schedule.id }, {
-          $set: {
-            lastRun: new Date().toISOString(),
-            lastRunDate: istDateStr
-          }
-        });
-      } else {
-        fallbackOrderRecordsDb.unshift(orderRecord);
-        schedule.lastRun = new Date().toISOString();
-        schedule.lastRunDate = istDateStr;
-      }
+      try {
+        if (mongoose.connection.readyState === 1) {
+          await OrderRecordModel.create(orderRecord);
+        } else {
+          fallbackOrderRecordsDb.unshift(orderRecord);
+        }
 
-      executionResults.push({
-        id: schedule.id,
-        status: 'order_initiated_successfully',
-        orderId,
-        foodName: schedule.foodItemName,
-        restaurant: schedule.restaurant,
-        amount: schedule.price || 110
-      });
+        // Mark occurrence completed
+        if (occurrenceDoc) {
+          occurrenceDoc.state = 'completed';
+          if (typeof occurrenceDoc.save === 'function') await occurrenceDoc.save();
+        }
+
+        executionResults.push({
+          id: schedule.id,
+          occurrenceKey,
+          status: 'order_initiated_successfully',
+          orderId,
+          foodName: foodItem.name,
+          restaurant,
+          platform: 'AutoFeast Dynamic Best-Value Partner (Direct Gateway)',
+          amount: finalAmount,
+          walletDebited
+        });
+      } catch (orderErr) {
+        console.error(`[AutoFeast Cron] Order creation error for ${occurrenceKey}:`, orderErr);
+
+        // COMPENSATING TRANSACTION: Guarantee zero money loss via idempotent refund
+        if (walletDebited) {
+          const refundTxId = `tx_ref_${occurrenceKey}`;
+          if (mongoose.connection.readyState === 1) {
+            await User.findOneAndUpdate(
+              { id: targetUserId, 'walletTransactions.idempotencyKey': { $ne: `refund_${occurrenceKey}` } },
+              {
+                $inc: { walletBalance: finalAmount },
+                $push: {
+                  walletTransactions: {
+                    id: refundTxId,
+                    idempotencyKey: `refund_${occurrenceKey}`,
+                    type: 'refund',
+                    amount: finalAmount,
+                    description: `Refund: Order creation failure for ${foodItem.name}`,
+                    timestamp: new Date(),
+                    orderId
+                  }
+                }
+              }
+            );
+          } else {
+            const u = fallbackUsersDb.find(user => user.id === targetUserId);
+            if (u) {
+              u.walletBalance = (u.walletBalance ?? 2500) + finalAmount;
+              u.walletTransactions.push({
+                id: refundTxId,
+                idempotencyKey: `refund_${occurrenceKey}`,
+                type: 'refund',
+                amount: finalAmount,
+                description: `Refund: Order creation failure for ${foodItem.name}`,
+                timestamp: new Date(),
+                orderId
+              });
+            }
+          }
+          if (occurrenceDoc) {
+            occurrenceDoc.state = 'refunded';
+            occurrenceDoc.refundTxId = refundTxId;
+            occurrenceDoc.errorMessage = orderErr.message;
+            if (typeof occurrenceDoc.save === 'function') await occurrenceDoc.save();
+          }
+        }
+
+        executionResults.push({
+          id: schedule.id,
+          occurrenceKey,
+          status: 'failed_order_creation_refunded',
+          error: orderErr.message,
+          refunded: true
+        });
+      }
     }
 
     return res.json({
@@ -3613,6 +4095,27 @@ app.all('/api/cron-execute-schedules', async (req, res) => {
       totalChecked: schedules.length,
       results: executionResults
     });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 🚀 SERVER-SIDE WALLET ENDPOINTS (Authoritative Server Wallet)
+app.get('/api/wallet', async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserIdFromSession(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Verified authentication session token required' });
+    }
+
+    if (mongoose.connection.readyState === 1) {
+      const userDoc = await User.findOne({ id: userId });
+      const balance = userDoc && typeof userDoc.walletBalance === 'number' ? userDoc.walletBalance : 2500;
+      const transactions = userDoc?.walletTransactions || [];
+      return res.json({ success: true, balance, transactions });
+    } else {
+      return res.json({ success: true, balance: 2500, transactions: [] });
+    }
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -3682,18 +4185,74 @@ app.patch('/api/orders/:id/status', async (req, res) => {
     if (cancelledAt) updateFields.cancelledAt = cancelledAt;
     if (completedAt) updateFields.completedAt = completedAt;
 
+    let existingOrder = null;
+    if (mongoose.connection.readyState === 1) {
+      existingOrder = await OrderRecordModel.findOne({ id, userId });
+    } else {
+      existingOrder = fallbackOrderRecordsDb.find(o => o.id === id && o.userId === userId);
+    }
+
+    if (!existingOrder) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Never refund an already delivered / completed order
+    // Refund exactly once if order is cancelled and was paid via wallet and not already refunded
+    let refunded = false;
+    if (status === 'cancelled' && existingOrder.status !== 'cancelled' && existingOrder.status !== 'delivered' && existingOrder.status !== 'completed') {
+      if (existingOrder.amountPaid > 0 && !existingOrder.refunded) {
+        updateFields.refunded = true;
+        const refundTxId = `tx_ref_order_${id}`;
+        if (mongoose.connection.readyState === 1) {
+          await User.findOneAndUpdate(
+            { id: userId, 'walletTransactions.idempotencyKey': { $ne: `refund_order_${id}` } },
+            {
+              $inc: { walletBalance: existingOrder.amountPaid },
+              $push: {
+                walletTransactions: {
+                  id: refundTxId,
+                  idempotencyKey: `refund_order_${id}`,
+                  type: 'refund',
+                  amount: existingOrder.amountPaid,
+                  description: `Refund: Cancelled Order #${id}`,
+                  timestamp: new Date(),
+                  orderId: id
+                }
+              }
+            }
+          );
+        } else {
+          const u = fallbackUsersDb.find(user => user.id === userId);
+          if (u) {
+            u.walletBalance = (u.walletBalance ?? 2500) + existingOrder.amountPaid;
+            u.walletTransactions = u.walletTransactions || [];
+            u.walletTransactions.push({
+              id: refundTxId,
+              idempotencyKey: `refund_order_${id}`,
+              type: 'refund',
+              amount: existingOrder.amountPaid,
+              description: `Refund: Cancelled Order #${id}`,
+              timestamp: new Date(),
+              orderId: id
+            });
+          }
+        }
+        refunded = true;
+      }
+    }
+
     if (mongoose.connection.readyState === 1) {
       const updated = await OrderRecordModel.findOneAndUpdate(
         { id, userId },
         { $set: updateFields },
         { new: true }
       );
-      return res.json({ success: true, order: updated });
+      return res.json({ success: true, order: updated, refunded });
     } else {
       const idx = fallbackOrderRecordsDb.findIndex(o => o.id === id && o.userId === userId);
       if (idx >= 0) {
         fallbackOrderRecordsDb[idx] = { ...fallbackOrderRecordsDb[idx], ...updateFields };
-        return res.json({ success: true, order: fallbackOrderRecordsDb[idx] });
+        return res.json({ success: true, order: fallbackOrderRecordsDb[idx], refunded });
       }
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
@@ -3702,7 +4261,7 @@ app.patch('/api/orders/:id/status', async (req, res) => {
   }
 });
 
-// DELETE Schedule (Requires Verified Auth Session)
+// DELETE Schedule (Requires Verified Auth Session - Scoped to User)
 app.delete('/api/schedules/:id', async (req, res) => {
   try {
     const userId = getAuthenticatedUserIdFromSession(req);
@@ -3712,14 +4271,15 @@ app.delete('/api/schedules/:id', async (req, res) => {
 
     const { id } = req.params;
     if (mongoose.connection.readyState === 1) {
-      await Schedule.deleteOne({ id });
+      await Schedule.deleteOne({ id, $or: [{ userId }, { userId: { $exists: false } }] });
       await Override.deleteMany({ scheduleId: id });
-      const schedules = await Schedule.find({});
+      const schedules = await Schedule.find({ $or: [{ userId }, { userId: { $exists: false } }] });
       return res.json({ success: true, message: `Schedule ${id} deleted.`, schedules });
     } else {
-      const index = fallbackSchedulesDb.findIndex(s => s.id === id);
+      const index = fallbackSchedulesDb.findIndex(s => s.id === id && (s.userId === userId || !s.userId));
       if (index >= 0) fallbackSchedulesDb.splice(index, 1);
-      return res.json({ success: true, message: `Schedule ${id} deleted.`, schedules: fallbackSchedulesDb });
+      const userSchedules = fallbackSchedulesDb.filter(s => s.userId === userId || !s.userId);
+      return res.json({ success: true, message: `Schedule ${id} deleted.`, schedules: userSchedules });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
