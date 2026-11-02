@@ -277,7 +277,6 @@ export const VoiceCommandModal: React.FC = () => {
             ? 'सुनना रोक दिया गया है। Retry mic दबाएँ या खोज शुरू करें।'
             : 'Listening stopped. Tap Retry mic or search on screen.';
           setStatusMessage(message);
-          showToast(message, 'info', 5000, undefined, undefined, undefined, true);
         }
       },
       onStart: () => {
@@ -922,7 +921,6 @@ export const VoiceCommandModal: React.FC = () => {
     pendingConfirmedFoodItemRef.current = null;
 
     const cancelMsg = t('voice.cancelledOkay');
-    showToast(cancelMsg);
     setStatusMessage(cancelMsg);
     speakText(cancelMsg, () => {
       startListeningSession();

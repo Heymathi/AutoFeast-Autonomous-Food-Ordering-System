@@ -12,7 +12,18 @@ interface ToastCardProps {
 const ToastCard: React.FC<ToastCardProps> = ({ toast, onRemove }) => {
   const { accessibilitySettings, userLocation, language } = useApp();
   const [isPaused, setIsPaused] = useState(false);
-  const duration = toast.duration || (toast.type === 'error' ? 7000 : 5000);
+
+  const isSecurityAlert =
+    toast.type === 'error' &&
+    (toast.key?.toLowerCase().includes('security') ||
+      toast.key?.toLowerCase().includes('pin') ||
+      toast.key?.toLowerCase().includes('lock') ||
+      toast.message?.toLowerCase().includes('security') ||
+      toast.message?.toLowerCase().includes('lock') ||
+      toast.message?.toLowerCase().includes('attempt'));
+
+  // Non-critical auto-dismiss in 4.5s; critical security alerts remain visible longer or until dismissed
+  const duration = toast.duration || (isSecurityAlert ? 12000 : 4500);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -96,30 +107,61 @@ const ToastCard: React.FC<ToastCardProps> = ({ toast, onRemove }) => {
       return 'bg-slate-900 text-white border-2 border-slate-700 shadow-2xl';
     }
 
+    // Tomato Red + Warm Cream theme
     switch (toast.type) {
       case 'success':
-        return 'bg-emerald-900 text-white border-2 border-emerald-500 shadow-2xl';
+        return 'bg-[#FFF8F0] text-[#33251F] border border-[#86EFAC] shadow-lg shadow-emerald-900/5';
       case 'error':
-        return 'bg-rose-950 text-white border-2 border-rose-500 shadow-2xl';
+        return 'bg-[#FFF8F0] text-[#33251F] border-2 border-[#D93636] shadow-lg shadow-red-900/10';
       case 'warning':
-        return 'bg-amber-950 text-amber-100 border-2 border-amber-500 shadow-2xl';
+        return 'bg-[#FFF8F0] text-[#33251F] border border-[#FCD34D] shadow-lg shadow-amber-900/5';
       case 'info':
       default:
-        return 'bg-[#33251F] text-white border-2 border-[#D93636] shadow-2xl';
+        return 'bg-[#FFF8F0] text-[#33251F] border border-[#F0E5DC] shadow-lg shadow-[#33251F]/5';
     }
   };
 
-  const getIcon = () => {
+  const renderBadge = () => {
+    if (currentTheme === 'high-contrast' || currentTheme === 'dark') {
+      const icon =
+        toast.type === 'success' ? (
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+        ) : toast.type === 'error' ? (
+          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+        ) : toast.type === 'warning' ? (
+          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+        ) : (
+          <Sparkles className="w-5 h-5 text-[#D93636] shrink-0" />
+        );
+      return <div className="p-2 rounded-xl bg-white/10 shrink-0">{icon}</div>;
+    }
+
     switch (toast.type) {
       case 'success':
-        return <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />;
+        return (
+          <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+          </div>
+        );
       case 'error':
-        return <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />;
+        return (
+          <div className="p-2 rounded-xl bg-[#FBE9E5] text-[#D93636] border border-[#F5C2B8] shrink-0">
+            <AlertCircle className="w-5 h-5 text-[#D93636]" />
+          </div>
+        );
       case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />;
+        return (
+          <div className="p-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 shrink-0">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+          </div>
+        );
       case 'info':
       default:
-        return <Sparkles className="w-5 h-5 text-[#D93636] shrink-0 animate-pulse" />;
+        return (
+          <div className="p-2 rounded-xl bg-[#FBE9E5] text-[#D93636] border border-[#F0E5DC] shrink-0">
+            <Sparkles className="w-5 h-5 text-[#D93636]" />
+          </div>
+        );
     }
   };
 
@@ -131,13 +173,11 @@ const ToastCard: React.FC<ToastCardProps> = ({ toast, onRemove }) => {
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={() => setIsPaused(true)}
       onTouchEnd={() => setIsPaused(false)}
-      className={`pointer-events-auto w-full p-3.5 sm:p-4 rounded-2xl flex items-center justify-between gap-3 transition-all duration-300 transform animate-fadeIn shadow-2xl ${getStyleClasses()}`}
+      className={`pointer-events-auto w-full p-3 sm:p-3.5 rounded-2xl flex items-center justify-between gap-3 transition-all duration-300 transform animate-fadeIn shadow-lg ${getStyleClasses()}`}
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
-        <div className="p-2 rounded-xl bg-white/10 shrink-0">
-          {getIcon()}
-        </div>
-        <p className="text-xs sm:text-sm font-black leading-snug break-words flex-1 text-left">
+        {renderBadge()}
+        <p className="text-xs sm:text-sm font-bold leading-snug break-words flex-1 text-left">
           {displayMessage}
         </p>
       </div>
@@ -145,7 +185,11 @@ const ToastCard: React.FC<ToastCardProps> = ({ toast, onRemove }) => {
       <button
         type="button"
         onClick={() => onRemove(toast.id)}
-        className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer shrink-0"
+        className={
+          currentTheme === 'high-contrast' || currentTheme === 'dark'
+            ? 'min-h-[36px] min-w-[36px] flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer shrink-0'
+            : 'min-h-[36px] min-w-[36px] flex items-center justify-center p-1.5 rounded-xl hover:bg-[#FBE9E5] text-[#8A817A] hover:text-[#33251F] transition-all cursor-pointer shrink-0'
+        }
         aria-label="Dismiss Notification"
         title="Dismiss Notification"
       >

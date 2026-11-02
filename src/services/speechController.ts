@@ -664,7 +664,12 @@ class SpeechControllerManager {
       }
     };
 
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    if (
+      typeof window === 'undefined' ||
+      !('speechSynthesis' in window) ||
+      !window.speechSynthesis ||
+      typeof SpeechSynthesisUtterance === 'undefined'
+    ) {
       this.invokeToastFallbackSafely(onToastFallback, cleanText);
       finishSpeakOnce();
       return;
@@ -702,6 +707,15 @@ class SpeechControllerManager {
     onFallbackToast: () => void
   ): void {
     if (generation !== this.ttsGeneration) return;
+
+    if (
+      typeof window === 'undefined' ||
+      typeof SpeechSynthesisUtterance === 'undefined' ||
+      !window.speechSynthesis
+    ) {
+      onAllChunksDone();
+      return;
+    }
 
     if (index >= chunks.length) {
       onAllChunksDone();

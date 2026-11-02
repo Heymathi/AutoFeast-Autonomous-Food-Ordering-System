@@ -115,9 +115,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
           startListeningForChoice();
         }
       },
-      (fallbackText) => {
-        showToast(fallbackText, 'info', 5000, 'item_chooser_prompt', undefined, undefined, true);
-      },
+      undefined,
       'item_chooser',
       `item_chooser_${itemIdsKey}`
     );
@@ -190,9 +188,7 @@ export const ItemActionChooser: React.FC<ItemActionChooserProps> = ({
                 startListeningForChoice();
               }
             },
-            (fallbackText) => {
-              showToast(fallbackText, 'info', 5000, 'item_chooser_retry', undefined, undefined, true);
-            },
+            undefined,
             'item_chooser',
             `item_chooser_retry_${itemIdsKey}`
           );

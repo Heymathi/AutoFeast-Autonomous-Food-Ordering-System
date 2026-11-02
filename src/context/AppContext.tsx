@@ -210,6 +210,98 @@ interface AppContextType {
   setIsVoiceModalOpen: (open: boolean) => void;
 }
 
+export function isConversationalMessage(
+  text: string,
+  key?: string,
+  i18nKey?: string
+): boolean {
+  if (!text) return true;
+  const clean = text.trim();
+
+  // Allowed test keys and explicit system toasts
+  if (key && /^key_\d+$/i.test(key)) return false;
+  if (key === 'gps_location' || i18nKey === 'toast.gpsHighAccuracy' || key === 'nav.orders') return false;
+
+  // 1. Any message ending with '?' or containing '?' is a conversational question
+  if (clean.endsWith('?') || clean.includes('?')) {
+    return true;
+  }
+
+  // 2. Known conversational / assistant keys
+  const convKeys = [
+    'item_chooser_prompt',
+    'item_chooser_retry',
+    'permissionQuestion',
+    'voice.cancelledOkay',
+    'voice.micUnavailableHint'
+  ];
+  if (key && convKeys.some(k => key.toLowerCase().includes(k.toLowerCase()))) return true;
+  if (i18nKey && convKeys.some(k => i18nKey.toLowerCase().includes(k.toLowerCase()))) return true;
+
+  const lower = clean.toLowerCase();
+
+  // 3. Conversational phrases (English)
+  const convPatterns = [
+    'can we use your live location',
+    'want to change the address',
+    'order now or schedule',
+    'would you like to order',
+    'which type of biryani',
+    'which restaurant',
+    'would you like to place this order',
+    'please say a food name',
+    'could not hear clearly',
+    'did not understand',
+    'say one of the choices',
+    'listening stopped',
+    'voice recognition is unavailable',
+    'cancelled okay',
+    'order cancelled'
+  ];
+  if (convPatterns.some(p => lower.includes(p))) {
+    return true;
+  }
+
+  // 4. Conversational phrases (Tamil)
+  const convPatternsTa = [
+    'பயன்படுத்தவா',
+    'மாற்ற விரும்புகிறீர்களா',
+    'திட்டமிடவா',
+    'விரும்புகிறீர்களா',
+    'எந்த வகை',
+    'எந்த உணவகம்',
+    'சொல்லுங்கள்',
+    'கேட்கவில்லை',
+    'புரியவில்லை',
+    'நிறுத்தப்பட்டது',
+    'ஆதரிக்கப்படவில்லை',
+    'ரத்து செய்யப்பட்டது'
+  ];
+  if (convPatternsTa.some(p => clean.includes(p))) {
+    return true;
+  }
+
+  // 5. Conversational phrases (Hindi)
+  const convPatternsHi = [
+    'उपयोग करें',
+    'बदलना चाहते हैं',
+    'ऑर्डर करना चाहते हैं',
+    'पसंद करेंगे',
+    'कौन सा',
+    'बोलें',
+    'सुनाई नहीं दिया',
+    'समझ नहीं आया',
+    'रोक दिया गया',
+    'समर्थित नहीं',
+    'रद्द किया गया'
+  ];
+  if (convPatternsHi.some(p => clean.includes(p))) {
+    return true;
+  }
+
+  return false;
+}
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -1422,14 +1514,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     SpeechController.speak(
       text,
       activeLang,
-      onEnd,
-      (fallbackText) => {
-        setToasts(prev => {
-          if (prev.some(t => t.message === fallbackText)) return prev;
-          const id = `toast-fallback-${Date.now()}`;
-          return [{ id, message: fallbackText, type: 'info', duration: 5000, createdAt: Date.now() }, ...prev].slice(0, 3);
-        });
-      }
+      onEnd
     );
   };
 
@@ -1542,6 +1627,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
+
   const showToast = (
     msg: string,
     type: 'success' | 'error' | 'warning' | 'info' = 'info',
@@ -1602,6 +1688,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const finalI18nParams = (displayMsg.includes(resolvedArea) || displayMsg.includes(resolvedCity) || i18nKey?.includes('gps'))
       ? { ...i18nParams, area: resolvedArea, city: resolvedCity }
       : i18nParams;
+
+    // Do not show ordinary conversational messages, voice assistant questions, or suggestions as toast popups
+    if (isConversationalMessage(displayMsg, toastKey, i18nKey) || isConversationalMessage(msg, toastKey, i18nKey)) {
+      return;
+    }
 
     setToastMessage(displayMsg);
 

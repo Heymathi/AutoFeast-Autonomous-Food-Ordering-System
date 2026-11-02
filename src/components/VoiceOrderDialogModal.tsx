@@ -760,7 +760,6 @@ export const VoiceOrderDialogModal: React.FC<VoiceOrderDialogModalProps> = ({
       ? 'समझ नहीं आया। कृपया एक विकल्प बोलें या नीचे दिए बटन को चुनें।'
       : 'I did not understand. Say one of the choices or tap a button below.';
     setVoiceMessage(retryHint);
-    showToast(retryHint);
     speakStepPrompt(activeStep);
   };
 
