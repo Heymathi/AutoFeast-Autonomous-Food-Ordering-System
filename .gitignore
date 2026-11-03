@@ -35,6 +35,11 @@ Thumbs.db
 *.sln
 *.sw?
 
+# Temporary & Helper Scripts
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+
 # Graphify & Assistant Cache
 .agents/
 .claude/

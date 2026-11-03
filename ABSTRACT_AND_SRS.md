@@ -1,11 +1,18 @@
 # AI-Powered Smart Food Scheduling, Auto-Ordering, and Dynamic Search System
 
+> **StartupFair Hackathon Project**  
+> **Repository ID:** `sona-final-year-mini-it-aids-d-heymathi-t-763`  
+> **Participant:** Solo Participant 63 — Final Year Mini Project (IT / AI&DS Department)  
+> **Candidate:** D. Heymathi  
+
+---
+
 ## 1. ABSTRACT
 
 ### 1.1 Overview
 Ordering food online through conventional platforms requires active user presence—launching mobile or web applications, comparing prices across fragmented food delivery apps, selecting items, and completing multi-step manual payment checkouts. This process poses significant physical and operational friction, particularly for elderly individuals, visually impaired users, and physically challenged persons who may struggle with repetitive manual touch interactions or visual fatigue.
 
-The proposed **AI-Powered Smart Food Scheduling, Auto-Ordering, and Dynamic Search System** automates the end-to-end food discovery, price comparison, order scheduling, and payment execution lifecycle. Users establish recurring or one-time food schedules by setting a preferred food item, target delivery window, and favorite restaurant using voice synthesis or natural text commands in multiple Indian languages (English, Tamil, and Hindi). 
+The proposed **AI-Powered Smart Food Scheduling, Auto-Ordering, and Dynamic Search System (AutoFeast AI)** automates the end-to-end food discovery, price comparison, order scheduling, and payment execution lifecycle. Users establish recurring or one-time food schedules by setting a preferred food item, target delivery window, and favorite restaurant using voice synthesis or natural text commands in multiple Indian languages (English, Tamil, and Hindi). 
 
 At the scheduled trigger time, the intelligent backend engine queries live APIs across multiple food delivery platforms (such as Swiggy, Zomato, EatSure, and MagicPin), performs algorithmic multi-criteria decision making to evaluate price-to-rating ratios, automatically selects the optimal vendor platform, and places the order without requiring real-time manual user confirmation. Payments are frictionlessly processed through a pre-recharged secure digital wallet module with automated debit capabilities. Furthermore, an AI-driven dynamic food search engine processes natural language queries across 15+ Indian regional cuisines (South Indian, North Indian, Tamil, Kerala, Andhra, Telangana, Karnataka, Bengali, Gujarati, Maharashtrian, Punjabi, Rajasthani, Mughlai, Indo-Chinese, street foods, and desserts) with strict zero-default fallback enforcement, ensuring query-relevant results without defaulting to static items.
 
